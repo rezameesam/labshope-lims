@@ -154,6 +154,16 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
       return;
     }
 
+    const uniqueNames = Array.from(
+      new Set(completedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
+    );
+    const enteredByLabel =
+      uniqueNames.length === 1
+        ? uniqueNames[0]
+        : uniqueNames.length > 1
+          ? "Multiple Staff"
+          : undefined;
+
     const success = generateMultiTestReportPDF(
       {
         full_name: patient.full_name,
@@ -162,7 +172,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
         gender: patient.gender || undefined,
         blood_group: patient.blood_group || undefined,
       },
-      completedTests
+      completedTests,
+      enteredByLabel
     );
 
     if (success) {
@@ -178,8 +189,18 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
       return;
     }
 
-    const selectedTests = completedTests.filter(t => selectedTestIds.has(t.id));
-    
+    const selectedTests = completedTests.filter((t) => selectedTestIds.has(t.id));
+
+    const uniqueNames = Array.from(
+      new Set(selectedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
+    );
+    const enteredByLabel =
+      uniqueNames.length === 1
+        ? uniqueNames[0]
+        : uniqueNames.length > 1
+          ? "Multiple Staff"
+          : undefined;
+
     const success = generateMultiTestReportPDF(
       {
         full_name: patient.full_name,
@@ -188,7 +209,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
         gender: patient.gender || undefined,
         blood_group: patient.blood_group || undefined,
       },
-      selectedTests
+      selectedTests,
+      enteredByLabel
     );
 
     if (success) {
@@ -209,7 +231,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
         gender: patient.gender || undefined,
         blood_group: patient.blood_group || undefined,
       },
-      [test]
+      [test],
+      test.entered_by_name
     );
 
     if (success) {

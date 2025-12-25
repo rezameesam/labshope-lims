@@ -62,6 +62,9 @@ interface PatientTest {
   result_value: number | null;
   result_unit: string | null;
   is_abnormal: boolean;
+  notes?: string | null;
+  result_entered_by?: string | null;
+  entered_by_name?: string;
 }
 
 const ManagePatients = () => {
@@ -106,12 +109,39 @@ const ManagePatients = () => {
     try {
       const { data, error } = await supabase
         .from("patient_tests")
-        .select("id, test_name, test_date, status, result, result_value, result_unit, is_abnormal")
+        .select("id, test_name, test_date, status, result, result_value, result_unit, is_abnormal, notes, result_entered_by")
         .eq("patient_id", patientId)
         .order("test_date", { ascending: false });
 
       if (error) throw error;
-      setPatientTests(data || []);
+
+      const rows = (data || []) as PatientTest[];
+      const enteredByUserIds = Array.from(
+        new Set(rows.map((t) => t.result_entered_by).filter(Boolean) as string[])
+      );
+
+      if (enteredByUserIds.length === 0) {
+        setPatientTests(rows);
+        return;
+      }
+
+      const { data: employeesData, error: employeesError } = await supabase
+        .from("employees")
+        .select("user_id, full_name")
+        .in("user_id", enteredByUserIds);
+
+      if (employeesError) throw employeesError;
+
+      const nameByUserId = new Map(
+        (employeesData || []).map((e) => [e.user_id, e.full_name] as const)
+      );
+
+      setPatientTests(
+        rows.map((t) => ({
+          ...t,
+          entered_by_name: t.result_entered_by ? nameByUserId.get(t.result_entered_by) : undefined,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching patient tests:", error);
     }
@@ -680,6 +710,17 @@ const ManagePatients = () => {
                       size="sm" 
                       variant="outline"
                       onClick={() => {
+                        const completed = patientTests.filter((t) => t.status === "completed");
+                        const uniqueNames = Array.from(
+                          new Set(completed.map((t) => t.entered_by_name).filter(Boolean) as string[])
+                        );
+                        const enteredByLabel =
+                          uniqueNames.length === 1
+                            ? uniqueNames[0]
+                            : uniqueNames.length > 1
+                              ? "Multiple Staff"
+                              : undefined;
+
                         generateMultiTestReportPDF(
                           {
                             full_name: selectedPatient.full_name,
@@ -688,7 +729,8 @@ const ManagePatients = () => {
                             gender: selectedPatient.gender || undefined,
                             blood_group: selectedPatient.blood_group || undefined,
                           },
-                          patientTests.filter(t => t.status === "completed")
+                          completed,
+                          enteredByLabel
                         );
                         toast.success("Report downloaded");
                       }}
