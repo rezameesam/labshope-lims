@@ -27,6 +27,7 @@ interface ReportData {
   test_date: string;
   tests: TestResult[];
   lab_name?: string;
+  entered_by?: string;
 }
 
 // Lab Information
@@ -173,17 +174,29 @@ export const generateTestReportPDF = (data: ReportData) => {
   // Footer
   const finalY = (doc as any).lastAutoTable.finalY || patientInfoY + 100;
   
+  // Add entered by info if available
+  if (data.entered_by) {
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Results Entered By:", 14, finalY + 12);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.entered_by, 55, finalY + 12);
+  }
+  
+  const footerY = data.entered_by ? finalY + 20 : finalY + 15;
+  
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
-  doc.text("This is a computer-generated report.", 14, finalY + 15);
-  doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 14, finalY + 20);
+  doc.text("This is a computer-generated report.", 14, footerY);
+  doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 14, footerY + 5);
   
   doc.setDrawColor(200, 200, 200);
-  doc.line(14, finalY + 35, pageWidth - 14, finalY + 35);
+  doc.line(14, footerY + 20, pageWidth - 14, footerY + 20);
   
   doc.setFontSize(8);
   doc.setTextColor(30, 58, 138);
-  doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, finalY + 42, { align: "center" });
+  doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 27, { align: "center" });
 
   // Save the PDF
   const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
@@ -202,7 +215,9 @@ export const generateMultiTestReportPDF = (
     result_unit?: string | null;
     is_abnormal?: boolean;
     normal_range_text?: string;
-  }>
+    entered_by_name?: string;
+  }>,
+  enteredByName?: string
 ) => {
   const completedTests = tests.filter(t => t.status === "completed");
   
@@ -219,11 +234,15 @@ export const generateMultiTestReportPDF = (
     normal_range_text: t.normal_range_text
   }));
 
+  // Get entered by name from the first test that has it, or use passed parameter
+  const employeeName = enteredByName || completedTests.find(t => t.entered_by_name)?.entered_by_name;
+
   generateTestReportPDF({
     patient,
     test_date: completedTests[0].test_date,
     tests: testResults,
-    lab_name: "IRM Clinical Laboratory"
+    lab_name: "IRM Clinical Laboratory",
+    entered_by: employeeName
   });
 
   return true;

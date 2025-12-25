@@ -592,7 +592,7 @@ const ManageTests = () => {
                     className="pl-10"
                   />
                 </div>
-                <ScrollArea className="flex-1 border rounded-lg min-h-[200px]">
+                <ScrollArea className="h-[300px] border rounded-lg">
                   <div className="p-3 space-y-4">
                     {Object.entries(filteredTestsByCategory).length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">

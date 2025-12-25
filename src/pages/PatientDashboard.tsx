@@ -42,6 +42,8 @@ interface PatientTest {
   report_url: string | null;
   notes: string | null;
   created_at: string;
+  result_entered_by: string | null;
+  entered_by_name?: string;
 }
 
 const PatientDashboard = () => {
@@ -69,7 +71,23 @@ const PatientDashboard = () => {
           .order("test_date", { ascending: false });
 
         if (error) throw error;
-        setTests(data || []);
+        
+        // Fetch employee names for tests with result_entered_by
+        const testsWithEmployees = await Promise.all(
+          (data || []).map(async (test) => {
+            if (test.result_entered_by) {
+              const { data: empData } = await supabase
+                .from("employees")
+                .select("full_name")
+                .eq("user_id", test.result_entered_by)
+                .single();
+              return { ...test, entered_by_name: empData?.full_name };
+            }
+            return test;
+          })
+        );
+        
+        setTests(testsWithEmployees);
       } catch (error) {
         console.error("Error fetching tests:", error);
         toast.error("Failed to load test results");
