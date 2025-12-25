@@ -52,12 +52,10 @@ export const generateTestReportPDF = (data: ReportData) => {
   doc.text(data.lab_name || LAB_INFO.name, pageWidth / 2, 12, { align: "center" });
   
   doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
   doc.text(LAB_INFO.address, pageWidth / 2, 21, { align: "center" });
   doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 27, { align: "center" });
   doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 33, { align: "center" });
-  doc.text(LAB_INFO.address, pageWidth / 2, 26, { align: "center" });
-  doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 32, { align: "center" });
-  doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 38, { align: "center" });
 
   // Patient Info Section
   doc.setTextColor(0, 0, 0);
