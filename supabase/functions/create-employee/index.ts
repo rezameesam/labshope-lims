@@ -24,27 +24,36 @@ serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     
     // Verify the calling user is an admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      console.error("No authorization header");
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const supabaseClient = createClient(supabaseUrl, authHeader.replace("Bearer ", ""), {
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Create client with anon key and verify the token
+    const supabaseClient = createClient(supabaseUrl, anonKey, {
       auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user: callingUser }, error: userError } = await supabaseClient.auth.getUser();
+    const { data: { user: callingUser }, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError || !callingUser) {
+      console.error("User verification failed:", userError);
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("Verified user:", callingUser.email);
 
     // Create admin client to check role
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
