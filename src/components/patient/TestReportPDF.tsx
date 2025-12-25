@@ -22,12 +22,18 @@ interface PatientInfo {
   blood_group?: string;
 }
 
+interface ReportOptions {
+  includeHeader?: boolean;
+  includeFooter?: boolean;
+}
+
 interface ReportData {
   patient: PatientInfo;
   test_date: string;
   tests: TestResult[];
   lab_name?: string;
   entered_by?: string;
+  options?: ReportOptions;
 }
 
 // Lab Information
@@ -42,36 +48,43 @@ const LAB_INFO = {
 export const generateTestReportPDF = (data: ReportData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const options = data.options || { includeHeader: true, includeFooter: true };
   
-  // Header with lab branding
-  doc.setFillColor(30, 58, 138); // Navy blue
-  doc.rect(0, 0, pageWidth, 45, "F");
+  let contentStartY = 14; // Default start position without header
   
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.text(data.lab_name || LAB_INFO.name, pageWidth / 2, 12, { align: "center" });
-  
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(LAB_INFO.address, pageWidth / 2, 21, { align: "center" });
-  doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 27, { align: "center" });
-  doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 33, { align: "center" });
+  // Header with lab branding (only if includeHeader is true)
+  if (options.includeHeader !== false) {
+    doc.setFillColor(30, 58, 138); // Navy blue
+    doc.rect(0, 0, pageWidth, 45, "F");
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(data.lab_name || LAB_INFO.name, pageWidth / 2, 12, { align: "center" });
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(LAB_INFO.address, pageWidth / 2, 21, { align: "center" });
+    doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 27, { align: "center" });
+    doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 33, { align: "center" });
+    
+    contentStartY = 55;
+  }
 
   // Patient Info Section
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("PATIENT INFORMATION", 14, 55);
+  doc.text("PATIENT INFORMATION", 14, contentStartY);
   
   doc.setDrawColor(30, 58, 138);
   doc.setLineWidth(0.5);
-  doc.line(14, 57, pageWidth - 14, 57);
+  doc.line(14, contentStartY + 2, pageWidth - 14, contentStartY + 2);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   
-  const patientInfoY = 65;
+  const patientInfoY = contentStartY + 10;
   const col1X = 14;
   const col2X = pageWidth / 2 + 10;
   
@@ -186,17 +199,20 @@ export const generateTestReportPDF = (data: ReportData) => {
   
   const footerY = data.entered_by ? finalY + 20 : finalY + 15;
   
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text("This is a computer-generated report.", 14, footerY);
-  doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 14, footerY + 5);
-  
-  doc.setDrawColor(200, 200, 200);
-  doc.line(14, footerY + 20, pageWidth - 14, footerY + 20);
-  
-  doc.setFontSize(8);
-  doc.setTextColor(30, 58, 138);
-  doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 27, { align: "center" });
+  // Only include footer if option is true
+  if (options.includeFooter !== false) {
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text("This is a computer-generated report.", 14, footerY);
+    doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 14, footerY + 5);
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, footerY + 20, pageWidth - 14, footerY + 20);
+    
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 27, { align: "center" });
+  }
 
   // Save the PDF
   const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
@@ -217,7 +233,8 @@ export const generateMultiTestReportPDF = (
     normal_range_text?: string;
     entered_by_name?: string;
   }>,
-  enteredByName?: string
+  enteredByName?: string,
+  options?: ReportOptions
 ) => {
   const completedTests = tests.filter(t => t.status === "completed");
   
@@ -242,7 +259,8 @@ export const generateMultiTestReportPDF = (
     test_date: completedTests[0].test_date,
     tests: testResults,
     lab_name: "IRM Clinical Laboratory",
-    entered_by: employeeName
+    entered_by: employeeName,
+    options
   });
 
   return true;
