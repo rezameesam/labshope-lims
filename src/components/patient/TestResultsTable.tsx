@@ -36,6 +36,7 @@ interface TestResult {
   is_abnormal: boolean;
   notes: string | null;
   category?: string;
+  entered_by_name?: string;
 }
 
 interface PatientInfo {
