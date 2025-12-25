@@ -1,17 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
-import { Mail, Lock, ArrowRight, Shield, Users } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Mail, Lock, ArrowRight, Shield, Users, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 const EmployeeAuth = () => {
+  const navigate = useNavigate();
+  const { signIn, user, loading: authLoading, isStaff } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user && isStaff) {
+      navigate("/admin");
+    }
+  }, [user, authLoading, isStaff, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,12 +29,30 @@ const EmployeeAuth = () => {
       toast.error("Please fill in all fields");
       return;
     }
+    
     setIsLoading(true);
-    // Simulate login
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const { error } = await signIn(email, password);
     setIsLoading(false);
-    toast.info("Backend integration required for employee authentication");
+
+    if (error) {
+      if (error.message.includes("Invalid login credentials")) {
+        toast.error("Invalid email or password");
+      } else {
+        toast.error(error.message);
+      }
+      return;
+    }
+
+    toast.success("Signed in successfully!");
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-subtle-gradient">
+        <div className="animate-pulse text-clinical-navy">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
@@ -119,13 +147,24 @@ const EmployeeAuth = () => {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 pr-10"
                     required
                   />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
                 </div>
               </div>
 
