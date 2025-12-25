@@ -84,22 +84,49 @@ serve(async (req: Request) => {
       );
     }
 
-    // Create auth user with admin client
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
+    // Check if user already exists
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = existingUsers?.users?.find(u => u.email === email);
+    
+    let userId: string;
+    
+    if (existingUser) {
+      // Check if this user already has an employee record
+      const { data: existingEmployee } = await supabaseAdmin
+        .from("employees")
+        .select("id")
+        .eq("user_id", existingUser.id)
+        .single();
+      
+      if (existingEmployee) {
+        return new Response(
+          JSON.stringify({ error: "An employee record already exists for this email" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      userId = existingUser.id;
+      console.log(`Using existing user: ${email}`);
+    } else {
+      // Create new auth user
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
 
-    if (authError) {
-      console.error("Error creating auth user:", authError);
-      return new Response(
-        JSON.stringify({ error: authError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (authError) {
+        console.error("Error creating auth user:", authError);
+        return new Response(
+          JSON.stringify({ error: authError.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      userId = authData.user.id;
+      console.log(`Created new user: ${email}`);
     }
 
-    const userId = authData.user.id;
     const employeeId = `EMP${Math.floor(1000 + Math.random() * 9000)}`;
 
     // Create employee record
