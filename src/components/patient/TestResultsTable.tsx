@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -15,8 +15,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { generateMultiTestReportPDF } from "./TestReportPDF";
 import { toast } from "sonner";
@@ -31,6 +35,7 @@ interface TestResult {
   result_unit: string | null;
   is_abnormal: boolean;
   notes: string | null;
+  category?: string;
 }
 
 interface PatientInfo {
@@ -52,9 +57,53 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
   const [selectedTest, setSelectedTest] = useState<TestResult | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
+  const [groupBy, setGroupBy] = useState<"date" | "category" | "status">("date");
 
   const completedTests = tests.filter(t => t.status === "completed");
   const pendingTests = tests.filter(t => t.status !== "completed");
+
+  // Group tests by different criteria
+  const groupedTests = useMemo(() => {
+    const grouped: Record<string, TestResult[]> = {};
+    
+    completedTests.forEach(test => {
+      let key = "";
+      switch (groupBy) {
+        case "date":
+          key = format(new Date(test.test_date), "MMMM yyyy");
+          break;
+        case "category":
+          key = test.category || "Uncategorized";
+          break;
+        case "status":
+          key = test.is_abnormal ? "Abnormal Results" : "Normal Results";
+          break;
+      }
+      
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(test);
+    });
+
+    // Sort by date descending for date grouping
+    if (groupBy === "date") {
+      const sortedKeys = Object.keys(grouped).sort((a, b) => {
+        const dateA = new Date(grouped[a][0].test_date);
+        const dateB = new Date(grouped[b][0].test_date);
+        return dateB.getTime() - dateA.getTime();
+      });
+      const sortedGrouped: Record<string, TestResult[]> = {};
+      sortedKeys.forEach(key => {
+        sortedGrouped[key] = grouped[key];
+      });
+      return sortedGrouped;
+    }
+
+    return grouped;
+  }, [completedTests, groupBy]);
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -64,6 +113,38 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
       newExpanded.add(id);
     }
     setExpandedRows(newExpanded);
+  };
+
+  const toggleTestSelection = (testId: string) => {
+    const newSelected = new Set(selectedTestIds);
+    if (newSelected.has(testId)) {
+      newSelected.delete(testId);
+    } else {
+      newSelected.add(testId);
+    }
+    setSelectedTestIds(newSelected);
+  };
+
+  const toggleAllInGroup = (groupTests: TestResult[]) => {
+    const allSelected = groupTests.every(t => selectedTestIds.has(t.id));
+    const newSelected = new Set(selectedTestIds);
+    
+    if (allSelected) {
+      groupTests.forEach(t => newSelected.delete(t.id));
+    } else {
+      groupTests.forEach(t => newSelected.add(t.id));
+    }
+    
+    setSelectedTestIds(newSelected);
+  };
+
+  const selectAllTests = () => {
+    const allIds = new Set(completedTests.map(t => t.id));
+    setSelectedTestIds(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedTestIds(new Set());
   };
 
   const handleDownloadAll = () => {
@@ -85,6 +166,34 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
 
     if (success) {
       toast.success("Report downloaded successfully");
+    } else {
+      toast.error("Failed to generate report");
+    }
+  };
+
+  const handleDownloadSelected = () => {
+    if (selectedTestIds.size === 0) {
+      toast.error("Please select at least one test to download");
+      return;
+    }
+
+    const selectedTests = completedTests.filter(t => selectedTestIds.has(t.id));
+    
+    const success = generateMultiTestReportPDF(
+      {
+        full_name: patient.full_name,
+        patient_id: patient.patient_id,
+        phone: patient.phone,
+        gender: patient.gender || undefined,
+        blood_group: patient.blood_group || undefined,
+      },
+      selectedTests
+    );
+
+    if (success) {
+      toast.success(`Downloaded ${selectedTests.length} test(s) as PDF`);
+      setIsDownloadDialogOpen(false);
+      setSelectedTestIds(new Set());
     } else {
       toast.error("Failed to generate report");
     }
@@ -138,7 +247,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
       {/* Completed Tests */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-600" />
@@ -149,10 +258,20 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
               </CardDescription>
             </div>
             {completedTests.length > 0 && (
-              <Button onClick={handleDownloadAll} className="gap-2">
-                <Download className="h-4 w-4" />
-                Download All as PDF
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsDownloadDialogOpen(true)} 
+                  className="gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  Select Tests to Download
+                </Button>
+                <Button onClick={handleDownloadAll} className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Download All
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -305,6 +424,147 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
           </CardContent>
         </Card>
       )}
+
+      {/* Download Selection Dialog */}
+      <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Select Tests to Download
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Grouping Options */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Group by:</span>
+              <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as typeof groupBy)}>
+                <TabsList className="bg-muted">
+                  <TabsTrigger value="date" className="gap-1 text-xs sm:text-sm">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Date
+                  </TabsTrigger>
+                  <TabsTrigger value="category" className="gap-1 text-xs sm:text-sm">
+                    <Tag className="h-3.5 w-3.5" />
+                    Category
+                  </TabsTrigger>
+                  <TabsTrigger value="status" className="gap-1 text-xs sm:text-sm">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Status
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={selectAllTests}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={clearSelection}>
+                  Clear
+                </Button>
+              </div>
+              <Badge variant="secondary" className="text-sm">
+                {selectedTestIds.size} selected
+              </Badge>
+            </div>
+
+            {/* Selected Tests Preview */}
+            {selectedTestIds.size > 0 && (
+              <div className="flex flex-wrap gap-1.5 p-3 bg-muted/50 rounded-lg">
+                {completedTests
+                  .filter(t => selectedTestIds.has(t.id))
+                  .map(test => (
+                    <Badge 
+                      key={test.id} 
+                      variant="secondary" 
+                      className="gap-1 cursor-pointer hover:bg-destructive/20"
+                      onClick={() => toggleTestSelection(test.id)}
+                    >
+                      {test.test_name}
+                      <X className="h-3 w-3" />
+                    </Badge>
+                  ))
+                }
+              </div>
+            )}
+
+            {/* Grouped Tests List */}
+            <ScrollArea className="h-[300px] pr-4">
+              <div className="space-y-4">
+                {Object.entries(groupedTests).map(([groupName, groupTests]) => (
+                  <div key={groupName} className="space-y-2">
+                    <div className="flex items-center justify-between sticky top-0 bg-background py-1">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`group-${groupName}`}
+                          checked={groupTests.every(t => selectedTestIds.has(t.id))}
+                          onCheckedChange={() => toggleAllInGroup(groupTests)}
+                        />
+                        <label 
+                          htmlFor={`group-${groupName}`}
+                          className="text-sm font-semibold cursor-pointer"
+                        >
+                          {groupName}
+                        </label>
+                        <Badge variant="outline" className="text-xs">
+                          {groupTests.length}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="pl-6 space-y-1">
+                      {groupTests.map(test => (
+                        <div 
+                          key={test.id}
+                          className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={test.id}
+                            checked={selectedTestIds.has(test.id)}
+                            onCheckedChange={() => toggleTestSelection(test.id)}
+                          />
+                          <label 
+                            htmlFor={test.id}
+                            className="flex-1 cursor-pointer flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{test.test_name}</span>
+                              {test.is_abnormal && (
+                                <Badge className="bg-red-100 text-red-800 text-xs">Abnormal</Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(test.test_date), "dd MMM yyyy")}
+                            </span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsDownloadDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDownloadSelected} 
+              disabled={selectedTestIds.size === 0}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download {selectedTestIds.size > 0 ? `(${selectedTestIds.size})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
