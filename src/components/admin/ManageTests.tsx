@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -68,6 +70,7 @@ interface Patient {
   id: string;
   patient_id: string;
   full_name: string;
+  phone: string;
 }
 
 interface TestCategory {
@@ -80,6 +83,7 @@ interface Test {
   name: string;
   price: number | null;
   category_id: string | null;
+  unit: string | null;
 }
 
 const ManageTests = () => {
@@ -97,9 +101,11 @@ const ManageTests = () => {
   const [selectedTest, setSelectedTest] = useState<PatientTest | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [testSearch, setTestSearch] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [formData, setFormData] = useState({
-    patient_id: "",
-    test_name: "",
     test_date: new Date().toISOString().split("T")[0],
     notes: "",
   });
@@ -108,6 +114,59 @@ const ManageTests = () => {
     status: "completed",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Filter patients by search
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch.trim()) return patients.slice(0, 10);
+    const searchLower = patientSearch.toLowerCase();
+    return patients.filter(
+      (p) =>
+        p.full_name.toLowerCase().includes(searchLower) ||
+        p.patient_id.toLowerCase().includes(searchLower) ||
+        p.phone.includes(patientSearch)
+    ).slice(0, 20);
+  }, [patients, patientSearch]);
+
+  // Group tests by category
+  const testsByCategory = useMemo(() => {
+    const grouped: Record<string, Test[]> = {};
+    const uncategorized: Test[] = [];
+    
+    testCatalog.forEach((test) => {
+      if (test.category_id) {
+        const category = categories.find((c) => c.id === test.category_id);
+        const categoryName = category?.name || "Other";
+        if (!grouped[categoryName]) grouped[categoryName] = [];
+        grouped[categoryName].push(test);
+      } else {
+        uncategorized.push(test);
+      }
+    });
+    
+    if (uncategorized.length > 0) {
+      grouped["Other Tests"] = uncategorized;
+    }
+    
+    return grouped;
+  }, [testCatalog, categories]);
+
+  // Filter tests by search
+  const filteredTestsByCategory = useMemo(() => {
+    if (!testSearch.trim()) return testsByCategory;
+    const searchLower = testSearch.toLowerCase();
+    const filtered: Record<string, Test[]> = {};
+    
+    Object.entries(testsByCategory).forEach(([category, tests]) => {
+      const matchingTests = tests.filter((t) =>
+        t.name.toLowerCase().includes(searchLower)
+      );
+      if (matchingTests.length > 0) {
+        filtered[category] = matchingTests;
+      }
+    });
+    
+    return filtered;
+  }, [testsByCategory, testSearch]);
 
   const fetchData = async () => {
     try {
@@ -123,9 +182,9 @@ const ManageTests = () => {
             )
           `)
           .order("created_at", { ascending: false }),
-        supabase.from("patients").select("id, patient_id, full_name").eq("is_active", true),
+        supabase.from("patients").select("id, patient_id, full_name, phone").eq("is_active", true),
         supabase.from("test_categories").select("id, name"),
-        supabase.from("tests").select("id, name, price, category_id"),
+        supabase.from("tests").select("id, name, price, category_id, unit"),
       ]);
 
       if (testsRes.error) throw testsRes.error;
@@ -151,34 +210,73 @@ const ManageTests = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!selectedPatient) {
+      toast.error("Please select a patient");
+      return;
+    }
+    
+    if (selectedTests.length === 0) {
+      toast.error("Please select at least one test");
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from("patient_tests").insert({
-        patient_id: formData.patient_id,
-        test_name: formData.test_name,
+      // Insert all selected tests for the patient
+      const testsToInsert = selectedTests.map((testName) => ({
+        patient_id: selectedPatient.id,
+        test_name: testName,
         test_date: formData.test_date,
         notes: formData.notes || null,
         status: "pending",
         created_by: user?.id,
-      });
+      }));
+
+      const { error } = await supabase.from("patient_tests").insert(testsToInsert);
 
       if (error) throw error;
 
-      toast.success("Test added successfully");
+      toast.success(`${selectedTests.length} test(s) added successfully`);
       setIsDialogOpen(false);
-      setFormData({
-        patient_id: "",
-        test_name: "",
-        test_date: new Date().toISOString().split("T")[0],
-        notes: "",
-      });
+      resetForm();
       fetchData();
     } catch (error: any) {
       console.error("Error adding test:", error);
       toast.error(error.message || "Failed to add test");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedPatient(null);
+    setSelectedTests([]);
+    setPatientSearch("");
+    setTestSearch("");
+    setFormData({
+      test_date: new Date().toISOString().split("T")[0],
+      notes: "",
+    });
+  };
+
+  const toggleTestSelection = (testName: string) => {
+    setSelectedTests((prev) =>
+      prev.includes(testName)
+        ? prev.filter((t) => t !== testName)
+        : [...prev, testName]
+    );
+  };
+
+  const selectAllInCategory = (categoryTests: Test[]) => {
+    const testNames = categoryTests.map((t) => t.name);
+    const allSelected = testNames.every((name) => selectedTests.includes(name));
+    
+    if (allSelected) {
+      setSelectedTests((prev) => prev.filter((t) => !testNames.includes(t)));
+    } else {
+      setSelectedTests((prev) => [...new Set([...prev, ...testNames])]);
     }
   };
 
@@ -389,94 +487,211 @@ const ManageTests = () => {
           )}
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}>
           <DialogTrigger asChild>
             <Button className="bg-clinical-navy hover:bg-clinical-navy/90">
               <Plus className="h-4 w-4 mr-2" />
               Add Test
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle>Add New Test</DialogTitle>
+              <DialogTitle>Add Tests for Patient</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-hidden flex flex-col">
+              {/* Patient Search Section */}
               <div className="space-y-2">
-                <Label htmlFor="patient_id">Patient *</Label>
-                <Select
-                  value={formData.patient_id}
-                  onValueChange={(value) => setFormData({ ...formData, patient_id: value })}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select patient" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {patients.map((patient) => (
-                      <SelectItem key={patient.id} value={patient.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{patient.full_name}</span>
-                          <span className="text-muted-foreground font-mono text-xs">({patient.patient_id})</span>
+                <Label>Patient *</Label>
+                {selectedPatient ? (
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-primary/10">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{selectedPatient.full_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {selectedPatient.patient_id} • {selectedPatient.phone}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedPatient(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by name, ID, or phone..."
+                        value={patientSearch}
+                        onChange={(e) => setPatientSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {patientSearch && (
+                      <ScrollArea className="h-40 border rounded-lg">
+                        <div className="p-2 space-y-1">
+                          {filteredPatients.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-2 text-center">
+                              No patients found
+                            </p>
+                          ) : (
+                            filteredPatients.map((patient) => (
+                              <button
+                                key={patient.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPatient(patient);
+                                  setPatientSearch("");
+                                }}
+                                className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left transition-colors"
+                              >
+                                <div className="p-1.5 rounded-full bg-primary/10">
+                                  <User className="h-3 w-3 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{patient.full_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {patient.patient_id} • {patient.phone}
+                                  </p>
+                                </div>
+                              </button>
+                            ))
+                          )}
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </ScrollArea>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="test_name">Test *</Label>
-                <Select
-                  value={formData.test_name}
-                  onValueChange={(value) => setFormData({ ...formData, test_name: value })}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select test" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.name}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                    {testCatalog.map((test) => (
-                      <SelectItem key={test.id} value={test.name}>
-                        {test.name} {test.price && `(₹${test.price})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Tests Selection Section */}
+              <div className="space-y-2 flex-1 overflow-hidden flex flex-col min-h-0">
+                <div className="flex items-center justify-between">
+                  <Label>Select Tests *</Label>
+                  {selectedTests.length > 0 && (
+                    <Badge variant="secondary">{selectedTests.length} selected</Badge>
+                  )}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tests..."
+                    value={testSearch}
+                    onChange={(e) => setTestSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <ScrollArea className="flex-1 border rounded-lg min-h-[200px]">
+                  <div className="p-3 space-y-4">
+                    {Object.entries(filteredTestsByCategory).length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No tests found
+                      </p>
+                    ) : (
+                      Object.entries(filteredTestsByCategory).map(([category, categoryTests]) => (
+                        <div key={category} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                              {category}
+                            </h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-6"
+                              onClick={() => selectAllInCategory(categoryTests)}
+                            >
+                              {categoryTests.every((t) => selectedTests.includes(t.name))
+                                ? "Deselect All"
+                                : "Select All"}
+                            </Button>
+                          </div>
+                          <div className="space-y-1">
+                            {categoryTests.map((test) => (
+                              <label
+                                key={test.id}
+                                className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors"
+                              >
+                                <Checkbox
+                                  checked={selectedTests.includes(test.name)}
+                                  onCheckedChange={() => toggleTestSelection(test.name)}
+                                />
+                                <div className="flex-1">
+                                  <span className="font-medium">{test.name}</span>
+                                  {test.price && (
+                                    <span className="text-muted-foreground ml-2">
+                                      ₹{test.price}
+                                    </span>
+                                  )}
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="test_date">Test Date *</Label>
-                <Input
-                  id="test_date"
-                  type="date"
-                  value={formData.test_date}
-                  onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
-                  required
-                />
-              </div>
+              {/* Selected Tests Summary */}
+              {selectedTests.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 max-h-20 overflow-auto p-2 bg-muted/50 rounded-lg">
+                  {selectedTests.map((testName) => (
+                    <Badge
+                      key={testName}
+                      variant="secondary"
+                      className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => toggleTestSelection(testName)}
+                    >
+                      {testName}
+                      <X className="h-3 w-3 ml-1" />
+                    </Badge>
+                  ))}
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Any additional notes..."
-                  rows={3}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="test_date">Test Date *</Label>
+                  <Input
+                    id="test_date"
+                    type="date"
+                    value={formData.test_date}
+                    onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Input
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Any notes..."
+                  />
+                </div>
               </div>
 
               <Button
                 type="submit"
                 className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !selectedPatient || selectedTests.length === 0}
               >
-                {isSubmitting ? "Adding..." : "Add Test"}
+                {isSubmitting
+                  ? "Adding..."
+                  : `Add ${selectedTests.length} Test${selectedTests.length !== 1 ? "s" : ""}`}
               </Button>
             </form>
           </DialogContent>
