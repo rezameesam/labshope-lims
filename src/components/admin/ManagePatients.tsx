@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,9 @@ interface PatientTest {
   test_date: string;
   status: string;
   result: string | null;
+  result_value: number | null;
+  result_unit: string | null;
+  is_abnormal: boolean;
 }
 
 const ManagePatients = () => {
@@ -102,7 +106,7 @@ const ManagePatients = () => {
     try {
       const { data, error } = await supabase
         .from("patient_tests")
-        .select("id, test_name, test_date, status, result")
+        .select("id, test_name, test_date, status, result, result_value, result_unit, is_abnormal")
         .eq("patient_id", patientId)
         .order("test_date", { ascending: false });
 
@@ -666,10 +670,34 @@ const ManagePatients = () => {
 
               {/* Test History */}
               <div>
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Test History ({patientTests.length})
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Test History ({patientTests.length})
+                  </h4>
+                  {patientTests.filter(t => t.status === "completed").length > 0 && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        generateMultiTestReportPDF(
+                          {
+                            full_name: selectedPatient.full_name,
+                            patient_id: selectedPatient.patient_id,
+                            phone: selectedPatient.phone,
+                            gender: selectedPatient.gender || undefined,
+                            blood_group: selectedPatient.blood_group || undefined,
+                          },
+                          patientTests.filter(t => t.status === "completed")
+                        );
+                        toast.success("Report downloaded");
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download PDF
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {patientTests.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">No tests recorded</p>
@@ -679,11 +707,16 @@ const ManagePatients = () => {
                         key={test.id} 
                         className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                       >
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium">{test.test_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(test.test_date), "dd MMM yyyy")}
-                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                            {test.result && (
+                              <span className={`font-medium ${test.is_abnormal ? "text-red-600" : "text-green-600"}`}>
+                                • {test.result_value || test.result}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {getStatusBadge(test.status)}
                       </div>

@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { format } from "date-fns";
+import TestResultsTable from "@/components/patient/TestResultsTable";
 
 interface PatientTest {
   id: string;
@@ -35,6 +36,9 @@ interface PatientTest {
   test_date: string;
   status: string;
   result: string | null;
+  result_value: number | null;
+  result_unit: string | null;
+  is_abnormal: boolean;
   report_url: string | null;
   notes: string | null;
   created_at: string;
@@ -255,74 +259,17 @@ const PatientDashboard = () => {
 
           {/* Results Tab */}
           <TabsContent value="results">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Recent Test Results
-                </CardTitle>
-                <CardDescription>View and download your latest test reports</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {testsLoading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="flex items-center gap-4 p-4 border rounded-lg">
-                        <Skeleton className="h-12 w-12 rounded-full" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-4 w-1/3" />
-                          <Skeleton className="h-3 w-1/4" />
-                        </div>
-                        <Skeleton className="h-8 w-20" />
-                      </div>
-                    ))}
-                  </div>
-                ) : tests.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FlaskConical className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Test Results Yet</h3>
-                    <p className="text-muted-foreground">Your test results will appear here once available.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {tests.slice(0, 5).map((test, index) => (
-                      <motion.div
-                        key={test.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                            <FlaskConical className="h-6 w-6 text-primary" />
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-foreground">{test.test_name}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(test.test_date), "MMM dd, yyyy")}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {getStatusBadge(test.status)}
-                          {test.status === "completed" && test.report_url && (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => window.open(test.report_url!, "_blank")}
-                            >
-                              <Download className="h-4 w-4 mr-1" />
-                              Download
-                            </Button>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <TestResultsTable 
+              tests={tests}
+              patient={{
+                full_name: patient.full_name,
+                patient_id: patient.patient_id,
+                phone: patient.phone,
+                gender: patient.gender,
+                blood_group: patient.blood_group,
+              }}
+              loading={testsLoading}
+            />
           </TabsContent>
 
           {/* History Tab */}

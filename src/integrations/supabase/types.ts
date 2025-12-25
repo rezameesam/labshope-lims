@@ -102,6 +102,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_abnormal: boolean | null
           notes: string | null
           patient_id: string
           performed_by: string | null
@@ -109,6 +110,8 @@ export type Database = {
           result: string | null
           result_entered_at: string | null
           result_entered_by: string | null
+          result_unit: string | null
+          result_value: number | null
           status: string
           test_date: string
           test_id: string | null
@@ -120,6 +123,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_abnormal?: boolean | null
           notes?: string | null
           patient_id: string
           performed_by?: string | null
@@ -127,6 +131,8 @@ export type Database = {
           result?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
+          result_unit?: string | null
+          result_value?: number | null
           status?: string
           test_date?: string
           test_id?: string | null
@@ -138,6 +144,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_abnormal?: boolean | null
           notes?: string | null
           patient_id?: string
           performed_by?: string | null
@@ -145,6 +152,8 @@ export type Database = {
           result?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
+          result_unit?: string | null
+          result_value?: number | null
           status?: string
           test_date?: string
           test_id?: string | null
@@ -291,7 +300,12 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          normal_range_max: number | null
+          normal_range_min: number | null
+          normal_range_text: string | null
           price: number | null
+          sample_type: string | null
+          unit: string | null
         }
         Insert: {
           category_id?: string | null
@@ -299,7 +313,12 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          normal_range_max?: number | null
+          normal_range_min?: number | null
+          normal_range_text?: string | null
           price?: number | null
+          sample_type?: string | null
+          unit?: string | null
         }
         Update: {
           category_id?: string | null
@@ -307,7 +326,12 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          normal_range_max?: number | null
+          normal_range_min?: number | null
+          normal_range_text?: string | null
           price?: number | null
+          sample_type?: string | null
+          unit?: string | null
         }
         Relationships: [
           {
