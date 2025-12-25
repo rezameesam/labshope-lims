@@ -39,6 +39,7 @@ interface PatientTest {
   result_value: number | null;
   result_unit: string | null;
   is_abnormal: boolean;
+  normal_range_text: string | null;
   report_url: string | null;
   notes: string | null;
   created_at: string;

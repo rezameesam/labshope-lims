@@ -34,6 +34,7 @@ interface TestResult {
   result_value: number | null;
   result_unit: string | null;
   is_abnormal: boolean;
+  normal_range_text?: string | null;
   notes: string | null;
   category?: string;
   entered_by_name?: string;
