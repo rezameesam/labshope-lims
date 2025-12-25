@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Eye, FileText, CheckCircle } from "lucide-react";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Filter, Calendar, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -42,6 +45,7 @@ interface PatientTest {
   patients: {
     patient_id: string;
     full_name: string;
+    phone: string;
   };
 }
 
@@ -56,12 +60,21 @@ interface TestCategory {
   name: string;
 }
 
+interface Test {
+  id: string;
+  name: string;
+  price: number | null;
+  category_id: string | null;
+}
+
 const ManageTests = () => {
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
+  const [testCatalog, setTestCatalog] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed">("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<PatientTest | null>(null);
@@ -79,28 +92,32 @@ const ManageTests = () => {
 
   const fetchData = async () => {
     try {
-      const [testsRes, patientsRes, categoriesRes] = await Promise.all([
+      const [testsRes, patientsRes, categoriesRes, catalogRes] = await Promise.all([
         supabase
           .from("patient_tests")
           .select(`
             *,
             patients (
               patient_id,
-              full_name
+              full_name,
+              phone
             )
           `)
           .order("created_at", { ascending: false }),
         supabase.from("patients").select("id, patient_id, full_name").eq("is_active", true),
         supabase.from("test_categories").select("id, name"),
+        supabase.from("tests").select("id, name, price, category_id"),
       ]);
 
       if (testsRes.error) throw testsRes.error;
       if (patientsRes.error) throw patientsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
+      if (catalogRes.error) throw catalogRes.error;
 
       setTests(testsRes.data || []);
       setPatients(patientsRes.data || []);
       setCategories(categoriesRes.data || []);
+      setTestCatalog(catalogRes.data || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch data");
@@ -183,37 +200,127 @@ const ManageTests = () => {
     setIsResultDialogOpen(true);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return "bg-green-100 text-green-700";
+        return <CheckCircle className="h-4 w-4 text-emerald-500" />;
       case "pending":
-        return "bg-yellow-100 text-yellow-700";
+        return <Clock className="h-4 w-4 text-amber-500" />;
       case "in_progress":
-        return "bg-blue-100 text-blue-700";
+        return <AlertCircle className="h-4 w-4 text-blue-500" />;
       default:
-        return "bg-gray-100 text-gray-700";
+        return null;
     }
   };
 
-  const filteredTests = tests.filter(
-    (test) =>
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>;
+      case "pending":
+        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Pending</Badge>;
+      case "in_progress":
+        return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">In Progress</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const filteredTests = tests.filter((test) => {
+    const matchesSearch =
       test.test_name.toLowerCase().includes(search.toLowerCase()) ||
       test.patients?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      test.patients?.patient_id.toLowerCase().includes(search.toLowerCase())
-  );
+      test.patients?.patient_id.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || test.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const pendingCount = tests.filter(t => t.status === "pending").length;
+  const inProgressCount = tests.filter(t => t.status === "in_progress").length;
+  const completedCount = tests.filter(t => t.status === "completed").length;
 
   return (
     <div className="space-y-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter("all")}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold">{tests.length}</p>
+                <p className="text-xs text-muted-foreground">Total Tests</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Calendar className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={`border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow ${statusFilter === 'pending' ? 'ring-2 ring-amber-500' : ''}`} onClick={() => setStatusFilter("pending")}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold text-amber-600">{pendingCount}</p>
+                <p className="text-xs text-muted-foreground">Pending</p>
+              </div>
+              <div className="p-2 rounded-lg bg-amber-100">
+                <Clock className="h-4 w-4 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={`border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow ${statusFilter === 'in_progress' ? 'ring-2 ring-blue-500' : ''}`} onClick={() => setStatusFilter("in_progress")}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold text-blue-600">{inProgressCount}</p>
+                <p className="text-xs text-muted-foreground">In Progress</p>
+              </div>
+              <div className="p-2 rounded-lg bg-blue-100">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={`border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow ${statusFilter === 'completed' ? 'ring-2 ring-emerald-500' : ''}`} onClick={() => setStatusFilter("completed")}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold text-emerald-600">{completedCount}</p>
+                <p className="text-xs text-muted-foreground">Completed</p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-100">
+                <CheckCircle className="h-4 w-4 text-emerald-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search tests..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by test, patient..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 w-full sm:w-80"
+            />
+          </div>
+          {statusFilter !== "all" && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setStatusFilter("all")}
+              className="text-muted-foreground"
+            >
+              Clear filter ×
+            </Button>
+          )}
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -223,7 +330,7 @@ const ManageTests = () => {
               Add Test
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add New Test</DialogTitle>
             </DialogHeader>
@@ -232,9 +339,7 @@ const ManageTests = () => {
                 <Label htmlFor="patient_id">Patient *</Label>
                 <Select
                   value={formData.patient_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, patient_id: value })
-                  }
+                  onValueChange={(value) => setFormData({ ...formData, patient_id: value })}
                   required
                 >
                   <SelectTrigger>
@@ -243,7 +348,10 @@ const ManageTests = () => {
                   <SelectContent>
                     {patients.map((patient) => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.full_name} ({patient.patient_id})
+                        <div className="flex items-center gap-2">
+                          <span>{patient.full_name}</span>
+                          <span className="text-muted-foreground font-mono text-xs">({patient.patient_id})</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -251,12 +359,10 @@ const ManageTests = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="test_name">Test Name *</Label>
+                <Label htmlFor="test_name">Test *</Label>
                 <Select
                   value={formData.test_name}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, test_name: value })
-                  }
+                  onValueChange={(value) => setFormData({ ...formData, test_name: value })}
                   required
                 >
                   <SelectTrigger>
@@ -266,6 +372,11 @@ const ManageTests = () => {
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.name}>
                         {cat.name}
+                      </SelectItem>
+                    ))}
+                    {testCatalog.map((test) => (
+                      <SelectItem key={test.id} value={test.name}>
+                        {test.name} {test.price && `(₹${test.price})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -278,9 +389,7 @@ const ManageTests = () => {
                   id="test_date"
                   type="date"
                   value={formData.test_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, test_date: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
                   required
                 />
               </div>
@@ -290,10 +399,9 @@ const ManageTests = () => {
                 <Textarea
                   id="notes"
                   value={formData.notes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Any additional notes..."
+                  rows={3}
                 />
               </div>
 
@@ -311,33 +419,55 @@ const ManageTests = () => {
 
       {/* Result Dialog */}
       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Update Test Result</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleResultSubmit} className="space-y-4">
-            <div className="bg-muted p-3 rounded-lg">
-              <p className="text-sm font-medium">{selectedTest?.test_name}</p>
-              <p className="text-xs text-muted-foreground">
-                {selectedTest?.patients?.full_name}
-              </p>
-            </div>
+            <Card className="border-0 bg-muted/50">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{selectedTest?.test_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedTest?.patients?.full_name} • {selectedTest?.patients?.patient_id}
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedTest && format(new Date(selectedTest.test_date), "dd MMM yyyy")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
                 value={resultData.status}
-                onValueChange={(value) =>
-                  setResultData({ ...resultData, status: value })
-                }
+                onValueChange={(value) => setResultData({ ...resultData, status: value })}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="pending">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-amber-500" />
+                      Pending
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="in_progress">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-blue-500" />
+                      In Progress
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="completed">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-emerald-500" />
+                      Completed
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -347,11 +477,9 @@ const ManageTests = () => {
               <Textarea
                 id="result"
                 value={resultData.result}
-                onChange={(e) =>
-                  setResultData({ ...resultData, result: e.target.value })
-                }
+                onChange={(e) => setResultData({ ...resultData, result: e.target.value })}
                 placeholder="Enter test results..."
-                rows={5}
+                rows={6}
               />
             </div>
 
@@ -366,33 +494,38 @@ const ManageTests = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
+      {/* Tests Table */}
+      <Card className="border-0 shadow-md">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Patient</TableHead>
-              <TableHead>Test</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+            <TableRow className="bg-muted/50">
+              <TableHead className="font-semibold">Patient</TableHead>
+              <TableHead className="font-semibold">Test</TableHead>
+              <TableHead className="font-semibold">Date</TableHead>
+              <TableHead className="font-semibold">Status</TableHead>
+              <TableHead className="font-semibold">Result</TableHead>
+              <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  Loading...
+                <TableCell colSpan={6} className="text-center py-12">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                    Loading tests...
+                  </div>
                 </TableCell>
               </TableRow>
             ) : filteredTests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  No tests found
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  {statusFilter !== "all" ? `No ${statusFilter.replace("_", " ")} tests found` : "No tests found"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredTests.map((test) => (
-                <TableRow key={test.id}>
+                <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell>
                     <div>
                       <p className="font-medium">{test.patients?.full_name}</p>
@@ -401,26 +534,50 @@ const ManageTests = () => {
                       </p>
                     </div>
                   </TableCell>
-                  <TableCell>{test.test_name}</TableCell>
                   <TableCell>
-                    {format(new Date(test.test_date), "dd MMM yyyy")}
+                    <p className="font-medium">{test.test_name}</p>
+                    {test.notes && (
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        {test.notes}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(
-                        test.status
-                      )}`}
-                    >
-                      {test.status.replace("_", " ")}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      {format(new Date(test.test_date), "dd MMM yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {getStatusBadge(test.status)}
+                  </TableCell>
+                  <TableCell>
+                    {test.result ? (
+                      <span className="text-sm truncate max-w-[150px] block">
+                        {test.result.substring(0, 50)}{test.result.length > 50 ? "..." : ""}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => openResultDialog(test)}
+                      className="gap-1.5"
                     >
-                      <CheckCircle className="h-4 w-4" />
+                      {test.status === "completed" ? (
+                        <>
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          View
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3.5 w-3.5" />
+                          Update
+                        </>
+                      )}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -428,7 +585,7 @@ const ManageTests = () => {
             )}
           </TableBody>
         </Table>
-      </div>
+      </Card>
     </div>
   );
 };
