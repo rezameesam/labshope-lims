@@ -85,8 +85,12 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error("Supabase OTP error:", error);
-        // For demo, we'll allow bypass if Supabase phone auth isn't configured
-        if (error.message.includes("Phone provider") || error.message.includes("not enabled")) {
+        // For demo, allow bypass if Supabase phone auth isn't configured
+        if (
+          error.message.toLowerCase().includes("phone") || 
+          error.message.includes("not enabled") ||
+          error.message.includes("unsupported")
+        ) {
           toast.info("Demo mode: Use 123456 as OTP");
           return { error: null };
         }
