@@ -43,12 +43,17 @@ interface PatientTest {
   test_date: string;
   status: string;
   result: string | null;
+  result_value: number | null;
+  result_unit: string | null;
+  is_abnormal: boolean | null;
+  normal_range_text: string | null;
   notes: string | null;
   created_at: string;
   created_by: string | null;
   updated_by: string | null;
   result_entered_by: string | null;
   result_entered_at: string | null;
+  test_id: string | null;
   patients: {
     patient_id: string;
     full_name: string;
@@ -84,6 +89,9 @@ interface Test {
   price: number | null;
   category_id: string | null;
   unit: string | null;
+  normal_range_text: string | null;
+  normal_range_min: number | null;
+  normal_range_max: number | null;
 }
 
 const ManageTests = () => {
@@ -111,6 +119,10 @@ const ManageTests = () => {
   });
   const [resultData, setResultData] = useState({
     result: "",
+    result_value: "",
+    result_unit: "",
+    normal_range_text: "",
+    is_abnormal: false,
     status: "completed",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -174,7 +186,9 @@ const ManageTests = () => {
         supabase
           .from("patient_tests")
           .select(`
-            *,
+            id, patient_id, test_name, test_date, status, result, result_value, result_unit, 
+            is_abnormal, normal_range_text, notes, created_at, created_by, updated_by, 
+            result_entered_by, result_entered_at, test_id,
             patients (
               patient_id,
               full_name,
@@ -184,7 +198,7 @@ const ManageTests = () => {
           .order("created_at", { ascending: false }),
         supabase.from("patients").select("id, patient_id, full_name, phone").eq("is_active", true),
         supabase.from("test_categories").select("id, name"),
-        supabase.from("tests").select("id, name, price, category_id, unit"),
+        supabase.from("tests").select("id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
       ]);
 
       if (testsRes.error) throw testsRes.error;
@@ -192,10 +206,10 @@ const ManageTests = () => {
       if (categoriesRes.error) throw categoriesRes.error;
       if (catalogRes.error) throw catalogRes.error;
 
-      setTests(testsRes.data || []);
+      setTests((testsRes.data || []) as unknown as PatientTest[]);
       setPatients(patientsRes.data || []);
       setCategories(categoriesRes.data || []);
-      setTestCatalog(catalogRes.data || []);
+      setTestCatalog((catalogRes.data || []) as Test[]);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch data");
@@ -286,14 +300,18 @@ const ManageTests = () => {
     setIsSubmitting(true);
 
     try {
-      const updateData: any = {
-        result: resultData.result,
+      const updateData: Record<string, unknown> = {
+        result: resultData.result || null,
+        result_value: resultData.result_value ? parseFloat(resultData.result_value) : null,
+        result_unit: resultData.result_unit || null,
+        normal_range_text: resultData.normal_range_text || null,
+        is_abnormal: resultData.is_abnormal,
         status: resultData.status,
         updated_by: user?.id,
       };
 
       // If result is being entered for the first time, track who entered it
-      if (!selectedTest.result && resultData.result) {
+      if (!selectedTest.result && (resultData.result || resultData.result_value)) {
         updateData.result_entered_by = user?.id;
         updateData.result_entered_at = new Date().toISOString();
       }
@@ -308,7 +326,7 @@ const ManageTests = () => {
       toast.success("Test result updated successfully");
       setIsResultDialogOpen(false);
       setSelectedTest(null);
-      setResultData({ result: "", status: "completed" });
+      setResultData({ result: "", result_value: "", result_unit: "", normal_range_text: "", is_abnormal: false, status: "completed" });
       fetchData();
     } catch (error: any) {
       console.error("Error updating result:", error);
@@ -320,8 +338,14 @@ const ManageTests = () => {
 
   const openResultDialog = (test: PatientTest) => {
     setSelectedTest(test);
+    // Try to find the test in catalog to get default unit and normal range
+    const catalogTest = testCatalog.find(t => t.name === test.test_name);
     setResultData({
       result: test.result || "",
+      result_value: test.result_value?.toString() || "",
+      result_unit: test.result_unit || catalogTest?.unit || "",
+      normal_range_text: test.normal_range_text || catalogTest?.normal_range_text || "",
+      is_abnormal: test.is_abnormal || false,
       status: test.status,
     });
     setIsResultDialogOpen(true);
@@ -753,15 +777,71 @@ const ManageTests = () => {
               </Select>
             </div>
 
+            {/* Numeric Result Value and Unit */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="result_value">Result Value</Label>
+                <Input
+                  id="result_value"
+                  type="number"
+                  step="any"
+                  value={resultData.result_value}
+                  onChange={(e) => setResultData({ ...resultData, result_value: e.target.value })}
+                  placeholder="e.g. 12.5"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="result_unit">Unit</Label>
+                <Input
+                  id="result_unit"
+                  value={resultData.result_unit}
+                  onChange={(e) => setResultData({ ...resultData, result_unit: e.target.value })}
+                  placeholder="e.g. mg/dL, U/L"
+                />
+              </div>
+            </div>
+
+            {/* Normal Range */}
             <div className="space-y-2">
-              <Label htmlFor="result">Result</Label>
+              <Label htmlFor="normal_range_text">Normal Range</Label>
+              <Input
+                id="normal_range_text"
+                value={resultData.normal_range_text}
+                onChange={(e) => setResultData({ ...resultData, normal_range_text: e.target.value })}
+                placeholder="e.g. 70-100 mg/dL, < 40 U/L, Negative"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the reference range for this test result
+              </p>
+            </div>
+
+            {/* Text Result (for qualitative results) */}
+            <div className="space-y-2">
+              <Label htmlFor="result">Result Notes / Qualitative Result</Label>
               <Textarea
                 id="result"
                 value={resultData.result}
                 onChange={(e) => setResultData({ ...resultData, result: e.target.value })}
-                placeholder="Enter test results..."
-                rows={6}
+                placeholder="Enter detailed results, observations, or qualitative findings..."
+                rows={3}
               />
+            </div>
+
+            {/* Abnormal Flag */}
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+              <Checkbox
+                id="is_abnormal"
+                checked={resultData.is_abnormal}
+                onCheckedChange={(checked) => setResultData({ ...resultData, is_abnormal: checked === true })}
+              />
+              <div className="flex-1">
+                <Label htmlFor="is_abnormal" className="cursor-pointer font-medium text-foreground">
+                  Mark as Abnormal
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Flag this result if it falls outside the normal range
+                </p>
+              </div>
             </div>
 
             <Button

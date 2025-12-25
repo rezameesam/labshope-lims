@@ -103,6 +103,7 @@ export type Database = {
           created_by: string | null
           id: string
           is_abnormal: boolean | null
+          normal_range_text: string | null
           notes: string | null
           patient_id: string
           performed_by: string | null
@@ -124,6 +125,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_abnormal?: boolean | null
+          normal_range_text?: string | null
           notes?: string | null
           patient_id: string
           performed_by?: string | null
@@ -145,6 +147,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_abnormal?: boolean | null
+          normal_range_text?: string | null
           notes?: string | null
           patient_id?: string
           performed_by?: string | null
