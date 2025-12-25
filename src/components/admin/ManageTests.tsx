@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Filter, Calendar, Download } from "lucide-react";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -42,11 +43,25 @@ interface PatientTest {
   result: string | null;
   notes: string | null;
   created_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+  result_entered_by: string | null;
+  result_entered_at: string | null;
   patients: {
     patient_id: string;
     full_name: string;
     phone: string;
   };
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  changed_by: string | null;
+  changed_at: string;
+  old_values: any;
+  new_values: any;
+  notes: string | null;
 }
 
 interface Patient {
@@ -68,6 +83,7 @@ interface Test {
 }
 
 const ManageTests = () => {
+  const { user } = useAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
@@ -77,7 +93,10 @@ const ManageTests = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed">("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
+  const [isAuditDialogOpen, setIsAuditDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<PatientTest | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const [formData, setFormData] = useState({
     patient_id: "",
     test_name: "",
@@ -141,6 +160,7 @@ const ManageTests = () => {
         test_date: formData.test_date,
         notes: formData.notes || null,
         status: "pending",
+        created_by: user?.id,
       });
 
       if (error) throw error;
@@ -168,12 +188,21 @@ const ManageTests = () => {
     setIsSubmitting(true);
 
     try {
+      const updateData: any = {
+        result: resultData.result,
+        status: resultData.status,
+        updated_by: user?.id,
+      };
+
+      // If result is being entered for the first time, track who entered it
+      if (!selectedTest.result && resultData.result) {
+        updateData.result_entered_by = user?.id;
+        updateData.result_entered_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from("patient_tests")
-        .update({
-          result: resultData.result,
-          status: resultData.status,
-        })
+        .update(updateData)
         .eq("id", selectedTest.id);
 
       if (error) throw error;
@@ -198,6 +227,43 @@ const ManageTests = () => {
       status: test.status,
     });
     setIsResultDialogOpen(true);
+  };
+
+  const openAuditDialog = async (test: PatientTest) => {
+    setSelectedTest(test);
+    setIsAuditDialogOpen(true);
+    setLoadingAudit(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("patient_test_audit")
+        .select("*")
+        .eq("patient_test_id", test.id)
+        .order("changed_at", { ascending: false });
+
+      if (error) throw error;
+      setAuditLogs(data || []);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      toast.error("Failed to fetch audit history");
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case "created":
+        return "Test Created";
+      case "result_updated":
+        return "Result Updated";
+      case "status_changed":
+        return "Status Changed";
+      case "updated":
+        return "Record Updated";
+      default:
+        return action;
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -494,6 +560,65 @@ const ManageTests = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Audit History Dialog */}
+      <Dialog open={isAuditDialogOpen} onOpenChange={setIsAuditDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Audit History
+            </DialogTitle>
+          </DialogHeader>
+          
+          <Card className="border-0 bg-muted/50 mb-4">
+            <CardContent className="pt-4">
+              <p className="font-semibold">{selectedTest?.test_name}</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedTest?.patients?.full_name} • {selectedTest?.patients?.patient_id}
+              </p>
+            </CardContent>
+          </Card>
+
+          {loadingAudit ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No audit history available</p>
+          ) : (
+            <div className="space-y-3">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="border rounded-lg p-3 bg-background">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge variant="secondary">{getActionLabel(log.action)}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(log.changed_at), "dd MMM yyyy, HH:mm")}
+                    </span>
+                  </div>
+                  
+                  {log.old_values && log.new_values && (
+                    <div className="text-xs space-y-1">
+                      {log.old_values.status !== log.new_values.status && (
+                        <p>
+                          Status: <span className="text-muted-foreground">{log.old_values.status}</span>
+                          {" → "}
+                          <span className="font-medium">{log.new_values.status}</span>
+                        </p>
+                      )}
+                      {log.old_values.result !== log.new_values.result && (
+                        <p>
+                          Result updated
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Tests Table */}
       <Card className="border-0 shadow-md">
         <Table>
@@ -561,24 +686,35 @@ const ManageTests = () => {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openResultDialog(test)}
-                      className="gap-1.5"
-                    >
-                      {test.status === "completed" ? (
-                        <>
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          View
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="h-3.5 w-3.5" />
-                          Update
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openAuditDialog(test)}
+                        className="gap-1 text-muted-foreground hover:text-foreground"
+                        title="View audit history"
+                      >
+                        <History className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openResultDialog(test)}
+                        className="gap-1.5"
+                      >
+                        {test.status === "completed" ? (
+                          <>
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            View
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3.5 w-3.5" />
+                            Update
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

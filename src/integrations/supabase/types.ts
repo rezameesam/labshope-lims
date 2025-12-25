@@ -56,48 +56,101 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_test_audit: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          id: string
+          new_values: Json | null
+          notes: string | null
+          old_values: Json | null
+          patient_test_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          old_values?: Json | null
+          patient_test_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          old_values?: Json | null
+          patient_test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_test_audit_patient_test_id_fkey"
+            columns: ["patient_test_id"]
+            isOneToOne: false
+            referencedRelation: "patient_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_tests: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
           notes: string | null
           patient_id: string
           performed_by: string | null
           report_url: string | null
           result: string | null
+          result_entered_at: string | null
+          result_entered_by: string | null
           status: string
           test_date: string
           test_id: string | null
           test_name: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
           notes?: string | null
           patient_id: string
           performed_by?: string | null
           report_url?: string | null
           result?: string | null
+          result_entered_at?: string | null
+          result_entered_by?: string | null
           status?: string
           test_date?: string
           test_id?: string | null
           test_name: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
           notes?: string | null
           patient_id?: string
           performed_by?: string | null
           report_url?: string | null
           result?: string | null
+          result_entered_at?: string | null
+          result_entered_by?: string | null
           status?: string
           test_date?: string
           test_id?: string | null
           test_name?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
