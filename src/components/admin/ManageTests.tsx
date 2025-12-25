@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X } from "lucide-react";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -24,6 +25,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -35,6 +38,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 
 interface PatientTest {
   id: string;
@@ -106,7 +110,9 @@ const ManageTests = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isAuditDialogOpen, setIsAuditDialogOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<PatientTest | null>(null);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
@@ -124,6 +130,10 @@ const ManageTests = () => {
     normal_range_text: "",
     is_abnormal: false,
     status: "completed",
+  });
+  const [printOptions, setPrintOptions] = useState({
+    includeHeader: true,
+    includeFooter: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -429,6 +439,78 @@ const ManageTests = () => {
   const inProgressCount = tests.filter(t => t.status === "in_progress").length;
   const completedCount = tests.filter(t => t.status === "completed").length;
 
+  // Selection helpers for printing
+  const togglePrintSelection = (testId: string) => {
+    setSelectedTestIds(prev => 
+      prev.includes(testId) 
+        ? prev.filter(id => id !== testId)
+        : [...prev, testId]
+    );
+  };
+
+  const toggleAllSelection = () => {
+    const completedFilteredTests = filteredTests.filter(t => t.status === "completed");
+    if (selectedTestIds.length === completedFilteredTests.length) {
+      setSelectedTestIds([]);
+    } else {
+      setSelectedTestIds(completedFilteredTests.map(t => t.id));
+    }
+  };
+
+  const handlePrintSelected = async () => {
+    const selectedTestsData = tests.filter(t => selectedTestIds.includes(t.id) && t.status === "completed");
+    
+    if (selectedTestsData.length === 0) {
+      toast.error("No completed tests selected for printing");
+      return;
+    }
+
+    // Group tests by patient
+    const testsByPatient = selectedTestsData.reduce((acc, test) => {
+      const patientId = test.patient_id;
+      if (!acc[patientId]) {
+        acc[patientId] = {
+          patient: test.patients,
+          tests: []
+        };
+      }
+      acc[patientId].tests.push({
+        id: test.id,
+        test_name: test.test_name,
+        test_date: test.test_date,
+        status: test.status,
+        result: test.result,
+        result_value: test.result_value,
+        result_unit: test.result_unit,
+        is_abnormal: test.is_abnormal || false,
+        normal_range_text: test.normal_range_text || undefined,
+      });
+      return acc;
+    }, {} as Record<string, { patient: PatientTest["patients"]; tests: Array<any> }>);
+
+    // Generate PDF for each patient
+    let printedCount = 0;
+    for (const patientData of Object.values(testsByPatient)) {
+      const success = generateMultiTestReportPDF(
+        {
+          full_name: patientData.patient.full_name,
+          patient_id: patientData.patient.patient_id,
+          phone: patientData.patient.phone,
+        },
+        patientData.tests,
+        undefined,
+        printOptions
+      );
+      if (success) printedCount++;
+    }
+
+    if (printedCount > 0) {
+      toast.success(`Generated ${printedCount} report(s)`);
+      setSelectedTestIds([]);
+      setIsPrintDialogOpen(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Stats Row */}
@@ -511,10 +593,22 @@ const ManageTests = () => {
           )}
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
+        <div className="flex gap-2">
+          {selectedTestIds.length > 0 && (
+            <Button 
+              variant="outline" 
+              onClick={() => setIsPrintDialogOpen(true)}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Print ({selectedTestIds.length})
+            </Button>
+          )}
+
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
           <DialogTrigger asChild>
             <Button className="bg-clinical-navy hover:bg-clinical-navy/90">
               <Plus className="h-4 w-4 mr-2" />
@@ -720,6 +814,7 @@ const ManageTests = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Result Dialog */}
@@ -914,11 +1009,81 @@ const ManageTests = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Print Options Dialog */}
+      <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Print Report Options
+            </DialogTitle>
+            <DialogDescription>
+              Configure print options for {selectedTestIds.length} selected test(s)
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="include-header" className="text-base font-medium">Include Header</Label>
+                <p className="text-sm text-muted-foreground">
+                  Lab name, address, phone and email at the top
+                </p>
+              </div>
+              <Switch
+                id="include-header"
+                checked={printOptions.includeHeader}
+                onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeHeader: checked }))}
+              />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="include-footer" className="text-base font-medium">Include Footer</Label>
+                <p className="text-sm text-muted-foreground">
+                  Generated date and lab branding at the bottom
+                </p>
+              </div>
+              <Switch
+                id="include-footer"
+                checked={printOptions.includeFooter}
+                onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeFooter: checked }))}
+              />
+            </div>
+            
+            <Card className="border-dashed bg-muted/30">
+              <CardContent className="pt-4">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Tip:</strong> Disable both options if you are using pre-printed letterhead paper.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handlePrintSelected} className="bg-clinical-navy hover:bg-clinical-navy/90 gap-2">
+              <Printer className="h-4 w-4" />
+              Print Reports
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Tests Table */}
       <Card className="border-0 shadow-md">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={selectedTestIds.length > 0 && selectedTestIds.length === filteredTests.filter(t => t.status === "completed").length}
+                  onCheckedChange={toggleAllSelection}
+                  aria-label="Select all completed tests"
+                />
+              </TableHead>
               <TableHead className="font-semibold">Patient</TableHead>
               <TableHead className="font-semibold">Test</TableHead>
               <TableHead className="font-semibold">Date</TableHead>
@@ -930,7 +1095,7 @@ const ManageTests = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                     Loading tests...
@@ -939,13 +1104,21 @@ const ManageTests = () => {
               </TableRow>
             ) : filteredTests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   {statusFilter !== "all" ? `No ${statusFilter.replace("_", " ")} tests found` : "No tests found"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredTests.map((test) => (
                 <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedTestIds.includes(test.id)}
+                      onCheckedChange={() => togglePrintSelection(test.id)}
+                      disabled={test.status !== "completed"}
+                      aria-label={`Select ${test.test_name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div>
                       <p className="font-medium">{test.patients?.full_name}</p>
