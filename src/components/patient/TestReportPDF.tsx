@@ -29,38 +29,51 @@ interface ReportData {
   lab_name?: string;
 }
 
+// Lab Information
+const LAB_INFO = {
+  name: "IRM Clinical Laboratory",
+  tagline: "Clinical Laboratory Services",
+  address: "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
+  phone: "+91-9419034607 | +91-9622635767",
+  email: "irmclinic@gmail.com",
+};
+
 export const generateTestReportPDF = (data: ReportData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  // Header
+  // Header with lab branding
   doc.setFillColor(30, 58, 138); // Navy blue
-  doc.rect(0, 0, pageWidth, 35, "F");
+  doc.rect(0, 0, pageWidth, 45, "F");
   
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
+  doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
-  doc.text(data.lab_name || "IRM Clinical Laboratory", pageWidth / 2, 15, { align: "center" });
+  doc.text(data.lab_name || LAB_INFO.name, pageWidth / 2, 12, { align: "center" });
   
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("Clinical Laboratory Services", pageWidth / 2, 22, { align: "center" });
-  doc.text("", pageWidth / 2, 28, { align: "center" });
+  doc.text(LAB_INFO.tagline, pageWidth / 2, 19, { align: "center" });
+  
+  doc.setFontSize(9);
+  doc.text(LAB_INFO.address, pageWidth / 2, 26, { align: "center" });
+  doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 32, { align: "center" });
+  doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 38, { align: "center" });
 
   // Patient Info Section
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("PATIENT INFORMATION", 14, 45);
+  doc.text("PATIENT INFORMATION", 14, 55);
   
   doc.setDrawColor(30, 58, 138);
   doc.setLineWidth(0.5);
-  doc.line(14, 47, pageWidth - 14, 47);
+  doc.line(14, 57, pageWidth - 14, 57);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   
-  const patientInfoY = 55;
+  const patientInfoY = 65;
   const col1X = 14;
   const col2X = pageWidth / 2 + 10;
   
