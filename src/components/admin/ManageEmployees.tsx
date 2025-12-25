@@ -90,41 +90,38 @@ const ManageEmployees = () => {
     setIsSubmitting(true);
 
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
+      // Get current session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("You must be logged in to add employees");
+      }
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Failed to create user");
+      // Call edge function to create employee with service role
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            full_name: formData.full_name,
+            phone: formData.phone || null,
+            designation: formData.designation || null,
+            department: formData.department || null,
+            role: formData.role,
+          }),
+        }
+      );
 
-      const userId = authData.user.id;
-      const employeeId = generateEmployeeId();
-
-      // Create employee record
-      const { error: employeeError } = await supabase.from("employees").insert({
-        user_id: userId,
-        employee_id: employeeId,
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone || null,
-        designation: formData.designation || null,
-        department: formData.department || null,
-      });
-
-      if (employeeError) throw employeeError;
-
-      // Assign role
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: formData.role,
-      });
-
-      if (roleError) throw roleError;
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create employee");
+      }
 
       toast.success(`Employee ${formData.full_name} added successfully`);
       setIsDialogOpen(false);
