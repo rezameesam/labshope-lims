@@ -44,8 +44,8 @@ export const generateTestReportPDF = (data: ReportData) => {
   
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("Haematology Center & Clinical Laboratory", pageWidth / 2, 22, { align: "center" });
-  doc.text("Contact: 0194-2453843 | +91-9796300104", pageWidth / 2, 28, { align: "center" });
+  doc.text("Clinical Laboratory Services", pageWidth / 2, 22, { align: "center" });
+  doc.text("", pageWidth / 2, 28, { align: "center" });
 
   // Patient Info Section
   doc.setTextColor(0, 0, 0);
@@ -213,7 +213,7 @@ export const generateMultiTestReportPDF = (
     patient,
     test_date: completedTests[0].test_date,
     tests: testResults,
-    lab_name: "Dr. Qadri's Haematology Center & Clinical Laboratory"
+    lab_name: "IRM Clinical Laboratory"
   });
 
   return true;
