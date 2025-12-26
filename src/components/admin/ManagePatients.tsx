@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -20,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -77,6 +80,9 @@ const ManagePatients = () => {
   const [patientTests, setPatientTests] = useState<PatientTest[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
   const [formData, setFormData] = useState({
     full_name: "",
     phone: "",
@@ -253,8 +259,72 @@ const ManagePatients = () => {
 
   const openPatientDetails = async (patient: Patient) => {
     setSelectedPatient(patient);
+    setSelectedTestIds(new Set());
     await fetchPatientTests(patient.id);
     setIsSheetOpen(true);
+  };
+
+  const toggleTestSelection = (testId: string) => {
+    const newSelected = new Set(selectedTestIds);
+    if (newSelected.has(testId)) {
+      newSelected.delete(testId);
+    } else {
+      newSelected.add(testId);
+    }
+    setSelectedTestIds(newSelected);
+  };
+
+  const completedPatientTests = patientTests.filter(t => t.status === "completed");
+
+  const selectAllTests = () => {
+    setSelectedTestIds(new Set(completedPatientTests.map(t => t.id)));
+  };
+
+  const clearTestSelection = () => {
+    setSelectedTestIds(new Set());
+  };
+
+  const handlePrintTests = () => {
+    if (!selectedPatient) return;
+    
+    const testsToPrint = selectedTestIds.size > 0 
+      ? patientTests.filter(t => selectedTestIds.has(t.id))
+      : completedPatientTests;
+    
+    if (testsToPrint.length === 0) {
+      toast.error("No completed tests to print");
+      return;
+    }
+
+    const uniqueNames = Array.from(
+      new Set(testsToPrint.map((t) => t.entered_by_name).filter(Boolean) as string[])
+    );
+    const enteredByLabel =
+      uniqueNames.length === 1
+        ? uniqueNames[0]
+        : uniqueNames.length > 1
+          ? "Multiple Staff"
+          : undefined;
+
+    const success = generateMultiTestReportPDF(
+      {
+        full_name: selectedPatient.full_name,
+        patient_id: selectedPatient.patient_id,
+        phone: selectedPatient.phone,
+        gender: selectedPatient.gender || undefined,
+        blood_group: selectedPatient.blood_group || undefined,
+      },
+      testsToPrint,
+      enteredByLabel,
+      printOptions
+    );
+
+    if (success) {
+      toast.success("Report downloaded successfully");
+      setPrintDialogOpen(false);
+    } else {
+      toast.error("Failed to generate report");
+    }
   };
 
   const togglePatientStatus = async (patient: Patient) => {
@@ -705,50 +775,46 @@ const ManagePatients = () => {
                     <FileText className="h-4 w-4" />
                     Test History ({patientTests.length})
                   </h4>
-                  {patientTests.filter(t => t.status === "completed").length > 0 && (
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => {
-                        const completed = patientTests.filter((t) => t.status === "completed");
-                        const uniqueNames = Array.from(
-                          new Set(completed.map((t) => t.entered_by_name).filter(Boolean) as string[])
-                        );
-                        const enteredByLabel =
-                          uniqueNames.length === 1
-                            ? uniqueNames[0]
-                            : uniqueNames.length > 1
-                              ? "Multiple Staff"
-                              : undefined;
-
-                        generateMultiTestReportPDF(
-                          {
-                            full_name: selectedPatient.full_name,
-                            patient_id: selectedPatient.patient_id,
-                            phone: selectedPatient.phone,
-                            gender: selectedPatient.gender || undefined,
-                            blood_group: selectedPatient.blood_group || undefined,
-                          },
-                          completed,
-                          enteredByLabel
-                        );
-                        toast.success("Report downloaded");
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download PDF
-                    </Button>
+                  {completedPatientTests.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      {selectedTestIds.size > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedTestIds.size} selected
+                        </Badge>
+                      )}
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={selectedTestIds.size === completedPatientTests.length ? clearTestSelection : selectAllTests}
+                      >
+                        {selectedTestIds.size === completedPatientTests.length ? "Deselect" : "Select All"}
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={() => setPrintDialogOpen(true)}
+                        className="gap-1"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Print {selectedTestIds.size > 0 ? `(${selectedTestIds.size})` : "All"}
+                      </Button>
+                    </div>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
                   {patientTests.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">No tests recorded</p>
                   ) : (
                     patientTests.map((test) => (
                       <div 
                         key={test.id} 
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                        className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                       >
+                        {test.status === "completed" && (
+                          <Checkbox
+                            checked={selectedTestIds.has(test.id)}
+                            onCheckedChange={() => toggleTestSelection(test.id)}
+                          />
+                        )}
                         <div className="flex-1">
                           <p className="font-medium">{test.test_name}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -795,6 +861,68 @@ const ManagePatients = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Print Options Dialog */}
+      <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Print Options
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <p className="text-sm text-muted-foreground">
+              Configure options for pre-printed A4 paper. Disable header/footer to leave space for pre-printed letterhead.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="admin-include-header" className="flex flex-col gap-1">
+                  <span>Include Header</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Print lab name and contact info
+                  </span>
+                </Label>
+                <Switch
+                  id="admin-include-header"
+                  checked={printOptions.includeHeader}
+                  onCheckedChange={(checked) => 
+                    setPrintOptions(prev => ({ ...prev, includeHeader: checked }))
+                  }
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="admin-include-footer" className="flex flex-col gap-1">
+                  <span>Include Footer</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Print generation info and disclaimer
+                  </span>
+                </Label>
+                <Switch
+                  id="admin-include-footer"
+                  checked={printOptions.includeFooter}
+                  onCheckedChange={(checked) => 
+                    setPrintOptions(prev => ({ ...prev, includeFooter: checked }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handlePrintTests} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print {selectedTestIds.size > 0 ? `(${selectedTestIds.size})` : "All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
