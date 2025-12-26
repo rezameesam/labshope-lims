@@ -471,17 +471,17 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
 
       {/* Download Selection Dialog */}
       <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Download className="h-5 w-5" />
               Select Tests to Download
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
             {/* Grouping Options */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-sm text-muted-foreground">Group by:</span>
               <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as typeof groupBy)}>
                 <TabsList className="bg-muted">
@@ -502,7 +502,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
             </div>
 
             {/* Quick Actions */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-shrink-0">
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={selectAllTests}>
                   Select All
@@ -516,9 +516,9 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
               </Badge>
             </div>
 
-            {/* Selected Tests Preview */}
+            {/* Selected Tests Preview - limited height */}
             {selectedTestIds.size > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-3 bg-muted/50 rounded-lg">
+              <div className="flex flex-wrap gap-1.5 p-3 bg-muted/50 rounded-lg max-h-24 overflow-y-auto flex-shrink-0">
                 {completedTests
                   .filter(t => selectedTestIds.has(t.id))
                   .map(test => (
@@ -537,7 +537,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
             )}
 
             {/* Grouped Tests List */}
-            <ScrollArea className="h-[300px] pr-4">
+            <ScrollArea className="flex-1 min-h-0 pr-4">
               <div className="space-y-4">
                 {Object.entries(groupedTests).map(([groupName, groupTests]) => (
                   <div key={groupName} className="space-y-2">
@@ -594,7 +594,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
             </ScrollArea>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 flex-shrink-0 pt-4 border-t">
             <Button variant="outline" onClick={() => setIsDownloadDialogOpen(false)}>
               Cancel
             </Button>
