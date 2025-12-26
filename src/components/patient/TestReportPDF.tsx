@@ -50,7 +50,9 @@ export const generateTestReportPDF = (data: ReportData) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const options = data.options || { includeHeader: true, includeFooter: true };
   
-  let contentStartY = 14; // Default start position without header
+  // Always reserve space for header area (for pre-printed paper compatibility)
+  const HEADER_RESERVED_HEIGHT = 55;
+  let contentStartY = HEADER_RESERVED_HEIGHT; // Always start content after header space
   
   // Header with lab branding (only if includeHeader is true)
   if (options.includeHeader !== false) {
@@ -67,9 +69,8 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.text(LAB_INFO.address, pageWidth / 2, 21, { align: "center" });
     doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 27, { align: "center" });
     doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 33, { align: "center" });
-    
-    contentStartY = 55;
   }
+  // If not including header, space is still reserved (empty) for pre-printed paper
 
   // Patient Info Section
   doc.setTextColor(0, 0, 0);
@@ -184,10 +185,15 @@ export const generateTestReportPDF = (data: ReportData) => {
     }
   });
 
-  // Footer
+  // Footer section
   const finalY = (doc as any).lastAutoTable.finalY || patientInfoY + 100;
+  const pageHeight = doc.internal.pageSize.getHeight();
   
-  // Add entered by info if available
+  // Reserve space for footer area (for pre-printed paper compatibility)
+  const FOOTER_RESERVED_HEIGHT = 40;
+  const footerStartY = pageHeight - FOOTER_RESERVED_HEIGHT;
+  
+  // Add entered by info if available (place above footer reserved area)
   if (data.entered_by) {
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
@@ -197,22 +203,22 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.text(data.entered_by, 55, finalY + 12);
   }
   
-  const footerY = data.entered_by ? finalY + 20 : finalY + 15;
-  
-  // Only include footer if option is true
+  // Only include footer content if option is true
   if (options.includeFooter !== false) {
+    const footerY = footerStartY;
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
     doc.text("This is a computer-generated report.", 14, footerY);
     doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 14, footerY + 5);
     
     doc.setDrawColor(200, 200, 200);
-    doc.line(14, footerY + 20, pageWidth - 14, footerY + 20);
+    doc.line(14, footerY + 12, pageWidth - 14, footerY + 12);
     
     doc.setFontSize(8);
     doc.setTextColor(30, 58, 138);
-    doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 27, { align: "center" });
+    doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 19, { align: "center" });
   }
+  // If not including footer, space is still reserved (empty) for pre-printed paper
 
   // Save the PDF
   const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
