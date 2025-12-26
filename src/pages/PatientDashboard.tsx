@@ -41,6 +41,7 @@ import logo from "@/assets/logo.png";
 import { format } from "date-fns";
 import TestResultsTable from "@/components/patient/TestResultsTable";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
+import BillingPortal from "@/components/patient/BillingPortal";
 
 interface PatientTest {
   id: string;
@@ -348,7 +349,7 @@ const PatientDashboard = () => {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="results" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Results
@@ -356,6 +357,10 @@ const PatientDashboard = () => {
             <TabsTrigger value="history" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               History
+            </TabsTrigger>
+            <TabsTrigger value="billing" className="flex items-center gap-2">
+              <FlaskConical className="h-4 w-4" />
+              Billing
             </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="h-4 w-4" />
@@ -479,6 +484,11 @@ const PatientDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Billing Tab */}
+          <TabsContent value="billing">
+            <BillingPortal patientId={patient.id} />
           </TabsContent>
 
           {/* Profile Tab */}

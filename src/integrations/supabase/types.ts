@@ -56,6 +56,119 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_items: {
+        Row: {
+          amount: number
+          created_at: string
+          discount: number | null
+          id: string
+          invoice_id: string
+          patient_test_id: string | null
+          quantity: number
+          test_name: string
+          unit_price: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          discount?: number | null
+          id?: string
+          invoice_id: string
+          patient_test_id?: string | null
+          quantity?: number
+          test_name: string
+          unit_price?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          discount?: number | null
+          id?: string
+          invoice_id?: string
+          patient_test_id?: string | null
+          quantity?: number
+          test_name?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_patient_test_id_fkey"
+            columns: ["patient_test_id"]
+            isOneToOne: false
+            referencedRelation: "patient_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          discount_amount: number | null
+          final_amount: number
+          id: string
+          invoice_number: string
+          notes: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          patient_id: string
+          payment_method: string | null
+          payment_status: string
+          tax_amount: number | null
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          discount_amount?: number | null
+          final_amount?: number
+          id?: string
+          invoice_number: string
+          notes?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          patient_id: string
+          payment_method?: string | null
+          payment_status?: string
+          tax_amount?: number | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          discount_amount?: number | null
+          final_amount?: number
+          id?: string
+          invoice_number?: string
+          notes?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          patient_id?: string
+          payment_method?: string | null
+          payment_status?: string
+          tax_amount?: number | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_test_audit: {
         Row: {
           action: string
@@ -236,6 +349,50 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          invoice_id: string
+          notes: string | null
+          payment_date: string
+          payment_method: string
+          received_by: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          invoice_id: string
+          notes?: string | null
+          payment_date?: string
+          payment_method: string
+          received_by?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string
+          received_by?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -369,6 +526,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_invoice_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
