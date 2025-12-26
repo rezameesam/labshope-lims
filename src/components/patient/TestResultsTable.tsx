@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X } from "lucide-react";
+import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { generateMultiTestReportPDF } from "./TestReportPDF";
 import { toast } from "sonner";
@@ -62,6 +64,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"date" | "category" | "status">("date");
+  const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
+  const [isPrintOptionsOpen, setIsPrintOptionsOpen] = useState(false);
 
   const completedTests = tests.filter(t => t.status === "completed");
   const pendingTests = tests.filter(t => t.status !== "completed");
@@ -149,7 +153,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
     setSelectedTestIds(new Set());
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
     if (completedTests.length === 0) {
       toast.error("No completed tests to download");
       return;
@@ -174,7 +178,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
         blood_group: patient.blood_group || undefined,
       },
       completedTests,
-      enteredByLabel
+      enteredByLabel,
+      options
     );
 
     if (success) {
@@ -184,7 +189,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
     }
   };
 
-  const handleDownloadSelected = () => {
+  const handleDownloadSelected = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
     if (selectedTestIds.size === 0) {
       toast.error("Please select at least one test to download");
       return;
@@ -211,7 +216,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
         blood_group: patient.blood_group || undefined,
       },
       selectedTests,
-      enteredByLabel
+      enteredByLabel,
+      options
     );
 
     if (success) {
@@ -221,6 +227,19 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
     } else {
       toast.error("Failed to generate report");
     }
+  };
+
+  const handlePrintWithOptions = () => {
+    setIsPrintOptionsOpen(true);
+  };
+
+  const executePrint = () => {
+    if (selectedTestIds.size > 0) {
+      handleDownloadSelected(printOptions);
+    } else {
+      handleDownloadAll(printOptions);
+    }
+    setIsPrintOptionsOpen(false);
   };
 
   const handleDownloadSingle = (test: TestResult) => {
@@ -292,7 +311,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
                   <Filter className="h-4 w-4" />
                   Select Tests to Download
                 </Button>
-                <Button onClick={handleDownloadAll} className="gap-2">
+                <Button onClick={() => handleDownloadAll()} className="gap-2">
                   <Download className="h-4 w-4" />
                   Download All
                 </Button>
@@ -580,12 +599,83 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
               Cancel
             </Button>
             <Button 
-              onClick={handleDownloadSelected} 
+              variant="outline"
+              onClick={handlePrintWithOptions} 
+              disabled={selectedTestIds.size === 0}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Print Options
+            </Button>
+            <Button 
+              onClick={() => handleDownloadSelected()} 
               disabled={selectedTestIds.size === 0}
               className="gap-2"
             >
               <Download className="h-4 w-4" />
               Download {selectedTestIds.size > 0 ? `(${selectedTestIds.size})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Options Dialog */}
+      <Dialog open={isPrintOptionsOpen} onOpenChange={setIsPrintOptionsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Print Options
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <p className="text-sm text-muted-foreground">
+              Configure options for pre-printed A4 paper. Disable header/footer to leave space for pre-printed letterhead.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="include-header" className="flex flex-col gap-1">
+                  <span>Include Header</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Print lab name and contact info
+                  </span>
+                </Label>
+                <Switch
+                  id="include-header"
+                  checked={printOptions.includeHeader}
+                  onCheckedChange={(checked) => 
+                    setPrintOptions(prev => ({ ...prev, includeHeader: checked }))
+                  }
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="include-footer" className="flex flex-col gap-1">
+                  <span>Include Footer</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Print generation info and disclaimer
+                  </span>
+                </Label>
+                <Switch
+                  id="include-footer"
+                  checked={printOptions.includeFooter}
+                  onCheckedChange={(checked) => 
+                    setPrintOptions(prev => ({ ...prev, includeFooter: checked }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPrintOptionsOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={executePrint} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print {selectedTestIds.size > 0 ? `(${selectedTestIds.size})` : "All"}
             </Button>
           </DialogFooter>
         </DialogContent>
