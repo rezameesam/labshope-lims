@@ -537,7 +537,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
             )}
 
             {/* Grouped Tests List */}
-            <ScrollArea className="flex-1 min-h-0 pr-4">
+            <ScrollArea className="h-[250px] pr-4">
               <div className="space-y-4">
                 {Object.entries(groupedTests).map(([groupName, groupTests]) => (
                   <div key={groupName} className="space-y-2">
