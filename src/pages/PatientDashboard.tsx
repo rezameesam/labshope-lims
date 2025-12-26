@@ -15,7 +15,8 @@ import {
   Mail,
   MapPin,
   Droplet,
-  Activity
+  Activity,
+  Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,12 +24,23 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { format } from "date-fns";
 import TestResultsTable from "@/components/patient/TestResultsTable";
+import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 
 interface PatientTest {
   id: string;
@@ -53,6 +65,9 @@ const PatientDashboard = () => {
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [testsLoading, setTestsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("results");
+  const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
+  const [historyPrintDialogOpen, setHistoryPrintDialogOpen] = useState(false);
+  const [historyPrintOptions, setHistoryPrintOptions] = useState({ includeHeader: true, includeFooter: true });
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -123,6 +138,78 @@ const PatientDashboard = () => {
 
   const pendingTests = tests.filter(t => t.status === "pending" || t.status === "processing");
   const completedTests = tests.filter(t => t.status === "completed");
+
+  const toggleHistorySelection = (testId: string) => {
+    const newSelected = new Set(historySelectedIds);
+    if (newSelected.has(testId)) {
+      newSelected.delete(testId);
+    } else {
+      newSelected.add(testId);
+    }
+    setHistorySelectedIds(newSelected);
+  };
+
+  const selectAllHistoryTests = () => {
+    const allCompletedIds = new Set(completedTests.map(t => t.id));
+    setHistorySelectedIds(allCompletedIds);
+  };
+
+  const clearHistorySelection = () => {
+    setHistorySelectedIds(new Set());
+  };
+
+  const handleHistoryPrint = () => {
+    const testsToprint = historySelectedIds.size > 0 
+      ? tests.filter(t => historySelectedIds.has(t.id))
+      : completedTests;
+
+    if (testsToprint.length === 0) {
+      toast.error("No completed tests to print");
+      return;
+    }
+
+    const uniqueNames = Array.from(
+      new Set(testsToprint.map((t) => t.entered_by_name).filter(Boolean) as string[])
+    );
+    const enteredByLabel =
+      uniqueNames.length === 1
+        ? uniqueNames[0]
+        : uniqueNames.length > 1
+          ? "Multiple Staff"
+          : undefined;
+
+    const success = generateMultiTestReportPDF(
+      {
+        full_name: patient!.full_name,
+        patient_id: patient!.patient_id,
+        phone: patient!.phone,
+        gender: patient!.gender || undefined,
+        blood_group: patient!.blood_group || undefined,
+      },
+      testsToprint.map(t => ({
+        id: t.id,
+        test_name: t.test_name,
+        test_date: t.test_date,
+        status: t.status,
+        result: t.result,
+        result_value: t.result_value,
+        result_unit: t.result_unit,
+        is_abnormal: t.is_abnormal,
+        normal_range_text: t.normal_range_text || undefined,
+        entered_by_name: t.entered_by_name,
+      })),
+      enteredByLabel,
+      historyPrintOptions
+    );
+
+    if (success) {
+      toast.success(`Report downloaded successfully`);
+      setHistoryPrintDialogOpen(false);
+      setHistorySelectedIds(new Set());
+    } else {
+      toast.error("Failed to generate report");
+    }
+  };
 
   if (loading) {
     return (
@@ -295,11 +382,39 @@ const PatientDashboard = () => {
           <TabsContent value="history">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Test History
-                </CardTitle>
-                <CardDescription>Complete history of all your tests</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Test History
+                    </CardTitle>
+                    <CardDescription>Complete history of all your tests</CardDescription>
+                  </div>
+                  {completedTests.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {historySelectedIds.size > 0 && (
+                        <Badge variant="secondary">
+                          {historySelectedIds.size} selected
+                        </Badge>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={historySelectedIds.size === completedTests.length ? clearHistorySelection : selectAllHistoryTests}
+                      >
+                        {historySelectedIds.size === completedTests.length ? "Deselect All" : "Select All"}
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={() => setHistoryPrintDialogOpen(true)}
+                        className="gap-2"
+                      >
+                        <Printer className="h-4 w-4" />
+                        Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {testsLoading ? (
@@ -331,7 +446,16 @@ const PatientDashboard = () => {
                           </div>
                           <div className="bg-muted/30 rounded-lg p-4">
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-medium text-foreground">{test.test_name}</h4>
+                              <div className="flex items-center gap-3">
+                                {test.status === "completed" && (
+                                  <Checkbox
+                                    checked={historySelectedIds.has(test.id)}
+                                    onCheckedChange={() => toggleHistorySelection(test.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
+                                <h4 className="font-medium text-foreground">{test.test_name}</h4>
+                              </div>
                               {getStatusBadge(test.status)}
                             </div>
                             <p className="text-sm text-muted-foreground">
@@ -438,6 +562,68 @@ const PatientDashboard = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* History Print Options Dialog */}
+      <Dialog open={historyPrintDialogOpen} onOpenChange={setHistoryPrintDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Print Options
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <p className="text-sm text-muted-foreground">
+              Configure options for pre-printed A4 paper. Disable header/footer to leave space for pre-printed letterhead.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="history-include-header" className="flex flex-col gap-1">
+                  <span>Include Header</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Print lab name and contact info
+                  </span>
+                </Label>
+                <Switch
+                  id="history-include-header"
+                  checked={historyPrintOptions.includeHeader}
+                  onCheckedChange={(checked) => 
+                    setHistoryPrintOptions(prev => ({ ...prev, includeHeader: checked }))
+                  }
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="history-include-footer" className="flex flex-col gap-1">
+                  <span>Include Footer</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Print generation info and disclaimer
+                  </span>
+                </Label>
+                <Switch
+                  id="history-include-footer"
+                  checked={historyPrintOptions.includeFooter}
+                  onCheckedChange={(checked) => 
+                    setHistoryPrintOptions(prev => ({ ...prev, includeFooter: checked }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryPrintDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleHistoryPrint} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="mt-12 border-t border-border bg-muted/30">
