@@ -83,6 +83,11 @@ interface PatientTest {
   };
 }
 
+interface TestPrice {
+  testId: string;
+  price: number;
+}
+
 const ManageBilling = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -98,6 +103,7 @@ const ManageBilling = () => {
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [patientTests, setPatientTests] = useState<PatientTest[]>([]);
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
+  const [customPrices, setCustomPrices] = useState<Map<string, number>>(new Map());
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,8 +176,18 @@ const ManageBilling = () => {
     if (selectedPatientId) {
       fetchPatientTests(selectedPatientId);
       setSelectedTestIds(new Set());
+      setCustomPrices(new Map());
     }
   }, [selectedPatientId]);
+
+  // Initialize custom prices when tests are loaded
+  useEffect(() => {
+    const newPrices = new Map<string, number>();
+    patientTests.forEach(t => {
+      newPrices.set(t.id, t.test?.price || 0);
+    });
+    setCustomPrices(newPrices);
+  }, [patientTests]);
 
   const generateInvoiceNumber = () => {
     const year = new Date().getFullYear().toString().slice(-2);
@@ -179,9 +195,19 @@ const ManageBilling = () => {
     return `INV${year}${random}`;
   };
 
+  const getTestPrice = (testId: string) => {
+    return customPrices.get(testId) || 0;
+  };
+
+  const updateTestPrice = (testId: string, price: number) => {
+    const newPrices = new Map(customPrices);
+    newPrices.set(testId, price);
+    setCustomPrices(newPrices);
+  };
+
   const calculateTotal = () => {
     const selectedTests = patientTests.filter(t => selectedTestIds.has(t.id));
-    const total = selectedTests.reduce((sum, t) => sum + (t.test?.price || 0), 0);
+    const total = selectedTests.reduce((sum, t) => sum + getTestPrice(t.id), 0);
     return total;
   };
 
@@ -214,15 +240,18 @@ const ManageBilling = () => {
 
       if (invoiceError) throw invoiceError;
 
-      // Create invoice items
+      // Create invoice items with custom prices
       const selectedTests = patientTests.filter(t => selectedTestIds.has(t.id));
-      const invoiceItems = selectedTests.map(t => ({
-        invoice_id: invoice.id,
-        patient_test_id: t.id,
-        test_name: t.test_name,
-        unit_price: t.test?.price || 0,
-        amount: t.test?.price || 0,
-      }));
+      const invoiceItems = selectedTests.map(t => {
+        const price = getTestPrice(t.id);
+        return {
+          invoice_id: invoice.id,
+          patient_test_id: t.id,
+          test_name: t.test_name,
+          unit_price: price,
+          amount: price,
+        };
+      });
 
       const { error: itemsError } = await supabase
         .from("invoice_items")
@@ -567,7 +596,16 @@ const ManageBilling = () => {
                             {format(new Date(test.test_date), "dd MMM yyyy")}
                           </p>
                         </div>
-                        <p className="font-medium">₹{test.test?.price?.toLocaleString() || 0}</p>
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">₹</span>
+                          <Input
+                            type="number"
+                            value={getTestPrice(test.id)}
+                            onChange={(e) => updateTestPrice(test.id, Number(e.target.value))}
+                            className="w-24 h-8 text-right"
+                            min={0}
+                          />
+                        </div>
                       </div>
                     ))
                   )}

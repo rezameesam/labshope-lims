@@ -6,6 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -24,6 +25,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Invoice {
   id: string;
@@ -57,15 +60,18 @@ interface Payment {
 
 interface BillingPortalProps {
   patientId: string;
+  patientName?: string;
+  patientPhone?: string;
 }
 
-const BillingPortal = ({ patientId }: BillingPortalProps) => {
+const BillingPortal = ({ patientId, patientName, patientPhone }: BillingPortalProps) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
 
   const fetchInvoices = async () => {
     try {
@@ -120,6 +126,152 @@ const BillingPortal = ({ patientId }: BillingPortalProps) => {
     setSelectedInvoice(invoice);
     await fetchInvoiceDetails(invoice.id);
     setIsDetailsOpen(true);
+  };
+
+  const toggleInvoiceSelection = (invoiceId: string) => {
+    const newSelected = new Set(selectedInvoiceIds);
+    if (newSelected.has(invoiceId)) {
+      newSelected.delete(invoiceId);
+    } else {
+      newSelected.add(invoiceId);
+    }
+    setSelectedInvoiceIds(newSelected);
+  };
+
+  const selectAllInvoices = () => {
+    setSelectedInvoiceIds(new Set(invoices.map(inv => inv.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedInvoiceIds(new Set());
+  };
+
+  const generateInvoicePDF = async (invoicesToDownload: Invoice[]) => {
+    if (invoicesToDownload.length === 0) {
+      toast.error("No invoices selected");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      let yOffset = 20;
+
+      for (let i = 0; i < invoicesToDownload.length; i++) {
+        const invoice = invoicesToDownload[i];
+        
+        // Add new page for each invoice after the first
+        if (i > 0) {
+          doc.addPage();
+          yOffset = 20;
+        }
+
+        // Fetch items for this invoice
+        const { data: items } = await supabase
+          .from("invoice_items")
+          .select("*")
+          .eq("invoice_id", invoice.id);
+
+        // Header
+        doc.setFontSize(20);
+        doc.setTextColor(26, 54, 93);
+        doc.text("IRM Clinical Laboratory", 105, yOffset, { align: "center" });
+        
+        yOffset += 8;
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text("Pampore, Pulwama, J&K | Phone: +91 9419034607", 105, yOffset, { align: "center" });
+        
+        yOffset += 15;
+        doc.setFontSize(16);
+        doc.setTextColor(0, 0, 0);
+        doc.text("INVOICE", 105, yOffset, { align: "center" });
+        
+        // Invoice details
+        yOffset += 15;
+        doc.setFontSize(10);
+        doc.text(`Invoice No: ${invoice.invoice_number}`, 20, yOffset);
+        doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 140, yOffset);
+        
+        yOffset += 8;
+        doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 20, yOffset);
+        
+        // Items table
+        yOffset += 10;
+        autoTable(doc, {
+          startY: yOffset,
+          head: [["Test Name", "Qty", "Unit Price", "Amount"]],
+          body: (items || []).map(item => [
+            item.test_name,
+            item.quantity.toString(),
+            `₹${item.unit_price.toLocaleString()}`,
+            `₹${item.amount.toLocaleString()}`
+          ]),
+          theme: "striped",
+          headStyles: { fillColor: [26, 54, 93] },
+          margin: { left: 20, right: 20 },
+        });
+
+        // Get the final Y position after table
+        const tableEndY = (doc as any).lastAutoTable.finalY || yOffset + 30;
+        yOffset = tableEndY + 10;
+
+        // Summary
+        doc.setFontSize(10);
+        const rightX = 150;
+        doc.text("Subtotal:", rightX, yOffset);
+        doc.text(`₹${invoice.total_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+        
+        if (invoice.discount_amount > 0) {
+          yOffset += 7;
+          doc.setTextColor(34, 139, 34);
+          doc.text("Discount:", rightX, yOffset);
+          doc.text(`-₹${invoice.discount_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+          doc.setTextColor(0, 0, 0);
+        }
+        
+        yOffset += 7;
+        doc.setFontSize(12);
+        doc.setFont(undefined as unknown as string, "bold");
+        doc.text("Total:", rightX, yOffset);
+        doc.text(`₹${invoice.final_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+        
+        yOffset += 7;
+        doc.setFontSize(10);
+        doc.setFont(undefined as unknown as string, "normal");
+        doc.setTextColor(34, 139, 34);
+        doc.text("Paid:", rightX, yOffset);
+        doc.text(`₹${invoice.paid_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+        
+        if (invoice.final_amount - invoice.paid_amount > 0) {
+          yOffset += 7;
+          doc.setTextColor(255, 140, 0);
+          doc.text("Outstanding:", rightX, yOffset);
+          doc.text(`₹${(invoice.final_amount - invoice.paid_amount).toLocaleString()}`, 190, yOffset, { align: "right" });
+        }
+        
+        doc.setTextColor(0, 0, 0);
+      }
+
+      // Save the PDF
+      const fileName = invoicesToDownload.length === 1 
+        ? `Invoice_${invoicesToDownload[0].invoice_number}.pdf`
+        : `Invoices_${format(new Date(), "yyyyMMdd_HHmmss")}.pdf`;
+      
+      doc.save(fileName);
+      toast.success(`${invoicesToDownload.length} invoice(s) downloaded successfully`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate invoice PDF");
+    }
+  };
+
+  const handleDownloadSelected = () => {
+    const selectedInvoices = invoices.filter(inv => selectedInvoiceIds.has(inv.id));
+    generateInvoicePDF(selectedInvoices);
+  };
+
+  const handleDownloadSingle = (invoice: Invoice) => {
+    generateInvoicePDF([invoice]);
   };
 
   const getStatusBadge = (status: string) => {
@@ -208,11 +360,41 @@ const BillingPortal = ({ patientId }: BillingPortalProps) => {
       {/* Invoices List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Your Invoices
-          </CardTitle>
-          <CardDescription>View and track all your lab bills</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Your Invoices
+              </CardTitle>
+              <CardDescription>View and download your lab bills</CardDescription>
+            </div>
+            {invoices.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedInvoiceIds.size > 0 && (
+                  <Badge variant="secondary">
+                    {selectedInvoiceIds.size} selected
+                  </Badge>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={selectedInvoiceIds.size === invoices.length ? clearSelection : selectAllInvoices}
+                >
+                  {selectedInvoiceIds.size === invoices.length ? "Deselect All" : "Select All"}
+                </Button>
+                {selectedInvoiceIds.size > 0 && (
+                  <Button 
+                    size="sm"
+                    onClick={handleDownloadSelected}
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download ({selectedInvoiceIds.size})
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {invoices.length === 0 ? (
@@ -225,17 +407,35 @@ const BillingPortal = ({ patientId }: BillingPortalProps) => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedInvoiceIds.size === invoices.length && invoices.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          selectAllInvoices();
+                        } else {
+                          clearSelection();
+                        }
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Invoice #</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices.map((invoice) => (
                   <TableRow key={invoice.id} className="hover:bg-muted/30">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedInvoiceIds.has(invoice.id)}
+                        onCheckedChange={() => toggleInvoiceSelection(invoice.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono font-medium">{invoice.invoice_number}</TableCell>
                     <TableCell className="text-right font-medium">₹{invoice.final_amount.toLocaleString()}</TableCell>
                     <TableCell className="text-right">₹{invoice.paid_amount.toLocaleString()}</TableCell>
@@ -244,13 +444,23 @@ const BillingPortal = ({ patientId }: BillingPortalProps) => {
                       {format(new Date(invoice.created_at), "dd MMM yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => openInvoiceDetails(invoice)}
-                      >
-                        View
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleDownloadSingle(invoice)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openInvoiceDetails(invoice)}
+                        >
+                          View
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -341,6 +551,15 @@ const BillingPortal = ({ patientId }: BillingPortalProps) => {
                   </div>
                 </div>
               )}
+
+              {/* Download Button */}
+              <Button 
+                className="w-full gap-2"
+                onClick={() => handleDownloadSingle(selectedInvoice)}
+              >
+                <Download className="h-4 w-4" />
+                Download Invoice PDF
+              </Button>
 
               {/* Outstanding Payment Notice */}
               {selectedInvoice.payment_status !== "paid" && (
