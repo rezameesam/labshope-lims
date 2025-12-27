@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,13 @@ interface PatientTest {
   entered_by_name?: string;
 }
 
+interface BillingSummary {
+  totalBilled: number;
+  totalPaid: number;
+  outstanding: number;
+  invoiceCount: number;
+}
+
 const ManagePatients = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +90,7 @@ const ManagePatients = () => {
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
     phone: "",
@@ -150,6 +158,31 @@ const ManagePatients = () => {
       );
     } catch (error) {
       console.error("Error fetching patient tests:", error);
+    }
+  };
+
+  const fetchBillingSummary = async (patientId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("final_amount, paid_amount")
+        .eq("patient_id", patientId);
+
+      if (error) throw error;
+
+      const invoices = data || [];
+      const totalBilled = invoices.reduce((sum, inv) => sum + (inv.final_amount || 0), 0);
+      const totalPaid = invoices.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0);
+
+      setBillingSummary({
+        totalBilled,
+        totalPaid,
+        outstanding: totalBilled - totalPaid,
+        invoiceCount: invoices.length,
+      });
+    } catch (error) {
+      console.error("Error fetching billing summary:", error);
+      setBillingSummary(null);
     }
   };
 
@@ -260,7 +293,11 @@ const ManagePatients = () => {
   const openPatientDetails = async (patient: Patient) => {
     setSelectedPatient(patient);
     setSelectedTestIds(new Set());
-    await fetchPatientTests(patient.id);
+    setBillingSummary(null);
+    await Promise.all([
+      fetchPatientTests(patient.id),
+      fetchBillingSummary(patient.id)
+    ]);
     setIsSheetOpen(true);
   };
 
@@ -831,6 +868,54 @@ const ManagePatients = () => {
                     ))
                   )}
                 </div>
+              </div>
+
+              {/* Billing Summary */}
+              <div>
+                <h4 className="font-semibold flex items-center gap-2 mb-3">
+                  <Receipt className="h-4 w-4" />
+                  Billing Summary
+                </h4>
+                {billingSummary ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+                      <div className="flex items-center gap-2">
+                        <IndianRupee className="h-4 w-4 text-blue-600" />
+                        <span className="text-xs text-muted-foreground">Total Billed</span>
+                      </div>
+                      <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                        ₹{billingSummary.totalBilled.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs text-muted-foreground">Total Paid</span>
+                      </div>
+                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                        ₹{billingSummary.totalPaid.toLocaleString()}
+                      </p>
+                    </div>
+                    {billingSummary.outstanding > 0 && (
+                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 col-span-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-amber-600" />
+                            <span className="text-sm text-amber-700 dark:text-amber-300">Outstanding Balance</span>
+                          </div>
+                          <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                            ₹{billingSummary.outstanding.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <p className="col-span-2 text-xs text-muted-foreground">
+                      {billingSummary.invoiceCount} invoice(s) on record
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No billing records</p>
+                )}
               </div>
 
               {/* Actions */}
