@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Plus, Search, Eye, Receipt, CreditCard, Banknote, 
   IndianRupee, Calendar, User, FileText, Printer, 
-  CheckCircle, Clock, XCircle, Filter
+  CheckCircle, Clock, XCircle, Filter, Download
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,7 +82,21 @@ interface PatientTest {
   test_id: string | null;
   test?: {
     price: number | null;
-  };
+  } | null;
+}
+
+interface InvoiceItem {
+  id: string;
+  test_name: string;
+  unit_price: number;
+  quantity: number;
+  amount: number;
+}
+
+interface Test {
+  id: string;
+  name: string;
+  price: number | null;
 }
 
 interface TestPrice {
@@ -113,6 +129,10 @@ const ManageBilling = () => {
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [transactionId, setTransactionId] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
+
+  // Tests database for price lookup
+  const [testsDb, setTestsDb] = useState<Test[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
 
   const fetchInvoices = async () => {
     try {
@@ -149,6 +169,33 @@ const ManageBilling = () => {
     }
   };
 
+  const fetchTestsDb = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tests")
+        .select("id, name, price");
+
+      if (error) throw error;
+      setTestsDb((data || []) as Test[]);
+    } catch (error) {
+      console.error("Error fetching tests:", error);
+    }
+  };
+
+  const fetchInvoiceItems = async (invoiceId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("invoice_items")
+        .select("id, test_name, unit_price, quantity, amount")
+        .eq("invoice_id", invoiceId);
+
+      if (error) throw error;
+      setInvoiceItems((data || []) as InvoiceItem[]);
+    } catch (error) {
+      console.error("Error fetching invoice items:", error);
+    }
+  };
+
   const fetchPatientTests = async (patientId: string) => {
     try {
       const { data, error } = await supabase
@@ -170,6 +217,7 @@ const ManageBilling = () => {
   useEffect(() => {
     fetchInvoices();
     fetchPatients();
+    fetchTestsDb();
   }, []);
 
   useEffect(() => {
@@ -180,14 +228,27 @@ const ManageBilling = () => {
     }
   }, [selectedPatientId]);
 
-  // Initialize custom prices when tests are loaded
+  // Initialize custom prices when tests are loaded - look up prices from testsDb by test name
   useEffect(() => {
     const newPrices = new Map<string, number>();
     patientTests.forEach(t => {
-      newPrices.set(t.id, t.test?.price || 0);
+      // First try to get price from linked test
+      let price = t.test?.price || 0;
+      
+      // If no price, look up in testsDb by test name
+      if (price === 0) {
+        const matchedTest = testsDb.find(
+          dbTest => dbTest.name.toLowerCase() === t.test_name.toLowerCase()
+        );
+        if (matchedTest && matchedTest.price) {
+          price = Number(matchedTest.price);
+        }
+      }
+      
+      newPrices.set(t.id, price);
     });
     setCustomPrices(newPrices);
-  }, [patientTests]);
+  }, [patientTests, testsDb]);
 
   const generateInvoiceNumber = () => {
     const year = new Date().getFullYear().toString().slice(-2);
@@ -358,6 +419,115 @@ const ManageBilling = () => {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const handlePrintInvoice = async (invoice: Invoice) => {
+    // Fetch invoice items for the invoice
+    const { data: items, error } = await supabase
+      .from("invoice_items")
+      .select("id, test_name, unit_price, quantity, amount")
+      .eq("invoice_id", invoice.id);
+
+    if (error) {
+      toast.error("Failed to fetch invoice items");
+      return;
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("INVOICE", pageWidth / 2, 20, { align: "center" });
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Clinical Pathology Laboratory", pageWidth / 2, 28, { align: "center" });
+    
+    // Invoice details
+    doc.setFontSize(11);
+    doc.text(`Invoice #: ${invoice.invoice_number}`, 14, 45);
+    doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 14, 52);
+    doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 59);
+    
+    // Patient details
+    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, 45, { align: "right" });
+    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, 52, { align: "right" });
+    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, 59, { align: "right" });
+    
+    // Line separator
+    doc.setLineWidth(0.5);
+    doc.line(14, 65, pageWidth - 14, 65);
+    
+    // Items table
+    const tableData = (items || []).map((item: InvoiceItem, index: number) => [
+      (index + 1).toString(),
+      item.test_name,
+      item.quantity.toString(),
+      `₹${Number(item.unit_price).toLocaleString()}`,
+      `₹${Number(item.amount).toLocaleString()}`
+    ]);
+    
+    autoTable(doc, {
+      startY: 70,
+      head: [["#", "Test Name", "Qty", "Unit Price", "Amount"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [41, 65, 112], textColor: 255 },
+      columnStyles: {
+        0: { cellWidth: 15 },
+        1: { cellWidth: "auto" },
+        2: { cellWidth: 20, halign: "center" },
+        3: { cellWidth: 35, halign: "right" },
+        4: { cellWidth: 35, halign: "right" }
+      }
+    });
+    
+    // Summary section
+    const finalY = (doc as any).lastAutoTable?.finalY || 120;
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("Subtotal:", pageWidth - 70, finalY + 15);
+    doc.text(`₹${Number(invoice.total_amount).toLocaleString()}`, pageWidth - 14, finalY + 15, { align: "right" });
+    
+    if (invoice.discount_amount > 0) {
+      doc.text("Discount:", pageWidth - 70, finalY + 22);
+      doc.text(`-₹${Number(invoice.discount_amount).toLocaleString()}`, pageWidth - 14, finalY + 22, { align: "right" });
+    }
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Total:", pageWidth - 70, finalY + 32);
+    doc.text(`₹${Number(invoice.final_amount).toLocaleString()}`, pageWidth - 14, finalY + 32, { align: "right" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("Paid:", pageWidth - 70, finalY + 42);
+    doc.text(`₹${Number(invoice.paid_amount).toLocaleString()}`, pageWidth - 14, finalY + 42, { align: "right" });
+    
+    const outstanding = invoice.final_amount - invoice.paid_amount;
+    if (outstanding > 0) {
+      doc.setTextColor(255, 100, 100);
+      doc.text("Outstanding:", pageWidth - 70, finalY + 52);
+      doc.text(`₹${outstanding.toLocaleString()}`, pageWidth - 14, finalY + 52, { align: "right" });
+      doc.setTextColor(0, 0, 0);
+    }
+    
+    // Footer
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    doc.text("Thank you for choosing our laboratory services.", pageWidth / 2, doc.internal.pageSize.getHeight() - 20, { align: "center" });
+    
+    // Open print dialog
+    const pdfBlob = doc.output("blob");
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    const printWindow = window.open(pdfUrl);
+    if (printWindow) {
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
+    
+    toast.success("Invoice ready for printing");
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
@@ -827,7 +997,11 @@ const ManageBilling = () => {
                     Record Payment
                   </Button>
                 )}
-                <Button variant="outline" className="flex-1">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => handlePrintInvoice(selectedInvoice)}
+                >
                   <Printer className="h-4 w-4 mr-2" />
                   Print Invoice
                 </Button>
