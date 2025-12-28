@@ -56,6 +56,246 @@ export type Database = {
         }
         Relationships: []
       }
+      equipment_maintenance: {
+        Row: {
+          completed_date: string | null
+          cost: number | null
+          created_at: string
+          id: string
+          item_id: string
+          maintenance_type: string
+          notes: string | null
+          performed_by: string | null
+          scheduled_date: string | null
+          status: string | null
+          vendor: string | null
+        }
+        Insert: {
+          completed_date?: string | null
+          cost?: number | null
+          created_at?: string
+          id?: string
+          item_id: string
+          maintenance_type: string
+          notes?: string | null
+          performed_by?: string | null
+          scheduled_date?: string | null
+          status?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          completed_date?: string | null
+          cost?: number | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          maintenance_type?: string
+          notes?: string | null
+          performed_by?: string | null
+          scheduled_date?: string | null
+          status?: string | null
+          vendor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_maintenance_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      inventory_items: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          current_stock: number | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          location: string | null
+          min_stock_level: number | null
+          name: string
+          sku: string | null
+          supplier: string | null
+          type: string
+          unit: string | null
+          unit_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          current_stock?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          min_stock_level?: number | null
+          name: string
+          sku?: string | null
+          supplier?: string | null
+          type?: string
+          unit?: string | null
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          current_stock?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          min_stock_level?: number | null
+          name?: string
+          sku?: string | null
+          supplier?: string | null
+          type?: string
+          unit?: string | null
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_purchases: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_number: string | null
+          item_id: string
+          notes: string | null
+          purchase_date: string
+          purchased_by: string | null
+          quantity: number
+          supplier: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          item_id: string
+          notes?: string | null
+          purchase_date?: string
+          purchased_by?: string | null
+          quantity: number
+          supplier?: string | null
+          total_cost: number
+          unit_cost: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          item_id?: string
+          notes?: string | null
+          purchase_date?: string
+          purchased_by?: string | null
+          quantity?: number
+          supplier?: string | null
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_purchases_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_usage: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          notes: string | null
+          patient_test_id: string | null
+          quantity: number
+          recorded_by: string | null
+          total_cost: number | null
+          unit_cost: number | null
+          usage_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          notes?: string | null
+          patient_test_id?: string | null
+          quantity: number
+          recorded_by?: string | null
+          total_cost?: number | null
+          unit_cost?: number | null
+          usage_date?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          notes?: string | null
+          patient_test_id?: string | null
+          quantity?: number
+          recorded_by?: string | null
+          total_cost?: number | null
+          unit_cost?: number | null
+          usage_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_usage_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_usage_patient_test_id_fkey"
+            columns: ["patient_test_id"]
+            isOneToOne: false
+            referencedRelation: "patient_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_items: {
         Row: {
           amount: number

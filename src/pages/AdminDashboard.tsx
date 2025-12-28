@@ -11,7 +11,8 @@ import {
   Home,
   ClipboardList,
   Settings,
-  Receipt
+  Receipt,
+  Package
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,9 +22,10 @@ import ManageEmployees from "@/components/admin/ManageEmployees";
 import ManagePatients from "@/components/admin/ManagePatients";
 import ManageTests from "@/components/admin/ManageTests";
 import ManageBilling from "@/components/admin/ManageBilling";
+import ManageInventory from "@/components/admin/ManageInventory";
 import DashboardOverview from "@/components/admin/DashboardOverview";
 
-type TabType = "overview" | "employees" | "patients" | "tests" | "billing";
+type TabType = "overview" | "employees" | "patients" | "tests" | "billing" | "inventory";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -68,6 +70,7 @@ const AdminDashboard = () => {
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Tests", icon: ClipboardList },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
+    { id: "inventory" as TabType, label: "Inventory", icon: Package },
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
@@ -183,6 +186,7 @@ const AdminDashboard = () => {
             {activeTab === "patients" && <ManagePatients />}
             {activeTab === "tests" && <ManageTests />}
             {activeTab === "billing" && <ManageBilling />}
+            {activeTab === "inventory" && <ManageInventory />}
           </motion.div>
         </div>
       </main>
