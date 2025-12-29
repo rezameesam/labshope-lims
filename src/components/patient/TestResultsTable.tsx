@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X, Printer } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X, Printer, Lock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -23,9 +23,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { generateMultiTestReportPDF } from "./TestReportPDF";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TestResult {
   id: string;
@@ -54,10 +56,11 @@ interface PatientInfo {
 interface TestResultsTableProps {
   tests: TestResult[];
   patient: PatientInfo;
+  patientDbId?: string;
   loading?: boolean;
 }
 
-const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) => {
+const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsTableProps) => {
   const [selectedTest, setSelectedTest] = useState<TestResult | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -66,15 +69,77 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
   const [groupBy, setGroupBy] = useState<"date" | "category" | "status">("date");
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
   const [isPrintOptionsOpen, setIsPrintOptionsOpen] = useState(false);
+  
+  // Date range filter state
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // Payment status state
+  const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
+  const [outstandingAmount, setOutstandingAmount] = useState(0);
+  const [checkingPayment, setCheckingPayment] = useState(true);
 
   const completedTests = tests.filter(t => t.status === "completed");
   const pendingTests = tests.filter(t => t.status !== "completed");
+
+  // Check for outstanding dues
+  useEffect(() => {
+    const checkPaymentStatus = async () => {
+      if (!patientDbId) {
+        setCheckingPayment(false);
+        return;
+      }
+
+      try {
+        const { data: invoices, error } = await supabase
+          .from("invoices")
+          .select("final_amount, paid_amount")
+          .eq("patient_id", patientDbId);
+
+        if (error) throw error;
+
+        const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
+        const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
+        const outstanding = totalBilled - totalPaid;
+
+        setHasOutstandingDues(outstanding > 0);
+        setOutstandingAmount(outstanding);
+      } catch (error) {
+        console.error("Error checking payment status:", error);
+      } finally {
+        setCheckingPayment(false);
+      }
+    };
+
+    checkPaymentStatus();
+  }, [patientDbId]);
+
+  // Filter tests by date range
+  const dateFilteredTests = useMemo(() => {
+    if (!startDate && !endDate) return completedTests;
+    
+    return completedTests.filter(test => {
+      const testDate = parseISO(test.test_date);
+      
+      if (startDate && endDate) {
+        return isWithinInterval(testDate, {
+          start: startOfDay(parseISO(startDate)),
+          end: endOfDay(parseISO(endDate))
+        });
+      } else if (startDate) {
+        return testDate >= startOfDay(parseISO(startDate));
+      } else if (endDate) {
+        return testDate <= endOfDay(parseISO(endDate));
+      }
+      return true;
+    });
+  }, [completedTests, startDate, endDate]);
 
   // Group tests by different criteria
   const groupedTests = useMemo(() => {
     const grouped: Record<string, TestResult[]> = {};
     
-    completedTests.forEach(test => {
+    dateFilteredTests.forEach(test => {
       let key = "";
       switch (groupBy) {
         case "date":
@@ -109,7 +174,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
     }
 
     return grouped;
-  }, [completedTests, groupBy]);
+  }, [dateFilteredTests, groupBy]);
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -145,7 +210,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
   };
 
   const selectAllTests = () => {
-    const allIds = new Set(completedTests.map(t => t.id));
+    const allIds = new Set(dateFilteredTests.map(t => t.id));
     setSelectedTestIds(allIds);
   };
 
@@ -153,83 +218,99 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
     setSelectedTestIds(new Set());
   };
 
-  const handleDownloadAll = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
-    if (completedTests.length === 0) {
-      toast.error("No completed tests to download");
+  const checkDuesBeforeDownload = (callback: () => void) => {
+    if (hasOutstandingDues) {
+      toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
       return;
     }
+    callback();
+  };
 
-    const uniqueNames = Array.from(
-      new Set(completedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
-    );
-    const enteredByLabel =
-      uniqueNames.length === 1
-        ? uniqueNames[0]
-        : uniqueNames.length > 1
-          ? "Multiple Staff"
-          : undefined;
+  const handleDownloadAll = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
+    checkDuesBeforeDownload(() => {
+      if (dateFilteredTests.length === 0) {
+        toast.error("No completed tests to download");
+        return;
+      }
 
-    const success = generateMultiTestReportPDF(
-      {
-        full_name: patient.full_name,
-        patient_id: patient.patient_id,
-        phone: patient.phone,
-        gender: patient.gender || undefined,
-        blood_group: patient.blood_group || undefined,
-      },
-      completedTests,
-      enteredByLabel,
-      options
-    );
+      const uniqueNames = Array.from(
+        new Set(dateFilteredTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
+      );
+      const enteredByLabel =
+        uniqueNames.length === 1
+          ? uniqueNames[0]
+          : uniqueNames.length > 1
+            ? "Multiple Staff"
+            : undefined;
 
-    if (success) {
-      toast.success("Report downloaded successfully");
-    } else {
-      toast.error("Failed to generate report");
-    }
+      const success = generateMultiTestReportPDF(
+        {
+          full_name: patient.full_name,
+          patient_id: patient.patient_id,
+          phone: patient.phone,
+          gender: patient.gender || undefined,
+          blood_group: patient.blood_group || undefined,
+        },
+        dateFilteredTests,
+        enteredByLabel,
+        options
+      );
+
+      if (success) {
+        toast.success("Report downloaded successfully");
+      } else {
+        toast.error("Failed to generate report");
+      }
+    });
   };
 
   const handleDownloadSelected = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
-    if (selectedTestIds.size === 0) {
-      toast.error("Please select at least one test to download");
-      return;
-    }
+    checkDuesBeforeDownload(() => {
+      if (selectedTestIds.size === 0) {
+        toast.error("Please select at least one test to download");
+        return;
+      }
 
-    const selectedTests = completedTests.filter((t) => selectedTestIds.has(t.id));
+      const selectedTests = dateFilteredTests.filter((t) => selectedTestIds.has(t.id));
 
-    const uniqueNames = Array.from(
-      new Set(selectedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
-    );
-    const enteredByLabel =
-      uniqueNames.length === 1
-        ? uniqueNames[0]
-        : uniqueNames.length > 1
-          ? "Multiple Staff"
-          : undefined;
+      const uniqueNames = Array.from(
+        new Set(selectedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
+      );
+      const enteredByLabel =
+        uniqueNames.length === 1
+          ? uniqueNames[0]
+          : uniqueNames.length > 1
+            ? "Multiple Staff"
+            : undefined;
 
-    const success = generateMultiTestReportPDF(
-      {
-        full_name: patient.full_name,
-        patient_id: patient.patient_id,
-        phone: patient.phone,
-        gender: patient.gender || undefined,
-        blood_group: patient.blood_group || undefined,
-      },
-      selectedTests,
-      enteredByLabel,
-      options
-    );
+      const success = generateMultiTestReportPDF(
+        {
+          full_name: patient.full_name,
+          patient_id: patient.patient_id,
+          phone: patient.phone,
+          gender: patient.gender || undefined,
+          blood_group: patient.blood_group || undefined,
+        },
+        selectedTests,
+        enteredByLabel,
+        options
+      );
 
-    if (success) {
-      toast.success(`Downloaded ${selectedTests.length} test(s) as PDF`);
-      setIsDownloadDialogOpen(false);
-      setSelectedTestIds(new Set());
-    } else {
-      toast.error("Failed to generate report");
-    }
+      if (success) {
+        toast.success(`Downloaded ${selectedTests.length} test(s) as PDF`);
+        setIsDownloadDialogOpen(false);
+        setSelectedTestIds(new Set());
+      } else {
+        toast.error("Failed to generate report");
+      }
+    });
   };
 
   const handlePrintWithOptions = () => {
+    if (hasOutstandingDues) {
+      toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
+      return;
+    }
     setIsPrintOptionsOpen(true);
   };
 
@@ -243,21 +324,23 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
   };
 
   const handleDownloadSingle = (test: TestResult) => {
-    const success = generateMultiTestReportPDF(
-      {
-        full_name: patient.full_name,
-        patient_id: patient.patient_id,
-        phone: patient.phone,
-        gender: patient.gender || undefined,
-        blood_group: patient.blood_group || undefined,
-      },
-      [test],
-      test.entered_by_name
-    );
+    checkDuesBeforeDownload(() => {
+      const success = generateMultiTestReportPDF(
+        {
+          full_name: patient.full_name,
+          patient_id: patient.patient_id,
+          phone: patient.phone,
+          gender: patient.gender || undefined,
+          blood_group: patient.blood_group || undefined,
+        },
+        [test],
+        test.entered_by_name
+      );
 
-    if (success) {
-      toast.success("Report downloaded successfully");
-    }
+      if (success) {
+        toast.success("Report downloaded successfully");
+      }
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -273,7 +356,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
     }
   };
 
-  if (loading) {
+  if (loading || checkingPayment) {
     return (
       <Card>
         <CardContent className="py-12">
@@ -288,6 +371,23 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
 
   return (
     <div className="space-y-6">
+      {/* Outstanding Dues Warning */}
+      {hasOutstandingDues && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Lock className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-semibold text-amber-900 dark:text-amber-100">Outstanding Dues</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  You have outstanding dues of ₹{outstandingAmount.toLocaleString()}. Please clear your dues to download test reports.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Completed Tests */}
       <Card>
         <CardHeader>
@@ -298,7 +398,8 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
                 Completed Test Results
               </CardTitle>
               <CardDescription>
-                {completedTests.length} test{completedTests.length !== 1 ? "s" : ""} completed
+                {dateFilteredTests.length} test{dateFilteredTests.length !== 1 ? "s" : ""} completed
+                {(startDate || endDate) && " (filtered)"}
               </CardDescription>
             </div>
             {completedTests.length > 0 && (
@@ -307,11 +408,16 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
                   variant="outline" 
                   onClick={() => setIsDownloadDialogOpen(true)} 
                   className="gap-2"
+                  disabled={hasOutstandingDues}
                 >
                   <Filter className="h-4 w-4" />
                   Select Tests to Download
                 </Button>
-                <Button onClick={() => handleDownloadAll()} className="gap-2">
+                <Button 
+                  onClick={() => handleDownloadAll()} 
+                  className="gap-2"
+                  disabled={hasOutstandingDues}
+                >
                   <Download className="h-4 w-4" />
                   Download All
                 </Button>
@@ -320,9 +426,40 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
           </div>
         </CardHeader>
         <CardContent>
-          {completedTests.length === 0 ? (
+          {/* Date Range Filter */}
+          <div className="mb-4 flex flex-wrap gap-4 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">From Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-40"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">To Date</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-40"
+              />
+            </div>
+            {(startDate || endDate) && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => { setStartDate(""); setEndDate(""); }}
+              >
+                Clear Dates
+              </Button>
+            )}
+          </div>
+
+          {dateFilteredTests.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No completed test results yet
+              {completedTests.length === 0 ? "No completed test results yet" : "No tests found for selected date range"}
             </div>
           ) : (
             <Table>
@@ -337,7 +474,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {completedTests.map((test) => (
+                {dateFilteredTests.map((test) => (
                   <>
                     <TableRow 
                       key={test.id} 
@@ -384,8 +521,13 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
                             handleDownloadSingle(test);
                           }}
                           className="gap-1"
+                          disabled={hasOutstandingDues}
                         >
-                          <Download className="h-3.5 w-3.5" />
+                          {hasOutstandingDues ? (
+                            <Lock className="h-3.5 w-3.5" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
                           PDF
                         </Button>
                       </TableCell>
@@ -480,136 +622,147 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
           </DialogHeader>
           
           <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-            {/* Grouping Options */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-sm text-muted-foreground">Group by:</span>
-              <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as typeof groupBy)}>
-                <TabsList className="bg-muted">
-                  <TabsTrigger value="date" className="gap-1 text-xs sm:text-sm">
-                    <Calendar className="h-3.5 w-3.5" />
-                    Date
-                  </TabsTrigger>
-                  <TabsTrigger value="category" className="gap-1 text-xs sm:text-sm">
-                    <Tag className="h-3.5 w-3.5" />
-                    Category
-                  </TabsTrigger>
-                  <TabsTrigger value="status" className="gap-1 text-xs sm:text-sm">
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    Status
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+            {/* Date Range Filter in Dialog */}
+            <div className="flex flex-wrap gap-4 items-end border-b pb-4">
+              <div className="space-y-1">
+                <Label className="text-xs">From Date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">To Date</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => { setStartDate(""); setEndDate(""); }}
+                >
+                  Clear
+                </Button>
+              )}
             </div>
 
             {/* Quick Actions */}
             <div className="flex items-center justify-between flex-shrink-0">
+              <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
+                <TabsList className="grid grid-cols-3 w-64">
+                  <TabsTrigger value="date">By Date</TabsTrigger>
+                  <TabsTrigger value="category">Category</TabsTrigger>
+                  <TabsTrigger value="status">Status</TabsTrigger>
+                </TabsList>
+              </Tabs>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={selectAllTests}>
                   Select All
                 </Button>
-                <Button variant="outline" size="sm" onClick={clearSelection}>
+                <Button variant="ghost" size="sm" onClick={clearSelection}>
                   Clear
                 </Button>
               </div>
-              <Badge variant="secondary" className="text-sm">
-                {selectedTestIds.size} selected
-              </Badge>
             </div>
 
-            {/* Selected Tests Preview - limited height */}
+            {/* Selection Status */}
             {selectedTestIds.size > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-3 bg-muted/50 rounded-lg max-h-24 overflow-y-auto flex-shrink-0">
-                {completedTests
-                  .filter(t => selectedTestIds.has(t.id))
-                  .map(test => (
-                    <Badge 
-                      key={test.id} 
-                      variant="secondary" 
-                      className="gap-1 cursor-pointer hover:bg-destructive/20"
-                      onClick={() => toggleTestSelection(test.id)}
-                    >
-                      {test.test_name}
-                      <X className="h-3 w-3" />
-                    </Badge>
-                  ))
-                }
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="secondary">{selectedTestIds.size} selected</Badge>
+                <span className="text-muted-foreground">of {dateFilteredTests.length} tests</span>
               </div>
             )}
 
-            {/* Grouped Tests List */}
-            <ScrollArea className="h-[250px] pr-4">
-              <div className="space-y-4">
-                {Object.entries(groupedTests).map(([groupName, groupTests]) => (
-                  <div key={groupName} className="space-y-2">
+            {/* Tests List */}
+            <ScrollArea className="flex-1 border rounded-lg">
+              <div className="p-4 space-y-4">
+                {Object.entries(groupedTests).map(([group, groupTests]) => (
+                  <div key={group} className="space-y-2">
                     <div className="flex items-center justify-between sticky top-0 bg-background py-1">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`group-${groupName}`}
-                          checked={groupTests.every(t => selectedTestIds.has(t.id))}
-                          onCheckedChange={() => toggleAllInGroup(groupTests)}
-                        />
-                        <label 
-                          htmlFor={`group-${groupName}`}
-                          className="text-sm font-semibold cursor-pointer"
-                        >
-                          {groupName}
-                        </label>
-                        <Badge variant="outline" className="text-xs">
-                          {groupTests.length}
-                        </Badge>
-                      </div>
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        {groupBy === "date" && <Calendar className="h-4 w-4" />}
+                        {groupBy === "category" && <Tag className="h-4 w-4" />}
+                        {groupBy === "status" && (group === "Abnormal Results" ? 
+                          <AlertTriangle className="h-4 w-4 text-red-500" /> : 
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        )}
+                        {group}
+                      </h4>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => toggleAllInGroup(groupTests)}
+                        className="text-xs"
+                      >
+                        {groupTests.every(t => selectedTestIds.has(t.id)) ? "Deselect" : "Select All"}
+                      </Button>
                     </div>
-                    
-                    <div className="pl-6 space-y-1">
-                      {groupTests.map(test => (
-                        <div 
+                    <div className="space-y-1">
+                      {groupTests.map((test) => (
+                        <label
                           key={test.id}
-                          className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                          className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer"
                         >
                           <Checkbox
-                            id={test.id}
                             checked={selectedTestIds.has(test.id)}
                             onCheckedChange={() => toggleTestSelection(test.id)}
                           />
-                          <label 
-                            htmlFor={test.id}
-                            className="flex-1 cursor-pointer flex items-center justify-between"
-                          >
+                          <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm">{test.test_name}</span>
+                              <span className="font-medium">{test.test_name}</span>
                               {test.is_abnormal && (
-                                <Badge className="bg-red-100 text-red-800 text-xs">Abnormal</Badge>
+                                <Badge variant="destructive" className="text-xs">Abnormal</Badge>
                               )}
                             </div>
                             <span className="text-xs text-muted-foreground">
                               {format(new Date(test.test_date), "dd MMM yyyy")}
                             </span>
-                          </label>
-                        </div>
+                          </div>
+                        </label>
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
             </ScrollArea>
+
+            {/* Print Options */}
+            <div className="flex items-center justify-between border-t pt-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="header"
+                    checked={printOptions.includeHeader}
+                    onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeHeader: checked }))}
+                  />
+                  <Label htmlFor="header" className="text-sm">Include Header</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="footer"
+                    checked={printOptions.includeFooter}
+                    onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeFooter: checked }))}
+                  />
+                  <Label htmlFor="footer" className="text-sm">Include Footer</Label>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 flex-shrink-0 pt-4 border-t">
+          <DialogFooter className="flex-shrink-0">
             <Button variant="outline" onClick={() => setIsDownloadDialogOpen(false)}>
               Cancel
             </Button>
             <Button 
-              variant="outline"
-              onClick={handlePrintWithOptions} 
-              disabled={selectedTestIds.size === 0}
-              className="gap-2"
-            >
-              <Printer className="h-4 w-4" />
-              Print Options
-            </Button>
-            <Button 
-              onClick={() => handleDownloadSelected()} 
-              disabled={selectedTestIds.size === 0}
+              onClick={() => handleDownloadSelected(printOptions)}
+              disabled={selectedTestIds.size === 0 || hasOutstandingDues}
               className="gap-2"
             >
               <Download className="h-4 w-4" />
@@ -621,7 +774,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
 
       {/* Print Options Dialog */}
       <Dialog open={isPrintOptionsOpen} onOpenChange={setIsPrintOptionsOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Printer className="h-5 w-5" />
@@ -629,43 +782,22 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-6 py-4">
-            <p className="text-sm text-muted-foreground">
-              Configure options for pre-printed A4 paper. Disable header/footer to leave space for pre-printed letterhead.
-            </p>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="include-header" className="flex flex-col gap-1">
-                  <span>Include Header</span>
-                  <span className="font-normal text-xs text-muted-foreground">
-                    Print lab name and contact info
-                  </span>
-                </Label>
-                <Switch
-                  id="include-header"
-                  checked={printOptions.includeHeader}
-                  onCheckedChange={(checked) => 
-                    setPrintOptions(prev => ({ ...prev, includeHeader: checked }))
-                  }
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="include-footer" className="flex flex-col gap-1">
-                  <span>Include Footer</span>
-                  <span className="font-normal text-xs text-muted-foreground">
-                    Print generation info and disclaimer
-                  </span>
-                </Label>
-                <Switch
-                  id="include-footer"
-                  checked={printOptions.includeFooter}
-                  onCheckedChange={(checked) => 
-                    setPrintOptions(prev => ({ ...prev, includeFooter: checked }))
-                  }
-                />
-              </div>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="print-header">Include Header (Lab Logo & Info)</Label>
+              <Switch
+                id="print-header"
+                checked={printOptions.includeHeader}
+                onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeHeader: checked }))}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="print-footer">Include Footer (Contact Info)</Label>
+              <Switch
+                id="print-footer"
+                checked={printOptions.includeFooter}
+                onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeFooter: checked }))}
+              />
             </div>
           </div>
 
@@ -675,7 +807,7 @@ const TestResultsTable = ({ tests, patient, loading }: TestResultsTableProps) =>
             </Button>
             <Button onClick={executePrint} className="gap-2">
               <Printer className="h-4 w-4" />
-              Print {selectedTestIds.size > 0 ? `(${selectedTestIds.size})` : "All"}
+              Print
             </Button>
           </DialogFooter>
         </DialogContent>

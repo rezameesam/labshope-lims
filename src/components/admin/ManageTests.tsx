@@ -248,6 +248,8 @@ const ManageTests = () => {
     setIsSubmitting(true);
 
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      
       // Insert all selected tests for the patient
       const testsToInsert = selectedTests.map((testName) => ({
         patient_id: selectedPatient.id,
@@ -258,11 +260,60 @@ const ManageTests = () => {
         created_by: user?.id,
       }));
 
-      const { error } = await supabase.from("patient_tests").insert(testsToInsert);
+      const { data: insertedTests, error } = await supabase
+        .from("patient_tests")
+        .insert(testsToInsert)
+        .select();
 
       if (error) throw error;
 
-      toast.success(`${selectedTests.length} test(s) added successfully`);
+      // Auto-create invoice for the tests
+      const invoiceNumber = `INV${new Date().getFullYear().toString().slice(-2)}${Math.floor(10000 + Math.random() * 90000)}`;
+      
+      // Calculate prices from test catalog
+      let totalAmount = 0;
+      const invoiceItemsData = selectedTests.map((testName) => {
+        const catalogTest = testCatalog.find(t => t.name === testName);
+        const price = catalogTest?.price || 0;
+        totalAmount += price;
+        return {
+          test_name: testName,
+          unit_price: price,
+          quantity: 1,
+          amount: price,
+          patient_test_id: insertedTests?.find(t => t.test_name === testName)?.id || null
+        };
+      });
+
+      // Create the invoice
+      const { data: invoice, error: invoiceError } = await supabase
+        .from("invoices")
+        .insert({
+          invoice_number: invoiceNumber,
+          patient_id: selectedPatient.id,
+          total_amount: totalAmount,
+          final_amount: totalAmount,
+          created_by: userData.user?.id,
+          notes: `Auto-generated for ${selectedTests.length} test(s)`
+        })
+        .select()
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      // Create invoice items
+      const invoiceItems = invoiceItemsData.map(item => ({
+        ...item,
+        invoice_id: invoice.id
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("invoice_items")
+        .insert(invoiceItems);
+
+      if (itemsError) throw itemsError;
+
+      toast.success(`${selectedTests.length} test(s) added and invoice ${invoiceNumber} created`);
       setIsDialogOpen(false);
       resetForm();
       fetchData();

@@ -379,6 +379,7 @@ const PatientDashboard = () => {
                 gender: patient.gender,
                 blood_group: patient.blood_group,
               }}
+              patientDbId={patient.id}
               loading={testsLoading}
             />
           </TabsContent>
