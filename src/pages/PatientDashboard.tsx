@@ -161,18 +161,23 @@ const PatientDashboard = () => {
 
         // Create a map of invoice_id to payment status
         const invoicePaymentMap = new Map<string, boolean>();
-        invoices.forEach(inv => {
-          const isPaid = inv.paid_amount >= inv.final_amount;
-          invoicePaymentMap.set(inv.id, isPaid);
-        });
+        if (invoices) {
+          invoices.forEach(inv => {
+            const isPaid = inv.paid_amount >= inv.final_amount;
+            invoicePaymentMap.set(inv.id, isPaid);
+          });
+        }
 
         // Find unpaid test IDs
+        // If a test is in an invoice_item, check if that invoice is fully paid
+        // If invoice is not found or not fully paid, lock the test
         const unpaidIds = new Set<string>();
         invoiceItems.forEach(item => {
           if (item.patient_test_id) {
             const invoiceId = item.invoice_id;
             const isPaid = invoicePaymentMap.get(invoiceId);
-            if (isPaid === false) {
+            // Lock if invoice is not found (undefined) or not fully paid (false)
+            if (isPaid !== true) {
               unpaidIds.add(item.patient_test_id);
             }
           }
