@@ -45,6 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import logo from "@/assets/logo.png";
 
 interface Invoice {
   id: string;
@@ -538,15 +539,27 @@ const ManageBilling = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header
+    // Header with logo and address
+    try {
+      // Add logo (convert to base64 if needed, or use URL)
+      const logoSize = 25;
+      const logoX = 14;
+      const logoY = 10;
+      doc.addImage(logo, "PNG", logoX, logoY, logoSize, logoSize);
+    } catch (error) {
+      console.error("Error adding logo to PDF:", error);
+    }
+    
+    // Header text
     doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
     doc.text("INVOICE", pageWidth / 2, 20, { align: "center" });
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("IRM Clinical Pathology Laboratory", pageWidth / 2, 28, { align: "center" });
-    doc.text("Pampore, Pulwama, J&K | +91 9419034607", pageWidth / 2, 34, { align: "center" });
+    doc.text("IRM Clinical Laboratory", pageWidth / 2, 28, { align: "center" });
+    doc.text("Old Post Office Building, Budgam, Jammu and Kashmir - 191111", pageWidth / 2, 34, { align: "center" });
+    doc.text("Phone: +91-9419034607 | +91-9622635767 | Email: irmclinic@gmail.com", pageWidth / 2, 40, { align: "center" });
     
     // Invoice details
     doc.setFontSize(11);

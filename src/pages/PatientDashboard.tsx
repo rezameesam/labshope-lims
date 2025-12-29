@@ -159,7 +159,7 @@ const PatientDashboard = () => {
     setHistorySelectedIds(new Set());
   };
 
-  const handleHistoryPrint = () => {
+  const handleHistoryPrint = async () => {
     const testsToprint = historySelectedIds.size > 0 
       ? tests.filter(t => historySelectedIds.has(t.id))
       : completedTests;
@@ -167,6 +167,49 @@ const PatientDashboard = () => {
     if (testsToprint.length === 0) {
       toast.error("No completed tests to print");
       return;
+    }
+
+    // Check payment status for tests
+    try {
+      const testIds = testsToprint.map(t => t.id);
+      const { data: invoiceItems } = await supabase
+        .from("invoice_items")
+        .select("patient_test_id, invoice_id")
+        .in("patient_test_id", testIds);
+
+      if (invoiceItems && invoiceItems.length > 0) {
+        const invoiceIds = Array.from(new Set(invoiceItems.map(item => item.invoice_id)));
+        const { data: invoices } = await supabase
+          .from("invoices")
+          .select("id, final_amount, paid_amount")
+          .in("id", invoiceIds);
+
+        if (invoices) {
+          const invoicePaymentMap = new Map<string, boolean>();
+          invoices.forEach(inv => {
+            invoicePaymentMap.set(inv.id, inv.paid_amount >= inv.final_amount);
+          });
+
+          const unpaidTestIds = new Set<string>();
+          invoiceItems.forEach(item => {
+            if (item.patient_test_id) {
+              const isPaid = invoicePaymentMap.get(item.invoice_id);
+              if (isPaid === false) {
+                unpaidTestIds.add(item.patient_test_id);
+              }
+            }
+          });
+
+          if (unpaidTestIds.size > 0) {
+            const unpaidTests = testsToprint.filter(t => unpaidTestIds.has(t.id));
+            const testNames = unpaidTests.map(t => t.test_name).join(", ");
+            toast.error(`Please clear payment for the following tests to download: ${testNames}`);
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking payment status:", error);
     }
 
     const uniqueNames = Array.from(

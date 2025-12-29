@@ -74,36 +74,68 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Payment status state
-  const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
-  const [outstandingAmount, setOutstandingAmount] = useState(0);
+  // Payment status state - per test
+  const [unpaidTestIds, setUnpaidTestIds] = useState<Set<string>>(new Set());
   const [checkingPayment, setCheckingPayment] = useState(true);
 
   const completedTests = tests.filter(t => t.status === "completed");
   const pendingTests = tests.filter(t => t.status !== "completed");
 
-  // Check for outstanding dues
+  // Check payment status per test (only lock tests that are in unpaid invoices)
   useEffect(() => {
     const checkPaymentStatus = async () => {
-      if (!patientDbId) {
+      if (!patientDbId || completedTests.length === 0) {
         setCheckingPayment(false);
         return;
       }
 
       try {
-        const { data: invoices, error } = await supabase
+        // Get all invoice items for this patient's tests
+        const testIds = completedTests.map(t => t.id);
+        
+        const { data: invoiceItems, error: itemsError } = await supabase
+          .from("invoice_items")
+          .select("patient_test_id, invoice_id")
+          .in("patient_test_id", testIds);
+
+        if (itemsError) throw itemsError;
+
+        if (!invoiceItems || invoiceItems.length === 0) {
+          // No invoices for these tests, so all are unlocked
+          setUnpaidTestIds(new Set());
+          setCheckingPayment(false);
+          return;
+        }
+
+        // Get invoice payment statuses
+        const invoiceIds = Array.from(new Set(invoiceItems.map(item => item.invoice_id)));
+        const { data: invoices, error: invoicesError } = await supabase
           .from("invoices")
-          .select("final_amount, paid_amount")
-          .eq("patient_id", patientDbId);
+          .select("id, final_amount, paid_amount")
+          .in("id", invoiceIds);
 
-        if (error) throw error;
+        if (invoicesError) throw invoicesError;
 
-        const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
-        const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
-        const outstanding = totalBilled - totalPaid;
+        // Create a map of invoice_id to payment status
+        const invoicePaymentMap = new Map<string, boolean>();
+        invoices?.forEach(inv => {
+          const isPaid = inv.paid_amount >= inv.final_amount;
+          invoicePaymentMap.set(inv.id, isPaid);
+        });
 
-        setHasOutstandingDues(outstanding > 0);
-        setOutstandingAmount(outstanding);
+        // Find unpaid test IDs
+        const unpaidIds = new Set<string>();
+        invoiceItems.forEach(item => {
+          if (item.patient_test_id) {
+            const invoiceId = item.invoice_id;
+            const isPaid = invoicePaymentMap.get(invoiceId);
+            if (isPaid === false) {
+              unpaidIds.add(item.patient_test_id);
+            }
+          }
+        });
+
+        setUnpaidTestIds(unpaidIds);
       } catch (error) {
         console.error("Error checking payment status:", error);
       } finally {
@@ -112,7 +144,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
     };
 
     checkPaymentStatus();
-  }, [patientDbId]);
+  }, [patientDbId, completedTests]);
 
   // Filter tests by date range
   const dateFilteredTests = useMemo(() => {
@@ -218,21 +250,31 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
     setSelectedTestIds(new Set());
   };
 
-  const checkDuesBeforeDownload = (callback: () => void) => {
-    if (hasOutstandingDues) {
-      toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
+  const isTestUnpaid = (testId: string) => {
+    return unpaidTestIds.has(testId);
+  };
+
+  const getUnpaidTests = (testList: TestResult[]) => {
+    return testList.filter(t => isTestUnpaid(t.id));
+  };
+
+  const checkDuesBeforeDownload = (testsToDownload: TestResult[], callback: () => void) => {
+    const unpaidTests = getUnpaidTests(testsToDownload);
+    if (unpaidTests.length > 0) {
+      const testNames = unpaidTests.map(t => t.test_name).join(", ");
+      toast.error(`Please clear payment for the following tests to download: ${testNames}`);
       return;
     }
     callback();
   };
 
   const handleDownloadAll = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
-    checkDuesBeforeDownload(() => {
-      if (dateFilteredTests.length === 0) {
-        toast.error("No completed tests to download");
-        return;
-      }
+    if (dateFilteredTests.length === 0) {
+      toast.error("No completed tests to download");
+      return;
+    }
 
+    checkDuesBeforeDownload(dateFilteredTests, () => {
       const uniqueNames = Array.from(
         new Set(dateFilteredTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
       );
@@ -265,14 +307,14 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
   };
 
   const handleDownloadSelected = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
-    checkDuesBeforeDownload(() => {
-      if (selectedTestIds.size === 0) {
-        toast.error("Please select at least one test to download");
-        return;
-      }
+    if (selectedTestIds.size === 0) {
+      toast.error("Please select at least one test to download");
+      return;
+    }
 
-      const selectedTests = dateFilteredTests.filter((t) => selectedTestIds.has(t.id));
-
+    const selectedTests = dateFilteredTests.filter((t) => selectedTestIds.has(t.id));
+    
+    checkDuesBeforeDownload(selectedTests, () => {
       const uniqueNames = Array.from(
         new Set(selectedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
       );
@@ -307,8 +349,14 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
   };
 
   const handlePrintWithOptions = () => {
-    if (hasOutstandingDues) {
-      toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
+    const testsToCheck = selectedTestIds.size > 0 
+      ? dateFilteredTests.filter(t => selectedTestIds.has(t.id))
+      : dateFilteredTests;
+    
+    const unpaidTests = getUnpaidTests(testsToCheck);
+    if (unpaidTests.length > 0) {
+      const testNames = unpaidTests.map(t => t.test_name).join(", ");
+      toast.error(`Please clear payment for the following tests: ${testNames}`);
       return;
     }
     setIsPrintOptionsOpen(true);
@@ -324,7 +372,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
   };
 
   const handleDownloadSingle = (test: TestResult) => {
-    checkDuesBeforeDownload(() => {
+    checkDuesBeforeDownload([test], () => {
       const success = generateMultiTestReportPDF(
         {
           full_name: patient.full_name,
@@ -371,22 +419,6 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
 
   return (
     <div className="space-y-6">
-      {/* Outstanding Dues Warning */}
-      {hasOutstandingDues && (
-        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <Lock className="h-5 w-5 text-amber-600" />
-              <div>
-                <p className="font-semibold text-amber-900 dark:text-amber-100">Outstanding Dues</p>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  You have outstanding dues of ₹{outstandingAmount.toLocaleString()}. Please clear your dues to download test reports.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Completed Tests */}
       <Card>
@@ -408,7 +440,6 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                   variant="outline" 
                   onClick={() => setIsDownloadDialogOpen(true)} 
                   className="gap-2"
-                  disabled={hasOutstandingDues}
                 >
                   <Filter className="h-4 w-4" />
                   Select Tests to Download
@@ -416,7 +447,6 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                 <Button 
                   onClick={() => handleDownloadAll()} 
                   className="gap-2"
-                  disabled={hasOutstandingDues}
                 >
                   <Download className="h-4 w-4" />
                   Download All
@@ -521,9 +551,9 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                             handleDownloadSingle(test);
                           }}
                           className="gap-1"
-                          disabled={hasOutstandingDues}
+                          disabled={isTestUnpaid(test.id)}
                         >
-                          {hasOutstandingDues ? (
+                          {isTestUnpaid(test.id) ? (
                             <Lock className="h-3.5 w-3.5" />
                           ) : (
                             <Download className="h-3.5 w-3.5" />
@@ -708,17 +738,26 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                       {groupTests.map((test) => (
                         <label
                           key={test.id}
-                          className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer"
+                          className={`flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer ${
+                            isTestUnpaid(test.id) ? "opacity-60" : ""
+                          }`}
                         >
                           <Checkbox
                             checked={selectedTestIds.has(test.id)}
                             onCheckedChange={() => toggleTestSelection(test.id)}
+                            disabled={isTestUnpaid(test.id)}
                           />
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{test.test_name}</span>
                               {test.is_abnormal && (
                                 <Badge variant="destructive" className="text-xs">Abnormal</Badge>
+                              )}
+                              {isTestUnpaid(test.id) && (
+                                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                  <Lock className="h-3 w-3" />
+                                  Payment Pending
+                                </Badge>
                               )}
                             </div>
                             <span className="text-xs text-muted-foreground">
@@ -762,7 +801,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
             </Button>
             <Button 
               onClick={() => handleDownloadSelected(printOptions)}
-              disabled={selectedTestIds.size === 0 || hasOutstandingDues}
+              disabled={selectedTestIds.size === 0}
               className="gap-2"
             >
               <Download className="h-4 w-4" />
