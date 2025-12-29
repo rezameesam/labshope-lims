@@ -13,7 +13,7 @@ interface CreateEmployeeRequest {
   phone?: string;
   designation?: string;
   department?: string;
-  role: "admin" | "employee";
+  role: "admin" | "employee" | "collector";
 }
 
 serve(async (req: Request) => {

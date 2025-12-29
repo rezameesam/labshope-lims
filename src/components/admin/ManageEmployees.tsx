@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,7 +75,7 @@ const ManageEmployees = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
-  const [filterRole, setFilterRole] = useState<"all" | "admin" | "employee">("all");
+  const [filterRole, setFilterRole] = useState<"all" | "admin" | "employee" | "collector">("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -89,7 +89,7 @@ const ManageEmployees = () => {
     phone: "",
     designation: "",
     department: "",
-    role: "employee" as "admin" | "employee",
+    role: "employee" as "admin" | "employee" | "collector",
   });
   const [editFormData, setEditFormData] = useState({
     full_name: "",
@@ -291,6 +291,9 @@ const ManageEmployees = () => {
     if (role === "admin") {
       return <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">Admin</Badge>;
     }
+    if (role === "collector") {
+      return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Collector</Badge>;
+    }
     return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Employee</Badge>;
   };
 
@@ -313,6 +316,7 @@ const ManageEmployees = () => {
   });
 
   const adminCount = employees.filter(e => e.role === "admin").length;
+  const collectorCount = employees.filter(e => e.role === "collector").length;
   const activeCount = employees.filter(e => e.is_active).length;
 
   return (
@@ -362,11 +366,11 @@ const ManageEmployees = () => {
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-100">
-                <UserX className="h-4 w-4 text-amber-600" />
+                <FlaskConical className="h-4 w-4 text-amber-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{employees.length - activeCount}</p>
-                <p className="text-xs text-muted-foreground">Inactive</p>
+                <p className="text-2xl font-bold">{collectorCount}</p>
+                <p className="text-xs text-muted-foreground">Collectors</p>
               </div>
             </div>
           </CardContent>
@@ -396,11 +400,12 @@ const ManageEmployees = () => {
             <SelectTrigger className="w-32">
               <SelectValue placeholder="Role" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="admin">Admins</SelectItem>
-              <SelectItem value="employee">Employees</SelectItem>
-            </SelectContent>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="admin">Admins</SelectItem>
+                      <SelectItem value="employee">Employees</SelectItem>
+                      <SelectItem value="collector">Collectors</SelectItem>
+                    </SelectContent>
           </Select>
         </div>
 
@@ -484,7 +489,7 @@ const ManageEmployees = () => {
                   <Label htmlFor="role">Role *</Label>
                   <Select
                     value={formData.role}
-                    onValueChange={(value: "admin" | "employee") =>
+                    onValueChange={(value: "admin" | "employee" | "collector") =>
                       setFormData({ ...formData, role: value })
                     }
                   >
@@ -494,6 +499,7 @@ const ManageEmployees = () => {
                     <SelectContent>
                       <SelectItem value="employee">Employee</SelectItem>
                       <SelectItem value="admin">Administrator</SelectItem>
+                      <SelectItem value="collector">Sample Collector</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
