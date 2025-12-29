@@ -221,6 +221,8 @@ const ManagePatients = () => {
     blood_group: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicatePhoneDialogOpen, setDuplicatePhoneDialogOpen] = useState(false);
+  const [existingPatientsWithPhone, setExistingPatientsWithPhone] = useState<Patient[]>([]);
 
   const fetchPatients = async () => {
     try {
@@ -323,6 +325,34 @@ const ManagePatients = () => {
     setIsSubmitting(true);
 
     try {
+      // Check for existing patients with the same phone number
+      const { data: existingPatients, error: checkError } = await supabase
+        .from("patients")
+        .select("id, patient_id, full_name, phone, date_of_birth, gender")
+        .eq("phone", formData.phone)
+        .eq("is_active", true);
+
+      if (checkError) throw checkError;
+
+      // If duplicate phone found, show warning dialog
+      if (existingPatients && existingPatients.length > 0) {
+        setExistingPatientsWithPhone(existingPatients);
+        setDuplicatePhoneDialogOpen(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // No duplicates, proceed with creation
+      await createPatient();
+    } catch (error: any) {
+      console.error("Error checking/adding patient:", error);
+      toast.error(error.message || "Failed to add patient");
+      setIsSubmitting(false);
+    }
+  };
+
+  const createPatient = async () => {
+    try {
       const patientId = generatePatientId();
 
       const { error } = await supabase.from("patients").insert({
@@ -340,6 +370,7 @@ const ManagePatients = () => {
 
       toast.success(`Patient ${formData.full_name} added successfully`);
       setIsDialogOpen(false);
+      setDuplicatePhoneDialogOpen(false);
       resetForm();
       fetchPatients();
     } catch (error: any) {
@@ -1038,7 +1069,20 @@ const ManagePatients = () => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+
+      {/* Duplicate Phone Warning Dialog */}
+      <DuplicatePhoneDialog
+        open={duplicatePhoneDialogOpen}
+        onOpenChange={setDuplicatePhoneDialogOpen}
+        existingPatients={existingPatientsWithPhone}
+        phoneNumber={formData.phone}
+        onContinue={createPatient}
+        onCancel={() => {
+          setDuplicatePhoneDialogOpen(false);
+          setIsSubmitting(false);
+        }}
+      />
     </div>
   );
 };

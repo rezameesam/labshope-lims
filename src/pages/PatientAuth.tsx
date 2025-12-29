@@ -17,17 +17,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
+import PatientSelectorDialog from "@/components/patient/PatientSelectorDialog";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 
 const PatientAuth = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, loading, sendOtp, verifyOtp } = usePatientAuth();
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const { isAuthenticated, loading, sendOtp, verifyOtp, selectPatient } = usePatientAuth();
+  const [step, setStep] = useState<"phone" | "otp" | "select">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [availablePatients, setAvailablePatients] = useState<any[]>([]);
+  const [selectingPatient, setSelectingPatient] = useState(false);
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -71,16 +75,58 @@ const PatientAuth = () => {
     }
     setIsLoading(true);
     
-    const { error } = await verifyOtp(phone, otp);
+    const result = await verifyOtp(phone, otp);
     
     setIsLoading(false);
-    if (error) {
-      toast.error(error.message);
+    if (result.error) {
+      toast.error(result.error.message);
+      return;
+    }
+
+    // If multiple patients found, show selection dialog
+    if (result.needsSelection) {
+      const { patients, error: selectError } = await selectPatient(phone);
+      if (selectError || !patients || patients.length === 0) {
+        toast.error("Failed to load patient accounts");
+        return;
+      }
+      setAvailablePatients(patients);
+      setStep("select");
       return;
     }
     
     toast.success("Welcome to your Patient Portal!");
     navigate("/patient/dashboard");
+  };
+
+  const handleSelectPatient = async (patientId: string) => {
+    setSelectingPatient(true);
+    try {
+      const { data: patientData, error } = await supabase
+        .from("patients")
+        .select("*")
+        .eq("id", patientId)
+        .eq("phone", phone)
+        .eq("is_active", true)
+        .single();
+
+      if (error || !patientData) {
+        toast.error("Failed to load patient account");
+        return;
+      }
+
+      // Store patient info and reload to trigger context update
+      localStorage.setItem("patient_phone", phone);
+      localStorage.setItem("patient_id", patientId);
+      
+      // Small delay to ensure localStorage is set, then navigate
+      setTimeout(() => {
+        window.location.href = "/patient/dashboard";
+      }, 100);
+    } catch (error) {
+      toast.error("An error occurred");
+      setSelectingPatient(false);
+    }
   };
 
   const handleResendOtp = async () => {
@@ -258,7 +304,7 @@ const PatientAuth = () => {
                     </Button>
                   </form>
                 </>
-              ) : (
+              ) : step === "otp" ? (
                 <>
                   <div className="mb-8">
                     <button
@@ -368,6 +414,14 @@ const PatientAuth = () => {
           </div>
         </div>
       </div>
+
+      {/* Patient Selector Dialog - shown when multiple patients share the same phone */}
+      <PatientSelectorDialog
+        open={step === "select"}
+        patients={availablePatients}
+        phoneNumber={phone}
+        onSelect={handleSelectPatient}
+      />
     </div>
   );
 };

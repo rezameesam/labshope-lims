@@ -21,6 +21,7 @@ interface PatientAuthContextType {
   isAuthenticated: boolean;
   sendOtp: (phone: string) => Promise<{ error: Error | null }>;
   verifyOtp: (phone: string, token: string) => Promise<{ error: Error | null }>;
+  selectPatient: (phone: string) => Promise<{ patients: Patient[]; error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -35,10 +36,13 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     const checkSession = async () => {
       try {
         const storedPhone = localStorage.getItem("patient_phone");
-        if (storedPhone) {
+        const storedPatientId = localStorage.getItem("patient_id");
+        
+        if (storedPhone && storedPatientId) {
           const { data, error } = await supabase
             .from("patients")
             .select("*")
+            .eq("id", storedPatientId)
             .eq("phone", storedPhone)
             .eq("is_active", true)
             .single();
@@ -47,10 +51,13 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
             setPatient(data as Patient);
           } else {
             localStorage.removeItem("patient_phone");
+            localStorage.removeItem("patient_id");
           }
         }
       } catch (error) {
         console.error("Error checking patient session:", error);
+        localStorage.removeItem("patient_phone");
+        localStorage.removeItem("patient_id");
       } finally {
         setLoading(false);
       }
@@ -61,19 +68,21 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
   const sendOtp = async (phone: string): Promise<{ error: Error | null }> => {
     try {
-      // First check if patient exists with this phone
-      const { data: existingPatient, error: checkError } = await supabase
+      // First check if patient(s) exist with this phone
+      const { data: existingPatients, error: checkError } = await supabase
         .from("patients")
         .select("id, phone")
         .eq("phone", phone)
-        .eq("is_active", true)
-        .single();
+        .eq("is_active", true);
 
-      if (checkError || !existingPatient) {
+      if (checkError || !existingPatients || existingPatients.length === 0) {
         return { 
           error: new Error("No patient account found with this phone number. Please contact the clinic.") 
         };
       }
+
+      // If multiple patients found, we'll handle selection in verifyOtp
+      // For now, just proceed with OTP (selection happens after verification)
 
       // Use Supabase phone auth
       const { error } = await supabase.auth.signInWithOtp({
@@ -103,23 +112,29 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const verifyOtp = async (phone: string, token: string): Promise<{ error: Error | null }> => {
+  const verifyOtp = async (phone: string, token: string): Promise<{ error: Error | null; needsSelection?: boolean }> => {
     try {
       // Demo mode check - accept 123456 as OTP
       if (token === "123456") {
-        const { data: patientData, error: patientError } = await supabase
+        const { data: patientsData, error: patientError } = await supabase
           .from("patients")
           .select("*")
           .eq("phone", phone)
-          .eq("is_active", true)
-          .single();
+          .eq("is_active", true);
 
-        if (patientError || !patientData) {
+        if (patientError || !patientsData || patientsData.length === 0) {
           return { error: new Error("Patient not found") };
         }
 
-        setPatient(patientData as Patient);
+        // If multiple patients, return them for selection
+        if (patientsData.length > 1) {
+          return { error: null, needsSelection: true };
+        }
+
+        // Single patient found
+        setPatient(patientsData[0] as Patient);
         localStorage.setItem("patient_phone", phone);
+        localStorage.setItem("patient_id", patientsData[0].id);
         return { error: null };
       }
 
@@ -135,28 +150,54 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Fetch patient data after successful verification
-      const { data: patientData, error: patientError } = await supabase
+      const { data: patientsData, error: patientError } = await supabase
         .from("patients")
         .select("*")
         .eq("phone", phone)
-        .eq("is_active", true)
-        .single();
+        .eq("is_active", true);
 
-      if (patientError || !patientData) {
+      if (patientError || !patientsData || patientsData.length === 0) {
         return { error: new Error("Patient record not found") };
       }
 
-      setPatient(patientData as Patient);
+      // If multiple patients, return them for selection
+      if (patientsData.length > 1) {
+        return { error: null, needsSelection: true };
+      }
+
+      // Single patient found
+      setPatient(patientsData[0] as Patient);
       localStorage.setItem("patient_phone", phone);
+      localStorage.setItem("patient_id", patientsData[0].id);
       return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
   };
 
+  const selectPatient = async (phone: string): Promise<{ patients: Patient[]; error: Error | null }> => {
+    try {
+      const { data: patientsData, error: patientError } = await supabase
+        .from("patients")
+        .select("*")
+        .eq("phone", phone)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (patientError || !patientsData) {
+        return { patients: [], error: new Error("Failed to fetch patients") };
+      }
+
+      return { patients: patientsData as Patient[], error: null };
+    } catch (error) {
+      return { patients: [], error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     localStorage.removeItem("patient_phone");
+    localStorage.removeItem("patient_id");
     setPatient(null);
   };
 
@@ -168,6 +209,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!patient,
         sendOtp,
         verifyOtp,
+        selectPatient,
         signOut,
       }}
     >
