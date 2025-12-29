@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
@@ -76,6 +76,126 @@ interface BillingSummary {
   outstanding: number;
   invoiceCount: number;
 }
+
+interface PatientFormData {
+  full_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  date_of_birth: string;
+  gender: string;
+  blood_group: string;
+}
+
+interface PatientFormProps {
+  formData: PatientFormData;
+  setFormData: React.Dispatch<React.SetStateAction<PatientFormData>>;
+  onSubmit: (e: React.FormEvent) => void;
+  isEdit?: boolean;
+  isSubmitting: boolean;
+}
+
+const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmitting }: PatientFormProps) => (
+  <form onSubmit={onSubmit} className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-2 md:col-span-2">
+        <Label htmlFor="full_name">Full Name *</Label>
+        <Input
+          id="full_name"
+          value={formData.full_name}
+          onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+          required
+          placeholder="Enter full name"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="phone">Phone Number *</Label>
+        <Input
+          id="phone"
+          type="tel"
+          value={formData.phone}
+          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+          required
+          placeholder="e.g. 9419034607"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          placeholder="patient@email.com"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="date_of_birth">Date of Birth</Label>
+        <Input
+          id="date_of_birth"
+          type="date"
+          value={formData.date_of_birth}
+          onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="gender">Gender</Label>
+        <Select
+          value={formData.gender}
+          onValueChange={(value) => setFormData({ ...formData, gender: value })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select gender" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Male">Male</SelectItem>
+            <SelectItem value="Female">Female</SelectItem>
+            <SelectItem value="Other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="blood_group">Blood Group</Label>
+        <Select
+          value={formData.blood_group}
+          onValueChange={(value) => setFormData({ ...formData, blood_group: value })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select blood group" />
+          </SelectTrigger>
+          <SelectContent>
+            {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
+              <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2 md:col-span-2">
+        <Label htmlFor="address">Address</Label>
+        <Input
+          id="address"
+          value={formData.address}
+          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+          placeholder="Full address"
+        />
+      </div>
+    </div>
+
+    <Button
+      type="submit"
+      className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
+      disabled={isSubmitting}
+    >
+      {isSubmitting ? "Saving..." : isEdit ? "Update Patient" : "Add Patient"}
+    </Button>
+  </form>
+);
 
 const ManagePatients = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -407,108 +527,6 @@ const ManagePatients = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const PatientForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void; isEdit?: boolean }) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="full_name">Full Name *</Label>
-          <Input
-            id="full_name"
-            value={formData.full_name}
-            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-            required
-            placeholder="Enter full name"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="phone">Phone Number *</Label>
-          <Input
-            id="phone"
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            required
-            placeholder="e.g. 9419034607"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder="patient@email.com"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="date_of_birth">Date of Birth</Label>
-          <Input
-            id="date_of_birth"
-            type="date"
-            value={formData.date_of_birth}
-            onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="gender">Gender</Label>
-          <Select
-            value={formData.gender}
-            onValueChange={(value) => setFormData({ ...formData, gender: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select gender" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Male">Male</SelectItem>
-              <SelectItem value="Female">Female</SelectItem>
-              <SelectItem value="Other">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="blood_group">Blood Group</Label>
-          <Select
-            value={formData.blood_group}
-            onValueChange={(value) => setFormData({ ...formData, blood_group: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select blood group" />
-            </SelectTrigger>
-            <SelectContent>
-              {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
-                <SelectItem key={bg} value={bg}>{bg}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="address">Address</Label>
-          <Input
-            id="address"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            placeholder="Full address"
-          />
-        </div>
-      </div>
-
-      <Button
-        type="submit"
-        className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? "Saving..." : isEdit ? "Update Patient" : "Add Patient"}
-      </Button>
-    </form>
-  );
-
   return (
     <div className="space-y-6">
       {/* Header with search and filters */}
@@ -543,7 +561,12 @@ const ManagePatients = () => {
             <DialogHeader>
               <DialogTitle>Add New Patient</DialogTitle>
             </DialogHeader>
-            <PatientForm onSubmit={handleSubmit} />
+            <PatientForm 
+              formData={formData}
+              setFormData={setFormData}
+              onSubmit={handleSubmit}
+              isSubmitting={isSubmitting}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -719,7 +742,13 @@ const ManagePatients = () => {
           <DialogHeader>
             <DialogTitle>Edit Patient</DialogTitle>
           </DialogHeader>
-          <PatientForm onSubmit={handleEdit} isEdit />
+          <PatientForm 
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleEdit}
+            isEdit
+            isSubmitting={isSubmitting}
+          />
         </DialogContent>
       </Dialog>
 
