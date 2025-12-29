@@ -112,6 +112,7 @@ const ManageTestCatalog = () => {
 
   const fetchTests = async () => {
     try {
+      // Use * to select all columns (handles case where test_id might not exist yet)
       const { data, error } = await supabase
         .from("tests")
         .select(`
@@ -120,11 +121,17 @@ const ManageTestCatalog = () => {
         `)
         .order("name");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Fetch error:", error);
+        throw error;
+      }
       setTests((data || []) as Test[]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching tests:", error);
-      toast.error("Failed to load tests");
+      const errorMessage = error?.message || "Failed to load tests";
+      toast.error(errorMessage);
+      // Set empty array on error to prevent further issues
+      setTests([]);
     } finally {
       setLoading(false);
     }
@@ -151,7 +158,7 @@ const ManageTestCatalog = () => {
       name: "",
       description: "",
       price: "",
-      category_id: "",
+      category_id: "none",
       unit: "",
       normal_range_min: "",
       normal_range_max: "",
@@ -161,14 +168,14 @@ const ManageTestCatalog = () => {
     setSelectedTest(null);
   };
 
-  const generateTestId = async (testName: string): Promise<string> => {
+  const generateTestId = (testName: string): string => {
     // Generate a test ID based on test name initials
-    const words = testName.toUpperCase().split(/\s+/);
+    const words = testName.toUpperCase().split(/\s+/).filter(w => w.length > 0);
     let prefix = "";
     
     if (words.length >= 2) {
       // Use first letter of each word (up to 4 words)
-      prefix = words.slice(0, 4).map(w => w[0]).join('');
+      prefix = words.slice(0, 4).map(w => w[0]).join('').replace(/[^A-Z0-9]/g, '');
     } else {
       // Use first 3-4 characters of single word
       prefix = testName.substring(0, 4).toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9]/g, '');
@@ -176,8 +183,11 @@ const ManageTestCatalog = () => {
     
     // Ensure prefix is at least 2 characters
     if (prefix.length < 2) {
-      prefix = testName.substring(0, 3).toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9]/g, '') || "TEST";
+      prefix = (testName.substring(0, 3).toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9]/g, '') || "TEST").substring(0, 3);
     }
+    
+    // Limit prefix to 4 characters max
+    prefix = prefix.substring(0, 4);
     
     // Try to find a unique ID by checking existing tests
     let counter = 1;
@@ -190,7 +200,10 @@ const ManageTestCatalog = () => {
       const prefixTests = tests.filter(t => t.test_id?.startsWith(prefix));
       const numbers = prefixTests
         .map(t => {
-          const match = t.test_id?.match(new RegExp(`^${prefix}(\\d+)$`));
+          if (!t.test_id) return 0;
+          // Escape special regex characters in prefix
+          const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const match = t.test_id.match(new RegExp(`^${escapedPrefix}(\\d+)$`));
           return match ? parseInt(match[1]) : 0;
         })
         .filter(n => n > 0);
@@ -243,24 +256,38 @@ const ManageTestCatalog = () => {
     setIsSubmitting(true);
     try {
       // Generate test_id if not provided
-      let testId = testForm.test_id.trim() || null;
+      let testId: string | null = testForm.test_id.trim() || null;
       if (!testId && !selectedTest) {
         // Auto-generate test_id for new tests
-        testId = await generateTestId(testForm.name);
+        testId = generateTestId(testForm.name);
       }
 
-      const testData = {
-        test_id: testId,
+      // Validate test_id if provided (must be unique)
+      if (testId) {
+        const existingTest = tests.find(t => t.test_id === testId && t.id !== selectedTest?.id);
+        if (existingTest) {
+          toast.error(`Test ID "${testId}" already exists. Please use a different ID.`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      const testData: any = {
         name: testForm.name.trim(),
         description: testForm.description.trim() || null,
         price: testForm.price ? parseFloat(testForm.price) : null,
-        category_id: testForm.category_id || null,
+        category_id: testForm.category_id && testForm.category_id !== "none" ? testForm.category_id : null,
         unit: testForm.unit.trim() || null,
         normal_range_min: testForm.normal_range_min ? parseFloat(testForm.normal_range_min) : null,
         normal_range_max: testForm.normal_range_max ? parseFloat(testForm.normal_range_max) : null,
         normal_range_text: testForm.normal_range_text.trim() || null,
         sample_type: testForm.sample_type || "Blood",
       };
+
+      // Only include test_id if it's not null (to avoid UNIQUE constraint issues with null)
+      if (testId) {
+        testData.test_id = testId;
+      }
 
       if (selectedTest) {
         // Update existing test
@@ -269,7 +296,10 @@ const ManageTestCatalog = () => {
           .update(testData)
           .eq("id", selectedTest.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Update error:", error);
+          throw error;
+        }
         toast.success("Test updated successfully");
       } else {
         // Create new test
@@ -277,7 +307,10 @@ const ManageTestCatalog = () => {
           .from("tests")
           .insert(testData);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Insert error:", error);
+          throw error;
+        }
         toast.success("Test created successfully");
       }
 
@@ -286,7 +319,8 @@ const ManageTestCatalog = () => {
       fetchTests();
     } catch (error: any) {
       console.error("Error saving test:", error);
-      toast.error(error.message || "Failed to save test");
+      const errorMessage = error?.message || error?.error_description || "Failed to save test";
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -616,14 +650,14 @@ const ManageTestCatalog = () => {
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Select
-                  value={testForm.category_id}
+                  value={testForm.category_id || "none"}
                   onValueChange={(value) => setTestForm({ ...testForm, category_id: value })}
                 >
                   <SelectTrigger id="category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Category</SelectItem>
+                    <SelectItem value="none">No Category</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
