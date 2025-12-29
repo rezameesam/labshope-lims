@@ -28,3 +28,10 @@ WITH CHECK (
   public.has_role(auth.uid(), 'employee')
 );
 
+-- Add test_id field to tests table for human-readable test codes/IDs
+ALTER TABLE public.tests
+ADD COLUMN IF NOT EXISTS test_id TEXT UNIQUE;
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_tests_test_id ON public.tests(test_id);
+

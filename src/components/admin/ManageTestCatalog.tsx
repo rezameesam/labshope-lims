@@ -48,6 +48,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 interface Test {
   id: string;
+  test_id: string | null;
   name: string;
   description: string | null;
   price: number | null;
@@ -86,6 +87,7 @@ const ManageTestCatalog = () => {
 
   // Test form state
   const [testForm, setTestForm] = useState({
+    test_id: "",
     name: "",
     description: "",
     price: "",
@@ -145,6 +147,7 @@ const ManageTestCatalog = () => {
 
   const resetTestForm = () => {
     setTestForm({
+      test_id: "",
       name: "",
       description: "",
       price: "",
@@ -158,6 +161,46 @@ const ManageTestCatalog = () => {
     setSelectedTest(null);
   };
 
+  const generateTestId = async (testName: string): Promise<string> => {
+    // Generate a test ID based on test name initials
+    const words = testName.toUpperCase().split(/\s+/);
+    let prefix = "";
+    
+    if (words.length >= 2) {
+      // Use first letter of each word (up to 4 words)
+      prefix = words.slice(0, 4).map(w => w[0]).join('');
+    } else {
+      // Use first 3-4 characters of single word
+      prefix = testName.substring(0, 4).toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9]/g, '');
+    }
+    
+    // Ensure prefix is at least 2 characters
+    if (prefix.length < 2) {
+      prefix = testName.substring(0, 3).toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9]/g, '') || "TEST";
+    }
+    
+    // Try to find a unique ID by checking existing tests
+    let counter = 1;
+    let testId = `${prefix}${counter.toString().padStart(3, '0')}`;
+    
+    // Check if this ID already exists
+    const existingTest = tests.find(t => t.test_id === testId);
+    if (existingTest) {
+      // Find the highest number for this prefix
+      const prefixTests = tests.filter(t => t.test_id?.startsWith(prefix));
+      const numbers = prefixTests
+        .map(t => {
+          const match = t.test_id?.match(new RegExp(`^${prefix}(\\d+)$`));
+          return match ? parseInt(match[1]) : 0;
+        })
+        .filter(n => n > 0);
+      counter = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+      testId = `${prefix}${counter.toString().padStart(3, '0')}`;
+    }
+    
+    return testId;
+  };
+
   const resetCategoryForm = () => {
     setCategoryForm({
       name: "",
@@ -169,6 +212,7 @@ const ManageTestCatalog = () => {
     if (test) {
       setSelectedTest(test);
       setTestForm({
+        test_id: test.test_id || "",
         name: test.name,
         description: test.description || "",
         price: test.price?.toString() || "",
@@ -198,7 +242,15 @@ const ManageTestCatalog = () => {
 
     setIsSubmitting(true);
     try {
+      // Generate test_id if not provided
+      let testId = testForm.test_id.trim() || null;
+      if (!testId && !selectedTest) {
+        // Auto-generate test_id for new tests
+        testId = await generateTestId(testForm.name);
+      }
+
       const testData = {
+        test_id: testId,
         name: testForm.name.trim(),
         description: testForm.description.trim() || null,
         price: testForm.price ? parseFloat(testForm.price) : null,
@@ -292,10 +344,12 @@ const ManageTestCatalog = () => {
   };
 
   const filteredTests = tests.filter((test) => {
+    const searchLower = search.toLowerCase();
     const matchesSearch = 
-      test.name.toLowerCase().includes(search.toLowerCase()) ||
-      test.description?.toLowerCase().includes(search.toLowerCase()) ||
-      test.category?.name.toLowerCase().includes(search.toLowerCase());
+      test.name.toLowerCase().includes(searchLower) ||
+      test.test_id?.toLowerCase().includes(searchLower) ||
+      test.description?.toLowerCase().includes(searchLower) ||
+      test.category?.name.toLowerCase().includes(searchLower);
     
     const matchesCategory = filterCategory === "all" || test.category_id === filterCategory;
     
@@ -381,7 +435,7 @@ const ManageTestCatalog = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search tests..."
+                placeholder="Search by test ID, name, description, or category..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -410,6 +464,7 @@ const ManageTestCatalog = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
+                <TableHead>Test ID</TableHead>
                 <TableHead>Test Name</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Price</TableHead>
@@ -421,19 +476,28 @@ const ManageTestCatalog = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     Loading tests...
                   </TableCell>
                 </TableRow>
               ) : filteredTests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No tests found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredTests.map((test) => (
                   <TableRow key={test.id} className="hover:bg-muted/30">
+                    <TableCell>
+                      {test.test_id ? (
+                        <Badge variant="outline" className="font-mono">
+                          {test.test_id}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium">{test.name}</p>
@@ -512,14 +576,29 @@ const ManageTestCatalog = () => {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Test Name *</Label>
-              <Input
-                id="name"
-                value={testForm.name}
-                onChange={(e) => setTestForm({ ...testForm, name: e.target.value })}
-                placeholder="e.g., Complete Blood Count (CBC)"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="test_id">Test ID / Code</Label>
+                <Input
+                  id="test_id"
+                  value={testForm.test_id}
+                  onChange={(e) => setTestForm({ ...testForm, test_id: e.target.value.toUpperCase() })}
+                  placeholder="e.g., CBC001, LFT001 (auto-generated if empty)"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to auto-generate, or enter a custom code
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Test Name *</Label>
+                <Input
+                  id="name"
+                  value={testForm.name}
+                  onChange={(e) => setTestForm({ ...testForm, name: e.target.value })}
+                  placeholder="e.g., Complete Blood Count (CBC)"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
