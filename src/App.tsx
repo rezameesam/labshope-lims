@@ -12,6 +12,7 @@ import PatientAuth from "./pages/PatientAuth";
 import PatientDashboard from "./pages/PatientDashboard";
 import EmployeeAuth from "./pages/EmployeeAuth";
 import AdminDashboard from "./pages/AdminDashboard";
+import CollectorDashboard from "./pages/CollectorDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
                 <Route path="/patient/dashboard" element={<PatientDashboard />} />
                 <Route path="/auth/employee" element={<EmployeeAuth />} />
                 <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/collector" element={<CollectorDashboard />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

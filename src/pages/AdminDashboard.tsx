@@ -45,7 +45,7 @@ type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" 
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { user, signOut, loading, isStaff, hasRole } = useAuth();
+  const { user, signOut, loading, isStaff, hasRole, isCollector } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -60,7 +60,11 @@ const AdminDashboard = () => {
       toast.error("Access denied. Staff only.");
       navigate("/");
     }
-  }, [user, loading, isStaff, navigate]);
+    // Redirect collectors to collector dashboard
+    if (!loading && user && isCollector) {
+      navigate("/collector");
+    }
+  }, [user, loading, isStaff, isCollector, navigate]);
 
   const handleSignOut = async () => {
     await signOut();

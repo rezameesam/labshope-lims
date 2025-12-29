@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const EmployeeAuth = () => {
   const navigate = useNavigate();
-  const { signIn, user, loading: authLoading, isStaff } = useAuth();
+  const { signIn, user, loading: authLoading, isStaff, isCollector, hasRole } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -19,9 +19,14 @@ const EmployeeAuth = () => {
 
   useEffect(() => {
     if (!authLoading && user && isStaff) {
-      navigate("/admin");
+      // Redirect collectors to collector dashboard, others to admin dashboard
+      if (isCollector) {
+        navigate("/collector");
+      } else {
+        navigate("/admin");
+      }
     }
-  }, [user, authLoading, isStaff, navigate]);
+  }, [user, authLoading, isStaff, isCollector, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

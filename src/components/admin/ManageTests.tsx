@@ -58,6 +58,8 @@ interface PatientTest {
   result_entered_by: string | null;
   result_entered_at: string | null;
   test_id: string | null;
+  collected_by: string | null;
+  collected_at: string | null;
   patients: {
     patient_id: string;
     full_name: string;
@@ -117,6 +119,7 @@ const ManageTests = () => {
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [testSearch, setTestSearch] = useState("");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [formData, setFormData] = useState({
@@ -172,23 +175,29 @@ const ManageTests = () => {
     return grouped;
   }, [testCatalog, categories]);
 
-  // Filter tests by search
+  // Filter tests by search and category
   const filteredTestsByCategory = useMemo(() => {
-    if (!testSearch.trim()) return testsByCategory;
-    const searchLower = testSearch.toLowerCase();
-    const filtered: Record<string, Test[]> = {};
+    let filtered: Record<string, Test[]> = {};
+    const searchLower = testSearch.trim().toLowerCase();
     
     Object.entries(testsByCategory).forEach(([category, tests]) => {
-      const matchingTests = tests.filter((t) =>
-        t.name.toLowerCase().includes(searchLower)
-      );
+      // Filter by category
+      if (selectedCategoryFilter !== "all" && category !== selectedCategoryFilter) {
+        return;
+      }
+      
+      // Filter by search
+      const matchingTests = searchLower
+        ? tests.filter((t) => t.name.toLowerCase().includes(searchLower))
+        : tests;
+      
       if (matchingTests.length > 0) {
         filtered[category] = matchingTests;
       }
     });
     
     return filtered;
-  }, [testsByCategory, testSearch]);
+  }, [testsByCategory, testSearch, selectedCategoryFilter]);
 
   const fetchData = async () => {
     try {
@@ -257,7 +266,9 @@ const ManageTests = () => {
         test_date: formData.test_date,
         notes: formData.notes || null,
         status: "pending",
-        created_by: user?.id,
+        created_by: userData.user?.id,
+        collected_by: userData.user?.id, // Track who collected the sample
+        collected_at: new Date().toISOString(), // Track when sample was collected
       }));
 
       const { data: insertedTests, error } = await supabase
@@ -330,6 +341,7 @@ const ManageTests = () => {
     setSelectedTests([]);
     setPatientSearch("");
     setTestSearch("");
+    setSelectedCategoryFilter("all");
     setFormData({
       test_date: new Date().toISOString().split("T")[0],
       notes: "",
@@ -752,14 +764,32 @@ const ManageTests = () => {
                     <Badge variant="secondary">{selectedTests.length} selected</Badge>
                   )}
                 </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search tests..."
-                    value={testSearch}
-                    onChange={(e) => setTestSearch(e.target.value)}
-                    className="pl-10"
-                  />
+                
+                {/* Search and Category Filter */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tests..."
+                      value={testSearch}
+                      onChange={(e) => setTestSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.name}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="Other Tests">Other Tests</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <ScrollArea className="h-[300px] border rounded-lg">
                   <div className="p-3 space-y-4">
