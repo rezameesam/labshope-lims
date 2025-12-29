@@ -443,22 +443,23 @@ const ManageBilling = () => {
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("Clinical Pathology Laboratory", pageWidth / 2, 28, { align: "center" });
+    doc.text("IRM Clinical Pathology Laboratory", pageWidth / 2, 28, { align: "center" });
+    doc.text("Pampore, Pulwama, J&K | +91 9419034607", pageWidth / 2, 34, { align: "center" });
     
     // Invoice details
     doc.setFontSize(11);
-    doc.text(`Invoice #: ${invoice.invoice_number}`, 14, 45);
-    doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 14, 52);
-    doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 59);
+    doc.text(`Invoice #: ${invoice.invoice_number}`, 14, 50);
+    doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 14, 57);
+    doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 64);
     
     // Patient details
-    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, 45, { align: "right" });
-    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, 52, { align: "right" });
-    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, 59, { align: "right" });
+    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, 50, { align: "right" });
+    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, 57, { align: "right" });
+    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, 64, { align: "right" });
     
     // Line separator
     doc.setLineWidth(0.5);
-    doc.line(14, 65, pageWidth - 14, 65);
+    doc.line(14, 70, pageWidth - 14, 70);
     
     // Items table
     const tableData = (items || []).map((item: InvoiceItem, index: number) => [
@@ -470,7 +471,7 @@ const ManageBilling = () => {
     ]);
     
     autoTable(doc, {
-      startY: 70,
+      startY: 75,
       head: [["#", "Test Name", "Qty", "Unit Price", "Amount"]],
       body: tableData,
       theme: "striped",
@@ -517,17 +518,10 @@ const ManageBilling = () => {
     doc.setTextColor(128, 128, 128);
     doc.text("Thank you for choosing our laboratory services.", pageWidth / 2, doc.internal.pageSize.getHeight() - 20, { align: "center" });
     
-    // Open print dialog
-    const pdfBlob = doc.output("blob");
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    const printWindow = window.open(pdfUrl);
-    if (printWindow) {
-      printWindow.onload = () => {
-        printWindow.print();
-      };
-    }
+    // Save PDF directly instead of opening print dialog (avoids popup blockers)
+    doc.save(`Invoice_${invoice.invoice_number}.pdf`);
     
-    toast.success("Invoice ready for printing");
+    toast.success("Invoice downloaded successfully");
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
