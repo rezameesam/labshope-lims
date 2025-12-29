@@ -16,7 +16,8 @@ import {
   MapPin,
   Droplet,
   Activity,
-  Printer
+  Printer,
+  Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,6 +70,7 @@ const PatientDashboard = () => {
   const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
   const [historyPrintDialogOpen, setHistoryPrintDialogOpen] = useState(false);
   const [historyPrintOptions, setHistoryPrintOptions] = useState({ includeHeader: true, includeFooter: true });
+  const [unpaidTestIds, setUnpaidTestIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -118,6 +120,71 @@ const PatientDashboard = () => {
     }
   }, [patient?.id]);
 
+  // Check payment status for tests (similar to TestResultsTable)
+  useEffect(() => {
+    const checkPaymentStatus = async () => {
+      if (!patient?.id || tests.length === 0) {
+        return;
+      }
+
+      const completedTests = tests.filter(t => t.status === "completed");
+      if (completedTests.length === 0) {
+        return;
+      }
+
+      try {
+        const testIds = completedTests.map(t => t.id);
+        
+        const { data: invoiceItems } = await supabase
+          .from("invoice_items")
+          .select("patient_test_id, invoice_id")
+          .in("patient_test_id", testIds);
+
+        if (!invoiceItems || invoiceItems.length === 0) {
+          // No invoices for these tests, so all are unlocked
+          setUnpaidTestIds(new Set());
+          return;
+        }
+
+        // Get invoice payment statuses
+        const invoiceIds = Array.from(new Set(invoiceItems.map(item => item.invoice_id)));
+        const { data: invoices } = await supabase
+          .from("invoices")
+          .select("id, final_amount, paid_amount")
+          .in("id", invoiceIds);
+
+        if (!invoices) {
+          return;
+        }
+
+        // Create a map of invoice_id to payment status
+        const invoicePaymentMap = new Map<string, boolean>();
+        invoices.forEach(inv => {
+          const isPaid = inv.paid_amount >= inv.final_amount;
+          invoicePaymentMap.set(inv.id, isPaid);
+        });
+
+        // Find unpaid test IDs
+        const unpaidIds = new Set<string>();
+        invoiceItems.forEach(item => {
+          if (item.patient_test_id) {
+            const invoiceId = item.invoice_id;
+            const isPaid = invoicePaymentMap.get(invoiceId);
+            if (isPaid === false) {
+              unpaidIds.add(item.patient_test_id);
+            }
+          }
+        });
+
+        setUnpaidTestIds(unpaidIds);
+      } catch (error) {
+        console.error("Error checking payment status:", error);
+      }
+    };
+
+    checkPaymentStatus();
+  }, [patient?.id, tests]);
+
   const handleSignOut = async () => {
     await signOut();
     toast.success("Logged out successfully");
@@ -151,8 +218,17 @@ const PatientDashboard = () => {
   };
 
   const selectAllHistoryTests = () => {
-    const allCompletedIds = new Set(completedTests.map(t => t.id));
-    setHistorySelectedIds(allCompletedIds);
+    // Only select paid tests
+    const paidCompletedTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
+    const allPaidIds = new Set(paidCompletedTests.map(t => t.id));
+    setHistorySelectedIds(allPaidIds);
+    
+    if (unpaidTestIds.size > 0) {
+      const unpaidCount = completedTests.filter(t => unpaidTestIds.has(t.id)).length;
+      if (unpaidCount > 0) {
+        toast.info(`${unpaidCount} test(s) with pending payment were not selected`);
+      }
+    }
   };
 
   const clearHistorySelection = () => {
@@ -160,56 +236,25 @@ const PatientDashboard = () => {
   };
 
   const handleHistoryPrint = async () => {
+    // Filter out unpaid tests first
+    const paidCompletedTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
+    
     const testsToprint = historySelectedIds.size > 0 
-      ? tests.filter(t => historySelectedIds.has(t.id))
-      : completedTests;
+      ? tests.filter(t => historySelectedIds.has(t.id) && !unpaidTestIds.has(t.id))
+      : paidCompletedTests;
 
     if (testsToprint.length === 0) {
-      toast.error("No completed tests to print");
-      return;
-    }
-
-    // Check payment status for tests
-    try {
-      const testIds = testsToprint.map(t => t.id);
-      const { data: invoiceItems } = await supabase
-        .from("invoice_items")
-        .select("patient_test_id, invoice_id")
-        .in("patient_test_id", testIds);
-
-      if (invoiceItems && invoiceItems.length > 0) {
-        const invoiceIds = Array.from(new Set(invoiceItems.map(item => item.invoice_id)));
-        const { data: invoices } = await supabase
-          .from("invoices")
-          .select("id, final_amount, paid_amount")
-          .in("id", invoiceIds);
-
-        if (invoices) {
-          const invoicePaymentMap = new Map<string, boolean>();
-          invoices.forEach(inv => {
-            invoicePaymentMap.set(inv.id, inv.paid_amount >= inv.final_amount);
-          });
-
-          const unpaidTestIds = new Set<string>();
-          invoiceItems.forEach(item => {
-            if (item.patient_test_id) {
-              const isPaid = invoicePaymentMap.get(item.invoice_id);
-              if (isPaid === false) {
-                unpaidTestIds.add(item.patient_test_id);
-              }
-            }
-          });
-
-          if (unpaidTestIds.size > 0) {
-            const unpaidTests = testsToprint.filter(t => unpaidTestIds.has(t.id));
-            const testNames = unpaidTests.map(t => t.test_name).join(", ");
-            toast.error(`Please clear payment for the following tests to download: ${testNames}`);
-            return;
-          }
+      if (historySelectedIds.size > 0) {
+        // Check if selected tests are unpaid
+        const selectedUnpaid = tests.filter(t => historySelectedIds.has(t.id) && unpaidTestIds.has(t.id));
+        if (selectedUnpaid.length > 0) {
+          const testNames = selectedUnpaid.map(t => t.test_name).join(", ");
+          toast.error(`Please clear payment for the following tests to download: ${testNames}`);
+          return;
         }
       }
-    } catch (error) {
-      console.error("Error checking payment status:", error);
+      toast.error("No completed tests to print");
+      return;
     }
 
     const uniqueNames = Array.from(
@@ -449,9 +494,21 @@ const PatientDashboard = () => {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={historySelectedIds.size === completedTests.length ? clearHistorySelection : selectAllHistoryTests}
+                        onClick={() => {
+                          const paidTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
+                          const allPaidSelected = paidTests.length > 0 && paidTests.every(t => historySelectedIds.has(t.id));
+                          if (allPaidSelected) {
+                            clearHistorySelection();
+                          } else {
+                            selectAllHistoryTests();
+                          }
+                        }}
                       >
-                        {historySelectedIds.size === completedTests.length ? "Deselect All" : "Select All"}
+                        {(() => {
+                          const paidTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
+                          const allPaidSelected = paidTests.length > 0 && paidTests.every(t => historySelectedIds.has(t.id));
+                          return allPaidSelected ? "Deselect All" : "Select All";
+                        })()}
                       </Button>
                       <Button 
                         size="sm"
@@ -459,7 +516,12 @@ const PatientDashboard = () => {
                         className="gap-2"
                       >
                         <Printer className="h-4 w-4" />
-                        Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
+                        Print {historySelectedIds.size > 0 
+                          ? `(${historySelectedIds.size})` 
+                          : (() => {
+                              const paidTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
+                              return paidTests.length > 0 ? `All (${paidTests.length})` : "All";
+                            })()}
                       </Button>
                     </div>
                   )}
@@ -493,7 +555,7 @@ const PatientDashboard = () => {
                               <Clock className="h-3 w-3 text-yellow-500" />
                             )}
                           </div>
-                          <div className="bg-muted/30 rounded-lg p-4">
+                          <div className={`bg-muted/30 rounded-lg p-4 ${unpaidTestIds.has(test.id) ? "opacity-60" : ""}`}>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-3">
                                 {test.status === "completed" && (
@@ -501,9 +563,16 @@ const PatientDashboard = () => {
                                     checked={historySelectedIds.has(test.id)}
                                     onCheckedChange={() => toggleHistorySelection(test.id)}
                                     onClick={(e) => e.stopPropagation()}
+                                    disabled={unpaidTestIds.has(test.id)}
                                   />
                                 )}
                                 <h4 className="font-medium text-foreground">{test.test_name}</h4>
+                                {unpaidTestIds.has(test.id) && (
+                                  <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                    <Lock className="h-3 w-3" />
+                                    Payment Pending
+                                  </Badge>
+                                )}
                               </div>
                               {getStatusBadge(test.status)}
                             </div>
