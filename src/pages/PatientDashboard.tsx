@@ -16,7 +16,8 @@ import {
   MapPin,
   Droplet,
   Activity,
-  Printer
+  Printer,
+  Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,6 +70,9 @@ const PatientDashboard = () => {
   const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
   const [historyPrintDialogOpen, setHistoryPrintDialogOpen] = useState(false);
   const [historyPrintOptions, setHistoryPrintOptions] = useState({ includeHeader: true, includeFooter: true });
+  const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
+  const [outstandingAmount, setOutstandingAmount] = useState(0);
+  const [checkingDues, setCheckingDues] = useState(true);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -118,6 +122,47 @@ const PatientDashboard = () => {
     }
   }, [patient?.id]);
 
+  // Check for outstanding dues
+  useEffect(() => {
+    const checkOutstandingDues = async () => {
+      if (!patient?.id) {
+        setCheckingDues(false);
+        return;
+      }
+
+      try {
+        const { data: invoices, error } = await supabase
+          .from("invoices")
+          .select("final_amount, paid_amount, payment_status")
+          .eq("patient_id", patient.id);
+
+        if (error) throw error;
+
+        // Calculate outstanding dues with proper null handling
+        const totalBilled = invoices?.reduce((sum, inv) => {
+          const finalAmount = Number(inv.final_amount) || 0;
+          return sum + finalAmount;
+        }, 0) || 0;
+        
+        const totalPaid = invoices?.reduce((sum, inv) => {
+          const paidAmount = Number(inv.paid_amount) || 0;
+          return sum + paidAmount;
+        }, 0) || 0;
+        
+        const outstanding = totalBilled - totalPaid;
+
+        setHasOutstandingDues(outstanding > 0);
+        setOutstandingAmount(Math.max(0, outstanding));
+      } catch (error) {
+        console.error("Error checking outstanding dues:", error);
+      } finally {
+        setCheckingDues(false);
+      }
+    };
+
+    checkOutstandingDues();
+  }, [patient?.id]);
+
   const handleSignOut = async () => {
     await signOut();
     toast.success("Logged out successfully");
@@ -160,6 +205,12 @@ const PatientDashboard = () => {
   };
 
   const handleHistoryPrint = () => {
+    // Check for outstanding dues first
+    if (hasOutstandingDues) {
+      toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
+      return;
+    }
+
     const testsToprint = historySelectedIds.size > 0 
       ? tests.filter(t => historySelectedIds.has(t.id))
       : completedTests;
@@ -414,8 +465,13 @@ const PatientDashboard = () => {
                         size="sm"
                         onClick={() => setHistoryPrintDialogOpen(true)}
                         className="gap-2"
+                        disabled={hasOutstandingDues}
                       >
-                        <Printer className="h-4 w-4" />
+                        {hasOutstandingDues ? (
+                          <Lock className="h-4 w-4" />
+                        ) : (
+                          <Printer className="h-4 w-4" />
+                        )}
                         Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
                       </Button>
                     </div>
@@ -423,6 +479,30 @@ const PatientDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Outstanding Dues Warning */}
+                {!checkingDues && hasOutstandingDues && (
+                  <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Lock className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-semibold text-amber-900 dark:text-amber-100">
+                          Outstanding Dues: ₹{outstandingAmount.toLocaleString()}
+                        </p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Please clear your outstanding dues to download test reports. You can make a payment in the Billing tab.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveTab("billing")}
+                        className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                      >
+                        Pay Now
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 {testsLoading ? (
                   <Skeleton className="h-40 w-full" />
                 ) : tests.length === 0 ? (
@@ -489,7 +569,42 @@ const PatientDashboard = () => {
 
           {/* Billing Tab */}
           <TabsContent value="billing">
-            <BillingPortal patientId={patient.id} />
+            <BillingPortal 
+              patientId={patient.id}
+              patientName={patient.full_name}
+              patientPhone={patient.phone}
+              onPaymentStatusChange={() => {
+                // Refresh outstanding amount when payment is made
+                const refreshDues = async () => {
+                  try {
+                    const { data: invoices, error } = await supabase
+                      .from("invoices")
+                      .select("final_amount, paid_amount, payment_status")
+                      .eq("patient_id", patient.id);
+
+                    if (error) throw error;
+
+                    const totalBilled = invoices?.reduce((sum, inv) => {
+                      const finalAmount = Number(inv.final_amount) || 0;
+                      return sum + finalAmount;
+                    }, 0) || 0;
+                    
+                    const totalPaid = invoices?.reduce((sum, inv) => {
+                      const paidAmount = Number(inv.paid_amount) || 0;
+                      return sum + paidAmount;
+                    }, 0) || 0;
+                    
+                    const outstanding = totalBilled - totalPaid;
+
+                    setHasOutstandingDues(outstanding > 0);
+                    setOutstandingAmount(Math.max(0, outstanding));
+                  } catch (error) {
+                    console.error("Error refreshing outstanding dues:", error);
+                  }
+                };
+                refreshDues();
+              }}
+            />
           </TabsContent>
 
           {/* Profile Tab */}

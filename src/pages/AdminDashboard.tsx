@@ -12,7 +12,8 @@ import {
   ClipboardList,
   Settings,
   Receipt,
-  Package
+  Package,
+  FlaskConical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,9 +24,10 @@ import ManagePatients from "@/components/admin/ManagePatients";
 import ManageTests from "@/components/admin/ManageTests";
 import ManageBilling from "@/components/admin/ManageBilling";
 import ManageInventory from "@/components/admin/ManageInventory";
+import ManageTestCatalog from "@/components/admin/ManageTestCatalog";
 import DashboardOverview from "@/components/admin/DashboardOverview";
 
-type TabType = "overview" | "employees" | "patients" | "tests" | "billing" | "inventory";
+type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "billing" | "inventory";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -68,7 +70,8 @@ const AdminDashboard = () => {
     { id: "overview" as TabType, label: "Overview", icon: Home },
     { id: "employees" as TabType, label: "Employees", icon: Users, adminOnly: true },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
-    { id: "tests" as TabType, label: "Tests", icon: ClipboardList },
+    { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
+    { id: "test-catalog" as TabType, label: "Test Catalog", icon: FlaskConical },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
     { id: "inventory" as TabType, label: "Inventory", icon: Package },
   ];
@@ -185,6 +188,7 @@ const AdminDashboard = () => {
             {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
             {activeTab === "patients" && <ManagePatients />}
             {activeTab === "tests" && <ManageTests />}
+            {activeTab === "test-catalog" && <ManageTestCatalog />}
             {activeTab === "billing" && <ManageBilling />}
             {activeTab === "inventory" && <ManageInventory />}
           </motion.div>

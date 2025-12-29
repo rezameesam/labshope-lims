@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   Plus, Search, Eye, Receipt, CreditCard, Banknote, 
   IndianRupee, Calendar, User, FileText, Printer, 
-  CheckCircle, Clock, XCircle, Filter, Download, Edit2
+  CheckCircle, Clock, XCircle, Filter, Download, Edit2, ChevronDown
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -35,6 +35,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -45,6 +58,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Invoice {
   id: string;
@@ -83,6 +97,8 @@ interface PatientTest {
   test?: {
     price: number | null;
   } | null;
+  invoice_status?: "not_invoiced" | "unpaid" | "paid";
+  invoice_number?: string;
 }
 
 interface InvoiceItem {
@@ -105,6 +121,8 @@ interface TestPrice {
 }
 
 const ManageBilling = () => {
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole("admin");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +144,8 @@ const ManageBilling = () => {
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  const [patientSearchQuery, setPatientSearchQuery] = useState("");
 
   // Payment state
   const [paymentAmount, setPaymentAmount] = useState(0);
@@ -185,6 +205,19 @@ const ManageBilling = () => {
     }
   };
 
+  // Filter patients based on search query
+  const filteredPatients = patients.filter((patient) => {
+    if (!patientSearchQuery) return true;
+    const query = patientSearchQuery.toLowerCase();
+    return (
+      patient.full_name.toLowerCase().includes(query) ||
+      patient.patient_id.toLowerCase().includes(query) ||
+      patient.phone.includes(query)
+    );
+  });
+
+  const selectedPatient = patients.find(p => p.id === selectedPatientId);
+
   const fetchInvoiceItems = async (invoiceId: string) => {
     try {
       const { data, error } = await supabase
@@ -211,7 +244,68 @@ const ManageBilling = () => {
         .order("test_date", { ascending: false });
 
       if (error) throw error;
-      setPatientTests((data || []) as PatientTest[]);
+      
+      // Check which tests are already invoiced
+      const testIds = (data || []).map(t => t.id);
+      
+      if (testIds.length > 0) {
+        // Get invoice items for these tests
+        const { data: invoiceItemsData } = await supabase
+          .from("invoice_items")
+          .select("patient_test_id, invoice_id")
+          .in("patient_test_id", testIds);
+
+        if (invoiceItemsData && invoiceItemsData.length > 0) {
+          // Get invoice payment statuses
+          const invoiceIds = Array.from(new Set(invoiceItemsData.map(item => item.invoice_id)));
+          const { data: invoicesData } = await supabase
+            .from("invoices")
+            .select("id, invoice_number, payment_status, final_amount, paid_amount")
+            .in("id", invoiceIds);
+
+          // Create maps for quick lookup
+          const testToInvoiceMap = new Map<string, string>();
+          const invoiceStatusMap = new Map<string, { status: string; number: string; isPaid: boolean }>();
+          
+          invoiceItemsData.forEach(item => {
+            if (item.patient_test_id) {
+              testToInvoiceMap.set(item.patient_test_id, item.invoice_id);
+            }
+          });
+
+          invoicesData?.forEach(inv => {
+            const isPaid = (inv.paid_amount || 0) >= (inv.final_amount || 0);
+            invoiceStatusMap.set(inv.id, {
+              status: inv.payment_status,
+              number: inv.invoice_number,
+              isPaid
+            });
+          });
+
+          // Add invoice status to each test
+          const testsWithInvoiceStatus = (data || []).map(test => {
+            const invoiceId = testToInvoiceMap.get(test.id);
+            if (invoiceId) {
+              const invoiceInfo = invoiceStatusMap.get(invoiceId);
+              if (invoiceInfo) {
+                return {
+                  ...test,
+                  invoice_status: invoiceInfo.isPaid ? "paid" : "unpaid",
+                  invoice_number: invoiceInfo.number
+                };
+              }
+            }
+            return { ...test, invoice_status: "not_invoiced" as const };
+          });
+
+          setPatientTests(testsWithInvoiceStatus as PatientTest[]);
+        } else {
+          // No invoices, all tests are not invoiced
+          setPatientTests((data || []).map(t => ({ ...t, invoice_status: "not_invoiced" as const })) as PatientTest[]);
+        }
+      } else {
+        setPatientTests([]);
+      }
     } catch (error) {
       console.error("Error fetching patient tests:", error);
     }
@@ -281,6 +375,28 @@ const ManageBilling = () => {
       return;
     }
 
+    // Check if any selected tests are already in paid invoices
+    const selectedTests = patientTests.filter(t => selectedTestIds.has(t.id));
+    const paidInvoicedTests = selectedTests.filter(t => t.invoice_status === "paid");
+    
+    if (paidInvoicedTests.length > 0) {
+      const testNames = paidInvoicedTests.map(t => t.test_name).join(", ");
+      const invoiceNumbers = Array.from(new Set(paidInvoicedTests.map(t => t.invoice_number).filter(Boolean))).join(", ");
+      toast.error(
+        `Cannot create invoice. The following tests are already invoiced and paid: ${testNames}. Invoice(s): ${invoiceNumbers}`
+      );
+      return;
+    }
+
+    // Warn if tests are in unpaid invoices (but allow it)
+    const unpaidInvoicedTests = selectedTests.filter(t => t.invoice_status === "unpaid");
+    if (unpaidInvoicedTests.length > 0) {
+      const testNames = unpaidInvoicedTests.map(t => t.test_name).join(", ");
+      toast.warning(
+        `Warning: Some tests (${testNames}) are already in unpaid invoices. This will create a duplicate invoice.`
+      );
+    }
+
     setIsSubmitting(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
@@ -305,7 +421,6 @@ const ManageBilling = () => {
       if (invoiceError) throw invoiceError;
 
       // Create invoice items with custom prices
-      const selectedTests = patientTests.filter(t => selectedTestIds.has(t.id));
       const invoiceItems = selectedTests.map(t => {
         const price = getTestPrice(t.id);
         return {
@@ -393,6 +508,8 @@ const ManageBilling = () => {
     setSelectedTestIds(new Set());
     setDiscount(0);
     setNotes("");
+    setPatientSearchQuery("");
+    setPatientSearchOpen(false);
   };
 
   const resetPaymentForm = () => {
@@ -410,6 +527,12 @@ const ManageBilling = () => {
   };
 
   const openEditDialog = async (invoice: Invoice) => {
+    // Check if user has permission to edit this invoice
+    if (!isAdmin && invoice.payment_status === "paid") {
+      toast.error("Only administrators can edit paid invoices. Please contact an admin for assistance.");
+      return;
+    }
+
     setSelectedInvoice(invoice);
     setEditableDiscount(invoice.discount_amount);
     
@@ -785,14 +908,16 @@ const ManageBilling = () => {
                             Pay
                           </Button>
                         )}
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => openEditDialog(invoice)}
-                          title="Edit Invoice"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {(isAdmin || invoice.payment_status !== "paid") && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openEditDialog(invoice)}
+                            title={invoice.payment_status === "paid" ? "Edit Invoice (Admin Only)" : "Edit Invoice"}
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -828,62 +953,132 @@ const ManageBilling = () => {
           <div className="space-y-4 flex-1 overflow-y-auto">
             <div className="space-y-2">
               <Label>Select Patient</Label>
-              <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a patient" />
-                </SelectTrigger>
-                <SelectContent>
-                  {patients.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {patient.full_name} ({patient.patient_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={patientSearchOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedPatient
+                      ? `${selectedPatient.full_name} (${selectedPatient.patient_id})`
+                      : "Choose a patient..."}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search by name, ID, or phone..." 
+                      value={patientSearchQuery}
+                      onValueChange={setPatientSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No patient found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredPatients.map((patient) => (
+                          <CommandItem
+                            key={patient.id}
+                            value={patient.id}
+                            onSelect={() => {
+                              setSelectedPatientId(patient.id);
+                              setPatientSearchOpen(false);
+                              setPatientSearchQuery("");
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">{patient.full_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {patient.patient_id} • {patient.phone}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {selectedPatientId && (
               <div className="space-y-2">
-                <Label>Select Tests to Invoice</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Select Tests to Invoice</Label>
+                  {patientTests.length > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {patientTests.filter(t => t.invoice_status !== "paid").length} available • {" "}
+                      {patientTests.filter(t => t.invoice_status === "paid").length} already paid
+                    </div>
+                  )}
+                </div>
                 <div className="border rounded-lg max-h-48 overflow-y-auto">
                   {patientTests.length === 0 ? (
                     <p className="text-sm text-muted-foreground p-4 text-center">No tests found for this patient</p>
                   ) : (
-                    patientTests.map((test) => (
-                      <div 
-                        key={test.id} 
-                        className="flex items-center gap-3 p-3 border-b last:border-b-0 hover:bg-muted/50"
-                      >
-                        <Checkbox
-                          checked={selectedTestIds.has(test.id)}
-                          onCheckedChange={(checked) => {
-                            const newSet = new Set(selectedTestIds);
-                            if (checked) {
-                              newSet.add(test.id);
-                            } else {
-                              newSet.delete(test.id);
-                            }
-                            setSelectedTestIds(newSet);
-                          }}
-                        />
-                        <div className="flex-1">
-                          <p className="font-medium">{test.test_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(test.test_date), "dd MMM yyyy")}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">₹</span>
-                          <Input
-                            type="number"
-                            value={getTestPrice(test.id)}
-                            onChange={(e) => updateTestPrice(test.id, Number(e.target.value))}
-                            className="w-24 h-8 text-right"
-                            min={0}
+                    patientTests.map((test) => {
+                      const isPaidInvoiced = test.invoice_status === "paid";
+                      const isUnpaidInvoiced = test.invoice_status === "unpaid";
+                      const isAlreadyInvoiced = isPaidInvoiced || isUnpaidInvoiced;
+                      
+                      return (
+                        <div 
+                          key={test.id} 
+                          className={`flex items-center gap-3 p-3 border-b last:border-b-0 hover:bg-muted/50 ${
+                            isPaidInvoiced ? "opacity-60 bg-muted/30" : ""
+                          }`}
+                        >
+                          <Checkbox
+                            checked={selectedTestIds.has(test.id)}
+                            onCheckedChange={(checked) => {
+                              if (isPaidInvoiced) {
+                                toast.error(`This test is already invoiced and paid (Invoice: ${test.invoice_number}). Cannot create duplicate invoice.`);
+                                return;
+                              }
+                              const newSet = new Set(selectedTestIds);
+                              if (checked) {
+                                newSet.add(test.id);
+                              } else {
+                                newSet.delete(test.id);
+                              }
+                              setSelectedTestIds(newSet);
+                            }}
+                            disabled={isPaidInvoiced}
                           />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{test.test_name}</p>
+                              {isPaidInvoiced && (
+                                <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  Paid (INV: {test.invoice_number})
+                                </Badge>
+                              )}
+                              {isUnpaidInvoiced && (
+                                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                                  Unpaid Invoice ({test.invoice_number})
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(test.test_date), "dd MMM yyyy")}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">₹</span>
+                            <Input
+                              type="number"
+                              value={getTestPrice(test.id)}
+                              onChange={(e) => updateTestPrice(test.id, Number(e.target.value))}
+                              className="w-24 h-8 text-right"
+                              min={0}
+                              disabled={isPaidInvoiced}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1247,17 +1442,19 @@ const ManageBilling = () => {
                     Record Payment
                   </Button>
                 )}
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => {
-                    setIsDetailsOpen(false);
-                    openEditDialog(selectedInvoice);
-                  }}
-                >
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Edit Invoice
-                </Button>
+                {(isAdmin || selectedInvoice.payment_status !== "paid") && (
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => {
+                      setIsDetailsOpen(false);
+                      openEditDialog(selectedInvoice);
+                    }}
+                  >
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit Invoice
+                  </Button>
+                )}
                 <Button 
                   variant="outline" 
                   className="flex-1"
