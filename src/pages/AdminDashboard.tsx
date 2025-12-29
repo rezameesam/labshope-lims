@@ -17,7 +17,9 @@ import {
   BarChart3,
   UserCog,
   FileText,
-  Bell
+  Bell,
+  Building2,
+  MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,10 +35,13 @@ import ManageTestPackages from "@/components/admin/ManageTestPackages";
 import ManageDoctors from "@/components/admin/ManageDoctors";
 import ManageTestTemplates from "@/components/admin/ManageTestTemplates";
 import ManageReminders from "@/components/admin/ManageReminders";
+import ManageLabs from "@/components/admin/ManageLabs";
+import ManageCollectionCenters from "@/components/admin/ManageCollectionCenters";
+import LabSelector from "@/components/admin/LabSelector";
 import DashboardOverview from "@/components/admin/DashboardOverview";
 import FinancialReports from "@/components/admin/FinancialReports";
 
-type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders";
+type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -87,6 +92,8 @@ const AdminDashboard = () => {
     { id: "inventory" as TabType, label: "Inventory", icon: Package },
     { id: "doctors" as TabType, label: "Doctors", icon: UserCog },
     { id: "reminders" as TabType, label: "Reminders", icon: Bell },
+    { id: "labs" as TabType, label: "Labs", icon: Building2, adminOnly: true },
+    { id: "collection-centers" as TabType, label: "Collection Centers", icon: MapPin },
     { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
   ];
 
@@ -179,14 +186,17 @@ const AdminDashboard = () => {
                 {visibleTabs.find((t) => t.id === activeTab)?.label}
               </h1>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/")}
-            >
-              <Home className="h-4 w-4 mr-2" />
-              Home
-            </Button>
+            <div className="flex items-center gap-2">
+              <LabSelector />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/")}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Home
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -209,6 +219,8 @@ const AdminDashboard = () => {
             {activeTab === "inventory" && <ManageInventory />}
             {activeTab === "doctors" && <ManageDoctors />}
             {activeTab === "reminders" && <ManageReminders />}
+            {activeTab === "labs" && <ManageLabs />}
+            {activeTab === "collection-centers" && <ManageCollectionCenters />}
             {activeTab === "reports" && <FinancialReports />}
           </motion.div>
         </div>

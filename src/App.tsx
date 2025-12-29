@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import { PatientAuthProvider } from "@/hooks/usePatientAuth";
+import { LabProvider } from "@/contexts/LabContext";
 import Index from "./pages/Index";
 import PatientAuth from "./pages/PatientAuth";
 import PatientDashboard from "./pages/PatientDashboard";
@@ -23,8 +24,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <PatientAuthProvider>
-              <Routes>
+            <LabProvider>
+              <PatientAuthProvider>
+                <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth/patient" element={<PatientAuth />} />
                 <Route path="/patient/dashboard" element={<PatientDashboard />} />
@@ -33,7 +35,8 @@ const App = () => (
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </PatientAuthProvider>
+              </PatientAuthProvider>
+            </LabProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
