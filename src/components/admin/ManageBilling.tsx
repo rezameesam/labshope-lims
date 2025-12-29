@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   Plus, Search, Eye, Receipt, CreditCard, Banknote, 
   IndianRupee, Calendar, User, FileText, Printer, 
-  CheckCircle, Clock, XCircle, Filter, Download
+  CheckCircle, Clock, XCircle, Filter, Download, Edit2
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -112,8 +112,11 @@ const ManageBilling = () => {
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "partial" | "paid">("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [editableItems, setEditableItems] = useState<InvoiceItem[]>([]);
+  const [editableDiscount, setEditableDiscount] = useState(0);
   
   // Create invoice state
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -406,6 +409,105 @@ const ManageBilling = () => {
     setIsPaymentDialogOpen(true);
   };
 
+  const openEditDialog = async (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setEditableDiscount(invoice.discount_amount);
+    
+    // Fetch invoice items
+    const { data: items, error } = await supabase
+      .from("invoice_items")
+      .select("id, test_name, unit_price, quantity, amount")
+      .eq("invoice_id", invoice.id);
+
+    if (error) {
+      toast.error("Failed to load invoice items");
+      return;
+    }
+
+    setEditableItems(items || []);
+    setIsEditDialogOpen(true);
+  };
+
+  const updateItemPrice = (itemId: string, price: number) => {
+    setEditableItems(items => 
+      items.map(item => {
+        if (item.id === itemId) {
+          const newAmount = price * item.quantity;
+          return { ...item, unit_price: price, amount: newAmount };
+        }
+        return item;
+      })
+    );
+  };
+
+  const calculateEditableTotal = () => {
+    return editableItems.reduce((sum, item) => sum + item.amount, 0);
+  };
+
+  const calculateEditableFinal = () => {
+    return calculateEditableTotal() - editableDiscount;
+  };
+
+  const handleSaveInvoice = async () => {
+    if (!selectedInvoice) return;
+
+    setIsSubmitting(true);
+    try {
+      const newTotal = calculateEditableTotal();
+      const newFinal = calculateEditableFinal();
+
+      // Update invoice items
+      for (const item of editableItems) {
+        const { error } = await supabase
+          .from("invoice_items")
+          .update({
+            unit_price: item.unit_price,
+            amount: item.amount,
+          })
+          .eq("id", item.id);
+
+        if (error) throw error;
+      }
+
+      // Update invoice totals
+      const { error: invoiceError } = await supabase
+        .from("invoices")
+        .update({
+          total_amount: newTotal,
+          discount_amount: editableDiscount,
+          final_amount: newFinal,
+        })
+        .eq("id", selectedInvoice.id);
+
+      if (invoiceError) throw invoiceError;
+
+      toast.success("Invoice updated successfully");
+      setIsEditDialogOpen(false);
+      fetchInvoices();
+      
+      // Refresh invoice details if open
+      if (isDetailsOpen && selectedInvoice) {
+        const { data: updatedInvoice, error } = await supabase
+          .from("invoices")
+          .select(`
+            *,
+            patient:patients(full_name, patient_id, phone)
+          `)
+          .eq("id", selectedInvoice.id)
+          .single();
+        
+        if (!error && updatedInvoice) {
+          setSelectedInvoice(updatedInvoice as Invoice);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error updating invoice:", error);
+      toast.error(error.message || "Failed to update invoice");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paid":
@@ -686,10 +788,20 @@ const ManageBilling = () => {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => {
+                          onClick={() => openEditDialog(invoice)}
+                          title="Edit Invoice"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={async () => {
                             setSelectedInvoice(invoice);
+                            await fetchInvoiceItems(invoice.id);
                             setIsDetailsOpen(true);
                           }}
+                          title="View Details"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -916,6 +1028,130 @@ const ManageBilling = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Invoice Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5" />
+              Edit Invoice
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedInvoice && (
+            <div className="space-y-4 flex-1 overflow-y-auto">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">Invoice #{selectedInvoice.invoice_number}</p>
+                <p className="font-medium">{selectedInvoice.patient?.full_name}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Invoice Items</Label>
+                <div className="border rounded-lg">
+                  {editableItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground p-4 text-center">No items found</p>
+                  ) : (
+                    <div className="divide-y">
+                      {editableItems.map((item, index) => (
+                        <div 
+                          key={item.id} 
+                          className="flex items-center gap-4 p-4 hover:bg-muted/50"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium">{item.test_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Quantity: {item.quantity}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm text-muted-foreground">Price:</Label>
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">₹</span>
+                              <Input
+                                type="number"
+                                value={item.unit_price}
+                                onChange={(e) => updateItemPrice(item.id, Number(e.target.value))}
+                                className="w-32 h-9 text-right"
+                                min={0}
+                                step="0.01"
+                              />
+                            </div>
+                            <div className="w-24 text-right">
+                              <p className="text-sm text-muted-foreground">Amount:</p>
+                              <p className="font-medium">₹{item.amount.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Subtotal</Label>
+                  <Input 
+                    value={`₹${calculateEditableTotal().toLocaleString()}`} 
+                    disabled 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Discount</Label>
+                  <Input 
+                    type="number" 
+                    value={editableDiscount} 
+                    onChange={(e) => setEditableDiscount(Number(e.target.value))}
+                    placeholder="0"
+                    min={0}
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Total Amount</span>
+                  <span className="text-2xl font-bold">₹{calculateEditableFinal().toLocaleString()}</span>
+                </div>
+                {selectedInvoice.paid_amount > 0 && (
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t">
+                    <span className="text-sm text-muted-foreground">Already Paid</span>
+                    <span className="text-sm font-medium text-emerald-600">
+                      ₹{selectedInvoice.paid_amount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {selectedInvoice.paid_amount > 0 && (
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-sm font-medium">Outstanding</span>
+                    <span className={`text-sm font-bold ${
+                      calculateEditableFinal() - selectedInvoice.paid_amount > 0 
+                        ? "text-amber-600" 
+                        : "text-emerald-600"
+                    }`}>
+                      ₹{(calculateEditableFinal() - selectedInvoice.paid_amount).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveInvoice} 
+              disabled={isSubmitting || editableItems.length === 0}
+            >
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Invoice Details Sheet */}
       <Sheet open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <SheetContent className="sm:max-w-lg">
@@ -943,6 +1179,26 @@ const ManageBilling = () => {
                 <p className="font-medium text-lg">{selectedInvoice.patient?.full_name}</p>
                 <p className="text-sm">{selectedInvoice.patient?.patient_id} • {selectedInvoice.patient?.phone}</p>
               </div>
+
+              {/* Invoice Items */}
+              {invoiceItems.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Items</p>
+                  <div className="border rounded-lg divide-y">
+                    {invoiceItems.map((item) => (
+                      <div key={item.id} className="flex justify-between items-center p-3">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.test_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Qty: {item.quantity} × ₹{item.unit_price.toLocaleString()}
+                          </p>
+                        </div>
+                        <p className="font-medium">₹{item.amount.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <div className="flex justify-between">
@@ -991,6 +1247,17 @@ const ManageBilling = () => {
                     Record Payment
                   </Button>
                 )}
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    setIsDetailsOpen(false);
+                    openEditDialog(selectedInvoice);
+                  }}
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit Invoice
+                </Button>
                 <Button 
                   variant="outline" 
                   className="flex-1"
