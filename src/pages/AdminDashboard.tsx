@@ -13,7 +13,11 @@ import {
   Settings,
   Receipt,
   Package,
-  FlaskConical
+  FlaskConical,
+  BarChart3,
+  UserCog,
+  FileText,
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,9 +29,14 @@ import ManageTests from "@/components/admin/ManageTests";
 import ManageBilling from "@/components/admin/ManageBilling";
 import ManageInventory from "@/components/admin/ManageInventory";
 import ManageTestCatalog from "@/components/admin/ManageTestCatalog";
+import ManageTestPackages from "@/components/admin/ManageTestPackages";
+import ManageDoctors from "@/components/admin/ManageDoctors";
+import ManageTestTemplates from "@/components/admin/ManageTestTemplates";
+import ManageReminders from "@/components/admin/ManageReminders";
 import DashboardOverview from "@/components/admin/DashboardOverview";
+import FinancialReports from "@/components/admin/FinancialReports";
 
-type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "billing" | "inventory";
+type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -72,8 +81,13 @@ const AdminDashboard = () => {
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
     { id: "test-catalog" as TabType, label: "Test Catalog", icon: FlaskConical },
+    { id: "test-packages" as TabType, label: "Test Packages", icon: Package },
+    { id: "test-templates" as TabType, label: "Templates", icon: FileText },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
     { id: "inventory" as TabType, label: "Inventory", icon: Package },
+    { id: "doctors" as TabType, label: "Doctors", icon: UserCog },
+    { id: "reminders" as TabType, label: "Reminders", icon: Bell },
+    { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
@@ -189,8 +203,13 @@ const AdminDashboard = () => {
             {activeTab === "patients" && <ManagePatients />}
             {activeTab === "tests" && <ManageTests />}
             {activeTab === "test-catalog" && <ManageTestCatalog />}
+            {activeTab === "test-packages" && <ManageTestPackages />}
+            {activeTab === "test-templates" && <ManageTestTemplates />}
             {activeTab === "billing" && <ManageBilling />}
             {activeTab === "inventory" && <ManageInventory />}
+            {activeTab === "doctors" && <ManageDoctors />}
+            {activeTab === "reminders" && <ManageReminders />}
+            {activeTab === "reports" && <FinancialReports />}
           </motion.div>
         </div>
       </main>

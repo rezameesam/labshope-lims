@@ -9,7 +9,10 @@ import {
   Clock,
   FileText,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  DollarSign,
+  CreditCard,
+  AlertCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +41,13 @@ interface Stats {
   pendingTests: number;
   completedToday: number;
   newPatientsThisWeek: number;
+  totalRevenue: number;
+  revenueToday: number;
+  revenueThisWeek: number;
+  revenueThisMonth: number;
+  outstandingDues: number;
+  paidInvoices: number;
+  pendingInvoices: number;
 }
 
 interface RecentTest {
@@ -54,6 +64,20 @@ interface RecentTest {
 interface TestTrend {
   date: string;
   tests: number;
+  revenue?: number;
+}
+
+interface RevenueTrend {
+  date: string;
+  revenue: number;
+  paid: number;
+  pending: number;
+}
+
+interface TopTest {
+  test_name: string;
+  count: number;
+  revenue: number;
 }
 
 const DashboardOverview = () => {
@@ -64,9 +88,18 @@ const DashboardOverview = () => {
     pendingTests: 0,
     completedToday: 0,
     newPatientsThisWeek: 0,
+    totalRevenue: 0,
+    revenueToday: 0,
+    revenueThisWeek: 0,
+    revenueThisMonth: 0,
+    outstandingDues: 0,
+    paidInvoices: 0,
+    pendingInvoices: 0,
   });
   const [recentTests, setRecentTests] = useState<RecentTest[]>([]);
   const [testTrends, setTestTrends] = useState<TestTrend[]>([]);
+  const [revenueTrends, setRevenueTrends] = useState<RevenueTrend[]>([]);
+  const [topTests, setTopTests] = useState<TopTest[]>([]);
   const [statusDistribution, setStatusDistribution] = useState<{ name: string; value: number; color: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,6 +109,7 @@ const DashboardOverview = () => {
         const today = new Date();
         const weekAgo = subDays(today, 7);
 
+        const monthAgo = subDays(today, 30);
         const [
           employeesRes, 
           patientsRes, 
@@ -85,6 +119,10 @@ const DashboardOverview = () => {
           newPatientsRes,
           recentTestsRes,
           inProgressRes,
+          allInvoicesRes,
+          invoicesTodayRes,
+          invoicesWeekRes,
+          invoicesMonthRes,
         ] = await Promise.all([
           supabase.from("employees").select("id", { count: "exact", head: true }),
           supabase.from("patients").select("id", { count: "exact", head: true }),
@@ -110,7 +148,95 @@ const DashboardOverview = () => {
             .order("created_at", { ascending: false })
             .limit(5),
           supabase.from("patient_tests").select("id", { count: "exact", head: true }).eq("status", "in_progress"),
+          supabase.from("invoices").select("final_amount, paid_amount, payment_status, created_at"),
+          supabase.from("invoices")
+            .select("final_amount, paid_amount")
+            .gte("created_at", startOfDay(today).toISOString())
+            .lte("created_at", endOfDay(today).toISOString()),
+          supabase.from("invoices")
+            .select("final_amount, paid_amount")
+            .gte("created_at", weekAgo.toISOString()),
+          supabase.from("invoices")
+            .select("final_amount, paid_amount")
+            .gte("created_at", monthAgo.toISOString()),
         ]);
+
+        // Calculate financial stats
+        const allInvoices = allInvoicesRes.data || [];
+        const invoicesToday = invoicesTodayRes.data || [];
+        const invoicesWeek = invoicesWeekRes.data || [];
+        const invoicesMonth = invoicesMonthRes.data || [];
+
+        const totalRevenue = allInvoices.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
+        const revenueToday = invoicesToday.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+        const revenueThisWeek = invoicesWeek.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+        const revenueThisMonth = invoicesMonth.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+        
+        const totalBilled = allInvoices.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
+        const totalPaid = allInvoices.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+        const outstandingDues = totalBilled - totalPaid;
+
+        const paidInvoices = allInvoices.filter(inv => {
+          const paid = Number(inv.paid_amount) || 0;
+          const final = Number(inv.final_amount) || 0;
+          return paid >= final;
+        }).length;
+
+        const pendingInvoices = allInvoices.filter(inv => {
+          const paid = Number(inv.paid_amount) || 0;
+          const final = Number(inv.final_amount) || 0;
+          return paid < final;
+        }).length;
+
+        // Get top tests by revenue
+        const { data: invoiceItemsRes } = await supabase
+          .from("invoice_items")
+          .select("test_name, amount");
+
+        const testRevenueMap = new Map<string, { count: number; revenue: number }>();
+        invoiceItemsRes?.forEach(item => {
+          const testName = item.test_name;
+          const amount = Number(item.amount) || 0;
+          const existing = testRevenueMap.get(testName) || { count: 0, revenue: 0 };
+          testRevenueMap.set(testName, {
+            count: existing.count + 1,
+            revenue: existing.revenue + amount
+          });
+        });
+
+        const topTestsData = Array.from(testRevenueMap.entries())
+          .map(([test_name, data]) => ({
+            test_name,
+            count: data.count,
+            revenue: data.revenue
+          }))
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+
+        setTopTests(topTestsData);
+
+        // Generate revenue trends for last 7 days
+        const revenueTrendsData: RevenueTrend[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = subDays(today, i);
+          const { data: dayInvoices } = await supabase
+            .from("invoices")
+            .select("final_amount, paid_amount")
+            .gte("created_at", startOfDay(date).toISOString())
+            .lte("created_at", endOfDay(date).toISOString());
+
+          const dayRevenue = (dayInvoices || []).reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
+          const dayPaid = (dayInvoices || []).reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+          const dayPending = dayRevenue - dayPaid;
+
+          revenueTrendsData.push({
+            date: format(date, "EEE"),
+            revenue: dayRevenue,
+            paid: dayPaid,
+            pending: dayPending
+          });
+        }
+        setRevenueTrends(revenueTrendsData);
 
         setStats({
           employees: employeesRes.count || 0,
@@ -119,6 +245,13 @@ const DashboardOverview = () => {
           pendingTests: pendingRes.count || 0,
           completedToday: completedTodayRes.count || 0,
           newPatientsThisWeek: newPatientsRes.count || 0,
+          totalRevenue,
+          revenueToday,
+          revenueThisWeek,
+          revenueThisMonth,
+          outstandingDues: Math.max(0, outstandingDues),
+          paidInvoices,
+          pendingInvoices,
         });
 
         setRecentTests(recentTestsRes.data || []);
@@ -162,13 +295,26 @@ const DashboardOverview = () => {
 
   const statCards = [
     {
-      title: "Total Employees",
-      value: stats.employees,
-      icon: Users,
-      trend: null,
-      color: "from-blue-500 to-blue-600",
-      iconBg: "bg-blue-500/10",
-      iconColor: "text-blue-500",
+      title: "Total Revenue",
+      value: stats.totalRevenue,
+      subtitle: `₹${stats.revenueThisMonth.toLocaleString()} this month`,
+      icon: DollarSign,
+      trend: "up",
+      color: "from-green-500 to-green-600",
+      iconBg: "bg-green-500/10",
+      iconColor: "text-green-500",
+      format: (val: number) => `₹${val.toLocaleString()}`,
+    },
+    {
+      title: "Outstanding Dues",
+      value: stats.outstandingDues,
+      subtitle: `${stats.pendingInvoices} unpaid invoices`,
+      icon: CreditCard,
+      trend: stats.outstandingDues > 0 ? "down" : null,
+      color: "from-red-500 to-red-600",
+      iconBg: "bg-red-500/10",
+      iconColor: "text-red-500",
+      format: (val: number) => `₹${val.toLocaleString()}`,
     },
     {
       title: "Total Patients",
@@ -179,16 +325,6 @@ const DashboardOverview = () => {
       color: "from-emerald-500 to-emerald-600",
       iconBg: "bg-emerald-500/10",
       iconColor: "text-emerald-500",
-    },
-    {
-      title: "Total Tests",
-      value: stats.tests,
-      subtitle: `${stats.completedToday} completed today`,
-      icon: ClipboardList,
-      trend: "up",
-      color: "from-violet-500 to-violet-600",
-      iconBg: "bg-violet-500/10",
-      iconColor: "text-violet-500",
     },
     {
       title: "Pending Tests",
@@ -233,7 +369,7 @@ const DashboardOverview = () => {
             <CardContent>
               <div className="flex items-end gap-2">
                 <div className="text-3xl font-bold text-foreground">
-                  {loading ? "..." : card.value.toLocaleString()}
+                  {loading ? "..." : (card.format ? card.format(card.value) : card.value.toLocaleString())}
                 </div>
                 {card.trend && (
                   <div className={`flex items-center text-xs ${card.trend === 'up' ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -251,27 +387,31 @@ const DashboardOverview = () => {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Test Trends Chart */}
+        {/* Revenue Trends Chart */}
         <Card className="lg:col-span-2 shadow-md border-0">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Test Activity
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  Revenue Trends
                 </CardTitle>
-                <CardDescription>Tests conducted over the last 7 days</CardDescription>
+                <CardDescription>Revenue over the last 7 days</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={testTrends}>
+                <AreaChart data={revenueTrends}>
                   <defs>
-                    <linearGradient id="colorTests" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -285,6 +425,7 @@ const DashboardOverview = () => {
                     axisLine={false}
                     tickLine={false}
                     className="text-xs fill-muted-foreground"
+                    tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
                   />
                   <Tooltip 
                     contentStyle={{ 
@@ -292,62 +433,126 @@ const DashboardOverview = () => {
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                     }}
+                    formatter={(value: number) => `₹${value.toLocaleString()}`}
                   />
                   <Area 
                     type="monotone" 
-                    dataKey="tests" 
-                    stroke="hsl(var(--primary))" 
+                    dataKey="revenue" 
+                    stroke="#10B981" 
                     strokeWidth={2}
                     fillOpacity={1} 
-                    fill="url(#colorTests)" 
+                    fill="url(#colorRevenue)"
+                    name="Billed"
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="paid" 
+                    stroke="#3B82F6" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorPaid)"
+                    name="Paid"
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <div className="flex justify-center gap-4 mt-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-xs text-muted-foreground">Billed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span className="text-xs text-muted-foreground">Paid</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Status Distribution */}
+        {/* Top Tests by Revenue */}
         <Card className="shadow-md border-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Test Status
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Top Tests
             </CardTitle>
-            <CardDescription>Distribution by status</CardDescription>
+            <CardDescription>By revenue</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={70}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {statusDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-4 mt-2">
-              {statusDistribution.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-xs text-muted-foreground">{item.name}</span>
-                </div>
-              ))}
+            <div className="space-y-3">
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+              ) : topTests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">No data</div>
+              ) : (
+                topTests.map((test, index) => (
+                  <div key={test.test_name} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{test.test_name}</p>
+                        <p className="text-xs text-muted-foreground">{test.count} tests</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">₹{test.revenue.toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Test Activity Chart */}
+      <Card className="shadow-md border-0">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Test Activity
+              </CardTitle>
+              <CardDescription>Tests conducted over the last 7 days</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={testTrends}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false}
+                  tickLine={false}
+                  className="text-xs fill-muted-foreground"
+                />
+                <YAxis 
+                  axisLine={false}
+                  tickLine={false}
+                  className="text-xs fill-muted-foreground"
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                  }}
+                />
+                <Bar 
+                  dataKey="tests" 
+                  fill="hsl(var(--primary))" 
+                  radius={[8, 8, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

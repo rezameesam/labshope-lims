@@ -596,6 +596,15 @@ const ManageInventory = () => {
               <Wrench className="h-4 w-4" />
               Maintenance
             </TabsTrigger>
+            <TabsTrigger value="alerts" className="gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Alerts
+              {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0)).length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0)).length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex gap-2">
@@ -847,6 +856,168 @@ const ManageInventory = () => {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Alerts Tab */}
+        <TabsContent value="alerts">
+          <div className="space-y-4">
+            {/* Low Stock Alerts */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      Low Stock Alerts
+                    </CardTitle>
+                    <CardDescription>Items below minimum stock level</CardDescription>
+                  </div>
+                  <Badge variant="destructive">
+                    {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active).length} items
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active).length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>All items are well stocked!</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Item Name</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="text-right">Current Stock</TableHead>
+                        <TableHead className="text-right">Min Level</TableHead>
+                        <TableHead className="text-right">Deficit</TableHead>
+                        <TableHead>Supplier</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items
+                        .filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active)
+                        .sort((a, b) => {
+                          const aDeficit = (a.min_stock_level || 0) - (a.current_stock || 0);
+                          const bDeficit = (b.min_stock_level || 0) - (b.current_stock || 0);
+                          return bDeficit - aDeficit;
+                        })
+                        .map((item) => {
+                          const deficit = (item.min_stock_level || 0) - (item.current_stock || 0);
+                          const isOutOfStock = (item.current_stock || 0) === 0;
+                          return (
+                            <TableRow key={item.id} className={isOutOfStock ? "bg-red-50 dark:bg-red-950/20" : "bg-amber-50 dark:bg-amber-950/20"}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  {isOutOfStock && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                                  {item.name}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {item.category ? (
+                                  <Badge variant="outline">{item.category.name}</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className={isOutOfStock ? "font-bold text-red-600" : "font-medium text-amber-600"}>
+                                  {item.current_stock || 0} {item.unit}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground">
+                                {item.min_stock_level || 0} {item.unit}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant={isOutOfStock ? "destructive" : "outline"} className="font-semibold">
+                                  {deficit} {item.unit}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {item.supplier || "—"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setPurchaseForm({
+                                      item_id: item.id,
+                                      quantity: Math.max(deficit, 10),
+                                      unit_cost: item.unit_price || 0,
+                                      total_cost: Math.max(deficit, 10) * (item.unit_price || 0),
+                                      supplier: item.supplier || "",
+                                      invoice_number: "",
+                                      purchase_date: new Date().toISOString().split('T')[0],
+                                      notes: `Auto-suggested reorder for low stock`,
+                                    });
+                                    setIsPurchaseDialogOpen(true);
+                                  }}
+                                >
+                                  <ShoppingCart className="h-3.5 w-3.5 mr-1" />
+                                  Reorder
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Stock Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-red-100">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-red-600">
+                        {items.filter(item => (item.current_stock || 0) === 0 && item.is_active).length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Out of Stock</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-100">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-amber-600">
+                        {items.filter(item => (item.current_stock || 0) > 0 && (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active).length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Low Stock</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-100">
+                      <Package className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-green-600">
+                        {items.filter(item => (item.current_stock || 0) > (item.min_stock_level || 0) && item.is_active).length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Well Stocked</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

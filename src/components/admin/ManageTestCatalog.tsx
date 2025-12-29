@@ -84,6 +84,7 @@ const ManageTestCatalog = () => {
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [testToDelete, setTestToDelete] = useState<Test | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [testIdColumnExists, setTestIdColumnExists] = useState<boolean | null>(null);
 
   // Test form state
   const [testForm, setTestForm] = useState({
@@ -108,7 +109,26 @@ const ManageTestCatalog = () => {
   useEffect(() => {
     fetchTests();
     fetchCategories();
+    checkTestIdColumn();
   }, []);
+
+  const checkTestIdColumn = async () => {
+    try {
+      // Try to select test_id column - if it fails, column doesn't exist
+      const { error } = await supabase
+        .from("tests")
+        .select("test_id")
+        .limit(1);
+      
+      if (error && (error.code === 'PGRST204' || error.message?.includes("test_id"))) {
+        setTestIdColumnExists(false);
+      } else {
+        setTestIdColumnExists(true);
+      }
+    } catch (err) {
+      setTestIdColumnExists(false);
+    }
+  };
 
   const fetchTests = async () => {
     try {
@@ -492,7 +512,7 @@ const ManageTestCatalog = () => {
             <Tag className="h-4 w-4" />
             Add Category
           </Button>
-          {tests.some(t => !t.test_id) && (
+          {testIdColumnExists === true && tests.some(t => !t.test_id) && (
             <Button 
               variant="outline"
               onClick={handleGenerateMissingIds}
@@ -501,6 +521,25 @@ const ManageTestCatalog = () => {
             >
               <FlaskConical className="h-4 w-4" />
               Generate Missing IDs
+            </Button>
+          )}
+          {testIdColumnExists === false && (
+            <Button 
+              variant="outline"
+              onClick={() => {
+                toast.info(
+                  "Please run the database migration first",
+                  {
+                    description: "The test_id column needs to be added. Go to Supabase Dashboard → SQL Editor and run the migration file.",
+                    duration: 8000
+                  }
+                );
+              }}
+              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+              title="Migration required - Click for instructions"
+            >
+              <AlertCircle className="h-4 w-4" />
+              Migration Required
             </Button>
           )}
           <Button 
