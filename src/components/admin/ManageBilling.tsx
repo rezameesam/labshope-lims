@@ -558,23 +558,24 @@ const ManageBilling = () => {
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("IRM Clinical Laboratory", pageWidth / 2, 28, { align: "center" });
-    doc.text("Old Post Office Building, Budgam, Jammu and Kashmir - 191111", pageWidth / 2, 34, { align: "center" });
-    doc.text("Phone: +91-9419034607 | +91-9622635767 | Email: irmclinic@gmail.com", pageWidth / 2, 40, { align: "center" });
+    doc.text("Old Post Office Building", pageWidth / 2, 34, { align: "center" });
+    doc.text("Budgam, Jammu and Kashmir - 191111", pageWidth / 2, 40, { align: "center" });
+    doc.text("Phone: +91-9419034607 | +91-9622635767 | Email: irmclinic@gmail.com", pageWidth / 2, 46, { align: "center" });
     
     // Invoice details
     doc.setFontSize(11);
-    doc.text(`Invoice #: ${invoice.invoice_number}`, 14, 50);
-    doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 14, 57);
-    doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 64);
+    doc.text(`Invoice #: ${invoice.invoice_number}`, 14, 56);
+    doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 14, 63);
+    doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 70);
     
     // Patient details
-    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, 50, { align: "right" });
-    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, 57, { align: "right" });
-    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, 64, { align: "right" });
+    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, 56, { align: "right" });
+    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, 63, { align: "right" });
+    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, 70, { align: "right" });
     
     // Line separator
     doc.setLineWidth(0.5);
-    doc.line(14, 70, pageWidth - 14, 70);
+    doc.line(14, 76, pageWidth - 14, 76);
     
     // Items table
     const tableData = (items || []).map((item: InvoiceItem, index: number) => [
@@ -586,7 +587,7 @@ const ManageBilling = () => {
     ]);
     
     autoTable(doc, {
-      startY: 75,
+      startY: 81,
       head: [["#", "Test Name", "Qty", "Unit Price", "Amount"]],
       body: tableData,
       theme: "striped",
