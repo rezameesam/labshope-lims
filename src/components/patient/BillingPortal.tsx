@@ -190,21 +190,15 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         yOffset += 8;
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text("Old Post Office Building", 105, yOffset, { align: "center" });
+        doc.text("Pampore, Pulwama, J&K | Phone: +91 9419034607", 105, yOffset, { align: "center" });
         
-        yOffset += 6;
-        doc.text("Budgam, Jammu and Kashmir - 191111", 105, yOffset, { align: "center" });
-        
-        yOffset += 6;
-        doc.text("Phone: +91-9419034607 | +91-9622635767 | Email: irmclinic@gmail.com", 105, yOffset, { align: "center" });
-        
-        yOffset += 12;
+        yOffset += 15;
         doc.setFontSize(16);
         doc.setTextColor(0, 0, 0);
         doc.text("INVOICE", 105, yOffset, { align: "center" });
         
         // Invoice details
-        yOffset += 12;
+        yOffset += 15;
         doc.setFontSize(10);
         doc.text(`Invoice No: ${invoice.invoice_number}`, 20, yOffset);
         doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 140, yOffset);

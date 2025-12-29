@@ -1,7 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
-import logo from "@/assets/logo.png";
 
 interface TestResult {
   test_name: string;
@@ -59,16 +58,6 @@ export const generateTestReportPDF = (data: ReportData) => {
   if (options.includeHeader !== false) {
     doc.setFillColor(30, 58, 138); // Navy blue
     doc.rect(0, 0, pageWidth, 45, "F");
-    
-    // Add logo
-    try {
-      const logoSize = 20;
-      const logoX = 14;
-      const logoY = 12;
-      doc.addImage(logo, "PNG", logoX, logoY, logoSize, logoSize);
-    } catch (error) {
-      console.error("Error adding logo to PDF:", error);
-    }
     
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);

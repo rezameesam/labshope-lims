@@ -16,8 +16,7 @@ import {
   MapPin,
   Droplet,
   Activity,
-  Printer,
-  Lock
+  Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -70,9 +69,6 @@ const PatientDashboard = () => {
   const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
   const [historyPrintDialogOpen, setHistoryPrintDialogOpen] = useState(false);
   const [historyPrintOptions, setHistoryPrintOptions] = useState({ includeHeader: true, includeFooter: true });
-  const [unpaidTestIds, setUnpaidTestIds] = useState<Set<string>>(new Set());
-  const [outstandingAmount, setOutstandingAmount] = useState(0);
-  const [checkingDues, setCheckingDues] = useState(true);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -122,107 +118,6 @@ const PatientDashboard = () => {
     }
   }, [patient?.id]);
 
-  // Check payment status for tests (similar to TestResultsTable)
-  useEffect(() => {
-    const checkPaymentStatus = async () => {
-      if (!patient?.id || tests.length === 0) {
-        return;
-      }
-
-      const completedTests = tests.filter(t => t.status === "completed");
-      if (completedTests.length === 0) {
-        return;
-      }
-
-      try {
-        const testIds = completedTests.map(t => t.id);
-        
-        const { data: invoiceItems } = await supabase
-          .from("invoice_items")
-          .select("patient_test_id, invoice_id")
-          .in("patient_test_id", testIds);
-
-        if (!invoiceItems || invoiceItems.length === 0) {
-          // No invoices for these tests, so all are unlocked
-          setUnpaidTestIds(new Set());
-          return;
-        }
-
-        // Get invoice payment statuses
-        const invoiceIds = Array.from(new Set(invoiceItems.map(item => item.invoice_id)));
-        const { data: invoices } = await supabase
-          .from("invoices")
-          .select("id, final_amount, paid_amount")
-          .in("id", invoiceIds);
-
-        if (!invoices) {
-          return;
-        }
-
-        // Create a map of invoice_id to payment status
-        const invoicePaymentMap = new Map<string, boolean>();
-        if (invoices) {
-          invoices.forEach(inv => {
-            const isPaid = inv.paid_amount >= inv.final_amount;
-            invoicePaymentMap.set(inv.id, isPaid);
-          });
-        }
-
-        // Find unpaid test IDs
-        // If a test is in an invoice_item, check if that invoice is fully paid
-        // If invoice is not found or not fully paid, lock the test
-        const unpaidIds = new Set<string>();
-        invoiceItems.forEach(item => {
-          if (item.patient_test_id) {
-            const invoiceId = item.invoice_id;
-            const isPaid = invoicePaymentMap.get(invoiceId);
-            // Lock if invoice is not found (undefined) or not fully paid (false)
-            if (isPaid !== true) {
-              unpaidIds.add(item.patient_test_id);
-            }
-          }
-        });
-
-        setUnpaidTestIds(unpaidIds);
-      } catch (error) {
-        console.error("Error checking payment status:", error);
-      }
-    };
-
-    checkPaymentStatus();
-  }, [patient?.id, tests]);
-
-  // Check for outstanding dues
-  useEffect(() => {
-    const checkOutstandingDues = async () => {
-      if (!patient?.id) {
-        setCheckingDues(false);
-        return;
-      }
-
-      try {
-        const { data: invoices, error } = await supabase
-          .from("invoices")
-          .select("final_amount, paid_amount")
-          .eq("patient_id", patient.id);
-
-        if (error) throw error;
-
-        const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
-        const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
-        const outstanding = totalBilled - totalPaid;
-
-        setOutstandingAmount(outstanding);
-      } catch (error) {
-        console.error("Error checking outstanding dues:", error);
-      } finally {
-        setCheckingDues(false);
-      }
-    };
-
-    checkOutstandingDues();
-  }, [patient?.id]);
-
   const handleSignOut = async () => {
     await signOut();
     toast.success("Logged out successfully");
@@ -256,41 +151,20 @@ const PatientDashboard = () => {
   };
 
   const selectAllHistoryTests = () => {
-    // Only select paid tests
-    const paidCompletedTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
-    const allPaidIds = new Set(paidCompletedTests.map(t => t.id));
-    setHistorySelectedIds(allPaidIds);
-    
-    if (unpaidTestIds.size > 0) {
-      const unpaidCount = completedTests.filter(t => unpaidTestIds.has(t.id)).length;
-      if (unpaidCount > 0) {
-        toast.info(`${unpaidCount} test(s) with pending payment were not selected`);
-      }
-    }
+    const allCompletedIds = new Set(completedTests.map(t => t.id));
+    setHistorySelectedIds(allCompletedIds);
   };
 
   const clearHistorySelection = () => {
     setHistorySelectedIds(new Set());
   };
 
-  const handleHistoryPrint = async () => {
-    // Filter out unpaid tests first
-    const paidCompletedTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
-    
+  const handleHistoryPrint = () => {
     const testsToprint = historySelectedIds.size > 0 
-      ? tests.filter(t => historySelectedIds.has(t.id) && !unpaidTestIds.has(t.id))
-      : paidCompletedTests;
+      ? tests.filter(t => historySelectedIds.has(t.id))
+      : completedTests;
 
     if (testsToprint.length === 0) {
-      if (historySelectedIds.size > 0) {
-        // Check if selected tests are unpaid
-        const selectedUnpaid = tests.filter(t => historySelectedIds.has(t.id) && unpaidTestIds.has(t.id));
-        if (selectedUnpaid.length > 0) {
-          const testNames = selectedUnpaid.map(t => t.test_name).join(", ");
-          toast.error(`Please clear payment for the following tests to download: ${testNames}`);
-          return;
-        }
-      }
       toast.error("No completed tests to print");
       return;
     }
@@ -375,35 +249,6 @@ const PatientDashboard = () => {
           </div>
         </div>
       </header>
-
-      {/* Outstanding Dues Notice */}
-      {!checkingDues && outstandingAmount > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 flex-1">
-                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-amber-900 dark:text-amber-100">
-                    Outstanding Dues: ₹{outstandingAmount.toLocaleString()}
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Please clear your outstanding dues to download test reports. You can make a payment in the Billing tab.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab("billing")}
-                className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-              >
-                Pay Now
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <main className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
@@ -561,21 +406,9 @@ const PatientDashboard = () => {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => {
-                          const paidTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
-                          const allPaidSelected = paidTests.length > 0 && paidTests.every(t => historySelectedIds.has(t.id));
-                          if (allPaidSelected) {
-                            clearHistorySelection();
-                          } else {
-                            selectAllHistoryTests();
-                          }
-                        }}
+                        onClick={historySelectedIds.size === completedTests.length ? clearHistorySelection : selectAllHistoryTests}
                       >
-                        {(() => {
-                          const paidTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
-                          const allPaidSelected = paidTests.length > 0 && paidTests.every(t => historySelectedIds.has(t.id));
-                          return allPaidSelected ? "Deselect All" : "Select All";
-                        })()}
+                        {historySelectedIds.size === completedTests.length ? "Deselect All" : "Select All"}
                       </Button>
                       <Button 
                         size="sm"
@@ -583,12 +416,7 @@ const PatientDashboard = () => {
                         className="gap-2"
                       >
                         <Printer className="h-4 w-4" />
-                        Print {historySelectedIds.size > 0 
-                          ? `(${historySelectedIds.size})` 
-                          : (() => {
-                              const paidTests = completedTests.filter(t => !unpaidTestIds.has(t.id));
-                              return paidTests.length > 0 ? `All (${paidTests.length})` : "All";
-                            })()}
+                        Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
                       </Button>
                     </div>
                   )}
@@ -622,7 +450,7 @@ const PatientDashboard = () => {
                               <Clock className="h-3 w-3 text-yellow-500" />
                             )}
                           </div>
-                          <div className={`bg-muted/30 rounded-lg p-4 ${unpaidTestIds.has(test.id) ? "opacity-60" : ""}`}>
+                          <div className="bg-muted/30 rounded-lg p-4">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-3">
                                 {test.status === "completed" && (
@@ -630,16 +458,9 @@ const PatientDashboard = () => {
                                     checked={historySelectedIds.has(test.id)}
                                     onCheckedChange={() => toggleHistorySelection(test.id)}
                                     onClick={(e) => e.stopPropagation()}
-                                    disabled={unpaidTestIds.has(test.id)}
                                   />
                                 )}
                                 <h4 className="font-medium text-foreground">{test.test_name}</h4>
-                                {unpaidTestIds.has(test.id) && (
-                                  <Badge variant="outline" className="text-xs flex items-center gap-1">
-                                    <Lock className="h-3 w-3" />
-                                    Payment Pending
-                                  </Badge>
-                                )}
                               </div>
                               {getStatusBadge(test.status)}
                             </div>
@@ -668,33 +489,7 @@ const PatientDashboard = () => {
 
           {/* Billing Tab */}
           <TabsContent value="billing">
-            <BillingPortal 
-              patientId={patient.id}
-              patientName={patient.full_name}
-              patientPhone={patient.phone}
-              onPaymentStatusChange={() => {
-                // Refresh outstanding amount when payment is made
-                const refreshDues = async () => {
-                  try {
-                    const { data: invoices, error } = await supabase
-                      .from("invoices")
-                      .select("final_amount, paid_amount")
-                      .eq("patient_id", patient.id);
-
-                    if (error) throw error;
-
-                    const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
-                    const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
-                    const outstanding = totalBilled - totalPaid;
-
-                    setOutstandingAmount(outstanding);
-                  } catch (error) {
-                    console.error("Error refreshing outstanding dues:", error);
-                  }
-                };
-                refreshDues();
-              }}
-            />
+            <BillingPortal patientId={patient.id} />
           </TabsContent>
 
           {/* Profile Tab */}
