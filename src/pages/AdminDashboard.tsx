@@ -19,7 +19,8 @@ import {
   FileText,
   Bell,
   Building2,
-  MapPin
+  MapPin,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,8 +41,9 @@ import ManageCollectionCenters from "@/components/admin/ManageCollectionCenters"
 import LabSelector from "@/components/admin/LabSelector";
 import DashboardOverview from "@/components/admin/DashboardOverview";
 import FinancialReports from "@/components/admin/FinancialReports";
+import ManageRoles from "@/components/admin/ManageRoles";
 
-type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers";
+type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -99,6 +101,7 @@ const AdminDashboard = () => {
     { id: "labs" as TabType, label: "Labs", icon: Building2, adminOnly: true },
     { id: "collection-centers" as TabType, label: "Collection Centers", icon: MapPin },
     { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
+    { id: "roles" as TabType, label: "Roles & Permissions", icon: Shield, adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
@@ -226,6 +229,7 @@ const AdminDashboard = () => {
             {activeTab === "labs" && <ManageLabs />}
             {activeTab === "collection-centers" && <ManageCollectionCenters />}
             {activeTab === "reports" && <FinancialReports />}
+            {activeTab === "roles" && hasRole("admin") && <ManageRoles />}
           </motion.div>
         </div>
       </main>
