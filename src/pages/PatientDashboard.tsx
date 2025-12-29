@@ -71,6 +71,8 @@ const PatientDashboard = () => {
   const [historyPrintDialogOpen, setHistoryPrintDialogOpen] = useState(false);
   const [historyPrintOptions, setHistoryPrintOptions] = useState({ includeHeader: true, includeFooter: true });
   const [unpaidTestIds, setUnpaidTestIds] = useState<Set<string>>(new Set());
+  const [outstandingAmount, setOutstandingAmount] = useState(0);
+  const [checkingDues, setCheckingDues] = useState(true);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -184,6 +186,37 @@ const PatientDashboard = () => {
 
     checkPaymentStatus();
   }, [patient?.id, tests]);
+
+  // Check for outstanding dues
+  useEffect(() => {
+    const checkOutstandingDues = async () => {
+      if (!patient?.id) {
+        setCheckingDues(false);
+        return;
+      }
+
+      try {
+        const { data: invoices, error } = await supabase
+          .from("invoices")
+          .select("final_amount, paid_amount")
+          .eq("patient_id", patient.id);
+
+        if (error) throw error;
+
+        const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
+        const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
+        const outstanding = totalBilled - totalPaid;
+
+        setOutstandingAmount(outstanding);
+      } catch (error) {
+        console.error("Error checking outstanding dues:", error);
+      } finally {
+        setCheckingDues(false);
+      }
+    };
+
+    checkOutstandingDues();
+  }, [patient?.id]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -337,6 +370,35 @@ const PatientDashboard = () => {
           </div>
         </div>
       </header>
+
+      {/* Outstanding Dues Notice */}
+      {!checkingDues && outstandingAmount > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-amber-900 dark:text-amber-100">
+                    Outstanding Dues: ₹{outstandingAmount.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Please clear your outstanding dues to download test reports. You can make a payment in the Billing tab.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab("billing")}
+                className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+              >
+                Pay Now
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
@@ -601,7 +663,33 @@ const PatientDashboard = () => {
 
           {/* Billing Tab */}
           <TabsContent value="billing">
-            <BillingPortal patientId={patient.id} />
+            <BillingPortal 
+              patientId={patient.id}
+              patientName={patient.full_name}
+              patientPhone={patient.phone}
+              onPaymentStatusChange={() => {
+                // Refresh outstanding amount when payment is made
+                const refreshDues = async () => {
+                  try {
+                    const { data: invoices, error } = await supabase
+                      .from("invoices")
+                      .select("final_amount, paid_amount")
+                      .eq("patient_id", patient.id);
+
+                    if (error) throw error;
+
+                    const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
+                    const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
+                    const outstanding = totalBilled - totalPaid;
+
+                    setOutstandingAmount(outstanding);
+                  } catch (error) {
+                    console.error("Error refreshing outstanding dues:", error);
+                  }
+                };
+                refreshDues();
+              }}
+            />
           </TabsContent>
 
           {/* Profile Tab */}
