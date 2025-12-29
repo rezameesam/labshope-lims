@@ -387,16 +387,18 @@ const PatientAuth = () => {
                     </p>
                   </form>
                 </>
-              )}
+              ) : null}
 
-              <div className="mt-6 pt-6 border-t border-border text-center">
-                <p className="text-sm text-muted-foreground">
-                  Are you an employee?{" "}
-                  <Link to="/auth/employee" className="text-primary hover:underline font-medium">
-                    Employee Login
-                  </Link>
-                </p>
-              </div>
+              {step !== "select" && (
+                <div className="mt-6 pt-6 border-t border-border text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Are you an employee?{" "}
+                    <Link to="/auth/employee" className="text-primary hover:underline font-medium">
+                      Employee Login
+                    </Link>
+                  </p>
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
 

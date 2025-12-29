@@ -41,6 +41,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
 
 interface Patient {
   id: string;
@@ -1076,7 +1077,7 @@ const ManagePatients = () => {
         open={duplicatePhoneDialogOpen}
         onOpenChange={setDuplicatePhoneDialogOpen}
         existingPatients={existingPatientsWithPhone}
-        phoneNumber={formData.phone}
+        phoneNumber={formData.phone || ""}
         onContinue={createPatient}
         onCancel={() => {
           setDuplicatePhoneDialogOpen(false);
