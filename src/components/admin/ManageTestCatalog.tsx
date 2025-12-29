@@ -311,6 +311,11 @@ const ManageTestCatalog = () => {
 
         if (error) {
           console.error(`Error updating test ${update.id}:`, error);
+          // Check if it's a schema error (column doesn't exist)
+          if (error.code === 'PGRST204' || error.message?.includes("test_id")) {
+            toast.error("The test_id column doesn't exist yet. Please run the database migration first. See the migration file: supabase/migrations/20251229210933_allow_employees_manage_tests.sql");
+            throw new Error("Database migration required: The test_id column needs to be added to the tests table. Please run the migration in your Supabase dashboard.");
+          }
           throw error;
         }
       }
