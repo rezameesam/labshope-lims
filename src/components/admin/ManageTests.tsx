@@ -1196,7 +1196,12 @@ const ManageTests = () => {
                     {getStatusBadge(test.status)}
                   </TableCell>
                   <TableCell>
-                    {test.result ? (
+                    {test.result_value !== null && test.result_value !== undefined ? (
+                      <span className="text-sm font-medium">
+                        {test.result_value}
+                        {test.result_unit && ` ${test.result_unit}`}
+                      </span>
+                    ) : test.result ? (
                       <span className="text-sm truncate max-w-[150px] block">
                         {test.result.substring(0, 50)}{test.result.length > 50 ? "..." : ""}
                       </span>

@@ -885,11 +885,13 @@ const ManagePatients = () => {
                           <p className="font-medium">{test.test_name}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
-                            {test.result && (
+                            {(test.result_value !== null && test.result_value !== undefined) || test.result ? (
                               <span className={`font-medium ${test.is_abnormal ? "text-red-600" : "text-green-600"}`}>
-                                • {test.result_value || test.result}
+                                • {test.result_value !== null && test.result_value !== undefined 
+                                  ? `${test.result_value}${test.result_unit ? ` ${test.result_unit}` : ""}`
+                                  : test.result}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                         {getStatusBadge(test.status)}
