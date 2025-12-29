@@ -647,7 +647,7 @@ const PatientDashboard = () => {
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>Need help? Call us at +91 XXXX-XXXXXX</span>
+              <span>Need help? Call us at +91 9622635767</span>
             </div>
           </div>
         </div>

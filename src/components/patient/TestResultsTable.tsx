@@ -93,17 +93,39 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
       try {
         const { data: invoices, error } = await supabase
           .from("invoices")
-          .select("final_amount, paid_amount")
+          .select("final_amount, paid_amount, payment_status")
           .eq("patient_id", patientDbId);
 
         if (error) throw error;
 
-        const totalBilled = invoices?.reduce((sum, inv) => sum + (inv.final_amount || 0), 0) || 0;
-        const totalPaid = invoices?.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0) || 0;
+        // Calculate outstanding dues more carefully
+        const totalBilled = invoices?.reduce((sum, inv) => {
+          const finalAmount = Number(inv.final_amount) || 0;
+          return sum + finalAmount;
+        }, 0) || 0;
+        
+        const totalPaid = invoices?.reduce((sum, inv) => {
+          const paidAmount = Number(inv.paid_amount) || 0;
+          return sum + paidAmount;
+        }, 0) || 0;
+        
         const outstanding = totalBilled - totalPaid;
 
+        // Debug logging
+        console.log("Payment Status Check:", {
+          invoicesCount: invoices?.length || 0,
+          totalBilled,
+          totalPaid,
+          outstanding,
+          invoices: invoices?.map(inv => ({
+            final: inv.final_amount,
+            paid: inv.paid_amount,
+            status: inv.payment_status
+          }))
+        });
+
         setHasOutstandingDues(outstanding > 0);
-        setOutstandingAmount(outstanding);
+        setOutstandingAmount(Math.max(0, outstanding)); // Ensure non-negative
       } catch (error) {
         console.error("Error checking payment status:", error);
       } finally {

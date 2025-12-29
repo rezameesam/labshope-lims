@@ -372,10 +372,18 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
     }
   };
 
-  // Stats
-  const totalBilled = invoices.reduce((sum, inv) => sum + inv.final_amount, 0);
-  const totalPaid = invoices.reduce((sum, inv) => sum + inv.paid_amount, 0);
-  const totalPending = totalBilled - totalPaid;
+  // Stats - calculate with proper null handling
+  const totalBilled = invoices.reduce((sum, inv) => {
+    const finalAmount = Number(inv.final_amount) || 0;
+    return sum + finalAmount;
+  }, 0);
+  
+  const totalPaid = invoices.reduce((sum, inv) => {
+    const paidAmount = Number(inv.paid_amount) || 0;
+    return sum + paidAmount;
+  }, 0);
+  
+  const totalPending = Math.max(0, totalBilled - totalPaid);
 
   if (loading) {
     return (
