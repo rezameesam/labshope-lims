@@ -121,9 +121,7 @@ const ManageTestPackages = () => {
       // Fetch all tests
       const { data: testsData, error: testsError } = await supabase
         .from("tests")
-        .select("id, name, price, test_id")
-        .eq("is_active", true)
-        .order("name");
+        .select("id, name, price, test_id");
 
       if (testsError) throw testsError;
       setTests(testsData || []);

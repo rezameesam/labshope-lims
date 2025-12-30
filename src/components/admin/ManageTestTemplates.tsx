@@ -127,9 +127,7 @@ const ManageTestTemplates = () => {
       // Fetch tests
       const { data: testsData, error: testsError } = await supabase
         .from("tests")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
+        .select("id, name");
 
       if (testsError) throw testsError;
       setTests(testsData || []);

@@ -6,21 +6,28 @@ interface Lab {
   id: string;
   lab_code: string;
   name: string;
-  type: "main" | "branch" | "collection_center";
+  type: string;
   parent_lab_id: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
+  pincode: string | null;
   phone: string | null;
   email: string | null;
-  is_active: boolean;
+  is_active: boolean | null;
+  logo_url: string | null;
+  settings: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
 interface LabUser {
   id: string;
   lab_id: string;
-  role: "admin" | "manager" | "employee";
-  is_primary: boolean;
+  user_id: string;
+  role: string;
+  is_primary: boolean | null;
+  created_at: string;
   lab?: Lab;
 }
 
@@ -82,8 +89,8 @@ export const LabProvider = ({ children }: { children: ReactNode }) => {
         if (userLabsError) throw userLabsError;
 
         const labs = (userLabs || [])
-          .map((lu) => lu.lab)
-          .filter((lab): lab is Lab => lab !== null && lab.is_active);
+          .map((lu: any) => lu.lab)
+          .filter((lab: any): lab is Lab => lab !== null && lab.is_active);
 
         setAvailableLabs(labs);
         setLabUsers(userLabs || []);

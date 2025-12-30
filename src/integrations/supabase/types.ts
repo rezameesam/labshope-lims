@@ -64,6 +64,36 @@ export type Database = {
           },
         ]
       }
+      custom_roles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_system_role: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system_role?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system_role?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       doctor_referrals: {
         Row: {
           commission_amount: number | null
@@ -1219,6 +1249,35 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission: Database["public"]["Enums"]["permission_type"]
+          role_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission: Database["public"]["Enums"]["permission_type"]
+          role_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission?: Database["public"]["Enums"]["permission_type"]
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_categories: {
         Row: {
           created_at: string
@@ -1432,6 +1491,35 @@ export type Database = {
           },
         ]
       }
+      user_custom_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_custom_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -1457,6 +1545,19 @@ export type Database = {
     Functions: {
       generate_invoice_number: { Args: never; Returns: string }
       get_user_lab_id: { Args: { _user_id: string }; Returns: string }
+      get_user_permissions: {
+        Args: { _user_id: string }
+        Returns: {
+          permission: Database["public"]["Enums"]["permission_type"]
+        }[]
+      }
+      has_permission: {
+        Args: {
+          _permission: Database["public"]["Enums"]["permission_type"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1471,6 +1572,47 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "employee" | "patient" | "collector"
+      permission_type:
+        | "view_patients"
+        | "create_patients"
+        | "edit_patients"
+        | "delete_patients"
+        | "view_tests"
+        | "create_tests"
+        | "edit_tests"
+        | "delete_tests"
+        | "enter_test_results"
+        | "view_test_results"
+        | "view_billing"
+        | "create_invoices"
+        | "edit_invoices"
+        | "delete_invoices"
+        | "process_payments"
+        | "view_financial_reports"
+        | "view_inventory"
+        | "manage_inventory"
+        | "view_inventory_alerts"
+        | "view_employees"
+        | "create_employees"
+        | "edit_employees"
+        | "delete_employees"
+        | "manage_roles"
+        | "view_test_catalog"
+        | "manage_test_catalog"
+        | "view_test_packages"
+        | "manage_test_packages"
+        | "view_doctors"
+        | "manage_doctors"
+        | "view_reminders"
+        | "manage_reminders"
+        | "view_reports"
+        | "export_reports"
+        | "view_labs"
+        | "manage_labs"
+        | "view_collection_centers"
+        | "manage_collection_centers"
+        | "manage_settings"
+        | "view_audit_logs"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1599,6 +1741,48 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "employee", "patient", "collector"],
+      permission_type: [
+        "view_patients",
+        "create_patients",
+        "edit_patients",
+        "delete_patients",
+        "view_tests",
+        "create_tests",
+        "edit_tests",
+        "delete_tests",
+        "enter_test_results",
+        "view_test_results",
+        "view_billing",
+        "create_invoices",
+        "edit_invoices",
+        "delete_invoices",
+        "process_payments",
+        "view_financial_reports",
+        "view_inventory",
+        "manage_inventory",
+        "view_inventory_alerts",
+        "view_employees",
+        "create_employees",
+        "edit_employees",
+        "delete_employees",
+        "manage_roles",
+        "view_test_catalog",
+        "manage_test_catalog",
+        "view_test_packages",
+        "manage_test_packages",
+        "view_doctors",
+        "manage_doctors",
+        "view_reminders",
+        "manage_reminders",
+        "view_reports",
+        "export_reports",
+        "view_labs",
+        "manage_labs",
+        "view_collection_centers",
+        "manage_collection_centers",
+        "manage_settings",
+        "view_audit_logs",
+      ],
     },
   },
 } as const

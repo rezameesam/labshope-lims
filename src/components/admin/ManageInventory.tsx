@@ -947,7 +947,6 @@ const ManageInventory = () => {
                                       item_id: item.id,
                                       quantity: Math.max(deficit, 10),
                                       unit_cost: item.unit_price || 0,
-                                      total_cost: Math.max(deficit, 10) * (item.unit_price || 0),
                                       supplier: item.supplier || "",
                                       invoice_number: "",
                                       purchase_date: new Date().toISOString().split('T')[0],
