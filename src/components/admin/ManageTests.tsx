@@ -100,12 +100,20 @@ interface Test {
   normal_range_max: number | null;
 }
 
+interface Doctor {
+  id: string;
+  name: string;
+  specialization: string | null;
+  commission_percentage: number | null;
+}
+
 const ManageTests = () => {
   const { user } = useAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
   const [testCatalog, setTestCatalog] = useState<Test[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed">("all");
@@ -125,6 +133,8 @@ const ManageTests = () => {
   const [formData, setFormData] = useState({
     test_date: new Date().toISOString().split("T")[0],
     notes: "",
+    referred_by: "self" as string,
+    custom_doctor_name: "",
   });
   const [resultData, setResultData] = useState({
     result: "",
@@ -201,7 +211,7 @@ const ManageTests = () => {
 
   const fetchData = async () => {
     try {
-      const [testsRes, patientsRes, categoriesRes, catalogRes] = await Promise.all([
+      const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes] = await Promise.all([
         supabase
           .from("patient_tests")
           .select(`
@@ -218,17 +228,20 @@ const ManageTests = () => {
         supabase.from("patients").select("id, patient_id, full_name, phone").eq("is_active", true),
         supabase.from("test_categories").select("id, name"),
         supabase.from("tests").select("id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
+        supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
       ]);
 
       if (testsRes.error) throw testsRes.error;
       if (patientsRes.error) throw patientsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
       if (catalogRes.error) throw catalogRes.error;
+      if (doctorsRes.error) throw doctorsRes.error;
 
       setTests((testsRes.data || []) as unknown as PatientTest[]);
       setPatients(patientsRes.data || []);
       setCategories(categoriesRes.data || []);
       setTestCatalog((catalogRes.data || []) as Test[]);
+      setDoctors(doctorsRes.data || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch data");
@@ -324,6 +337,32 @@ const ManageTests = () => {
 
       if (itemsError) throw itemsError;
 
+      // Create doctor referral if a doctor from database was selected
+      if (formData.referred_by !== "self" && formData.referred_by !== "custom") {
+        const selectedDoctor = doctors.find(d => d.id === formData.referred_by);
+        if (selectedDoctor) {
+          const commissionAmount = selectedDoctor.commission_percentage 
+            ? (totalAmount * selectedDoctor.commission_percentage) / 100 
+            : 0;
+
+          const { error: referralError } = await supabase
+            .from("doctor_referrals")
+            .insert({
+              doctor_id: selectedDoctor.id,
+              patient_id: selectedPatient.id,
+              invoice_id: invoice.id,
+              invoice_number: invoiceNumber,
+              invoice_amount: totalAmount,
+              commission_amount: commissionAmount,
+              notes: formData.custom_doctor_name || null,
+            });
+
+          if (referralError) {
+            console.error("Error creating referral:", referralError);
+          }
+        }
+      }
+
       toast.success(`${selectedTests.length} test(s) added and invoice ${invoiceNumber} created`);
       setIsDialogOpen(false);
       resetForm();
@@ -345,6 +384,8 @@ const ManageTests = () => {
     setFormData({
       test_date: new Date().toISOString().split("T")[0],
       notes: "",
+      referred_by: "self",
+      custom_doctor_name: "",
     });
   };
 
@@ -860,6 +901,37 @@ const ManageTests = () => {
                   ))}
                 </div>
               )}
+
+              {/* Referred By Section */}
+              <div className="space-y-2">
+                <Label>Referred By</Label>
+                <Select 
+                  value={formData.referred_by} 
+                  onValueChange={(value) => setFormData({ ...formData, referred_by: value, custom_doctor_name: "" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select referral source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="self">Self</SelectItem>
+                    {doctors.map((doctor) => (
+                      <SelectItem key={doctor.id} value={doctor.id}>
+                        Dr. {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ""}
+                        {doctor.commission_percentage ? ` - ${doctor.commission_percentage}%` : ""}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom">Other (Enter name)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formData.referred_by === "custom" && (
+                  <Input
+                    placeholder="Enter doctor's name..."
+                    value={formData.custom_doctor_name}
+                    onChange={(e) => setFormData({ ...formData, custom_doctor_name: e.target.value })}
+                    className="mt-2"
+                  />
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
