@@ -84,7 +84,7 @@ const PatientAuth = () => {
     }
 
     // If multiple patients found, show selection dialog
-    if (result.needsSelection) {
+    if ((result as any).needsSelection) {
       const { patients, error: selectError } = await selectPatient(phone);
       if (selectError || !patients || patients.length === 0) {
         toast.error("Failed to load patient accounts");

@@ -60,7 +60,7 @@ interface Lab {
   id: string;
   lab_code: string;
   name: string;
-  type: "main" | "branch" | "collection_center";
+  type: string;
   parent_lab_id: string | null;
   address: string | null;
   city: string | null;
@@ -68,8 +68,8 @@ interface Lab {
   pincode: string | null;
   phone: string | null;
   email: string | null;
-  is_active: boolean;
-  parent_lab?: Lab;
+  is_active: boolean | null;
+  parent_lab?: Lab[];
 }
 
 const ManageLabs = () => {
@@ -87,7 +87,7 @@ const ManageLabs = () => {
   const [labForm, setLabForm] = useState({
     lab_code: "",
     name: "",
-    type: "main" as "main" | "branch" | "collection_center",
+    type: "main" as string,
     parent_lab_id: "",
     address: "",
     city: "",
@@ -386,8 +386,8 @@ const ManageLabs = () => {
                         <TableCell className="font-medium">{lab.name}</TableCell>
                         <TableCell>{getTypeBadge(lab.type)}</TableCell>
                         <TableCell>
-                          {lab.parent_lab ? (
-                            <span className="text-sm">{lab.parent_lab.name}</span>
+                          {lab.parent_lab && lab.parent_lab.length > 0 ? (
+                            <span className="text-sm">{lab.parent_lab[0].name}</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}

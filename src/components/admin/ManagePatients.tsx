@@ -329,7 +329,7 @@ const ManagePatients = () => {
       // Check for existing patients with the same phone number
       const { data: existingPatients, error: checkError } = await supabase
         .from("patients")
-        .select("id, patient_id, full_name, phone, date_of_birth, gender")
+        .select("id, patient_id, full_name, phone, date_of_birth, gender, email, address, blood_group, is_active, created_at")
         .eq("phone", formData.phone)
         .eq("is_active", true);
 
@@ -337,7 +337,7 @@ const ManagePatients = () => {
 
       // If duplicate phone found, show warning dialog
       if (existingPatients && existingPatients.length > 0) {
-        setExistingPatientsWithPhone(existingPatients);
+        setExistingPatientsWithPhone(existingPatients as Patient[]);
         setDuplicatePhoneDialogOpen(true);
         setIsSubmitting(false);
         return;
