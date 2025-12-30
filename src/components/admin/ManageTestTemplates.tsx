@@ -473,14 +473,14 @@ const ManageTestTemplates = () => {
                 <div>
                   <Label htmlFor="category">Test Category (Optional)</Label>
                   <Select
-                    value={templateForm.test_category}
-                    onValueChange={(value) => setTemplateForm({ ...templateForm, test_category: value })}
+                    value={templateForm.test_category || "__all__"}
+                    onValueChange={(value) => setTemplateForm({ ...templateForm, test_category: value === "__all__" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Categories</SelectItem>
+                      <SelectItem value="__all__">All Categories</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.name}>
                           {cat.name}
@@ -492,14 +492,14 @@ const ManageTestTemplates = () => {
                 <div>
                   <Label htmlFor="test">Specific Test (Optional)</Label>
                   <Select
-                    value={templateForm.test_id}
-                    onValueChange={(value) => setTemplateForm({ ...templateForm, test_id: value })}
+                    value={templateForm.test_id || "__all__"}
+                    onValueChange={(value) => setTemplateForm({ ...templateForm, test_id: value === "__all__" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All Tests" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Tests</SelectItem>
+                      <SelectItem value="__all__">All Tests</SelectItem>
                       {tests.map((test) => (
                         <SelectItem key={test.id} value={test.id}>
                           {test.name}
