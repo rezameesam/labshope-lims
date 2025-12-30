@@ -564,6 +564,17 @@ const ManageTests = () => {
 
       if (error) throw error;
 
+      // Send notification if test is completed and result is entered
+      if (resultData.status === "completed" && (resultData.result || resultData.result_value)) {
+        try {
+          const { sendTestResultNotification } = await import("@/services/notificationService");
+          await sendTestResultNotification(selectedTest.patient_id, selectedTest.test_name, selectedTest.id);
+        } catch (notifError) {
+          console.error("Failed to send notification:", notifError);
+          // Don't fail the update if notification fails
+        }
+      }
+
       toast.success("Test result updated successfully");
       setIsResultDialogOpen(false);
       setSelectedTest(null);

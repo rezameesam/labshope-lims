@@ -252,6 +252,23 @@ const ManageReminders = () => {
     }
   };
 
+  const handleSendReminder = async (reminderId: string) => {
+    try {
+      const { sendReminderNotification } = await import("@/services/notificationService");
+      const results = await sendReminderNotification(reminderId);
+      
+      if (results.some(r => r.success)) {
+        toast.success("Reminder notification sent successfully");
+        fetchData();
+      } else {
+        toast.error(results[0]?.error || "Failed to send reminder notification");
+      }
+    } catch (error: any) {
+      console.error("Error sending reminder:", error);
+      toast.error(error.message || "Failed to send reminder notification");
+    }
+  };
+
   const handleMarkCompleted = async (reminderId: string) => {
     try {
       const { error } = await supabase
@@ -483,6 +500,17 @@ const ManageReminders = () => {
                         <TableCell>{getStatusBadge(reminder)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            {!reminder.is_completed && !reminder.notification_sent && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSendReminder(reminder.id)}
+                                title="Send notification now"
+                              >
+                                <Mail className="h-4 w-4 mr-1" />
+                                Send
+                              </Button>
+                            )}
                             {!reminder.is_completed && (
                               <Button
                                 variant="ghost"
