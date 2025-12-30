@@ -14,6 +14,176 @@ export type Database = {
   }
   public: {
     Tables: {
+      collection_centers: {
+        Row: {
+          address: string | null
+          code: string
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          lab_id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          code: string
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          lab_id: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          code?: string
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          lab_id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_centers_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      doctor_referrals: {
+        Row: {
+          commission_amount: number | null
+          commission_paid: boolean | null
+          created_at: string
+          doctor_id: string
+          id: string
+          invoice_amount: number | null
+          invoice_id: string | null
+          invoice_number: string | null
+          notes: string | null
+          patient_id: string | null
+          referral_date: string
+          updated_at: string
+        }
+        Insert: {
+          commission_amount?: number | null
+          commission_paid?: boolean | null
+          created_at?: string
+          doctor_id: string
+          id?: string
+          invoice_amount?: number | null
+          invoice_id?: string | null
+          invoice_number?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          referral_date?: string
+          updated_at?: string
+        }
+        Update: {
+          commission_amount?: number | null
+          commission_paid?: boolean | null
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          invoice_amount?: number | null
+          invoice_id?: string | null
+          invoice_number?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          referral_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_referrals_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doctor_referrals_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doctor_referrals_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      doctors: {
+        Row: {
+          address: string | null
+          commission_percentage: number | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          lab_id: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          specialization: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          commission_percentage?: number | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          lab_id?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          specialization?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          commission_percentage?: number | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          lab_id?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          specialization?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctors_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           created_at: string
@@ -24,6 +194,7 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          lab_id: string | null
           phone: string | null
           updated_at: string
           user_id: string
@@ -37,6 +208,7 @@ export type Database = {
           full_name: string
           id?: string
           is_active?: boolean
+          lab_id?: string | null
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -50,11 +222,20 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          lab_id?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employees_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       equipment_maintenance: {
         Row: {
@@ -138,6 +319,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          lab_id: string | null
           location: string | null
           min_stock_level: number | null
           name: string
@@ -155,6 +337,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          lab_id?: string | null
           location?: string | null
           min_stock_level?: number | null
           name: string
@@ -172,6 +355,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          lab_id?: string | null
           location?: string | null
           min_stock_level?: number | null
           name?: string
@@ -188,6 +372,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "inventory_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
             referencedColumns: ["id"]
           },
         ]
@@ -355,6 +546,7 @@ export type Database = {
           final_amount: number
           id: string
           invoice_number: string
+          lab_id: string | null
           notes: string | null
           paid_amount: number | null
           paid_at: string | null
@@ -372,6 +564,7 @@ export type Database = {
           final_amount?: number
           id?: string
           invoice_number: string
+          lab_id?: string | null
           notes?: string | null
           paid_amount?: number | null
           paid_at?: string | null
@@ -389,6 +582,7 @@ export type Database = {
           final_amount?: number
           id?: string
           invoice_number?: string
+          lab_id?: string | null
           notes?: string | null
           paid_amount?: number | null
           paid_at?: string | null
@@ -401,7 +595,224 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "invoices_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_settings: {
+        Row: {
+          created_at: string
+          doctor_shared: boolean | null
+          id: string
+          inventory_shared: boolean | null
+          lab_id: string
+          patient_shared: boolean | null
+          settings: Json | null
+          test_catalog_shared: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          doctor_shared?: boolean | null
+          id?: string
+          inventory_shared?: boolean | null
+          lab_id: string
+          patient_shared?: boolean | null
+          settings?: Json | null
+          test_catalog_shared?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          doctor_shared?: boolean | null
+          id?: string
+          inventory_shared?: boolean | null
+          lab_id?: string
+          patient_shared?: boolean | null
+          settings?: Json | null
+          test_catalog_shared?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_settings_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: true
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_users: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean | null
+          lab_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          lab_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          lab_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_users_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labs: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          lab_code: string
+          logo_url: string | null
+          name: string
+          parent_lab_id: string | null
+          phone: string | null
+          pincode: string | null
+          settings: Json | null
+          state: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          lab_code: string
+          logo_url?: string | null
+          name: string
+          parent_lab_id?: string | null
+          phone?: string | null
+          pincode?: string | null
+          settings?: Json | null
+          state?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          lab_code?: string
+          logo_url?: string | null
+          name?: string
+          parent_lab_id?: string | null
+          phone?: string | null
+          pincode?: string | null
+          settings?: Json | null
+          state?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labs_parent_lab_id_fkey"
+            columns: ["parent_lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_reminders: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          is_completed: boolean | null
+          lab_id: string | null
+          message: string | null
+          notification_method: string | null
+          notification_sent: boolean | null
+          patient_id: string
+          reminder_date: string
+          reminder_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean | null
+          lab_id?: string | null
+          message?: string | null
+          notification_method?: string | null
+          notification_sent?: boolean | null
+          patient_id: string
+          reminder_date: string
+          reminder_type?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean | null
+          lab_id?: string | null
+          message?: string | null
+          notification_method?: string | null
+          notification_sent?: boolean | null
+          patient_id?: string
+          reminder_date?: string
+          reminder_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_reminders_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_reminders_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
@@ -452,10 +863,14 @@ export type Database = {
       }
       patient_tests: {
         Row: {
+          collected_at: string | null
+          collected_by: string | null
+          collection_center_id: string | null
           created_at: string
           created_by: string | null
           id: string
           is_abnormal: boolean | null
+          lab_id: string | null
           normal_range_text: string | null
           notes: string | null
           patient_id: string
@@ -474,10 +889,14 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          collected_at?: string | null
+          collected_by?: string | null
+          collection_center_id?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           is_abnormal?: boolean | null
+          lab_id?: string | null
           normal_range_text?: string | null
           notes?: string | null
           patient_id: string
@@ -496,10 +915,14 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          collected_at?: string | null
+          collected_by?: string | null
+          collection_center_id?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           is_abnormal?: boolean | null
+          lab_id?: string | null
           normal_range_text?: string | null
           notes?: string | null
           patient_id?: string
@@ -518,6 +941,20 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "patient_tests_collection_center_id_fkey"
+            columns: ["collection_center_id"]
+            isOneToOne: false
+            referencedRelation: "collection_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_tests_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "patient_tests_patient_id_fkey"
             columns: ["patient_id"]
@@ -545,6 +982,7 @@ export type Database = {
         Row: {
           address: string | null
           blood_group: string | null
+          collection_center_id: string | null
           created_at: string
           date_of_birth: string | null
           email: string | null
@@ -552,6 +990,7 @@ export type Database = {
           gender: string | null
           id: string
           is_active: boolean
+          lab_id: string | null
           patient_id: string
           phone: string
           updated_at: string
@@ -560,6 +999,7 @@ export type Database = {
         Insert: {
           address?: string | null
           blood_group?: string | null
+          collection_center_id?: string | null
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
@@ -567,6 +1007,7 @@ export type Database = {
           gender?: string | null
           id?: string
           is_active?: boolean
+          lab_id?: string | null
           patient_id: string
           phone: string
           updated_at?: string
@@ -575,6 +1016,7 @@ export type Database = {
         Update: {
           address?: string | null
           blood_group?: string | null
+          collection_center_id?: string | null
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
@@ -582,12 +1024,28 @@ export type Database = {
           gender?: string | null
           id?: string
           is_active?: boolean
+          lab_id?: string | null
           patient_id?: string
           phone?: string
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_collection_center_id_fkey"
+            columns: ["collection_center_id"]
+            isOneToOne: false
+            referencedRelation: "collection_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patients_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -782,6 +1240,145 @@ export type Database = {
         }
         Relationships: []
       }
+      test_package_tests: {
+        Row: {
+          created_at: string
+          id: string
+          package_id: string
+          test_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          package_id: string
+          test_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          package_id?: string
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_package_tests_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "test_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_package_tests_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_packages: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_percentage: number | null
+          id: string
+          is_active: boolean | null
+          lab_id: string | null
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_percentage?: number | null
+          id?: string
+          is_active?: boolean | null
+          lab_id?: string | null
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_percentage?: number | null
+          id?: string
+          is_active?: boolean | null
+          lab_id?: string | null
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_packages_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_templates: {
+        Row: {
+          created_at: string
+          custom_css: string | null
+          footer_template: string | null
+          header_template: string | null
+          id: string
+          include_abnormal_flag: boolean | null
+          include_normal_range: boolean | null
+          include_notes: boolean | null
+          is_default: boolean | null
+          name: string
+          result_format: string
+          test_category: string | null
+          test_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_css?: string | null
+          footer_template?: string | null
+          header_template?: string | null
+          id?: string
+          include_abnormal_flag?: boolean | null
+          include_normal_range?: boolean | null
+          include_notes?: boolean | null
+          is_default?: boolean | null
+          name: string
+          result_format?: string
+          test_category?: string | null
+          test_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_css?: string | null
+          footer_template?: string | null
+          header_template?: string | null
+          id?: string
+          include_abnormal_flag?: boolean | null
+          include_normal_range?: boolean | null
+          include_notes?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          result_format?: string
+          test_category?: string | null
+          test_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_templates_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tests: {
         Row: {
           category_id: string | null
@@ -794,6 +1391,7 @@ export type Database = {
           normal_range_text: string | null
           price: number | null
           sample_type: string | null
+          test_id: string | null
           unit: string | null
         }
         Insert: {
@@ -807,6 +1405,7 @@ export type Database = {
           normal_range_text?: string | null
           price?: number | null
           sample_type?: string | null
+          test_id?: string | null
           unit?: string | null
         }
         Update: {
@@ -820,6 +1419,7 @@ export type Database = {
           normal_range_text?: string | null
           price?: number | null
           sample_type?: string | null
+          test_id?: string | null
           unit?: string | null
         }
         Relationships: [
@@ -856,6 +1456,7 @@ export type Database = {
     }
     Functions: {
       generate_invoice_number: { Args: never; Returns: string }
+      get_user_lab_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -863,9 +1464,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      user_has_lab_access: {
+        Args: { _lab_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "admin" | "employee" | "patient"
+      app_role: "admin" | "employee" | "patient" | "collector"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -993,7 +1598,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "employee", "patient"],
+      app_role: ["admin", "employee", "patient", "collector"],
     },
   },
 } as const
