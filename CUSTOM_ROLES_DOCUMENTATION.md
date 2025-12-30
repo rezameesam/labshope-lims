@@ -171,3 +171,4 @@ Run the migration file: `supabase/migrations/20251231000001_create_custom_roles.
 
 See `LOVABLE_MIGRATION_PROMPT.md` for the complete SQL.
 
+
