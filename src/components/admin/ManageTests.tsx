@@ -454,12 +454,29 @@ const ManageTests = () => {
     setSelectedTest(test);
     // Try to find the test in catalog to get default unit and normal range
     const catalogTest = testCatalog.find(t => t.name === test.test_name);
+    
+    // Calculate if result is abnormal based on normal range
+    let isAbnormal = test.is_abnormal || false;
+    if (test.result_value !== null && test.result_value !== undefined && catalogTest) {
+      const value = test.result_value;
+      const min = catalogTest.normal_range_min;
+      const max = catalogTest.normal_range_max;
+      
+      if (min !== null && max !== null) {
+        isAbnormal = value < min || value > max;
+      } else if (min !== null) {
+        isAbnormal = value < min;
+      } else if (max !== null) {
+        isAbnormal = value > max;
+      }
+    }
+    
     setResultData({
       result: test.result || "",
       result_value: test.result_value?.toString() || "",
       result_unit: test.result_unit || catalogTest?.unit || "",
       normal_range_text: test.normal_range_text || catalogTest?.normal_range_text || "",
-      is_abnormal: test.is_abnormal || false,
+      is_abnormal: isAbnormal,
       status: test.status,
     });
     setIsResultDialogOpen(true);
@@ -1029,14 +1046,131 @@ const ManageTests = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="result_value">Result Value</Label>
-                <Input
-                  id="result_value"
-                  type="number"
-                  step="any"
-                  value={resultData.result_value}
-                  onChange={(e) => setResultData({ ...resultData, result_value: e.target.value })}
-                  placeholder="e.g. 12.5"
-                />
+                <div className="relative">
+                  <Input
+                    id="result_value"
+                    type="number"
+                    step="any"
+                    value={resultData.result_value}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                      
+                      // Auto-detect abnormal based on normal range
+                      let isAbnormal = resultData.is_abnormal;
+                      if (value && catalogTest) {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                          const min = catalogTest.normal_range_min;
+                          const max = catalogTest.normal_range_max;
+                          
+                          if (min !== null && max !== null) {
+                            isAbnormal = numValue < min || numValue > max;
+                          } else if (min !== null) {
+                            isAbnormal = numValue < min;
+                          } else if (max !== null) {
+                            isAbnormal = numValue > max;
+                          }
+                        }
+                      }
+                      
+                      setResultData({ ...resultData, result_value: value, is_abnormal: isAbnormal });
+                    }}
+                    placeholder="e.g. 12.5"
+                    className={(() => {
+                      const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                      if (resultData.result_value && catalogTest) {
+                        const numValue = parseFloat(resultData.result_value);
+                        if (!isNaN(numValue)) {
+                          const min = catalogTest.normal_range_min;
+                          const max = catalogTest.normal_range_max;
+                          let isOutOfRange = false;
+                          if (min !== null && max !== null) {
+                            isOutOfRange = numValue < min || numValue > max;
+                          } else if (min !== null) {
+                            isOutOfRange = numValue < min;
+                          } else if (max !== null) {
+                            isOutOfRange = numValue > max;
+                          }
+                          if (isOutOfRange) {
+                            return "border-red-500 focus-visible:ring-red-500";
+                          }
+                        }
+                      }
+                      return "";
+                    })()}
+                  />
+                  {(() => {
+                    const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                    if (resultData.result_value && catalogTest) {
+                      const numValue = parseFloat(resultData.result_value);
+                      if (!isNaN(numValue)) {
+                        const min = catalogTest.normal_range_min;
+                        const max = catalogTest.normal_range_max;
+                        let isOutOfRange = false;
+                        if (min !== null && max !== null) {
+                          isOutOfRange = numValue < min || numValue > max;
+                        } else if (min !== null) {
+                          isOutOfRange = numValue < min;
+                        } else if (max !== null) {
+                          isOutOfRange = numValue > max;
+                        }
+                        if (isOutOfRange) {
+                          return (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <AlertCircle className="h-4 w-4 text-red-500" />
+                            </div>
+                          );
+                        }
+                      }
+                    }
+                    return null;
+                  })()}
+                </div>
+                {(() => {
+                  const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                  if (resultData.result_value && catalogTest) {
+                    const numValue = parseFloat(resultData.result_value);
+                    if (!isNaN(numValue)) {
+                      const min = catalogTest.normal_range_min;
+                      const max = catalogTest.normal_range_max;
+                      let isOutOfRange = false;
+                      let message = "";
+                      if (min !== null && max !== null) {
+                        isOutOfRange = numValue < min || numValue > max;
+                        if (numValue < min) {
+                          message = `Value is below normal range (min: ${min})`;
+                        } else if (numValue > max) {
+                          message = `Value is above normal range (max: ${max})`;
+                        }
+                      } else if (min !== null) {
+                        isOutOfRange = numValue < min;
+                        if (isOutOfRange) {
+                          message = `Value is below normal range (min: ${min})`;
+                        }
+                      } else if (max !== null) {
+                        isOutOfRange = numValue > max;
+                        if (isOutOfRange) {
+                          message = `Value is above normal range (max: ${max})`;
+                        }
+                      }
+                      if (isOutOfRange) {
+                        return (
+                          <p className="text-xs text-red-600 font-medium mt-1">
+                            {message}
+                          </p>
+                        );
+                      } else if (min !== null || max !== null) {
+                        return (
+                          <p className="text-xs text-green-600 font-medium mt-1">
+                            Value is within normal range
+                          </p>
+                        );
+                      }
+                    }
+                  }
+                  return null;
+                })()}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="result_unit">Unit</Label>
@@ -1048,6 +1182,28 @@ const ManageTests = () => {
                 />
               </div>
             </div>
+            
+            {/* Show Normal Range from Catalog if available */}
+            {(() => {
+              const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+              if (catalogTest && (catalogTest.normal_range_min !== null || catalogTest.normal_range_max !== null)) {
+                const min = catalogTest.normal_range_min;
+                const max = catalogTest.normal_range_max;
+                const rangeText = min !== null && max !== null 
+                  ? `${min} - ${max} ${catalogTest.unit || ''}`.trim()
+                  : min !== null 
+                    ? `≥ ${min} ${catalogTest.unit || ''}`.trim()
+                    : `≤ ${max} ${catalogTest.unit || ''}`.trim();
+                
+                return (
+                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                    <p className="text-sm font-medium text-blue-900">Normal Range (from catalog):</p>
+                    <p className="text-sm text-blue-700">{rangeText}</p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Normal Range */}
             <div className="space-y-2">
@@ -1076,7 +1232,11 @@ const ManageTests = () => {
             </div>
 
             {/* Abnormal Flag */}
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+            <div className={`flex items-center gap-3 p-3 rounded-lg border ${
+              resultData.is_abnormal 
+                ? "bg-red-50 border-red-200" 
+                : "bg-muted/30"
+            }`}>
               <Checkbox
                 id="is_abnormal"
                 checked={resultData.is_abnormal}
@@ -1087,7 +1247,13 @@ const ManageTests = () => {
                   Mark as Abnormal
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Flag this result if it falls outside the normal range
+                  {(() => {
+                    const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                    if (catalogTest && resultData.result_value && (catalogTest.normal_range_min !== null || catalogTest.normal_range_max !== null)) {
+                      return "Automatically detected based on normal range. You can override if needed.";
+                    }
+                    return "Flag this result if it falls outside the normal range or is qualitatively abnormal";
+                  })()}
                 </p>
               </div>
             </div>
