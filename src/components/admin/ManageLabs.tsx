@@ -105,19 +105,50 @@ const ManageLabs = () => {
   const fetchLabs = async () => {
     setLoading(true);
     try {
+      // First check if labs table exists by trying a simple query
       const { data: labsData, error } = await supabase
         .from("labs")
-        .select(`
-          *,
-          parent_lab:labs!labs_parent_lab_id_fkey(*)
-        `)
+        .select("*")
         .order("name");
 
-      if (error) throw error;
-      setLabs(labsData || []);
-    } catch (error) {
+      if (error) {
+        // If table doesn't exist, show helpful message
+        if (error.code === "42P01" || error.message.includes("does not exist")) {
+          toast.error("Labs table not found. Please run the database migration first.");
+          setLabs([]);
+          return;
+        }
+        throw error;
+      }
+
+      // If we have data, try to fetch parent lab relationships
+      if (labsData && labsData.length > 0) {
+        // Map parent lab info manually since foreign key relationship might not work
+        const labsWithParent = labsData.map((lab) => {
+          if (lab.parent_lab_id) {
+            const parentLab = labsData.find((l) => l.id === lab.parent_lab_id);
+            return {
+              ...lab,
+              parent_lab: parentLab ? [parentLab] : [],
+            };
+          }
+          return {
+            ...lab,
+            parent_lab: [],
+          };
+        });
+        setLabs(labsWithParent);
+      } else {
+        setLabs([]);
+      }
+    } catch (error: any) {
       console.error("Error fetching labs:", error);
-      toast.error("Failed to load labs");
+      if (error.code === "42P01" || error.message?.includes("does not exist")) {
+        toast.error("Labs table not found. Please run the database migration first.");
+      } else {
+        toast.error("Failed to load labs: " + (error.message || "Unknown error"));
+      }
+      setLabs([]);
     } finally {
       setLoading(false);
     }
