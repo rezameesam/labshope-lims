@@ -42,6 +42,17 @@ interface TestResult {
   notes: string | null;
   category?: string;
   entered_by_name?: string;
+  created_at?: string;
+  labs?: {
+    id: string;
+    name: string;
+    lab_code: string;
+  } | null;
+  collection_centers?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
 }
 
 interface PatientInfo {
@@ -184,8 +195,11 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
     // Sort by date descending for date grouping
     if (groupBy === "date") {
       const sortedKeys = Object.keys(grouped).sort((a, b) => {
-        const dateA = new Date(grouped[a][0].test_date);
-        const dateB = new Date(grouped[b][0].test_date);
+        // Sort by created_at if available (has timestamp), otherwise by test_date
+        const testA = grouped[a][0];
+        const testB = grouped[b][0];
+        const dateA = testA.created_at ? new Date(testA.created_at) : new Date(testA.test_date);
+        const dateB = testB.created_at ? new Date(testB.created_at) : new Date(testB.test_date);
         return dateB.getTime() - dateA.getTime();
       });
       const sortedGrouped: Record<string, TestResult[]> = {};
@@ -265,23 +279,43 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
             ? "Multiple Staff"
             : undefined;
 
-      const success = generateMultiTestReportPDF(
-        {
-          full_name: patient.full_name,
-          patient_id: patient.patient_id,
-          phone: patient.phone,
-          gender: patient.gender || undefined,
-          blood_group: patient.blood_group || undefined,
-        },
-        dateFilteredTests,
-        enteredByLabel,
-        options
-      );
+      try {
+        const success = generateMultiTestReportPDF(
+          {
+            full_name: patient.full_name,
+            patient_id: patient.patient_id,
+            phone: patient.phone,
+            gender: patient.gender || undefined,
+            blood_group: patient.blood_group || undefined,
+          },
+          dateFilteredTests.map(t => ({
+            id: t.id,
+            test_name: t.test_name,
+            test_date: t.test_date,
+            status: t.status,
+            result: t.result,
+            result_value: t.result_value,
+            result_unit: t.result_unit,
+            is_abnormal: t.is_abnormal,
+            normal_range_text: t.normal_range_text,
+            entered_by_name: t.entered_by_name,
+            lab_name: t.labs?.name,
+            lab_code: t.labs?.lab_code,
+            collection_center_name: t.collection_centers?.name,
+            collection_center_code: t.collection_centers?.code,
+          })),
+          enteredByLabel,
+          options
+        );
 
-      if (success) {
-        toast.success("Report downloaded successfully");
-      } else {
-        toast.error("Failed to generate report");
+        if (success) {
+          toast.success("Report downloaded successfully");
+        } else {
+          toast.error("Failed to generate report");
+        }
+      } catch (error: any) {
+        console.error("Error generating PDF:", error);
+        toast.error("Failed to generate report: " + (error.message || "Unknown error"));
       }
     });
   };
@@ -305,25 +339,45 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
             ? "Multiple Staff"
             : undefined;
 
-      const success = generateMultiTestReportPDF(
-        {
-          full_name: patient.full_name,
-          patient_id: patient.patient_id,
-          phone: patient.phone,
-          gender: patient.gender || undefined,
-          blood_group: patient.blood_group || undefined,
-        },
-        selectedTests,
-        enteredByLabel,
-        options
-      );
+      try {
+        const success = generateMultiTestReportPDF(
+          {
+            full_name: patient.full_name,
+            patient_id: patient.patient_id,
+            phone: patient.phone,
+            gender: patient.gender || undefined,
+            blood_group: patient.blood_group || undefined,
+          },
+          selectedTests.map(t => ({
+            id: t.id,
+            test_name: t.test_name,
+            test_date: t.test_date,
+            status: t.status,
+            result: t.result,
+            result_value: t.result_value,
+            result_unit: t.result_unit,
+            is_abnormal: t.is_abnormal,
+            normal_range_text: t.normal_range_text,
+            entered_by_name: t.entered_by_name,
+            lab_name: t.labs?.name,
+            lab_code: t.labs?.lab_code,
+            collection_center_name: t.collection_centers?.name,
+            collection_center_code: t.collection_centers?.code,
+          })),
+          enteredByLabel,
+          options
+        );
 
-      if (success) {
-        toast.success(`Downloaded ${selectedTests.length} test(s) as PDF`);
-        setIsDownloadDialogOpen(false);
-        setSelectedTestIds(new Set());
-      } else {
-        toast.error("Failed to generate report");
+        if (success) {
+          toast.success(`Downloaded ${selectedTests.length} test(s) as PDF`);
+          setIsDownloadDialogOpen(false);
+          setSelectedTestIds(new Set());
+        } else {
+          toast.error("Failed to generate report");
+        }
+      } catch (error: any) {
+        console.error("Error generating PDF:", error);
+        toast.error("Failed to generate report: " + (error.message || "Unknown error"));
       }
     });
   };
@@ -347,20 +401,42 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
 
   const handleDownloadSingle = (test: TestResult) => {
     checkDuesBeforeDownload(() => {
-      const success = generateMultiTestReportPDF(
-        {
-          full_name: patient.full_name,
-          patient_id: patient.patient_id,
-          phone: patient.phone,
-          gender: patient.gender || undefined,
-          blood_group: patient.blood_group || undefined,
-        },
-        [test],
-        test.entered_by_name
-      );
+      try {
+        const success = generateMultiTestReportPDF(
+          {
+            full_name: patient.full_name,
+            patient_id: patient.patient_id,
+            phone: patient.phone,
+            gender: patient.gender || undefined,
+            blood_group: patient.blood_group || undefined,
+          },
+          [{
+            id: test.id,
+            test_name: test.test_name,
+            test_date: test.test_date,
+            status: test.status,
+            result: test.result,
+            result_value: test.result_value,
+            result_unit: test.result_unit,
+            is_abnormal: test.is_abnormal,
+            normal_range_text: test.normal_range_text,
+            entered_by_name: test.entered_by_name,
+            lab_name: test.labs?.name,
+            lab_code: test.labs?.lab_code,
+            collection_center_name: test.collection_centers?.name,
+            collection_center_code: test.collection_centers?.code,
+          }],
+          test.entered_by_name
+        );
 
-      if (success) {
-        toast.success("Report downloaded successfully");
+        if (success) {
+          toast.success("Report downloaded successfully");
+        } else {
+          toast.error("Failed to generate report");
+        }
+      } catch (error: any) {
+        console.error("Error generating PDF:", error);
+        toast.error("Failed to generate report: " + (error.message || "Unknown error"));
       }
     });
   };
@@ -532,7 +608,14 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {format(new Date(test.test_date), "dd MMM yyyy")}
+                        <div className="flex flex-col gap-0.5">
+                          <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                          {test.created_at && (
+                            <span className="text-xs">
+                              {format(new Date(test.created_at), "HH:mm")}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -560,7 +643,14 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
                               <span className="text-muted-foreground">Test Date:</span>
-                              <p className="font-medium">{format(new Date(test.test_date), "MMMM dd, yyyy")}</p>
+                              <p className="font-medium">
+                                {format(new Date(test.test_date), "MMMM dd, yyyy")}
+                                {test.created_at && (
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    {format(new Date(test.created_at), "HH:mm")}
+                                  </span>
+                                )}
+                              </p>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Result:</span>
@@ -620,7 +710,14 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                     <TableCell className="font-medium">{test.test_name}</TableCell>
                     <TableCell className="text-center">{getStatusBadge(test.status)}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {format(new Date(test.test_date), "dd MMM yyyy")}
+                      <div className="flex flex-col gap-0.5">
+                        <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                        {test.created_at && (
+                          <span className="text-xs">
+                            {format(new Date(test.created_at), "HH:mm")}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {test.notes || "-"}
@@ -745,6 +842,11 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
                             </div>
                             <span className="text-xs text-muted-foreground">
                               {format(new Date(test.test_date), "dd MMM yyyy")}
+                              {test.created_at && (
+                                <span className="ml-1">
+                                  {format(new Date(test.created_at), "HH:mm")}
+                                </span>
+                              )}
                             </span>
                           </div>
                         </label>

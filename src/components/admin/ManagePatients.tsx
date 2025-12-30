@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
+import { useLab } from "@/contexts/LabContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Patient {
   id: string;
@@ -54,6 +56,18 @@ interface Patient {
   gender: string | null;
   blood_group: string | null;
   is_active: boolean;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
+  labs?: {
+    id: string;
+    name: string;
+    lab_code: string;
+  } | null;
+  collection_centers?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
   created_at: string;
 }
 
@@ -86,6 +100,8 @@ interface PatientFormData {
   date_of_birth: string;
   gender: string;
   blood_group: string;
+  lab_id: string;
+  collection_center_id: string;
 }
 
 interface PatientFormProps {
@@ -96,8 +112,14 @@ interface PatientFormProps {
   isSubmitting: boolean;
 }
 
-const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmitting }: PatientFormProps) => (
-  <form onSubmit={onSubmit} className="space-y-4">
+const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmitting, labs = [], collectionCenters = [] }: PatientFormProps) => {
+  // Filter collection centers by selected lab
+  const filteredCollectionCenters = formData.lab_id && collectionCenters
+    ? collectionCenters.filter(cc => cc.lab_id === formData.lab_id)
+    : [];
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="space-y-2 md:col-span-2">
         <Label htmlFor="full_name">Full Name *</Label>
@@ -186,6 +208,50 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
           placeholder="Full address"
         />
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="lab_id">Lab</Label>
+        <Select
+          value={formData.lab_id || "none"}
+          onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select lab (optional)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            {labs.map((lab) => (
+              <SelectItem key={lab.id} value={lab.id}>
+                {lab.name} ({lab.lab_code})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="collection_center_id">Collection Center</Label>
+        <Select
+          value={formData.collection_center_id || "none"}
+          onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
+          disabled={!formData.lab_id || formData.lab_id === "none"}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={formData.lab_id ? "Select collection center (optional)" : "Select lab first"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            {filteredCollectionCenters.map((center) => (
+              <SelectItem key={center.id} value={center.id}>
+                {center.name} ({center.code})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {!formData.lab_id && (
+          <p className="text-xs text-muted-foreground">Please select a lab first to choose a collection center</p>
+        )}
+      </div>
     </div>
 
     <Button
@@ -195,11 +261,16 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
     >
       {isSubmitting ? "Saving..." : isEdit ? "Update Patient" : "Add Patient"}
     </Button>
-  </form>
-);
+    </form>
+  );
+};
 
 const ManagePatients = () => {
+  const { currentLab } = useLab();
+  const { user, isCollector } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [labs, setLabs] = useState<Array<{ id: string; name: string; lab_code: string }>>([]);
+  const [collectionCenters, setCollectionCenters] = useState<Array<{ id: string; name: string; code: string; lab_id: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -220,6 +291,8 @@ const ManagePatients = () => {
     date_of_birth: "",
     gender: "",
     blood_group: "",
+    lab_id: currentLab?.id || "",
+    collection_center_id: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicatePhoneDialogOpen, setDuplicatePhoneDialogOpen] = useState(false);
@@ -227,18 +300,83 @@ const ManagePatients = () => {
 
   const fetchPatients = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("patients")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select(`
+          *,
+          labs (
+            id,
+            name,
+            lab_code
+          ),
+          collection_centers (
+            id,
+            name,
+            code
+          )
+        `);
+
+      // If user is a collector (and not admin/employee), only show patients they created
+      if (isCollector && user?.id) {
+        query = query.eq("created_by", user.id);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
       setPatients(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching patients:", error);
-      toast.error("Failed to fetch patients");
+      toast.error("Failed to fetch patients: " + (error.message || "Unknown error"));
+      setPatients([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLabs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("labs")
+        .select("id, name, lab_code")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) {
+        // Table might not exist yet
+        if (error.code === "42P01") {
+          setLabs([]);
+          return;
+        }
+        throw error;
+      }
+      setLabs(data || []);
+    } catch (error) {
+      console.error("Error fetching labs:", error);
+      setLabs([]);
+    }
+  };
+
+  const fetchCollectionCenters = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("collection_centers")
+        .select("id, name, code, lab_id")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) {
+        // Table might not exist yet
+        if (error.code === "42P01") {
+          setCollectionCenters([]);
+          return;
+        }
+        throw error;
+      }
+      setCollectionCenters(data || []);
+    } catch (error) {
+      console.error("Error fetching collection centers:", error);
+      setCollectionCenters([]);
     }
   };
 
@@ -311,6 +449,8 @@ const ManagePatients = () => {
 
   useEffect(() => {
     fetchPatients();
+    fetchLabs();
+    fetchCollectionCenters();
   }, []);
 
   const generatePatientId = () => {
@@ -356,6 +496,8 @@ const ManagePatients = () => {
     try {
       const patientId = generatePatientId();
 
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
       const { error } = await supabase.from("patients").insert({
         patient_id: patientId,
         full_name: formData.full_name,
@@ -365,6 +507,9 @@ const ManagePatients = () => {
         date_of_birth: formData.date_of_birth || null,
         gender: formData.gender || null,
         blood_group: formData.blood_group || null,
+        lab_id: formData.lab_id || null,
+        collection_center_id: formData.collection_center_id || null,
+        created_by: authUser?.id || null,
       });
 
       if (error) throw error;
@@ -398,6 +543,8 @@ const ManagePatients = () => {
           date_of_birth: formData.date_of_birth || null,
           gender: formData.gender || null,
           blood_group: formData.blood_group || null,
+          lab_id: formData.lab_id || null,
+          collection_center_id: formData.collection_center_id || null,
         })
         .eq("id", selectedPatient.id);
 
@@ -425,6 +572,8 @@ const ManagePatients = () => {
       date_of_birth: "",
       gender: "",
       blood_group: "",
+      lab_id: currentLab?.id || "",
+      collection_center_id: "",
     });
   };
 
@@ -438,6 +587,8 @@ const ManagePatients = () => {
       date_of_birth: patient.date_of_birth || "",
       gender: patient.gender || "",
       blood_group: patient.blood_group || "",
+      lab_id: (patient as any).lab_id || currentLab?.id || "",
+      collection_center_id: (patient as any).collection_center_id || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -598,6 +749,8 @@ const ManagePatients = () => {
               setFormData={setFormData}
               onSubmit={handleSubmit}
               isSubmitting={isSubmitting}
+              labs={labs}
+              collectionCenters={collectionCenters}
             />
           </DialogContent>
         </Dialog>
@@ -780,6 +933,8 @@ const ManagePatients = () => {
             onSubmit={handleEdit}
             isEdit
             isSubmitting={isSubmitting}
+            labs={labs}
+            collectionCenters={collectionCenters}
           />
         </DialogContent>
       </Dialog>
@@ -862,6 +1017,28 @@ const ManagePatients = () => {
                       <MapPin className="h-3 w-3" /> Address
                     </p>
                     <p className="font-medium">{selectedPatient.address}</p>
+                  </div>
+                )}
+                {selectedPatient.labs && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Building2 className="h-3 w-3" /> Lab
+                    </p>
+                    <div>
+                      <p className="font-medium">{selectedPatient.labs.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{selectedPatient.labs.lab_code}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedPatient.collection_centers && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Building2 className="h-3 w-3" /> Collection Center
+                    </p>
+                    <div>
+                      <p className="font-medium">{selectedPatient.collection_centers.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{selectedPatient.collection_centers.code}</p>
+                    </div>
                   </div>
                 )}
               </div>

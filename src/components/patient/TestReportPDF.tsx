@@ -32,6 +32,9 @@ interface ReportData {
   test_date: string;
   tests: TestResult[];
   lab_name?: string;
+  lab_code?: string;
+  collection_center_name?: string;
+  collection_center_code?: string;
   entered_by?: string;
   options?: ReportOptions;
 }
@@ -46,7 +49,8 @@ const LAB_INFO = {
 };
 
 export const generateTestReportPDF = (data: ReportData) => {
-  const doc = new jsPDF();
+  try {
+    const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const options = data.options || { includeHeader: true, includeFooter: true };
   
@@ -120,13 +124,37 @@ export const generateTestReportPDF = (data: ReportData) => {
   doc.text("Report Date:", col2X, patientInfoY + 14);
   doc.setFont("helvetica", "normal");
   doc.text(format(new Date(data.test_date), "dd MMM yyyy"), col2X + 28, patientInfoY + 14);
+  
+  // Lab and Collection Center info (if available)
+  let infoY = patientInfoY + 21;
+  if (data.lab_name || data.collection_center_name) {
+    if (data.lab_name) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Lab:", col1X, infoY);
+      doc.setFont("helvetica", "normal");
+      // Show only lab code if available, otherwise show shortened name
+      const labDisplay = data.lab_code || (data.lab_name.length > 20 ? data.lab_name.substring(0, 20) + "..." : data.lab_name);
+      doc.text(labDisplay, col1X + 25, infoY);
+      infoY += 7;
+    }
+    if (data.collection_center_name) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Center:", col1X, infoY);
+      doc.setFont("helvetica", "normal");
+      // Show only collection center code if available, otherwise show shortened name
+      const centerDisplay = data.collection_center_code || (data.collection_center_name.length > 20 ? data.collection_center_name.substring(0, 20) + "..." : data.collection_center_name);
+      doc.text(centerDisplay, col1X + 25, infoY);
+      infoY += 7;
+    }
+  }
 
-  // Test Results Section
+  // Test Results Section - calculate start Y position based on whether lab info was added
+  const testResultsStartY = (data.lab_name || data.collection_center_name) ? infoY + 5 : patientInfoY + 30;
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("TEST RESULTS", 14, patientInfoY + 30);
+  doc.text("TEST RESULTS", 14, testResultsStartY);
   
-  doc.line(14, patientInfoY + 32, pageWidth - 14, patientInfoY + 32);
+  doc.line(14, testResultsStartY + 2, pageWidth - 14, testResultsStartY + 2);
 
   // Prepare table data
   const tableData = data.tests.map((test) => {
@@ -149,7 +177,7 @@ export const generateTestReportPDF = (data: ReportData) => {
   });
 
   autoTable(doc, {
-    startY: patientInfoY + 38,
+    startY: testResultsStartY + 8,
     head: [["Test Name", "Result", "Unit", "Normal Range", "Status"]],
     body: tableData,
     theme: "striped",
@@ -220,9 +248,13 @@ export const generateTestReportPDF = (data: ReportData) => {
   }
   // If not including footer, space is still reserved (empty) for pre-printed paper
 
-  // Save the PDF
-  const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
-  doc.save(fileName);
+    // Save the PDF
+    const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
+    doc.save(fileName);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    throw error;
+  }
 };
 
 export const generateMultiTestReportPDF = (
@@ -238,6 +270,10 @@ export const generateMultiTestReportPDF = (
     is_abnormal?: boolean;
     normal_range_text?: string;
     entered_by_name?: string;
+    lab_name?: string;
+    lab_code?: string;
+    collection_center_name?: string;
+    collection_center_code?: string;
   }>,
   enteredByName?: string,
   options?: ReportOptions
@@ -259,12 +295,18 @@ export const generateMultiTestReportPDF = (
 
   // Get entered by name from the first test that has it, or use passed parameter
   const employeeName = enteredByName || completedTests.find(t => t.entered_by_name)?.entered_by_name;
+  
+  // Get lab and collection center from the first test (assuming all tests in a batch are from the same lab/center)
+  const firstTest = completedTests[0];
 
   generateTestReportPDF({
     patient,
     test_date: completedTests[0].test_date,
     tests: testResults,
-    lab_name: "IRM Clinical Laboratory",
+    lab_name: firstTest.lab_name || "IRM Clinical Laboratory",
+    lab_code: firstTest.lab_code,
+    collection_center_name: firstTest.collection_center_name,
+    collection_center_code: firstTest.collection_center_code,
     entered_by: employeeName,
     options
   });

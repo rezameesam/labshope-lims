@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,6 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -98,6 +101,10 @@ const ManageEmployees = () => {
     department: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customRoles, setCustomRoles] = useState<Array<{ id: string; name: string; description: string | null }>>([]);
+  const [employeeCustomRoles, setEmployeeCustomRoles] = useState<Set<string>>(new Set());
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [isAssigningRoles, setIsAssigningRoles] = useState(false);
 
   const fetchEmployees = async () => {
     try {
@@ -135,6 +142,7 @@ const ManageEmployees = () => {
 
   useEffect(() => {
     fetchEmployees();
+    fetchCustomRoles(); // Fetch custom roles on component mount
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -282,9 +290,43 @@ const ManageEmployees = () => {
     setIsEditDialogOpen(true);
   };
 
-  const openEmployeeDetails = (employee: Employee) => {
+  const fetchCustomRoles = async () => {
+    try {
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("custom_roles")
+        .select("id, name, description")
+        .eq("is_active", true)
+        .order("name");
+
+      if (rolesError) throw rolesError;
+      setCustomRoles(rolesData || []);
+    } catch (error) {
+      console.error("Error fetching custom roles:", error);
+      setCustomRoles([]);
+    }
+  };
+
+  const openEmployeeDetails = async (employee: Employee) => {
     setSelectedEmployee(employee);
     setIsSheetOpen(true);
+    
+    // Fetch custom roles and employee's assigned roles
+    try {
+      // Fetch all custom roles
+      await fetchCustomRoles();
+
+      // Fetch employee's assigned custom roles
+      const { data: userRolesData, error: userRolesError } = await supabase
+        .from("user_custom_roles")
+        .select("role_id")
+        .eq("user_id", employee.user_id);
+
+      if (userRolesError) throw userRolesError;
+      setEmployeeCustomRoles(new Set((userRolesData || []).map(r => r.role_id)));
+    } catch (error) {
+      console.error("Error fetching employee roles:", error);
+      setEmployeeCustomRoles(new Set());
+    }
   };
 
   const getRoleBadge = (role: string) => {
@@ -821,6 +863,43 @@ const ManageEmployees = () => {
                 </div>
               </div>
 
+              {/* Custom Roles Section */}
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-semibold">Custom Roles</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Assign additional roles with specific permissions
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      // Refresh roles list before opening dialog
+                      await fetchCustomRoles();
+                      setIsRoleDialogOpen(true);
+                    }}
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Manage Roles
+                  </Button>
+                </div>
+                {employeeCustomRoles.size > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {customRoles
+                      .filter(role => employeeCustomRoles.has(role.id))
+                      .map(role => (
+                        <Badge key={role.id} variant="secondary" className="text-xs">
+                          {role.name}
+                        </Badge>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No custom roles assigned</p>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-4">
                 <Button 
                   variant="outline" 
@@ -848,6 +927,150 @@ const ManageEmployees = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Assign Custom Roles Dialog */}
+      <Dialog open={isRoleDialogOpen} onOpenChange={(open) => {
+        setIsRoleDialogOpen(open);
+        if (open && selectedEmployee) {
+          // Refresh roles when dialog opens
+          fetchCustomRoles();
+          // Refresh employee's current roles
+          supabase
+            .from("user_custom_roles")
+            .select("role_id")
+            .eq("user_id", selectedEmployee.user_id)
+            .then(({ data, error }) => {
+              if (!error && data) {
+                setEmployeeCustomRoles(new Set(data.map(r => r.role_id)));
+              }
+            });
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Assign Custom Roles</DialogTitle>
+            <DialogDescription>
+              Select custom roles for {selectedEmployee?.full_name}. Users can have multiple roles, and permissions are cumulative.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 border rounded-lg p-4 min-h-[300px] max-h-[400px]">
+            <div className="space-y-3">
+              {customRoles.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No custom roles available. Create roles in the "Roles & Permissions" section first.
+                </p>
+              ) : (
+                customRoles.map((role) => (
+                  <div
+                    key={role.id}
+                    className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <Checkbox
+                      id={`role-${role.id}`}
+                      checked={employeeCustomRoles.has(role.id)}
+                      onCheckedChange={(checked) => {
+                        const newRoles = new Set(employeeCustomRoles);
+                        if (checked) {
+                          newRoles.add(role.id);
+                        } else {
+                          newRoles.delete(role.id);
+                        }
+                        setEmployeeCustomRoles(newRoles);
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <Label
+                        htmlFor={`role-${role.id}`}
+                        className="font-medium cursor-pointer"
+                      >
+                        {role.name}
+                      </Label>
+                      {role.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {role.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedEmployee) return;
+                setIsAssigningRoles(true);
+                try {
+                  // Get current roles from database
+                  const { data: currentRoles } = await supabase
+                    .from("user_custom_roles")
+                    .select("role_id")
+                    .eq("user_id", selectedEmployee.user_id);
+
+                  const currentRoleIds = new Set((currentRoles || []).map(r => r.role_id));
+                  const newRoleIds = employeeCustomRoles;
+
+                  // Find roles to add
+                  const toAdd = Array.from(newRoleIds).filter(id => !currentRoleIds.has(id));
+                  // Find roles to remove
+                  const toRemove = Array.from(currentRoleIds).filter(id => !newRoleIds.has(id));
+
+                  // Add new roles
+                  if (toAdd.length > 0) {
+                    const { error: addError } = await supabase
+                      .from("user_custom_roles")
+                      .insert(
+                        toAdd.map(roleId => ({
+                          user_id: selectedEmployee.user_id,
+                          role_id: roleId,
+                        }))
+                      );
+
+                    if (addError) throw addError;
+                  }
+
+                  // Remove roles
+                  if (toRemove.length > 0) {
+                    const { error: removeError } = await supabase
+                      .from("user_custom_roles")
+                      .delete()
+                      .eq("user_id", selectedEmployee.user_id)
+                      .in("role_id", toRemove);
+
+                    if (removeError) throw removeError;
+                  }
+
+                  toast.success("Roles updated successfully");
+                  
+                  // Refresh employee's roles in the details view
+                  const { data: updatedRoles } = await supabase
+                    .from("user_custom_roles")
+                    .select("role_id")
+                    .eq("user_id", selectedEmployee.user_id);
+                  setEmployeeCustomRoles(new Set((updatedRoles || []).map(r => r.role_id)));
+                  
+                  setIsRoleDialogOpen(false);
+                } catch (error: any) {
+                  console.error("Error updating roles:", error);
+                  toast.error("Failed to update roles: " + (error.message || "Unknown error"));
+                } finally {
+                  setIsAssigningRoles(false);
+                }
+              }}
+              className="bg-clinical-navy hover:bg-clinical-navy/90"
+              disabled={isAssigningRoles}
+            >
+              {isAssigningRoles ? "Saving..." : "Save Roles"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

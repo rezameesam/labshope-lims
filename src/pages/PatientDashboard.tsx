@@ -61,6 +61,16 @@ interface PatientTest {
   created_at: string;
   result_entered_by: string | null;
   entered_by_name?: string;
+  labs?: {
+    id: string;
+    name: string;
+    lab_code: string;
+  } | null;
+  collection_centers?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
 }
 
 const PatientDashboard = () => {
@@ -87,26 +97,67 @@ const PatientDashboard = () => {
       if (!patient?.id) return;
 
       try {
-        const { data, error } = await supabase
-          .from("patient_tests")
-          .select("*")
-          .eq("patient_id", patient.id)
-          .order("test_date", { ascending: false });
+        // Try to fetch with lab/collection center joins, fallback to basic query if it fails
+        let data, error;
+        
+        try {
+          const result = await supabase
+            .from("patient_tests")
+            .select(`
+              *,
+              labs (
+                id,
+                name,
+                lab_code
+              ),
+              collection_centers (
+                id,
+                name,
+                code
+              )
+            `)
+            .eq("patient_id", patient.id)
+            .order("created_at", { ascending: false });
+          
+          data = result.data;
+          error = result.error;
+          
+          // If join fails due to missing tables/columns, fallback to basic query
+          if (error && (error.code === "PGRST116" || error.code === "42P01" || error.message?.includes("Could not find"))) {
+            const basicResult = await supabase
+              .from("patient_tests")
+              .select("*")
+              .eq("patient_id", patient.id)
+              .order("created_at", { ascending: false });
+            data = basicResult.data;
+            error = basicResult.error;
+          }
+        } catch (err: any) {
+          // If join fails, try basic query
+          const basicResult = await supabase
+            .from("patient_tests")
+            .select("*")
+            .eq("patient_id", patient.id)
+            .order("created_at", { ascending: false });
+          data = basicResult.data;
+          error = basicResult.error;
+        }
 
         if (error) throw error;
         
         // Fetch employee names for tests with result_entered_by
         const testsWithEmployees = await Promise.all(
-          (data || []).map(async (test) => {
+          (data || []).map(async (test: any) => {
+            let testWithEmployee = { ...test };
             if (test.result_entered_by) {
               const { data: empData } = await supabase
                 .from("employees")
                 .select("full_name")
                 .eq("user_id", test.result_entered_by)
                 .single();
-              return { ...test, entered_by_name: empData?.full_name };
+              testWithEmployee.entered_by_name = empData?.full_name;
             }
-            return test;
+            return testWithEmployee;
           })
         );
         
@@ -251,6 +302,10 @@ const PatientDashboard = () => {
         is_abnormal: t.is_abnormal,
         normal_range_text: t.normal_range_text || undefined,
         entered_by_name: t.entered_by_name,
+        lab_name: t.labs?.name,
+        lab_code: t.labs?.lab_code,
+        collection_center_name: t.collection_centers?.name,
+        collection_center_code: t.collection_centers?.code,
       })),
       enteredByLabel,
       historyPrintOptions
@@ -552,6 +607,11 @@ const PatientDashboard = () => {
                             </div>
                             <p className="text-sm text-muted-foreground">
                               {format(new Date(test.test_date), "MMMM dd, yyyy")}
+                              {test.created_at && (
+                                <span className="ml-2">
+                                  {format(new Date(test.created_at), "HH:mm")}
+                                </span>
+                              )}
                             </p>
                             {test.result && (
                               <p className="mt-2 text-sm text-foreground">

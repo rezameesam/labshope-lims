@@ -521,7 +521,7 @@ const ManageRoles = () => {
                   id="name"
                   value={roleForm.name}
                   onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                  placeholder="e.g., Lab Technician, Billing Staff"
+                  placeholder="e.g., Lab Technician, Billing Staff, Receptionist"
                   disabled={selectedRole?.is_system_role}
                 />
               </div>
@@ -548,19 +548,19 @@ const ManageRoles = () => {
                 id="description"
                 value={roleForm.description}
                 onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                placeholder="Describe the role and its purpose..."
+                placeholder="e.g., Handles patient registration, test scheduling, and front desk operations"
                 rows={3}
               />
             </div>
 
-            <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
+            <div className="space-y-2 flex-1 overflow-hidden flex flex-col min-h-0">
               <div className="flex items-center justify-between">
                 <Label>Permissions *</Label>
                 <Badge variant="secondary">
                   {selectedPermissions.size} selected
                 </Badge>
               </div>
-              <ScrollArea className="flex-1 border rounded-lg p-4">
+              <ScrollArea className="flex-1 border rounded-lg p-4 min-h-[400px] max-h-[500px]">
                 <div className="space-y-6">
                   {Object.entries(PERMISSION_GROUPS).map(([groupName, permissions]) => {
                     const allSelected = permissions.every((p) => selectedPermissions.has(p));

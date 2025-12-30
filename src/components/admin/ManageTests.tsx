@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer } from "lucide-react";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
+import { useLab } from "@/contexts/LabContext";
 
 interface PatientTest {
   id: string;
@@ -60,11 +61,23 @@ interface PatientTest {
   test_id: string | null;
   collected_by: string | null;
   collected_at: string | null;
+  lab_id: string | null;
+  collection_center_id: string | null;
   patients: {
     patient_id: string;
     full_name: string;
     phone: string;
   };
+  labs?: {
+    id: string;
+    name: string;
+    lab_code: string;
+  } | null;
+  collection_centers?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
 }
 
 interface AuditLog {
@@ -82,6 +95,8 @@ interface Patient {
   patient_id: string;
   full_name: string;
   phone: string;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
 }
 
 interface TestCategory {
@@ -109,14 +124,20 @@ interface Doctor {
 
 const ManageTests = () => {
   const { user } = useAuth();
+  const { currentLab, availableLabs } = useLab();
+
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
   const [testCatalog, setTestCatalog] = useState<Test[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [labs, setLabs] = useState<Array<{ id: string; name: string; lab_code: string }>>([]);
+  const [collectionCenters, setCollectionCenters] = useState<Array<{ id: string; name: string; code: string; lab_id: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed">("all");
+  const [labFilter, setLabFilter] = useState<string>("all");
+  const [collectionCenterFilter, setCollectionCenterFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isAuditDialogOpen, setIsAuditDialogOpen] = useState(false);
@@ -135,6 +156,8 @@ const ManageTests = () => {
     notes: "",
     referred_by: "self" as string,
     custom_doctor_name: "",
+    lab_id: "",
+    collection_center_id: "",
   });
   const [resultData, setResultData] = useState({
     result: "",
@@ -210,6 +233,7 @@ const ManageTests = () => {
   }, [testsByCategory, testSearch, selectedCategoryFilter]);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
       const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes] = await Promise.all([
         supabase
@@ -217,15 +241,25 @@ const ManageTests = () => {
           .select(`
             id, patient_id, test_name, test_date, status, result, result_value, result_unit, 
             is_abnormal, normal_range_text, notes, created_at, created_by, updated_by, 
-            result_entered_by, result_entered_at, test_id,
+            result_entered_by, result_entered_at, test_id, lab_id, collection_center_id,
             patients (
               patient_id,
               full_name,
               phone
+            ),
+            labs (
+              id,
+              name,
+              lab_code
+            ),
+            collection_centers (
+              id,
+              name,
+              code
             )
           `)
           .order("created_at", { ascending: false }),
-        supabase.from("patients").select("id, patient_id, full_name, phone").eq("is_active", true),
+        supabase.from("patients").select("id, patient_id, full_name, phone, lab_id, collection_center_id").eq("is_active", true),
         supabase.from("test_categories").select("id, name"),
         supabase.from("tests").select("id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
         supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
@@ -242,16 +276,70 @@ const ManageTests = () => {
       setCategories(categoriesRes.data || []);
       setTestCatalog((catalogRes.data || []) as Test[]);
       setDoctors(doctorsRes.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching data:", error);
-      toast.error("Failed to fetch data");
+      toast.error("Failed to fetch data: " + (error.message || "Unknown error"));
+      // Set empty arrays to prevent crashes
+      setTests([]);
+      setPatients([]);
+      setCategories([]);
+      setTestCatalog([]);
+      setDoctors([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchLabs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("labs")
+        .select("id, name, lab_code")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) {
+        // Table might not exist yet
+        if (error.code === "42P01") {
+          setLabs([]);
+          return;
+        }
+        throw error;
+      }
+      setLabs(data || []);
+    } catch (error) {
+      console.error("Error fetching labs:", error);
+      setLabs([]);
+    }
+  };
+
+  const fetchCollectionCenters = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("collection_centers")
+        .select("id, name, code, lab_id")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) {
+        // Table might not exist yet
+        if (error.code === "42P01") {
+          setCollectionCenters([]);
+          return;
+        }
+        throw error;
+      }
+      setCollectionCenters(data || []);
+    } catch (error) {
+      console.error("Error fetching collection centers:", error);
+      setCollectionCenters([]);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchLabs();
+    fetchCollectionCenters();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -282,6 +370,8 @@ const ManageTests = () => {
         created_by: userData.user?.id,
         collected_by: userData.user?.id, // Track who collected the sample
         collected_at: new Date().toISOString(), // Track when sample was collected
+        lab_id: formData.lab_id || null,
+        collection_center_id: formData.collection_center_id || null,
       }));
 
       const { data: insertedTests, error } = await supabase
@@ -386,6 +476,8 @@ const ManageTests = () => {
       notes: "",
       referred_by: "self",
       custom_doctor_name: "",
+      lab_id: currentLab?.id || "",
+      collection_center_id: "",
     });
   };
 
@@ -546,14 +638,18 @@ const ManageTests = () => {
   };
 
   const filteredTests = tests.filter((test) => {
+    const searchLower = search.toLowerCase();
     const matchesSearch =
-      test.test_name.toLowerCase().includes(search.toLowerCase()) ||
-      test.patients?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      test.patients?.patient_id.toLowerCase().includes(search.toLowerCase());
+      test.test_name?.toLowerCase().includes(searchLower) ||
+      test.patients?.full_name?.toLowerCase().includes(searchLower) ||
+      test.patients?.patient_id?.toLowerCase().includes(searchLower) ||
+      false;
     
     const matchesStatus = statusFilter === "all" || test.status === statusFilter;
+    const matchesLab = labFilter === "all" || test.lab_id === labFilter;
+    const matchesCollectionCenter = collectionCenterFilter === "all" || test.collection_center_id === collectionCenterFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter;
   });
 
   const pendingCount = tests.filter(t => t.status === "pending").length;
@@ -605,6 +701,10 @@ const ManageTests = () => {
         result_unit: test.result_unit,
         is_abnormal: test.is_abnormal || false,
         normal_range_text: test.normal_range_text || undefined,
+        lab_name: test.labs?.name,
+        lab_code: test.labs?.lab_code,
+        collection_center_name: test.collection_centers?.name,
+        collection_center_code: test.collection_centers?.code,
       });
       return acc;
     }, {} as Record<string, { patient: PatientTest["patients"]; tests: Array<any> }>);
@@ -631,6 +731,20 @@ const ManageTests = () => {
       setIsPrintDialogOpen(false);
     }
   };
+
+  // Early return if critical error
+  if (loading && tests.length === 0 && patients.length === 0 && testCatalog.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading patient tests...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -702,14 +816,50 @@ const ManageTests = () => {
               className="pl-10 w-full sm:w-80"
             />
           </div>
-          {statusFilter !== "all" && (
+          <Select value={labFilter} onValueChange={setLabFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by Lab" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Labs</SelectItem>
+              {labs.map((lab) => (
+                <SelectItem key={lab.id} value={lab.id}>
+                  {lab.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select 
+            value={collectionCenterFilter} 
+            onValueChange={setCollectionCenterFilter}
+            disabled={labFilter === "all" || !labFilter}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter by Center" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Centers</SelectItem>
+              {collectionCenters
+                .filter(cc => labFilter === "all" || cc.lab_id === labFilter)
+                .map((center) => (
+                  <SelectItem key={center.id} value={center.id}>
+                    {center.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          {(statusFilter !== "all" || labFilter !== "all" || collectionCenterFilter !== "all") && (
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => setStatusFilter("all")}
+              onClick={() => {
+                setStatusFilter("all");
+                setLabFilter("all");
+                setCollectionCenterFilter("all");
+              }}
               className="text-muted-foreground"
             >
-              Clear filter ×
+              Clear filters ×
             </Button>
           )}
         </div>
@@ -792,6 +942,27 @@ const ManageTests = () => {
                                 onClick={() => {
                                   setSelectedPatient(patient);
                                   setPatientSearch("");
+                                  // Auto-populate lab and collection center from patient
+                                  const patientLabId = patient.lab_id || currentLab?.id || "";
+                                  let patientCollectionCenterId = patient.collection_center_id || "";
+                                  
+                                  // Verify collection center belongs to the patient's lab
+                                  if (patientCollectionCenterId && patientLabId) {
+                                    const collectionCenter = collectionCenters.find(
+                                      cc => cc.id === patientCollectionCenterId && cc.lab_id === patientLabId
+                                    );
+                                    if (!collectionCenter) {
+                                      patientCollectionCenterId = ""; // Clear if doesn't match
+                                    }
+                                  } else if (patientCollectionCenterId && !patientLabId) {
+                                    patientCollectionCenterId = ""; // Clear if no lab selected
+                                  }
+                                  
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    lab_id: patientLabId,
+                                    collection_center_id: patientCollectionCenterId,
+                                  }));
                                 }}
                                 className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left transition-colors"
                               >
@@ -969,6 +1140,54 @@ const ManageTests = () => {
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Any notes..."
                   />
+                </div>
+              </div>
+
+              {/* Lab and Collection Center Section */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="lab_id">Lab</Label>
+                  <Select
+                    value={formData.lab_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select lab (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {labs.map((lab) => (
+                        <SelectItem key={lab.id} value={lab.id}>
+                          {lab.name} ({lab.lab_code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="collection_center_id">Collection Center</Label>
+                  <Select
+                    value={formData.collection_center_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
+                    disabled={!formData.lab_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formData.lab_id ? "Select collection center (optional)" : "Select lab first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {collectionCenters
+                        .filter(cc => cc.lab_id === formData.lab_id)
+                        .map((center) => (
+                          <SelectItem key={center.id} value={center.id}>
+                            {center.name} ({center.code})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {!formData.lab_id && (
+                    <p className="text-xs text-muted-foreground">Please select a lab first to choose a collection center</p>
+                  )}
                 </div>
               </div>
 
@@ -1406,6 +1625,8 @@ const ManageTests = () => {
               <TableHead className="font-semibold">Patient</TableHead>
               <TableHead className="font-semibold">Test</TableHead>
               <TableHead className="font-semibold">Date</TableHead>
+              <TableHead className="font-semibold">Lab</TableHead>
+              <TableHead className="font-semibold">Collection Center</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Result</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
@@ -1414,7 +1635,7 @@ const ManageTests = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={9} className="text-center py-12">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                     Loading tests...
@@ -1423,7 +1644,7 @@ const ManageTests = () => {
               </TableRow>
             ) : filteredTests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                   {statusFilter !== "all" ? `No ${statusFilter.replace("_", " ")} tests found` : "No tests found"}
                 </TableCell>
               </TableRow>
@@ -1455,10 +1676,31 @@ const ManageTests = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      {format(new Date(test.test_date), "dd MMM yyyy")}
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-sm">{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                      </div>
+                      {test.created_at && (
+                        <span className="text-xs text-muted-foreground ml-5">
+                          {format(new Date(test.created_at), "HH:mm")}
+                        </span>
+                      )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {test.labs?.lab_code ? (
+                      <span className="text-sm font-mono font-medium">{test.labs.lab_code}</span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {test.collection_centers?.code ? (
+                      <span className="text-sm font-mono font-medium">{test.collection_centers.code}</span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(test.status)}

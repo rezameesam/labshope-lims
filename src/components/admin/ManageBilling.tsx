@@ -74,11 +74,23 @@ interface Invoice {
   notes: string | null;
   created_at: string;
   paid_at: string | null;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
   patient?: {
     full_name: string;
     patient_id: string;
     phone: string;
   };
+  labs?: {
+    id: string;
+    name: string;
+    lab_code: string;
+  } | null;
+  collection_centers?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
 }
 
 interface Patient {
@@ -159,13 +171,55 @@ const ManageBilling = () => {
 
   const fetchInvoices = async () => {
     try {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select(`
-          *,
-          patient:patients(full_name, patient_id, phone)
-        `)
-        .order("created_at", { ascending: false });
+      // Try to fetch with lab/collection center joins, fallback to basic query if it fails
+      let data, error;
+      
+      try {
+        const result = await supabase
+          .from("invoices")
+          .select(`
+            *,
+            patient:patients(full_name, patient_id, phone),
+            labs (
+              id,
+              name,
+              lab_code
+            ),
+            collection_centers (
+              id,
+              name,
+              code
+            )
+          `)
+          .order("created_at", { ascending: false });
+        
+        data = result.data;
+        error = result.error;
+        
+        // If join fails due to missing tables/columns, fallback to basic query
+        if (error && (error.code === "PGRST116" || error.code === "42P01" || error.message?.includes("Could not find") || error.message?.includes("relation") || error.code === "400")) {
+          const basicResult = await supabase
+            .from("invoices")
+            .select(`
+              *,
+              patient:patients(full_name, patient_id, phone)
+            `)
+            .order("created_at", { ascending: false });
+          data = basicResult.data;
+          error = basicResult.error;
+        }
+      } catch (err: any) {
+        // If join fails, try basic query
+        const basicResult = await supabase
+          .from("invoices")
+          .select(`
+            *,
+            patient:patients(full_name, patient_id, phone)
+          `)
+          .order("created_at", { ascending: false });
+        data = basicResult.data;
+        error = basicResult.error;
+      }
 
       if (error) throw error;
       setInvoices((data || []) as Invoice[]);
@@ -610,17 +664,45 @@ const ManageBilling = () => {
       
       // Refresh invoice details if open
       if (isDetailsOpen && selectedInvoice) {
-        const { data: updatedInvoice, error } = await supabase
-          .from("invoices")
-          .select(`
-            *,
-            patient:patients(full_name, patient_id, phone)
-          `)
-          .eq("id", selectedInvoice.id)
-          .single();
-        
-        if (!error && updatedInvoice) {
-          setSelectedInvoice(updatedInvoice as Invoice);
+        try {
+          const result = await supabase
+            .from("invoices")
+            .select(`
+              *,
+              patient:patients(full_name, patient_id, phone),
+              labs (
+                id,
+                name,
+                lab_code
+              ),
+              collection_centers (
+                id,
+                name,
+                code
+              )
+            `)
+            .eq("id", selectedInvoice.id)
+            .single();
+          
+          if (!result.error && result.data) {
+            setSelectedInvoice(result.data as Invoice);
+          } else if (result.error && (result.error.code === "PGRST116" || result.error.code === "42P01" || result.error.message?.includes("Could not find") || result.error.code === "400")) {
+            // Fallback to basic query
+            const basicResult = await supabase
+              .from("invoices")
+              .select(`
+                *,
+                patient:patients(full_name, patient_id, phone)
+              `)
+              .eq("id", selectedInvoice.id)
+              .single();
+            
+            if (!basicResult.error && basicResult.data) {
+              setSelectedInvoice(basicResult.data as Invoice);
+            }
+          }
+        } catch (err) {
+          console.error("Error refreshing invoice:", err);
         }
       }
     } catch (error: any) {
@@ -678,13 +760,30 @@ const ManageBilling = () => {
     doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 64);
     
     // Patient details
-    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, 50, { align: "right" });
-    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, 57, { align: "right" });
-    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, 64, { align: "right" });
+    let patientY = 50;
+    doc.text(`Patient: ${invoice.patient?.full_name || "N/A"}`, pageWidth - 14, patientY, { align: "right" });
+    doc.text(`ID: ${invoice.patient?.patient_id || "N/A"}`, pageWidth - 14, patientY + 7, { align: "right" });
+    doc.text(`Phone: ${invoice.patient?.phone || "N/A"}`, pageWidth - 14, patientY + 14, { align: "right" });
+    
+    // Lab and Collection Center info (if available)
+    if (invoice.labs || invoice.collection_centers) {
+      let infoY = patientY + 21;
+      if (invoice.labs) {
+        const labDisplay = invoice.labs.lab_code || (invoice.labs.name.length > 15 ? invoice.labs.name.substring(0, 15) + "..." : invoice.labs.name);
+        doc.text(`Lab: ${labDisplay}`, pageWidth - 14, infoY, { align: "right" });
+        infoY += 7;
+      }
+      if (invoice.collection_centers) {
+        const centerDisplay = invoice.collection_centers.code || (invoice.collection_centers.name.length > 15 ? invoice.collection_centers.name.substring(0, 15) + "..." : invoice.collection_centers.name);
+        doc.text(`Center: ${centerDisplay}`, pageWidth - 14, infoY, { align: "right" });
+        infoY += 7;
+      }
+    }
     
     // Line separator
     doc.setLineWidth(0.5);
-    doc.line(14, 70, pageWidth - 14, 70);
+    const separatorY = invoice.labs || invoice.collection_centers ? 78 : 70;
+    doc.line(14, separatorY, pageWidth - 14, separatorY);
     
     // Items table
     const tableData = (items || []).map((item: InvoiceItem, index: number) => [
@@ -695,8 +794,9 @@ const ManageBilling = () => {
       `₹${Number(item.amount).toLocaleString()}`
     ]);
     
+    const tableStartY = invoice.labs || invoice.collection_centers ? 83 : 75;
     autoTable(doc, {
-      startY: 75,
+      startY: tableStartY,
       head: [["#", "Test Name", "Qty", "Unit Price", "Amount"]],
       body: tableData,
       theme: "striped",
