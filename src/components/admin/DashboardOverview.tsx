@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 import {
   AreaChart,
   Area,
@@ -81,6 +82,7 @@ interface TopTest {
 }
 
 const DashboardOverview = () => {
+  const { user, isCollector } = useAuth();
   const [stats, setStats] = useState<Stats>({
     employees: 0,
     patients: 0,

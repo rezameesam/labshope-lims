@@ -133,8 +133,15 @@ interface TestPrice {
 }
 
 const ManageBilling = () => {
-  const { hasRole } = useAuth();
+  const { hasRole, isCollector } = useAuth();
   const isAdmin = hasRole("admin");
+  
+  // Collectors should not have access to billing
+  useEffect(() => {
+    if (isCollector) {
+      toast.error("Access denied. Billing is restricted to admins and employees.");
+    }
+  }, [isCollector]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -233,11 +240,20 @@ const ManageBilling = () => {
 
   const fetchPatients = async () => {
     try {
-      const { data, error } = await supabase
+      // Collectors shouldn't access billing, but if they do, restrict to their patients
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      let query: any = supabase
         .from("patients")
         .select("id, patient_id, full_name, phone")
-        .eq("is_active", true)
-        .order("full_name");
+        .eq("is_active", true);
+
+      // Note: Collectors shouldn't be here, but add restriction just in case
+      if (isCollector && authUser?.id) {
+        query = query.eq("created_by", authUser.id);
+      }
+
+      const { data, error } = await query.order("full_name");
 
       if (error) throw error;
       setPatients(data || []);
@@ -685,7 +701,12 @@ const ManageBilling = () => {
             .single();
           
           if (!result.error && result.data) {
-            setSelectedInvoice(result.data as Invoice);
+            // Handle case where collection_centers might be an error object
+            const invoiceData = result.data as any;
+            if (invoiceData.collection_centers && typeof invoiceData.collection_centers === 'object' && 'error' in invoiceData.collection_centers) {
+              invoiceData.collection_centers = null;
+            }
+            setSelectedInvoice(invoiceData as Invoice);
           } else if (result.error && (result.error.code === "PGRST116" || result.error.code === "42P01" || result.error.message?.includes("Could not find") || result.error.code === "400")) {
             // Fallback to basic query
             const basicResult = await supabase

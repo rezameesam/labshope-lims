@@ -123,7 +123,7 @@ interface Doctor {
 }
 
 const ManageTests = () => {
-  const { user } = useAuth();
+  const { user, isCollector } = useAuth();
   const { currentLab, availableLabs } = useLab();
 
   const [tests, setTests] = useState<PatientTest[]>([]);
@@ -235,31 +235,52 @@ const ManageTests = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Build queries with collector restrictions
+      let testsQuery = supabase
+        .from("patient_tests")
+        .select(`
+          id, patient_id, test_name, test_date, status, result, result_value, result_unit, 
+          is_abnormal, normal_range_text, notes, created_at, created_by, updated_by, 
+          result_entered_by, result_entered_at, test_id, lab_id, collection_center_id,
+          collected_by, collected_at,
+          patients (
+            patient_id,
+            full_name,
+            phone,
+            created_by
+          ),
+          labs (
+            id,
+            name,
+            lab_code
+          ),
+          collection_centers (
+            id,
+            name,
+            code
+          )
+        `);
+
+      // Collectors should only see tests they collected OR tests for patients they created
+      if (isCollector && user?.id) {
+        // Filter by collected_by OR patient's created_by
+        // Note: This requires a more complex query, so we'll filter in the frontend
+        // The RLS policy will handle database-level restrictions
+      }
+
+      let patientsQuery: any = supabase
+        .from("patients")
+        .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
+        .eq("is_active", true);
+
+      // Collectors should only see patients they created
+      if (isCollector && user?.id) {
+        patientsQuery = patientsQuery.eq("created_by", user.id);
+      }
+
       const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes] = await Promise.all([
-        supabase
-          .from("patient_tests")
-          .select(`
-            id, patient_id, test_name, test_date, status, result, result_value, result_unit, 
-            is_abnormal, normal_range_text, notes, created_at, created_by, updated_by, 
-            result_entered_by, result_entered_at, test_id, lab_id, collection_center_id,
-            patients (
-              patient_id,
-              full_name,
-              phone
-            ),
-            labs (
-              id,
-              name,
-              lab_code
-            ),
-            collection_centers (
-              id,
-              name,
-              code
-            )
-          `)
-          .order("created_at", { ascending: false }),
-        supabase.from("patients").select("id, patient_id, full_name, phone, lab_id, collection_center_id").eq("is_active", true),
+        testsQuery.order("created_at", { ascending: false }),
+        patientsQuery,
         supabase.from("test_categories").select("id, name"),
         supabase.from("tests").select("id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
         supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
@@ -271,7 +292,21 @@ const ManageTests = () => {
       if (catalogRes.error) throw catalogRes.error;
       if (doctorsRes.error) throw doctorsRes.error;
 
-      setTests((testsRes.data || []) as unknown as PatientTest[]);
+      let testsData = (testsRes.data || []) as unknown as PatientTest[];
+      
+      // For collectors, filter tests to only show:
+      // 1. Tests they collected (collected_by = user.id)
+      // 2. Tests for patients they created (patient.created_by = user.id)
+      if (isCollector && user?.id) {
+        testsData = testsData.filter((test) => {
+          const testAny = test as any;
+          const testCollectedBy = testAny.collected_by === user.id;
+          const patientCreatedBy = testAny.patients?.created_by === user.id;
+          return testCollectedBy || patientCreatedBy;
+        }) as PatientTest[];
+      }
+
+      setTests(testsData);
       setPatients(patientsRes.data || []);
       setCategories(categoriesRes.data || []);
       setTestCatalog((catalogRes.data || []) as Test[]);
