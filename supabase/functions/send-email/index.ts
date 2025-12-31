@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Polyfill Buffer for nodemailer - CRITICAL: must be set before nodemailer import
+// Polyfill Buffer for nodemailer using Deno's std/node compatibility
+// This is the recommended approach for Supabase Edge Functions
 // @ts-ignore
-import { Buffer } from "npm:buffer@6.0.3";
+import { Buffer } from "https://deno.land/std@0.168.0/node/buffer.ts";
 // @ts-ignore
 globalThis.Buffer = Buffer;
 // Also set on global for compatibility
@@ -10,11 +11,6 @@ globalThis.Buffer = Buffer;
 if (typeof global !== "undefined") {
   // @ts-ignore
   global.Buffer = Buffer;
-}
-// @ts-ignore
-if (typeof window !== "undefined") {
-  // @ts-ignore
-  window.Buffer = Buffer;
 }
 
 // @deno-types="npm:@types/nodemailer@6.4.14"
