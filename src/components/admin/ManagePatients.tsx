@@ -110,6 +110,8 @@ interface PatientFormProps {
   onSubmit: (e: React.FormEvent) => void;
   isEdit?: boolean;
   isSubmitting: boolean;
+  labs?: { id: string; name: string; lab_code: string }[];
+  collectionCenters?: { id: string; name: string; code: string; lab_id: string }[];
 }
 
 const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmitting, labs = [], collectionCenters = [] }: PatientFormProps) => {
