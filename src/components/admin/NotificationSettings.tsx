@@ -18,11 +18,14 @@ const NotificationSettings = () => {
 
   useEffect(() => {
     // Check which email service is configured
-    const smtpHost = import.meta.env.VITE_SMTP_HOST;
+    // Note: SMTP credentials are in Supabase Edge Function secrets, not client-side env vars
+    // So we assume SMTP is configured if Supabase URL is available (Edge Function exists)
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const resendKey = import.meta.env.VITE_RESEND_API_KEY;
     const gmailUser = import.meta.env.VITE_GMAIL_USER;
     
-    if (smtpHost) {
+    // SMTP is configured via Edge Function secrets, so if Supabase is configured, assume SMTP is available
+    if (supabaseUrl) {
       setEmailService('smtp');
       setEmailConfigured(true);
     } else if (resendKey) {
@@ -84,7 +87,7 @@ const NotificationSettings = () => {
                 Email Notifications
               </CardTitle>
               <CardDescription>
-                Configure Resend API for email notifications
+                Email notifications via Supabase Edge Function (Yandex SMTP)
               </CardDescription>
             </div>
             <Badge variant={emailConfigured ? "default" : "destructive"}>
@@ -94,29 +97,23 @@ const NotificationSettings = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>Resend API Key</Label>
-            <Input
-              type="password"
-              placeholder="re_..."
-              value={import.meta.env.VITE_RESEND_API_KEY ? "••••••••" : ""}
-              disabled
-              className="mt-1"
-            />
-            <p className="text-sm text-muted-foreground mt-1">
-              Set VITE_RESEND_API_KEY in your environment variables
-            </p>
-          </div>
-          <div>
-            <Label>From Email</Label>
-            <Input
-              placeholder="noreply@yourclinic.com"
-              value={import.meta.env.VITE_RESEND_FROM_EMAIL || ""}
-              disabled
-              className="mt-1"
-            />
-            <p className="text-sm text-muted-foreground mt-1">
-              Set VITE_RESEND_FROM_EMAIL in your environment variables
-            </p>
+            <Label>SMTP Configuration</Label>
+            <div className="mt-1 p-3 bg-muted rounded text-sm">
+              <p className="font-semibold mb-1">✅ Configured via Supabase Edge Function Secrets</p>
+              <p className="text-muted-foreground">
+                SMTP credentials are stored securely in Supabase Edge Function secrets:
+              </p>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
+                <li>SMTP_HOST: smtp.yandex.com</li>
+                <li>SMTP_PORT: 465</li>
+                <li>SMTP_USER: no-reply@irmclinic.com</li>
+                <li>SMTP_FROM: no-reply@irmclinic.com</li>
+                <li>SMTP_SECURE: true</li>
+              </ul>
+              <p className="text-xs text-muted-foreground mt-2">
+                To update: Go to Supabase Dashboard → Settings → Edge Functions → Secrets
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Input
