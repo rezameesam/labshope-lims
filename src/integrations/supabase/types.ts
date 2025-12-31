@@ -1014,6 +1014,7 @@ export type Database = {
           blood_group: string | null
           collection_center_id: string | null
           created_at: string
+          created_by: string | null
           date_of_birth: string | null
           email: string | null
           full_name: string
@@ -1031,6 +1032,7 @@ export type Database = {
           blood_group?: string | null
           collection_center_id?: string | null
           created_at?: string
+          created_by?: string | null
           date_of_birth?: string | null
           email?: string | null
           full_name: string
@@ -1048,6 +1050,7 @@ export type Database = {
           blood_group?: string | null
           collection_center_id?: string | null
           created_at?: string
+          created_by?: string | null
           date_of_birth?: string | null
           email?: string | null
           full_name?: string
