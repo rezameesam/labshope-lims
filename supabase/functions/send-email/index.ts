@@ -1,9 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Use Deno's built-in Node.js compatibility layer for Buffer
-import { Buffer } from "node:buffer";
+// Polyfill Buffer for nodemailer - CRITICAL: must be set before nodemailer import
+// @ts-ignore
+import { Buffer } from "npm:buffer@6.0.3";
 // @ts-ignore
 globalThis.Buffer = Buffer;
+// Also set on global for compatibility
+// @ts-ignore
+if (typeof global !== "undefined") {
+  // @ts-ignore
+  global.Buffer = Buffer;
+}
+// @ts-ignore
+if (typeof window !== "undefined") {
+  // @ts-ignore
+  window.Buffer = Buffer;
+}
 
 // @deno-types="npm:@types/nodemailer@6.4.14"
 import nodemailer from "npm:nodemailer@6.9.7";
