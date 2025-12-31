@@ -30,10 +30,10 @@ serve(async (req) => {
     const mailjetSecretKey = Deno.env.get("MAILJET_SECRET_KEY");
     if (mailjetApiKey && mailjetSecretKey) {
       try {
-        const mailjetFrom = Deno.env.get("MAILJET_FROM_EMAIL") || Deno.env.get("MAILJET_FROM_NAME") 
-          ? `${Deno.env.get("MAILJET_FROM_NAME") || "IRM Clinic"} <${Deno.env.get("MAILJET_FROM_EMAIL")}>`
-          : "IRM Clinic <noreply@irmclinic.com>";
+        const mailjetFromEmail = Deno.env.get("MAILJET_FROM_EMAIL") || "no-reply@irmclinic.com";
+        const mailjetFromName = Deno.env.get("MAILJET_FROM_NAME") || "IRM Clinic";
         
+        // Create Basic Auth header (API Key:Secret Key)
         const auth = btoa(`${mailjetApiKey}:${mailjetSecretKey}`);
         
         const mailjetResponse = await fetch("https://api.mailjet.com/v3.1/send", {
@@ -45,8 +45,8 @@ serve(async (req) => {
           body: JSON.stringify({
             Messages: [{
               From: {
-                Email: Deno.env.get("MAILJET_FROM_EMAIL") || "noreply@irmclinic.com",
-                Name: Deno.env.get("MAILJET_FROM_NAME") || "IRM Clinic",
+                Email: mailjetFromEmail,
+                Name: mailjetFromName,
               },
               To: [{
                 Email: to,
@@ -60,20 +60,29 @@ serve(async (req) => {
 
         const mailjetResult = await mailjetResponse.json();
 
+        // Check if the response is successful
         if (mailjetResponse.ok && mailjetResult.Messages && mailjetResult.Messages[0]?.Status === "success") {
+          const messageId = mailjetResult.Messages[0].To?.[0]?.MessageID || 
+                           mailjetResult.Messages[0].To?.[0]?.MessageUUID ||
+                           "sent";
           return new Response(
             JSON.stringify({ 
               success: true, 
-              messageId: mailjetResult.Messages[0].To[0]?.MessageID || "sent", 
+              messageId: messageId, 
               service: "mailjet" 
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         } else {
-          console.error("Mailjet error:", mailjetResult);
+          // Log error details for debugging
+          console.error("Mailjet API error:", {
+            status: mailjetResponse.status,
+            statusText: mailjetResponse.statusText,
+            result: mailjetResult,
+          });
         }
       } catch (mailjetError) {
-        console.error("Mailjet error:", mailjetError);
+        console.error("Mailjet request error:", mailjetError);
         // Fall through to next service
       }
     }
@@ -187,7 +196,7 @@ serve(async (req) => {
             personalizations: [{
               to: [{ email: to }],
             }],
-            from: { email: smtpFrom || "noreply@example.com" },
+            from: { email: smtpFrom || "no-reply@irmclinic.com" },
             subject: subject,
             content: [
               {
