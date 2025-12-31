@@ -12,7 +12,8 @@ import {
   ArrowDownRight,
   DollarSign,
   CreditCard,
-  AlertCircle
+  AlertCircle,
+  Bell
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

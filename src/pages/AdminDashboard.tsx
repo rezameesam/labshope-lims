@@ -43,8 +43,9 @@ import DashboardOverview from "@/components/admin/DashboardOverview";
 import FinancialReports from "@/components/admin/FinancialReports";
 import ManageRoles from "@/components/admin/ManageRoles";
 import NotificationSettings from "@/components/admin/NotificationSettings";
+import NoticeBoard from "@/components/admin/NoticeBoard";
 
-type TabType = "overview" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "notifications";
+type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "notifications";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -89,6 +90,7 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: Home },
+    { id: "notice-board" as TabType, label: "Notice Board", icon: Bell },
     { id: "employees" as TabType, label: "Employees", icon: Users, adminOnly: true },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
@@ -218,6 +220,7 @@ const AdminDashboard = () => {
             transition={{ duration: 0.2 }}
           >
             {activeTab === "overview" && <DashboardOverview />}
+            {activeTab === "notice-board" && <NoticeBoard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
             {activeTab === "patients" && <ManagePatients />}
             {activeTab === "tests" && <ManageTests />}
