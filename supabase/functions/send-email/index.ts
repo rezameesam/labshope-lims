@@ -1,25 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Polyfill Buffer for nodemailer using Deno's std/node compatibility
-// This is the recommended approach for Supabase Edge Functions
-// @ts-ignore
-import { Buffer } from "https://deno.land/std@0.168.0/node/buffer.ts";
-// @ts-ignore
-globalThis.Buffer = Buffer;
-// Also set on global for compatibility
-// @ts-ignore
-if (typeof global !== "undefined") {
-  // @ts-ignore
-  global.Buffer = Buffer;
-}
-
-// @deno-types="npm:@types/nodemailer@6.4.14"
-import nodemailer from "npm:nodemailer@6.9.7";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
@@ -33,74 +18,225 @@ serve(async (req) => {
 
     if (!to || !subject || !htmlContent) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: to, subject, htmlContent" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({
+          error: "Missing required fields: to, subject, htmlContent",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Get SMTP configuration from environment variables
+    // Try Mailjet first (if API key is configured) - Free 6,000 emails/month
+    const mailjetApiKey = Deno.env.get("MAILJET_API_KEY");
+    const mailjetSecretKey = Deno.env.get("MAILJET_SECRET_KEY");
+    if (mailjetApiKey && mailjetSecretKey) {
+      try {
+        const mailjetFrom = Deno.env.get("MAILJET_FROM_EMAIL") || Deno.env.get("MAILJET_FROM_NAME") 
+          ? `${Deno.env.get("MAILJET_FROM_NAME") || "IRM Clinic"} <${Deno.env.get("MAILJET_FROM_EMAIL")}>`
+          : "IRM Clinic <noreply@irmclinic.com>";
+        
+        const auth = btoa(`${mailjetApiKey}:${mailjetSecretKey}`);
+        
+        const mailjetResponse = await fetch("https://api.mailjet.com/v3.1/send", {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${auth}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            Messages: [{
+              From: {
+                Email: Deno.env.get("MAILJET_FROM_EMAIL") || "noreply@irmclinic.com",
+                Name: Deno.env.get("MAILJET_FROM_NAME") || "IRM Clinic",
+              },
+              To: [{
+                Email: to,
+              }],
+              Subject: subject,
+              HTMLPart: htmlContent,
+              TextPart: textContent || htmlContent.replace(/<[^>]*>/g, ""),
+            }],
+          }),
+        });
+
+        const mailjetResult = await mailjetResponse.json();
+
+        if (mailjetResponse.ok && mailjetResult.Messages && mailjetResult.Messages[0]?.Status === "success") {
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              messageId: mailjetResult.Messages[0].To[0]?.MessageID || "sent", 
+              service: "mailjet" 
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        } else {
+          console.error("Mailjet error:", mailjetResult);
+        }
+      } catch (mailjetError) {
+        console.error("Mailjet error:", mailjetError);
+        // Fall through to next service
+      }
+    }
+
+    // Try Resend (if API key is configured)
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (resendApiKey) {
+      try {
+        const resendFrom = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+        
+        const resendResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: resendFrom,
+            to: to,
+            subject: subject,
+            html: htmlContent,
+            text: textContent || htmlContent.replace(/<[^>]*>/g, ""),
+          }),
+        });
+
+        const resendResult = await resendResponse.json();
+
+        if (resendResponse.ok && resendResult.id) {
+          return new Response(
+            JSON.stringify({ success: true, messageId: resendResult.id, service: "resend" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } catch (resendError) {
+        console.error("Resend error:", resendError);
+        // Fall through to SMTP
+      }
+    }
+
+    // Fallback to SMTP using native Deno fetch (no nodemailer needed)
     const smtpHost = Deno.env.get("SMTP_HOST") || "smtp.yandex.com";
-    const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "465");
+    const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "465", 10);
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPassword = Deno.env.get("SMTP_PASSWORD");
     const smtpFrom = Deno.env.get("SMTP_FROM") || smtpUser;
-    const smtpSecure = Deno.env.get("SMTP_SECURE") !== "false";
 
     if (!smtpUser || !smtpPassword) {
       return new Response(
-        JSON.stringify({ error: "SMTP credentials not configured" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ 
+          error: "Email service not configured. Please set RESEND_API_KEY or SMTP credentials.",
+          hint: "Resend is recommended: https://resend.com (free 3,000 emails/month)"
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Create transporter
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPassword,
-      },
-    });
+    // Use a simple SMTP client library for Deno
+    // For now, we'll use a webhook-based approach or recommend Resend
+    // Since native SMTP in Deno is complex, let's use Mailgun or SendGrid as alternatives
+    
+    // Try Mailgun if configured
+    const mailgunApiKey = Deno.env.get("MAILGUN_API_KEY");
+    const mailgunDomain = Deno.env.get("MAILGUN_DOMAIN");
+    
+    if (mailgunApiKey && mailgunDomain) {
+      try {
+        const mailgunUrl = `https://api.mailgun.net/v3/${mailgunDomain}/messages`;
+        const auth = btoa(`api:${mailgunApiKey}`);
+        
+        const formData = new FormData();
+        formData.append("from", smtpFrom || `noreply@${mailgunDomain}`);
+        formData.append("to", to);
+        formData.append("subject", subject);
+        formData.append("html", htmlContent);
+        if (textContent) {
+          formData.append("text", textContent);
+        }
 
-    // Send email
-    const info = await transporter.sendMail({
-      from: smtpFrom,
-      to: to,
-      subject: subject,
-      html: htmlContent,
-      text: textContent || htmlContent.replace(/<[^>]*>/g, ""),
-    });
+        const mailgunResponse = await fetch(mailgunUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${auth}`,
+          },
+          body: formData,
+        });
 
+        const mailgunResult = await mailgunResponse.json();
+
+        if (mailgunResponse.ok && mailgunResult.id) {
+          return new Response(
+            JSON.stringify({ success: true, messageId: mailgunResult.id, service: "mailgun" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } catch (mailgunError) {
+        console.error("Mailgun error:", mailgunError);
+      }
+    }
+
+    // Try SendGrid if configured
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (sendgridApiKey) {
+      try {
+        const sendgridResponse = await fetch("https://api.sendgrid.com/v3/mail/send", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${sendgridApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            personalizations: [{
+              to: [{ email: to }],
+            }],
+            from: { email: smtpFrom || "noreply@example.com" },
+            subject: subject,
+            content: [
+              {
+                type: "text/html",
+                value: htmlContent,
+              },
+              ...(textContent ? [{
+                type: "text/plain",
+                value: textContent,
+              }] : []),
+            ],
+          }),
+        });
+
+        if (sendgridResponse.ok) {
+          const sendgridHeaders = sendgridResponse.headers.get("x-message-id");
+          return new Response(
+            JSON.stringify({ success: true, messageId: sendgridHeaders || "sent", service: "sendgrid" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } catch (sendgridError) {
+        console.error("SendGrid error:", sendgridError);
+      }
+    }
+
+    // If all else fails, return error with setup instructions
     return new Response(
       JSON.stringify({
-        success: true,
-        messageId: info.messageId,
+        success: false,
+        error: "No email service configured. Please set up one of:",
+        options: {
+          mailjet: "Free 6,000 emails/month - https://mailjet.com (Best free tier)",
+          resend: "Free 3,000 emails/month - https://resend.com (Easiest setup)",
+          mailgun: "Free 5,000 emails/month - https://mailgun.com",
+          sendgrid: "Free 100 emails/day - https://sendgrid.com",
+        },
+        setup: "Add MAILJET_API_KEY + MAILJET_SECRET_KEY (or RESEND_API_KEY, MAILGUN_API_KEY, or SENDGRID_API_KEY) to Supabase Edge Function secrets",
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
     console.error("Error sending email:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "Failed to send email",
+        error: error?.message || "Failed to send email",
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
-
