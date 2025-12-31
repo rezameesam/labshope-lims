@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
+import logoImageUrl from "@/assets/logo.png";
 
 interface TestResult {
   test_name: string;
@@ -63,16 +64,34 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.setFillColor(30, 58, 138); // Navy blue
     doc.rect(0, 0, pageWidth, 45, "F");
     
+    // Add logo on the left side
+    try {
+      const logoWidth = 30;
+      const logoHeight = 30;
+      const logoX = 14;
+      const logoY = 7.5; // Center vertically in header (45/2 - 30/2 = 7.5)
+      
+      // jsPDF can handle image URLs directly
+      doc.addImage(logoImageUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
+    } catch (error) {
+      console.warn("Could not load logo image:", error);
+      // Continue without logo if image fails to load
+    }
+    
+    // Adjust text position to accommodate logo
+    const textStartX = 50; // Start text after logo
+    const centerX = pageWidth / 2;
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text(data.lab_name || LAB_INFO.name, pageWidth / 2, 12, { align: "center" });
+    doc.text(data.lab_name || LAB_INFO.name, centerX, 12, { align: "center" });
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(LAB_INFO.address, pageWidth / 2, 21, { align: "center" });
-    doc.text(`Phone: ${LAB_INFO.phone}`, pageWidth / 2, 27, { align: "center" });
-    doc.text(`Email: ${LAB_INFO.email}`, pageWidth / 2, 33, { align: "center" });
+    doc.text(LAB_INFO.address, centerX, 21, { align: "center" });
+    doc.text(`Phone: ${LAB_INFO.phone}`, centerX, 27, { align: "center" });
+    doc.text(`Email: ${LAB_INFO.email}`, centerX, 33, { align: "center" });
   }
   // If not including header, space is still reserved (empty) for pre-printed paper
 
