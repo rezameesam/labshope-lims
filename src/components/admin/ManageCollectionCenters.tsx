@@ -53,6 +53,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import CollectionCenterAnalytics from "@/components/admin/CollectionCenterAnalytics";
+import { BarChart3, Settings } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CollectionCenter {
   id: string;
@@ -77,6 +80,8 @@ const ManageCollectionCenters = () => {
   const [centers, setCenters] = useState<CollectionCenter[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"management" | "analytics">("management");
+  const [selectedCenterForAnalytics, setSelectedCenterForAnalytics] = useState<CollectionCenter | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [centerToDelete, setCenterToDelete] = useState<string | null>(null);
@@ -254,13 +259,82 @@ const ManageCollectionCenters = () => {
           <h2 className="text-2xl font-bold text-clinical-navy">Collection Centers</h2>
           <p className="text-muted-foreground">Manage sample collection centers</p>
         </div>
-        {accessibleLabs.length > 0 && (
-          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Collection Center
-          </Button>
-        )}
+        <div className="flex gap-2">
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "management" | "analytics")}>
+            <TabsList>
+              <TabsTrigger value="management">
+                <Settings className="h-4 w-4 mr-2" />
+                Management
+              </TabsTrigger>
+              <TabsTrigger value="analytics">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Analytics
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {viewMode === "management" && accessibleLabs.length > 0 && (
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Collection Center
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Analytics View */}
+      {viewMode === "analytics" && (
+        <div className="space-y-4">
+          {!selectedCenterForAnalytics ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Select a Collection Center to View Analytics</CardTitle>
+                <CardDescription>Choose a collection center from the list below to see detailed test statistics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {filteredCenters.map((center) => (
+                    <div
+                      key={center.id}
+                      className="p-4 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => setSelectedCenterForAnalytics(center)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{center.name}</p>
+                          <p className="text-sm text-muted-foreground">Code: {center.code}</p>
+                          {center.lab && (
+                            <p className="text-xs text-muted-foreground">Lab: {center.lab.name}</p>
+                          )}
+                        </div>
+                        <Badge variant={center.is_active ? "default" : "secondary"}>
+                          {center.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Button variant="outline" onClick={() => setSelectedCenterForAnalytics(null)}>
+                  ← Back to Center List
+                </Button>
+              </div>
+              <CollectionCenterAnalytics
+                centerId={selectedCenterForAnalytics.id}
+                centerName={selectedCenterForAnalytics.name}
+                centerCode={selectedCenterForAnalytics.code}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Management View */}
+      {viewMode === "management" && (
+        <>
 
       {/* Search */}
       <div className="flex gap-2">
@@ -524,6 +598,8 @@ const ManageCollectionCenters = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </>
+      )}
     </div>
   );
 };

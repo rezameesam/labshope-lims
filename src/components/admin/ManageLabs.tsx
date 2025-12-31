@@ -10,7 +10,6 @@ import {
   Phone,
   Mail,
   Users,
-  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +54,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import LabAnalytics from "@/components/admin/LabAnalytics";
+import { BarChart3, Settings } from "lucide-react";
 
 interface Lab {
   id: string;
@@ -79,6 +80,8 @@ const ManageLabs = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [viewMode, setViewMode] = useState<"management" | "analytics">("management");
+  const [selectedLabForAnalytics, setSelectedLabForAnalytics] = useState<Lab | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [labToDelete, setLabToDelete] = useState<string | null>(null);
@@ -299,12 +302,79 @@ const ManageLabs = () => {
           <h2 className="text-2xl font-bold text-clinical-navy">Lab Management</h2>
           <p className="text-muted-foreground">Manage labs, branches, and collection centers</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Lab
-        </Button>
+        <div className="flex gap-2">
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "management" | "analytics")}>
+            <TabsList>
+              <TabsTrigger value="management">
+                <Settings className="h-4 w-4 mr-2" />
+                Management
+              </TabsTrigger>
+              <TabsTrigger value="analytics">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Analytics
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {viewMode === "management" && (
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Lab
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Analytics View */}
+      {viewMode === "analytics" && (
+        <div className="space-y-4">
+          {!selectedLabForAnalytics ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Select a Lab to View Analytics</CardTitle>
+                <CardDescription>Choose a lab from the list below to see detailed test statistics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {labs.map((lab) => (
+                    <div
+                      key={lab.id}
+                      className="p-4 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => setSelectedLabForAnalytics(lab)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{lab.name}</p>
+                          <p className="text-sm text-muted-foreground">Code: {lab.lab_code}</p>
+                        </div>
+                        <Badge variant={lab.is_active ? "default" : "secondary"}>
+                          {lab.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Button variant="outline" onClick={() => setSelectedLabForAnalytics(null)}>
+                  ← Back to Lab List
+                </Button>
+              </div>
+              <LabAnalytics
+                labId={selectedLabForAnalytics.id}
+                labName={selectedLabForAnalytics.name}
+                labCode={selectedLabForAnalytics.lab_code}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Management View */}
+      {viewMode === "management" && (
+        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -484,6 +554,8 @@ const ManageLabs = () => {
           </Card>
         </TabsContent>
       </Tabs>
+        </>
+      )}
 
       {/* Add/Edit Lab Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
