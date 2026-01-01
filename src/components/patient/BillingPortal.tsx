@@ -1,17 +1,13 @@
 import { useState, useEffect } from "react";
 import { 
   Receipt, IndianRupee, CheckCircle, Clock, XCircle, 
-  Calendar, FileText, CreditCard, Download, Wallet,
-  AlertCircle
+  Calendar, FileText, CreditCard, Download
 } from "lucide-react";
 import { RazorpayButton } from "@/components/payment/RazorpayButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Table,
   TableBody,
@@ -25,7 +21,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,13 +74,6 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
-  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [isBulkPaymentDialogOpen, setIsBulkPaymentDialogOpen] = useState(false);
-  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
-  const [paymentInvoices, setPaymentInvoices] = useState<Invoice[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<string>("upi");
-  const [transactionId, setTransactionId] = useState("");
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   const fetchInvoices = async () => {
     try {
@@ -312,159 +300,6 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
     }
   };
 
-  const openPaymentDialog = (invoice: Invoice) => {
-    setPaymentInvoice(invoice);
-    setPaymentInvoices([]);
-    setPaymentMethod("upi");
-    setTransactionId("");
-    setIsPaymentDialogOpen(true);
-  };
-
-  const openBulkPaymentDialog = () => {
-    // Get all unpaid/partial invoices
-    const unpaidInvoices = invoices.filter(
-      inv => inv.payment_status !== "paid" && (inv.final_amount - inv.paid_amount) > 0
-    );
-    
-    if (unpaidInvoices.length === 0) {
-      toast.error("No outstanding invoices to pay");
-      return;
-    }
-    
-    setPaymentInvoice(null);
-    setPaymentInvoices(unpaidInvoices);
-    setPaymentMethod("upi");
-    setTransactionId("");
-    setIsBulkPaymentDialogOpen(true);
-  };
-
-  const handlePayment = async () => {
-    if (!paymentInvoice) return;
-
-    const outstandingAmount = paymentInvoice.final_amount - paymentInvoice.paid_amount;
-    if (outstandingAmount <= 0) {
-      toast.error("This invoice is already fully paid");
-      return;
-    }
-
-    if (!transactionId.trim() && paymentMethod !== "cash") {
-      toast.error("Please enter a transaction ID");
-      return;
-    }
-
-    setPaymentProcessing(true);
-
-    try {
-      // Record the payment
-      const { error: paymentError } = await supabase.from("payments").insert({
-        invoice_id: paymentInvoice.id,
-        amount: outstandingAmount,
-        payment_method: paymentMethod,
-        transaction_id: transactionId.trim() || null,
-        payment_date: new Date().toISOString(),
-      });
-
-      if (paymentError) throw paymentError;
-
-      // Update invoice status
-      const newPaidAmount = paymentInvoice.paid_amount + outstandingAmount;
-      const newStatus = newPaidAmount >= paymentInvoice.final_amount ? "paid" : "partial";
-
-      const { error: invoiceError } = await supabase
-        .from("invoices")
-        .update({
-          paid_amount: newPaidAmount,
-          payment_status: newStatus,
-          payment_method: paymentMethod,
-          paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-        })
-        .eq("id", paymentInvoice.id);
-
-      if (invoiceError) throw invoiceError;
-
-      toast.success("Payment recorded successfully!");
-      setIsPaymentDialogOpen(false);
-      fetchInvoices();
-      onPaymentStatusChange?.();
-    } catch (error) {
-      console.error("Error processing payment:", error);
-      toast.error("Failed to process payment. Please try again.");
-    } finally {
-      setPaymentProcessing(false);
-    }
-  };
-
-  const handleBulkPayment = async () => {
-    if (paymentInvoices.length === 0) return;
-
-    // Calculate total outstanding amount
-    const totalOutstanding = paymentInvoices.reduce((sum, inv) => {
-      return sum + (inv.final_amount - inv.paid_amount);
-    }, 0);
-
-    if (totalOutstanding <= 0) {
-      toast.error("No outstanding amount to pay");
-      return;
-    }
-
-    if (!transactionId.trim() && paymentMethod !== "cash") {
-      toast.error("Please enter a transaction ID");
-      return;
-    }
-
-    setPaymentProcessing(true);
-
-    try {
-      const paymentDate = new Date().toISOString();
-      const transactionIdValue = transactionId.trim() || null;
-
-      // Process payments for all invoices
-      for (const invoice of paymentInvoices) {
-        const outstandingAmount = invoice.final_amount - invoice.paid_amount;
-        
-        if (outstandingAmount <= 0) continue;
-
-        // Record the payment
-        const { error: paymentError } = await supabase.from("payments").insert({
-          invoice_id: invoice.id,
-          amount: outstandingAmount,
-          payment_method: paymentMethod,
-          transaction_id: transactionIdValue,
-          payment_date: paymentDate,
-        });
-
-        if (paymentError) throw paymentError;
-
-        // Update invoice status
-        const newPaidAmount = invoice.paid_amount + outstandingAmount;
-        const newStatus = newPaidAmount >= invoice.final_amount ? "paid" : "partial";
-
-        const { error: invoiceError } = await supabase
-          .from("invoices")
-          .update({
-            paid_amount: newPaidAmount,
-            payment_status: newStatus,
-            payment_method: paymentMethod,
-            paid_at: newStatus === "paid" ? paymentDate : null,
-          })
-          .eq("id", invoice.id);
-
-        if (invoiceError) throw invoiceError;
-      }
-
-      toast.success(`Payment recorded for ${paymentInvoices.length} invoice(s) successfully!`);
-      setIsBulkPaymentDialogOpen(false);
-      setSelectedInvoiceIds(new Set());
-      fetchInvoices();
-      onPaymentStatusChange?.();
-    } catch (error) {
-      console.error("Error processing bulk payment:", error);
-      toast.error("Failed to process payment. Please try again.");
-    } finally {
-      setPaymentProcessing(false);
-    }
-  };
-
   // Stats - calculate with proper null handling
   const totalBilled = invoices.reduce((sum, inv) => {
     const finalAmount = Number(inv.final_amount) || 0;
@@ -550,29 +385,6 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     {selectedInvoiceIds.size} selected
                   </Badge>
                 )}
-                {(() => {
-                  const unpaidInvoices = invoices.filter(
-                    inv => inv.payment_status !== "paid" && (inv.final_amount - inv.paid_amount) > 0
-                  );
-                  const totalOutstanding = unpaidInvoices.reduce(
-                    (sum, inv) => sum + (inv.final_amount - inv.paid_amount), 
-                    0
-                  );
-                  
-                  if (unpaidInvoices.length > 0) {
-                    return (
-                      <Button 
-                        size="sm"
-                        onClick={openBulkPaymentDialog}
-                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        <Wallet className="h-4 w-4" />
-                        Pay All Outstanding (₹{totalOutstanding.toLocaleString()})
-                      </Button>
-                    );
-                  }
-                  return null;
-                })()}
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -659,15 +471,6 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                               size="sm"
                               className="gap-1"
                             />
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => openPaymentDialog(invoice)}
-                              className="gap-1"
-                            >
-                              <Wallet className="h-4 w-4" />
-                              Manual
-                            </Button>
                           </>
                         )}
                         <Button 
@@ -816,211 +619,10 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     className="w-full"
                     variant="default"
                   />
-                  
-                  <div className="text-center">
-                    <Button
-                      variant="outline"
-                      onClick={() => openPaymentDialog(selectedInvoice)}
-                      className="w-full"
-                    >
-                      <Wallet className="mr-2 h-4 w-4" />
-                      Record Manual Payment
-                    </Button>
-                  </div>
                 </div>
               )}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Payment Dialog */}
-      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
-              Make Payment
-            </DialogTitle>
-          </DialogHeader>
-          
-          {paymentInvoice && (
-            <div className="space-y-6 py-4">
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Amount Due</p>
-                <p className="text-3xl font-bold text-foreground">
-                  ₹{(paymentInvoice.final_amount - paymentInvoice.paid_amount).toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Invoice: {paymentInvoice.invoice_number}
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <Label>Payment Method</Label>
-                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="upi" id="upi" />
-                    <Label htmlFor="upi" className="cursor-pointer">UPI</Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="card" id="card" />
-                    <Label htmlFor="card" className="cursor-pointer">Card</Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="bank_transfer" id="bank" />
-                    <Label htmlFor="bank" className="cursor-pointer">Bank Transfer</Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="cash" id="cash" />
-                    <Label htmlFor="cash" className="cursor-pointer">Cash (at Lab)</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {paymentMethod !== "cash" && (
-                <div className="space-y-2">
-                  <Label htmlFor="transactionId">Transaction ID / Reference</Label>
-                  <Input
-                    id="transactionId"
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="Enter transaction ID"
-                  />
-                </div>
-              )}
-
-              {paymentMethod === "cash" && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-amber-900 dark:text-amber-100">Cash Payment</h4>
-                      <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                        Please visit the lab to complete your cash payment at the reception.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handlePayment} 
-              disabled={paymentProcessing || (paymentMethod !== "cash" && !transactionId.trim())}
-            >
-              {paymentProcessing ? "Processing..." : "Confirm Payment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Payment Dialog */}
-      <Dialog open={isBulkPaymentDialogOpen} onOpenChange={setIsBulkPaymentDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
-              Pay All Outstanding Invoices
-            </DialogTitle>
-          </DialogHeader>
-          
-          {paymentInvoices.length > 0 && (
-            <div className="space-y-6 py-4">
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total Amount Due</p>
-                <p className="text-3xl font-bold text-foreground">
-                  ₹{paymentInvoices.reduce((sum, inv) => sum + (inv.final_amount - inv.paid_amount), 0).toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {paymentInvoices.length} invoice{paymentInvoices.length > 1 ? "s" : ""} selected
-                </p>
-              </div>
-
-              {/* Invoice List */}
-              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-                <p className="text-sm font-medium mb-2">Invoices to be paid:</p>
-                {paymentInvoices.map((invoice) => {
-                  const outstanding = invoice.final_amount - invoice.paid_amount;
-                  return (
-                    <div key={invoice.id} className="flex justify-between items-center p-2 bg-muted/30 rounded text-sm">
-                      <span className="font-mono">{invoice.invoice_number}</span>
-                      <span className="font-medium">₹{outstanding.toLocaleString()}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-3">
-                <Label>Payment Method</Label>
-                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="upi" id="bulk-upi" />
-                    <Label htmlFor="bulk-upi" className="cursor-pointer">UPI</Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="card" id="bulk-card" />
-                    <Label htmlFor="bulk-card" className="cursor-pointer">Card</Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="bank_transfer" id="bulk-bank" />
-                    <Label htmlFor="bulk-bank" className="cursor-pointer">Bank Transfer</Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="cash" id="bulk-cash" />
-                    <Label htmlFor="bulk-cash" className="cursor-pointer">Cash (at Lab)</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {paymentMethod !== "cash" && (
-                <div className="space-y-2">
-                  <Label htmlFor="bulkTransactionId">Transaction ID / Reference</Label>
-                  <Input
-                    id="bulkTransactionId"
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="Enter transaction ID (applies to all invoices)"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This transaction ID will be recorded for all {paymentInvoices.length} invoice{paymentInvoices.length > 1 ? "s" : ""}
-                  </p>
-                </div>
-              )}
-
-              {paymentMethod === "cash" && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-amber-900 dark:text-amber-100">Cash Payment</h4>
-                      <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                        Please visit the lab to complete your cash payment at the reception.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsBulkPaymentDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleBulkPayment} 
-              disabled={paymentProcessing || (paymentMethod !== "cash" && !transactionId.trim())}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {paymentProcessing ? "Processing..." : `Pay All (₹${paymentInvoices.reduce((sum, inv) => sum + (inv.final_amount - inv.paid_amount), 0).toLocaleString()})`}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
