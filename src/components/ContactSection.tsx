@@ -11,8 +11,6 @@ interface Lab {
   pincode: string | null;
   phone: string | null;
   email: string | null;
-  latitude: number | null;
-  longitude: number | null;
 }
 
 const ContactSection = () => {
@@ -28,7 +26,7 @@ const ContactSection = () => {
       // Fetch the main lab (type = 'main')
       const { data, error } = await supabase
         .from("labs")
-        .select("address, city, state, pincode, phone, email, latitude, longitude")
+        .select("address, city, state, pincode, phone, email")
         .eq("type", "main")
         .eq("is_active", true)
         .order("created_at", { ascending: true })
@@ -57,13 +55,8 @@ const ContactSection = () => {
     // Coordinates: 34.0166940731705, 74.71822307563335
     const irmLabEmbedUrl = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3307.0590933298504!2d74.71822307563335!3d34.0166940731705!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e19111ec877e3b%3A0xf2ba762566daa3b4!2sIRM%20Clinical%20Laboratory!5e0!3m2!1sen!2sin!4v1767269360513!5m2!1sen!2sin";
     
-    // If we have coordinates in the database, we could use them, but the embed URL is more accurate
-    // as it includes the place information and proper view settings
-    if (lab?.latitude && lab?.longitude) {
-      // Coordinates are set - use the exact embed URL
-      return irmLabEmbedUrl;
-    } else if (lab?.address || lab?.city) {
-      // Fallback to address-based search if no coordinates
+    if (lab?.address || lab?.city) {
+      // Build address-based search if we have address info
       const addressParts = [
         lab.address,
         lab.city,
