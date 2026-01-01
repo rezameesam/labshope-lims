@@ -102,17 +102,113 @@ serve(async (req: Request) => {
     // Get invoice from order notes
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Try to find payment by order_id first
-    const { data: existingPayment } = await supabaseAdmin
-      .from("payments")
-      .select("id, invoice_id")
-      .eq("razorpay_order_id", razorpayOrderId)
-      .single();
+    const bulkInvoicesRaw = payment.notes?.bulk_invoices;
+    if (bulkInvoicesRaw) {
+      let bulkInvoices: Array<{ invoice_id: string; amount: number }> = [];
 
-    if (existingPayment) {
-      // Payment already processed
+      try {
+        bulkInvoices = Array.isArray(bulkInvoicesRaw)
+          ? bulkInvoicesRaw
+          : JSON.parse(bulkInvoicesRaw);
+      } catch (parseError) {
+        console.error("Invalid bulk invoices payload:", parseError);
+        return new Response(
+          JSON.stringify({ error: "Invalid bulk invoices payload" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!Array.isArray(bulkInvoices) || bulkInvoices.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "No invoices provided for bulk payment" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const processedInvoiceIds: string[] = [];
+
+      for (const bulkInvoice of bulkInvoices) {
+        const invoiceId = bulkInvoice.invoice_id;
+        const paymentAmount = Number(bulkInvoice.amount);
+
+        if (!invoiceId || !paymentAmount || paymentAmount <= 0) {
+          continue;
+        }
+
+        const { data: existingPayments } = await supabaseAdmin
+          .from("payments")
+          .select("id")
+          .eq("invoice_id", invoiceId)
+          .eq("razorpay_order_id", razorpayOrderId)
+          .limit(1);
+
+        if (existingPayments && existingPayments.length > 0) {
+          continue;
+        }
+
+        const { data: invoice, error: invoiceError } = await supabaseAdmin
+          .from("invoices")
+          .select("id, final_amount, paid_amount, payment_status")
+          .eq("id", invoiceId)
+          .single();
+
+        if (invoiceError || !invoice) {
+          console.error("Invoice not found for bulk payment:", invoiceId);
+          continue;
+        }
+
+        const outstandingAmount = Number(invoice.final_amount) - Number(invoice.paid_amount || 0);
+        const appliedAmount = Math.min(paymentAmount, outstandingAmount);
+
+        if (appliedAmount <= 0) {
+          continue;
+        }
+
+        const { error: paymentError } = await supabaseAdmin.from("payments").insert({
+          invoice_id: invoiceId,
+          amount: appliedAmount,
+          payment_method: "online",
+          payment_gateway: "razorpay",
+          razorpay_order_id: razorpayOrderId,
+          razorpay_payment_id: razorpayPaymentId,
+          razorpay_signature: payment.notes?.signature || null,
+          payment_date: new Date().toISOString(),
+          transaction_id: razorpayPaymentId,
+        });
+
+        if (paymentError) {
+          console.error("Error creating bulk payment record:", paymentError);
+          continue;
+        }
+
+        const newPaidAmount = Number(invoice.paid_amount || 0) + appliedAmount;
+        const newStatus = newPaidAmount >= Number(invoice.final_amount) ? "paid" : "partial";
+
+        const { error: updateError } = await supabaseAdmin
+          .from("invoices")
+          .update({
+            paid_amount: newPaidAmount,
+            payment_status: newStatus,
+            payment_method: "online",
+            paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+          })
+          .eq("id", invoiceId);
+
+        if (updateError) {
+          console.error("Error updating invoice for bulk payment:", updateError);
+          continue;
+        }
+
+        processedInvoiceIds.push(invoiceId);
+      }
+
       return new Response(
-        JSON.stringify({ received: true, message: "Payment already processed" }),
+        JSON.stringify({
+          success: true,
+          message: "Bulk payment processed successfully",
+          invoice_ids: processedInvoiceIds,
+          payment_id: razorpayPaymentId,
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -141,6 +237,20 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Invoice ID not found" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: existingPayments } = await supabaseAdmin
+      .from("payments")
+      .select("id")
+      .eq("invoice_id", invoiceId)
+      .eq("razorpay_order_id", razorpayOrderId)
+      .limit(1);
+
+    if (existingPayments && existingPayments.length > 0) {
+      return new Response(
+        JSON.stringify({ received: true, message: "Payment already processed" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -215,4 +325,3 @@ serve(async (req: Request) => {
     );
   }
 });
-

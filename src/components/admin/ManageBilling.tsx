@@ -121,6 +121,16 @@ interface InvoiceItem {
   amount: number;
 }
 
+interface Payment {
+  id: string;
+  amount: number;
+  payment_method: string;
+  payment_date: string;
+  transaction_id: string | null;
+  razorpay_order_id: string | null;
+  razorpay_payment_id: string | null;
+}
+
 interface Test {
   id: string;
   name: string;
@@ -175,6 +185,7 @@ const ManageBilling = () => {
   // Tests database for price lookup
   const [testsDb, setTestsDb] = useState<Test[]>([]);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   const fetchInvoices = async () => {
     try {
@@ -299,6 +310,21 @@ const ManageBilling = () => {
       setInvoiceItems((data || []) as InvoiceItem[]);
     } catch (error) {
       console.error("Error fetching invoice items:", error);
+    }
+  };
+
+  const fetchPayments = async (invoiceId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("id, amount, payment_method, payment_date, transaction_id, razorpay_order_id, razorpay_payment_id")
+        .eq("invoice_id", invoiceId)
+        .order("payment_date", { ascending: false });
+
+      if (error) throw error;
+      setPayments((data || []) as Payment[]);
+    } catch (error) {
+      console.error("Error fetching payments:", error);
     }
   };
 
@@ -749,6 +775,17 @@ const ManageBilling = () => {
     }
   };
 
+  const getPaymentMethodLabel = (method: string) => {
+    switch (method) {
+      case "cash": return "Cash";
+      case "upi": return "UPI";
+      case "card": return "Card";
+      case "bank_transfer": return "Bank Transfer";
+      case "online": return "Online";
+      default: return method;
+    }
+  };
+
   const handlePrintInvoice = async (invoice: Invoice) => {
     // Fetch invoice items for the invoice
     const { data: items, error } = await supabase
@@ -758,6 +795,17 @@ const ManageBilling = () => {
 
     if (error) {
       toast.error("Failed to fetch invoice items");
+      return;
+    }
+
+    const { data: paymentData, error: paymentError } = await supabase
+      .from("payments")
+      .select("amount, payment_method, payment_date, transaction_id, razorpay_order_id, razorpay_payment_id")
+      .eq("invoice_id", invoice.id)
+      .order("payment_date", { ascending: false });
+
+    if (paymentError) {
+      toast.error("Failed to fetch payments");
       return;
     }
 
@@ -772,7 +820,7 @@ const ManageBilling = () => {
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("IRM Clinical Pathology Laboratory", pageWidth / 2, 28, { align: "center" });
-    doc.text("Pampore, Pulwama, J&K | +91 9419034607", pageWidth / 2, 34, { align: "center" });
+    doc.text("Zabarpora Budgam, J&K | 9419034607", pageWidth / 2, 34, { align: "center" });
     
     // Invoice details
     doc.setFontSize(11);
@@ -852,10 +900,42 @@ const ManageBilling = () => {
     doc.text(`₹${Number(invoice.paid_amount).toLocaleString()}`, pageWidth - 14, finalY + 42, { align: "right" });
     
     const outstanding = invoice.final_amount - invoice.paid_amount;
+    let summaryEndY = finalY + 42;
     if (outstanding > 0) {
       doc.setTextColor(255, 100, 100);
       doc.text("Outstanding:", pageWidth - 70, finalY + 52);
       doc.text(`₹${outstanding.toLocaleString()}`, pageWidth - 14, finalY + 52, { align: "right" });
+      doc.setTextColor(0, 0, 0);
+      summaryEndY = finalY + 52;
+    }
+
+    const paymentsForInvoice = paymentData || [];
+    if (paymentsForInvoice.length > 0) {
+      let paymentY = summaryEndY + 12;
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("Payments", 14, paymentY);
+      paymentY += 6;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(80, 80, 80);
+
+      paymentsForInvoice.forEach((payment) => {
+        const method = getPaymentMethodLabel(payment.payment_method);
+        const dateText = format(new Date(payment.payment_date), "dd MMM yyyy");
+        const txnId = payment.razorpay_payment_id || payment.transaction_id;
+        const orderId = payment.razorpay_order_id;
+        const detailParts = [
+          `${method} • ${dateText}`,
+          txnId ? `Txn: ${txnId}` : null,
+          orderId ? `Order: ${orderId}` : null,
+        ].filter(Boolean);
+
+        doc.text(`₹${Number(payment.amount).toLocaleString()} - ${detailParts.join(" | ")}`, 14, paymentY);
+        paymentY += 5;
+      });
+
       doc.setTextColor(0, 0, 0);
     }
     
@@ -1044,7 +1124,9 @@ const ManageBilling = () => {
                           size="sm"
                           onClick={async () => {
                             setSelectedInvoice(invoice);
+                            setPayments([]);
                             await fetchInvoiceItems(invoice.id);
+                            await fetchPayments(invoice.id);
                             setIsDetailsOpen(true);
                           }}
                           title="View Details"
@@ -1470,7 +1552,7 @@ const ManageBilling = () => {
 
       {/* Invoice Details Sheet */}
       <Sheet open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <SheetContent className="sm:max-w-lg">
+        <SheetContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5" />
@@ -1542,6 +1624,34 @@ const ManageBilling = () => {
                   </div>
                 )}
               </div>
+
+              {payments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Payment History</p>
+                  <div className="border rounded-lg divide-y">
+                    {payments.map((payment) => (
+                      <div key={payment.id} className="p-3 flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">₹{payment.amount.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {getPaymentMethodLabel(payment.payment_method)} • {format(new Date(payment.payment_date), "dd MMM yyyy")}
+                          </p>
+                        </div>
+                        {(payment.razorpay_payment_id || payment.transaction_id || payment.razorpay_order_id) && (
+                          <div className="text-right text-xs font-mono text-muted-foreground">
+                            {(payment.razorpay_payment_id || payment.transaction_id) && (
+                              <div>Txn: {payment.razorpay_payment_id || payment.transaction_id}</div>
+                            )}
+                            {payment.razorpay_order_id && (
+                              <div>Order: {payment.razorpay_order_id}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {selectedInvoice.notes && (
                 <div className="p-3 bg-muted/30 rounded-lg">

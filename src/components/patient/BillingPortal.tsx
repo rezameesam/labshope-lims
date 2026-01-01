@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { 
   Receipt, IndianRupee, CheckCircle, Clock, XCircle, 
-  Calendar, FileText, CreditCard, Download
+  Calendar, FileText, Download
 } from "lucide-react";
 import { RazorpayButton } from "@/components/payment/RazorpayButton";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,8 @@ interface Payment {
   amount: number;
   payment_method: string;
   transaction_id: string | null;
+  razorpay_order_id?: string | null;
+  razorpay_payment_id?: string | null;
   payment_date: string;
 }
 
@@ -172,6 +174,12 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
           .from("invoice_items")
           .select("*")
           .eq("invoice_id", invoice.id);
+        
+        const { data: paymentData } = await supabase
+          .from("payments")
+          .select("amount, payment_method, payment_date, transaction_id, razorpay_order_id, razorpay_payment_id")
+          .eq("invoice_id", invoice.id)
+          .order("payment_date", { ascending: false });
 
         // Header
         doc.setFontSize(20);
@@ -181,7 +189,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         yOffset += 8;
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text("Pampore, Pulwama, J&K | Phone: +91 9419034607", 105, yOffset, { align: "center" });
+        doc.text("Zabarpora Budgam, J&K | Phone: 9419034607", 105, yOffset, { align: "center" });
         
         yOffset += 15;
         doc.setFontSize(16);
@@ -252,6 +260,39 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         }
         
         doc.setTextColor(0, 0, 0);
+
+        const paymentsForInvoice = paymentData || [];
+        if (paymentsForInvoice.length > 0) {
+          yOffset += 10;
+          doc.setFontSize(11);
+          doc.setTextColor(0, 0, 0);
+          doc.text("Payments", 20, yOffset);
+
+          yOffset += 6;
+          doc.setFontSize(9);
+          doc.setTextColor(80, 80, 80);
+
+          paymentsForInvoice.forEach((payment) => {
+            const method = getPaymentMethodLabel(payment.payment_method);
+            const dateText = format(new Date(payment.payment_date), "dd MMM yyyy");
+            const txnId = payment.razorpay_payment_id || payment.transaction_id;
+            const orderId = payment.razorpay_order_id;
+            const lines = [
+              `₹${Number(payment.amount).toLocaleString()}`,
+              `${method} • ${dateText}`,
+              txnId ? `Txn: ${txnId}` : null,
+              orderId ? `Order: ${orderId}` : null,
+            ].filter(Boolean) as string[];
+
+            lines.forEach((line) => {
+              const wrapped = doc.splitTextToSize(line, 170);
+              doc.text(wrapped, 20, yOffset);
+              yOffset += wrapped.length * 5;
+            });
+
+            yOffset += 1;
+          });
+        }
       }
 
       // Save the PDF
@@ -385,6 +426,34 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     {selectedInvoiceIds.size} selected
                   </Badge>
                 )}
+                {(() => {
+                  const unpaidInvoices = invoices.filter(
+                    inv => inv.payment_status !== "paid" && (inv.final_amount - inv.paid_amount) > 0
+                  );
+                  const totalOutstanding = unpaidInvoices.reduce(
+                    (sum, inv) => sum + (inv.final_amount - inv.paid_amount),
+                    0
+                  );
+
+                  if (unpaidInvoices.length > 0) {
+                    return (
+                      <RazorpayButton
+                        amount={totalOutstanding}
+                        invoices={unpaidInvoices.map((inv) => ({
+                          id: inv.id,
+                          invoice_number: inv.invoice_number,
+                          amount: inv.final_amount - inv.paid_amount,
+                        }))}
+                        patientName={patientName}
+                        patientPhone={patientPhone}
+                        label={`Pay All Outstanding (₹${totalOutstanding.toLocaleString()})`}
+                        size="sm"
+                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                      />
+                    );
+                  }
+                  return null;
+                })()}
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -571,8 +640,15 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                             {getPaymentMethodLabel(payment.payment_method)} • {format(new Date(payment.payment_date), "dd MMM yyyy")}
                           </p>
                         </div>
-                        {payment.transaction_id && (
-                          <span className="text-xs font-mono text-muted-foreground">{payment.transaction_id}</span>
+                        {(payment.razorpay_payment_id || payment.transaction_id || payment.razorpay_order_id) && (
+                          <div className="text-right text-xs font-mono text-muted-foreground">
+                            {(payment.razorpay_payment_id || payment.transaction_id) && (
+                              <div>Txn: {payment.razorpay_payment_id || payment.transaction_id}</div>
+                            )}
+                            {payment.razorpay_order_id && (
+                              <div>Order: {payment.razorpay_order_id}</div>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
