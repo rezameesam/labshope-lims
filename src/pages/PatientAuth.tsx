@@ -24,7 +24,7 @@ import { toast } from "sonner";
 
 const PatientAuth = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, loading, sendOtp, verifyOtp, selectPatient } = usePatientAuth();
+  const { isAuthenticated, loading, sendOtp, verifyOtp, selectPatient, demoMode } = usePatientAuth();
   const [step, setStep] = useState<"phone" | "otp" | "select">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -32,6 +32,7 @@ const PatientAuth = () => {
   const [countdown, setCountdown] = useState(0);
   const [availablePatients, setAvailablePatients] = useState<any[]>([]);
   const [selectingPatient, setSelectingPatient] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(true);
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -54,12 +55,17 @@ const PatientAuth = () => {
     }
     setIsLoading(true);
     
-    const { error } = await sendOtp(phone);
+    const { error, demoMode: isDemo } = await sendOtp(phone);
     
     setIsLoading(false);
     if (error) {
       toast.error(error.message);
       return;
+    }
+    
+    // Update demo mode state based on response
+    if (isDemo !== undefined) {
+      setIsDemoMode(isDemo);
     }
     
     setStep("otp");
@@ -408,12 +414,14 @@ const PatientAuth = () => {
             </Link>
           </p>
 
-          {/* Demo Mode Notice */}
-          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-            <p className="text-xs text-amber-800 dark:text-amber-200 text-center">
-              <strong>Demo Mode:</strong> Use OTP <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">123456</span> to login
-            </p>
-          </div>
+          {/* Demo Mode Notice - only show when demo mode is enabled */}
+          {isDemoMode && (
+            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <p className="text-xs text-amber-800 dark:text-amber-200 text-center">
+                <strong>Demo Mode:</strong> Use OTP <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">123456</span> to login
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 interface Patient {
   id: string;
@@ -19,8 +18,9 @@ interface PatientAuthContextType {
   patient: Patient | null;
   loading: boolean;
   isAuthenticated: boolean;
-  sendOtp: (phone: string) => Promise<{ error: Error | null }>;
-  verifyOtp: (phone: string, token: string) => Promise<{ error: Error | null }>;
+  demoMode: boolean;
+  sendOtp: (phone: string) => Promise<{ error: Error | null; demoMode?: boolean }>;
+  verifyOtp: (phone: string, token: string) => Promise<{ error: Error | null; needsSelection?: boolean; patient?: Patient }>;
   selectPatient: (phone: string) => Promise<{ patients: Patient[]; error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -30,6 +30,7 @@ const PatientAuthContext = createContext<PatientAuthContextType | undefined>(und
 export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(true);
 
   // Check for existing patient session on mount
   useEffect(() => {
@@ -66,110 +67,67 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     checkSession();
   }, []);
 
-  const sendOtp = async (phone: string): Promise<{ error: Error | null }> => {
+  const sendOtp = async (phone: string): Promise<{ error: Error | null; demoMode?: boolean }> => {
     try {
-      // First check if patient(s) exist with this phone
-      const { data: existingPatients, error: checkError } = await supabase
-        .from("patients")
-        .select("id, phone")
-        .eq("phone", phone)
-        .eq("is_active", true);
-
-      if (checkError || !existingPatients || existingPatients.length === 0) {
-        return { 
-          error: new Error("No patient account found with this phone number. Please contact the clinic.") 
-        };
-      }
-
-      // If multiple patients found, we'll handle selection in verifyOtp
-      // For now, just proceed with OTP (selection happens after verification)
-
-      // Use Supabase phone auth
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: `+91${phone}`,
-        options: {
-          channel: 'sms',
-        }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone }),
       });
 
-      if (error) {
-        console.error("Supabase OTP error:", error);
-        // For demo, allow bypass if Supabase phone auth isn't configured
-        if (
-          error.message.toLowerCase().includes("phone") || 
-          error.message.includes("not enabled") ||
-          error.message.includes("unsupported")
-        ) {
-          toast.info("Demo mode: Use 123456 as OTP");
-          return { error: null };
-        }
-        return { error: error as Error };
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to send OTP") };
       }
 
-      return { error: null };
+      // Update demo mode state
+      if (result.demo_mode !== undefined) {
+        setDemoMode(result.demo_mode);
+      }
+
+      return { error: null, demoMode: result.demo_mode };
     } catch (error) {
       return { error: error as Error };
     }
   };
 
-  const verifyOtp = async (phone: string, token: string): Promise<{ error: Error | null; needsSelection?: boolean }> => {
+  const verifyOtp = async (phone: string, token: string): Promise<{ error: Error | null; needsSelection?: boolean; patient?: Patient }> => {
     try {
-      // Demo mode check - accept 123456 as OTP
-      if (token === "123456") {
-        const { data: patientsData, error: patientError } = await supabase
-          .from("patients")
-          .select("*")
-          .eq("phone", phone)
-          .eq("is_active", true);
-
-        if (patientError || !patientsData || patientsData.length === 0) {
-          return { error: new Error("Patient not found") };
-        }
-
-        // If multiple patients, return them for selection
-        if (patientsData.length > 1) {
-          return { error: null, needsSelection: true };
-        }
-
-        // Single patient found
-        setPatient(patientsData[0] as Patient);
-        localStorage.setItem("patient_phone", phone);
-        localStorage.setItem("patient_id", patientsData[0].id);
-        return { error: null };
-      }
-
-      // Real Supabase verification
-      const { error } = await supabase.auth.verifyOtp({
-        phone: `+91${phone}`,
-        token,
-        type: 'sms',
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/verify-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone, otp: token }),
       });
 
-      if (error) {
-        return { error: error as Error };
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to verify OTP") };
       }
 
-      // Fetch patient data after successful verification
-      const { data: patientsData, error: patientError } = await supabase
-        .from("patients")
-        .select("*")
-        .eq("phone", phone)
-        .eq("is_active", true);
-
-      if (patientError || !patientsData || patientsData.length === 0) {
-        return { error: new Error("Patient record not found") };
-      }
-
-      // If multiple patients, return them for selection
-      if (patientsData.length > 1) {
+      // If multiple patients, return for selection
+      if (result.needs_selection) {
         return { error: null, needsSelection: true };
       }
 
-      // Single patient found
-      setPatient(patientsData[0] as Patient);
-      localStorage.setItem("patient_phone", phone);
-      localStorage.setItem("patient_id", patientsData[0].id);
-      return { error: null };
+      // Single patient found - set it
+      if (result.patient) {
+        setPatient(result.patient as Patient);
+        localStorage.setItem("patient_phone", phone);
+        localStorage.setItem("patient_id", result.patient.id);
+        return { error: null, patient: result.patient };
+      }
+
+      return { error: new Error("Unexpected response from server") };
     } catch (error) {
       return { error: error as Error };
     }
@@ -207,6 +165,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         patient,
         loading,
         isAuthenticated: !!patient,
+        demoMode,
         sendOtp,
         verifyOtp,
         selectPatient,
