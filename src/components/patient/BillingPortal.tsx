@@ -56,9 +56,8 @@ interface Payment {
   amount: number;
   payment_method: string;
   transaction_id: string | null;
-  razorpay_order_id?: string | null;
-  razorpay_payment_id?: string | null;
   payment_date: string;
+  notes: string | null;
 }
 
 interface BillingPortalProps {
@@ -177,7 +176,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         
         const { data: paymentData } = await supabase
           .from("payments")
-          .select("amount, payment_method, payment_date, transaction_id, razorpay_order_id, razorpay_payment_id")
+          .select("amount, payment_method, payment_date, transaction_id")
           .eq("invoice_id", invoice.id)
           .order("payment_date", { ascending: false });
 
@@ -275,13 +274,11 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
           paymentsForInvoice.forEach((payment) => {
             const method = getPaymentMethodLabel(payment.payment_method);
             const dateText = format(new Date(payment.payment_date), "dd MMM yyyy");
-            const txnId = payment.razorpay_payment_id || payment.transaction_id;
-            const orderId = payment.razorpay_order_id;
+            const txnId = payment.transaction_id;
             const lines = [
               `₹${Number(payment.amount).toLocaleString()}`,
               `${method} • ${dateText}`,
               txnId ? `Txn: ${txnId}` : null,
-              orderId ? `Order: ${orderId}` : null,
             ].filter(Boolean) as string[];
 
             lines.forEach((line) => {
@@ -640,14 +637,9 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                             {getPaymentMethodLabel(payment.payment_method)} • {format(new Date(payment.payment_date), "dd MMM yyyy")}
                           </p>
                         </div>
-                        {(payment.razorpay_payment_id || payment.transaction_id || payment.razorpay_order_id) && (
+                        {payment.transaction_id && (
                           <div className="text-right text-xs font-mono text-muted-foreground">
-                            {(payment.razorpay_payment_id || payment.transaction_id) && (
-                              <div>Txn: {payment.razorpay_payment_id || payment.transaction_id}</div>
-                            )}
-                            {payment.razorpay_order_id && (
-                              <div>Order: {payment.razorpay_order_id}</div>
-                            )}
+                            <div>Txn: {payment.transaction_id}</div>
                           </div>
                         )}
                       </div>
