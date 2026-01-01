@@ -8,9 +8,10 @@ const corsHeaders = {
 };
 
 interface CreateOrderRequest {
-  invoice_id: string;
+  invoice_id?: string;
+  invoice_ids?: string[];
   amount: number; // Amount in rupees
-  invoice_number: string;
+  invoice_number?: string;
   patient_name?: string;
   patient_email?: string;
   patient_phone?: string;
@@ -47,59 +48,126 @@ serve(async (req: Request) => {
     // Note: verify_jwt = false in config, so we don't strictly require auth
     // But we still verify invoice exists and belongs to a valid patient
 
-    const { invoice_id, amount, invoice_number, patient_name, patient_email, patient_phone }: CreateOrderRequest = await req.json();
+    const { invoice_id, invoice_ids, amount }: CreateOrderRequest = await req.json();
+    const hasBulkInvoices = Array.isArray(invoice_ids) && invoice_ids.length > 0;
 
-    if (!invoice_id || !amount || amount <= 0) {
+    if ((!invoice_id && !hasBulkInvoices) || !amount || amount <= 0) {
       return new Response(
-        JSON.stringify({ error: "Invalid request. invoice_id and amount are required." }),
+        JSON.stringify({ error: "Invalid request. invoice_id (or invoice_ids) and amount are required." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verify invoice exists and get details
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const { data: invoice, error: invoiceError } = await supabaseAdmin
-      .from("invoices")
-      .select("id, invoice_number, final_amount, paid_amount, payment_status, patient_id")
-      .eq("id", invoice_id)
-      .single();
+    let orderAmount = Math.round(amount * 100);
+    let orderData: Record<string, unknown> = {};
 
-    if (invoiceError || !invoice) {
-      return new Response(
-        JSON.stringify({ error: "Invoice not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (hasBulkInvoices) {
+      const { data: invoices, error: invoicesError } = await supabaseAdmin
+        .from("invoices")
+        .select("id, invoice_number, final_amount, paid_amount, payment_status, patient_id")
+        .in("id", invoice_ids as string[]);
+
+      if (invoicesError || !invoices || invoices.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Invoices not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (invoices.length !== (invoice_ids as string[]).length) {
+        return new Response(
+          JSON.stringify({ error: "One or more invoices are invalid" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const patientIds = new Set(invoices.map((inv) => inv.patient_id));
+      if (patientIds.size > 1) {
+        return new Response(
+          JSON.stringify({ error: "Invoices must belong to the same patient" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const invoicePayments = invoices
+        .map((inv) => ({
+          invoice_id: inv.id,
+          invoice_number: inv.invoice_number,
+          amount: Number(inv.final_amount) - Number(inv.paid_amount || 0),
+        }))
+        .filter((inv) => inv.amount > 0);
+
+      if (invoicePayments.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "No outstanding invoices to pay" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const totalOutstanding = invoicePayments.reduce((sum, inv) => sum + inv.amount, 0);
+      if (Math.abs(totalOutstanding - amount) > 0.01) {
+        return new Response(
+          JSON.stringify({ error: `Amount must equal total outstanding of ₹${totalOutstanding}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      orderAmount = Math.round(totalOutstanding * 100);
+      orderData = {
+        amount: orderAmount,
+        currency: "INR",
+        receipt: `BULK-${Date.now()}`,
+        notes: {
+          bulk_invoices: JSON.stringify(invoicePayments),
+          invoice_count: String(invoicePayments.length),
+          patient_id: invoices[0].patient_id,
+        },
+      };
+    } else {
+      // Verify invoice exists and get details
+      const { data: invoice, error: invoiceError } = await supabaseAdmin
+        .from("invoices")
+        .select("id, invoice_number, final_amount, paid_amount, payment_status, patient_id")
+        .eq("id", invoice_id)
+        .single();
+
+      if (invoiceError || !invoice) {
+        return new Response(
+          JSON.stringify({ error: "Invoice not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if invoice is already paid
+      if (invoice.payment_status === "paid") {
+        return new Response(
+          JSON.stringify({ error: "Invoice is already paid" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Calculate outstanding amount
+      const outstandingAmount = Number(invoice.final_amount) - Number(invoice.paid_amount || 0);
+      if (amount > outstandingAmount) {
+        return new Response(
+          JSON.stringify({ error: `Amount exceeds outstanding amount of ₹${outstandingAmount}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Create Razorpay order
+      orderAmount = Math.round(amount * 100); // Convert to paise
+      orderData = {
+        amount: orderAmount,
+        currency: "INR",
+        receipt: `INV-${invoice.invoice_number}`,
+        notes: {
+          invoice_id: invoice_id,
+          invoice_number: invoice.invoice_number,
+          patient_id: invoice.patient_id,
+        },
+      };
     }
-
-    // Check if invoice is already paid
-    if (invoice.payment_status === "paid") {
-      return new Response(
-        JSON.stringify({ error: "Invoice is already paid" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Calculate outstanding amount
-    const outstandingAmount = Number(invoice.final_amount) - Number(invoice.paid_amount || 0);
-    if (amount > outstandingAmount) {
-      return new Response(
-        JSON.stringify({ error: `Amount exceeds outstanding amount of ₹${outstandingAmount}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create Razorpay order
-    const orderAmount = Math.round(amount * 100); // Convert to paise
-    const orderData = {
-      amount: orderAmount,
-      currency: "INR",
-      receipt: `INV-${invoice.invoice_number}`,
-      notes: {
-        invoice_id: invoice_id,
-        invoice_number: invoice.invoice_number,
-        patient_id: invoice.patient_id,
-      },
-    };
 
     // Call Razorpay API to create order
     const razorpayResponse = await fetch("https://api.razorpay.com/v1/orders", {
@@ -143,4 +211,3 @@ serve(async (req: Request) => {
     );
   }
 });
-
