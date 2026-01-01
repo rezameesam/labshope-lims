@@ -4,6 +4,7 @@ import {
   Calendar, FileText, CreditCard, Download, Wallet,
   AlertCircle
 } from "lucide-react";
+import { RazorpayButton } from "@/components/payment/RazorpayButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -642,16 +643,32 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {invoice.payment_status !== "paid" && (
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                            onClick={() => openPaymentDialog(invoice)}
-                            className="gap-1"
-                          >
-                            <Wallet className="h-4 w-4" />
-                            Pay
-                          </Button>
+                        {invoice.payment_status !== "paid" && (invoice.final_amount - invoice.paid_amount) > 0 && (
+                          <>
+                            <RazorpayButton
+                              invoiceId={invoice.id}
+                              invoiceNumber={invoice.invoice_number}
+                              amount={invoice.final_amount - invoice.paid_amount}
+                              patientName={patientName}
+                              patientPhone={patientPhone}
+                              onPaymentSuccess={() => {
+                                fetchInvoices();
+                                onPaymentStatusChange?.();
+                              }}
+                              variant="default"
+                              size="sm"
+                              className="gap-1"
+                            />
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => openPaymentDialog(invoice)}
+                              className="gap-1"
+                            >
+                              <Wallet className="h-4 w-4" />
+                              Manual
+                            </Button>
+                          </>
                         )}
                         <Button 
                           variant="ghost" 
@@ -771,15 +788,44 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
 
               {/* Outstanding Payment Notice */}
               {selectedInvoice.payment_status !== "paid" && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <IndianRupee className="h-5 w-5 text-amber-600 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-amber-900 dark:text-amber-100">Payment Pending</h4>
-                      <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                        Please visit the lab to complete your payment or pay using UPI/Card at the reception.
-                      </p>
+                <div className="space-y-4">
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <IndianRupee className="h-5 w-5 text-amber-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-amber-900 dark:text-amber-100">Payment Pending</h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                          Pay online securely or visit the lab to complete your payment.
+                        </p>
+                      </div>
                     </div>
+                  </div>
+                  
+                  {/* Razorpay Payment Button */}
+                  <RazorpayButton
+                    invoiceId={selectedInvoice.id}
+                    invoiceNumber={selectedInvoice.invoice_number}
+                    amount={selectedInvoice.final_amount - selectedInvoice.paid_amount}
+                    patientName={patientName}
+                    patientPhone={patientPhone}
+                    onPaymentSuccess={() => {
+                      fetchInvoices();
+                      fetchInvoiceDetails(selectedInvoice.id);
+                      onPaymentStatusChange?.();
+                    }}
+                    className="w-full"
+                    variant="default"
+                  />
+                  
+                  <div className="text-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => openPaymentDialog(selectedInvoice)}
+                      className="w-full"
+                    >
+                      <Wallet className="mr-2 h-4 w-4" />
+                      Record Manual Payment
+                    </Button>
                   </div>
                 </div>
               )}

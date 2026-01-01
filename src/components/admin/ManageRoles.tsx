@@ -560,7 +560,7 @@ const ManageRoles = () => {
                   {selectedPermissions.size} selected
                 </Badge>
               </div>
-              <ScrollArea className="flex-1 border rounded-lg p-4 min-h-[400px] max-h-[500px]">
+              <ScrollArea className="h-[600px] border rounded-lg p-4">
                 <div className="space-y-6">
                   {Object.entries(PERMISSION_GROUPS).map(([groupName, permissions]) => {
                     const allSelected = permissions.every((p) => selectedPermissions.has(p));

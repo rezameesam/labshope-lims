@@ -21,7 +21,8 @@ USING (
 );
 
 -- Collectors can create patients (created_by will be set automatically)
-CREATE POLICY IF NOT EXISTS "Collectors can create patients"
+DROP POLICY IF EXISTS "Collectors can create patients" ON public.patients;
+CREATE POLICY "Collectors can create patients"
 ON public.patients FOR INSERT
 WITH CHECK (
   public.has_role(auth.uid(), 'admin') OR 
@@ -30,7 +31,8 @@ WITH CHECK (
 );
 
 -- Collectors can update their own patients
-CREATE POLICY IF NOT EXISTS "Collectors can update their own patients"
+DROP POLICY IF EXISTS "Collectors can update their own patients" ON public.patients;
+CREATE POLICY "Collectors can update their own patients"
 ON public.patients FOR UPDATE
 USING (
   public.has_role(auth.uid(), 'admin') OR 

@@ -2,7 +2,11 @@
 -- This allows creating custom roles with granular permissions
 
 -- Create permissions enum (list of all available permissions)
-CREATE TYPE public.permission_type AS ENUM (
+-- Note: This enum may already exist from a previous migration, so we check first
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'permission_type') THEN
+    CREATE TYPE public.permission_type AS ENUM (
   -- Patient Management
   'view_patients',
   'create_patients',
@@ -66,7 +70,9 @@ CREATE TYPE public.permission_type AS ENUM (
   -- Settings
   'manage_settings',
   'view_audit_logs'
-);
+    );
+  END IF;
+END $$;
 
 -- Create custom_roles table
 CREATE TABLE IF NOT EXISTS public.custom_roles (
@@ -109,34 +115,40 @@ ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_custom_roles ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for custom_roles
+DROP POLICY IF EXISTS "Admins can view all custom roles" ON public.custom_roles;
 CREATE POLICY "Admins can view all custom roles"
 ON public.custom_roles FOR SELECT
-USING (public.has_role(auth.uid(), 'admin'));
+USING (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "Admins can manage custom roles" ON public.custom_roles;
 CREATE POLICY "Admins can manage custom roles"
 ON public.custom_roles FOR ALL
-USING (public.has_role(auth.uid(), 'admin'))
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
+USING (public.has_role(auth.uid(), 'admin'::app_role))
+WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
 -- RLS Policies for role_permissions
+DROP POLICY IF EXISTS "Admins can view role permissions" ON public.role_permissions;
 CREATE POLICY "Admins can view role permissions"
 ON public.role_permissions FOR SELECT
-USING (public.has_role(auth.uid(), 'admin'));
+USING (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "Admins can manage role permissions" ON public.role_permissions;
 CREATE POLICY "Admins can manage role permissions"
 ON public.role_permissions FOR ALL
-USING (public.has_role(auth.uid(), 'admin'))
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
+USING (public.has_role(auth.uid(), 'admin'::app_role))
+WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
 -- RLS Policies for user_custom_roles
+DROP POLICY IF EXISTS "Admins can view user custom roles" ON public.user_custom_roles;
 CREATE POLICY "Admins can view user custom roles"
 ON public.user_custom_roles FOR SELECT
-USING (public.has_role(auth.uid(), 'admin'));
+USING (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "Admins can manage user custom roles" ON public.user_custom_roles;
 CREATE POLICY "Admins can manage user custom roles"
 ON public.user_custom_roles FOR ALL
-USING (public.has_role(auth.uid(), 'admin'))
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
+USING (public.has_role(auth.uid(), 'admin'::app_role))
+WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
 -- Function to check if user has a specific permission
 CREATE OR REPLACE FUNCTION public.has_permission(_user_id UUID, _permission permission_type)
@@ -150,7 +162,7 @@ AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id = _user_id
-    AND role = 'admin'
+    AND role = 'admin'::app_role
   )
   OR EXISTS (
     -- Check if user has a custom role with this permission
@@ -180,7 +192,7 @@ AS $$
   WHERE EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id = _user_id
-    AND role = 'admin'
+    AND role = 'admin'::app_role
   )
   UNION
   -- Otherwise, return permissions from custom roles
@@ -193,6 +205,7 @@ AS $$
 $$;
 
 -- Create trigger for updated_at
+DROP TRIGGER IF EXISTS update_custom_roles_updated_at ON public.custom_roles;
 CREATE TRIGGER update_custom_roles_updated_at
 BEFORE UPDATE ON public.custom_roles
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

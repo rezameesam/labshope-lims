@@ -1,33 +1,116 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
-const contactInfo = [
-  {
-    icon: MapPin,
-    title: "Address",
-    details: ["Old Post Office Building", "Budgam, Jammu and Kashmir", "191111"],
-  },
-  {
-    icon: Phone,
-    title: "Phone",
-    details: ["9419034607", "9622635767"],
-    isPhone: true,
-  },
-  {
-    icon: Mail,
-    title: "Email",
-    details: ["irmclinic@gmail.com"],
-    isEmail: true,
-  },
-  {
-    icon: Clock,
-    title: "Working Hours",
-    details: ["Mon - Sat: 8:00 AM - 8:00 PM", "Sunday: 9:00 AM - 2:00 PM"],
-  },
-];
+interface Lab {
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  phone: string | null;
+  email: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
 
 const ContactSection = () => {
+  const [lab, setLab] = useState<Lab | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMainLab();
+  }, []);
+
+  const fetchMainLab = async () => {
+    try {
+      // Fetch the main lab (type = 'main')
+      const { data, error } = await supabase
+        .from("labs")
+        .select("address, city, state, pincode, phone, email, latitude, longitude")
+        .eq("type", "main")
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 is "not found" - that's okay, we'll use defaults
+        console.error("Error fetching lab:", error);
+      }
+
+      if (data) {
+        setLab(data);
+      }
+    } catch (error) {
+      console.error("Error fetching lab:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generate Google Maps embed URL
+  const getMapUrl = () => {
+    // Use the exact embed URL from Google Maps for IRM Clinical Laboratory
+    // This is the most accurate embed URL with place information
+    // Coordinates: 34.0166940731705, 74.71822307563335
+    const irmLabEmbedUrl = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3307.0590933298504!2d74.71822307563335!3d34.0166940731705!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e19111ec877e3b%3A0xf2ba762566daa3b4!2sIRM%20Clinical%20Laboratory!5e0!3m2!1sen!2sin!4v1767269360513!5m2!1sen!2sin";
+    
+    // If we have coordinates in the database, we could use them, but the embed URL is more accurate
+    // as it includes the place information and proper view settings
+    if (lab?.latitude && lab?.longitude) {
+      // Coordinates are set - use the exact embed URL
+      return irmLabEmbedUrl;
+    } else if (lab?.address || lab?.city) {
+      // Fallback to address-based search if no coordinates
+      const addressParts = [
+        lab.address,
+        lab.city,
+        lab.state,
+        lab.pincode,
+      ].filter(Boolean);
+      const address = encodeURIComponent(addressParts.join(", "));
+      return `https://www.google.com/maps?q=${address}&hl=en&z=15&output=embed`;
+    }
+    // Default: Use the exact IRM Clinical Laboratory embed URL
+    return irmLabEmbedUrl;
+  };
+
+  // Build contact info from lab data or use defaults
+  const contactInfo = [
+    {
+      icon: MapPin,
+      title: "Address",
+      details: lab?.address && lab?.city
+        ? [
+            lab.address,
+            `${lab.city}${lab.state ? `, ${lab.state}` : ""}`,
+            lab.pincode || "",
+          ].filter(Boolean)
+        : ["Old Post Office Building", "Budgam, Jammu and Kashmir", "191111"],
+    },
+    {
+      icon: Phone,
+      title: "Phone",
+      details: lab?.phone
+        ? lab.phone.split(",").map((p) => p.trim())
+        : ["9419034607", "9622635767"],
+      isPhone: true,
+    },
+    {
+      icon: Mail,
+      title: "Email",
+      details: lab?.email ? [lab.email] : ["irmclinic@gmail.com"],
+      isEmail: true,
+    },
+    {
+      icon: Clock,
+      title: "Working Hours",
+      details: ["Mon - Sat: 8:00 AM - 8:00 PM", "Sunday: 9:00 AM - 2:00 PM"],
+    },
+  ];
+
   return (
     <section id="contact" className="py-20 lg:py-28 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
@@ -113,7 +196,7 @@ const ContactSection = () => {
           className="rounded-2xl overflow-hidden shadow-lg border border-border"
         >
           <iframe
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d26447.97088!2d74.7!3d34.0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e18f4f4e8c4ebd%3A0x9f4b1b9b9b9b9b9b!2sBudgam%2C%20Jammu%20and%20Kashmir%20191111!5e0!3m2!1sen!2sin!4v1703000000000!5m2!1sen!2sin"
+            src={getMapUrl()}
             width="100%"
             height="400"
             style={{ border: 0 }}

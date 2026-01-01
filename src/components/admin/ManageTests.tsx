@@ -1066,7 +1066,7 @@ const ManageTests = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <ScrollArea className="h-[300px] border rounded-lg">
+                <ScrollArea className="h-[500px] border rounded-lg">
                   <div className="p-3 space-y-4">
                     {Object.entries(filteredTestsByCategory).length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">

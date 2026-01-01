@@ -43,9 +43,10 @@ import DashboardOverview from "@/components/admin/DashboardOverview";
 import FinancialReports from "@/components/admin/FinancialReports";
 import ManageRoles from "@/components/admin/ManageRoles";
 import NotificationSettings from "@/components/admin/NotificationSettings";
+import SystemSettings from "@/components/admin/SystemSettings";
 import NoticeBoard from "@/components/admin/NoticeBoard";
 
-type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "notifications";
+type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "notifications" | "system-settings";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -105,7 +106,8 @@ const AdminDashboard = () => {
     { id: "collection-centers" as TabType, label: "Collection Centers", icon: MapPin },
     { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
     { id: "roles" as TabType, label: "Roles & Permissions", icon: Shield, adminOnly: true },
-    { id: "notifications" as TabType, label: "Notifications", icon: Settings, adminOnly: true },
+    { id: "notifications" as TabType, label: "Notifications", icon: Bell, adminOnly: true },
+    { id: "system-settings" as TabType, label: "System Settings", icon: Settings, adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
@@ -236,6 +238,7 @@ const AdminDashboard = () => {
             {activeTab === "reports" && <FinancialReports />}
             {activeTab === "roles" && hasRole("admin") && <ManageRoles />}
             {activeTab === "notifications" && hasRole("admin") && <NotificationSettings />}
+            {activeTab === "system-settings" && hasRole("admin") && <SystemSettings />}
           </motion.div>
         </div>
       </main>
