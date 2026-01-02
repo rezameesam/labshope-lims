@@ -17,15 +17,24 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies - Only admins can manage settings
-CREATE POLICY "Admins can view all settings"
-ON public.system_settings
-FOR SELECT
-USING (has_role(auth.uid(), 'admin'::app_role));
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
+    EXECUTE $policy$
+      CREATE POLICY "Admins can view all settings"
+      ON public.system_settings
+      FOR SELECT
+      USING (has_role(auth.uid(), 'admin'::app_role));
+    $policy$;
 
-CREATE POLICY "Admins can manage settings"
-ON public.system_settings
-FOR ALL
-USING (has_role(auth.uid(), 'admin'::app_role));
+    EXECUTE $policy$
+      CREATE POLICY "Admins can manage settings"
+      ON public.system_settings
+      FOR ALL
+      USING (has_role(auth.uid(), 'admin'::app_role));
+    $policy$;
+  END IF;
+END $$;
 
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_system_settings_key ON public.system_settings(setting_key);
@@ -41,8 +50,20 @@ VALUES
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- Create trigger to update updated_at
-CREATE TRIGGER update_system_settings_updated_at
-BEFORE UPDATE ON public.system_settings
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
-
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE p.proname = 'update_updated_at_column'
+      AND n.nspname = 'public'
+  ) THEN
+    EXECUTE $sql$
+      CREATE TRIGGER update_system_settings_updated_at
+      BEFORE UPDATE ON public.system_settings
+      FOR EACH ROW
+      EXECUTE FUNCTION public.update_updated_at_column();
+    $sql$;
+  END IF;
+END $$;
