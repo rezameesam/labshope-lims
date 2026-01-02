@@ -48,7 +48,14 @@ const writeConsentCookie = (consent: ConsentState) => {
 };
 
 const isPublicPath = (path: string) => {
-  const publicPaths = ["/", "/privacy", "/auth/patient", "/patient/reset-password", "/auth/employee"];
+  const publicPaths = [
+    "/",
+    "/privacy",
+    "/terms",
+    "/auth/patient",
+    "/patient/reset-password",
+    "/auth/employee",
+  ];
   return publicPaths.includes(path);
 };
 
