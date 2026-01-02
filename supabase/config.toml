@@ -23,3 +23,21 @@ verify_jwt = false
 
 [functions.verify-otp]
 verify_jwt = false
+
+[functions.patient-login]
+verify_jwt = false
+
+[functions.patient-set-password]
+verify_jwt = false
+
+[functions.patient-request-password-reset]
+verify_jwt = false
+
+[functions.patient-reset-password]
+verify_jwt = false
+
+[functions.patient-admin-reset-password]
+verify_jwt = false
+
+[functions.log-visitor]
+verify_jwt = false

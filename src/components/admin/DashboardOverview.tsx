@@ -82,7 +82,11 @@ interface TopTest {
   revenue: number;
 }
 
-const DashboardOverview = () => {
+type DashboardOverviewProps = {
+  onNavigate?: (tabId: string) => void;
+};
+
+const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
   const { user, isCollector } = useAuth();
   const [stats, setStats] = useState<Stats>({
     employees: 0,
@@ -570,7 +574,12 @@ const DashboardOverview = () => {
                 </CardTitle>
                 <CardDescription>Latest test records</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" className="text-primary">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary"
+                onClick={() => onNavigate?.("tests")}
+              >
                 View All
               </Button>
             </div>
@@ -622,6 +631,7 @@ const DashboardOverview = () => {
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 py-6 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                onClick={() => onNavigate?.("patients")}
               >
                 <UserPlus className="h-6 w-6 text-primary" />
                 <span className="font-medium">Add Patient</span>
@@ -630,6 +640,7 @@ const DashboardOverview = () => {
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 py-6 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                onClick={() => onNavigate?.("tests")}
               >
                 <ClipboardList className="h-6 w-6 text-primary" />
                 <span className="font-medium">New Test</span>
@@ -638,14 +649,19 @@ const DashboardOverview = () => {
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 py-6 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                onClick={() => onNavigate?.("reports")}
+                disabled={isCollector}
               >
                 <FileText className="h-6 w-6 text-primary" />
                 <span className="font-medium">View Reports</span>
-                <span className="text-xs text-muted-foreground">Analytics & exports</span>
+                <span className="text-xs text-muted-foreground">
+                  {isCollector ? "Admin only" : "Analytics & exports"}
+                </span>
               </Button>
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 py-6 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                onClick={() => onNavigate?.("tests")}
               >
                 <Activity className="h-6 w-6 text-primary" />
                 <span className="font-medium">Pending Tests</span>

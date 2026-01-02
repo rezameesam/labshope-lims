@@ -289,6 +289,41 @@ export async function sendTestResultNotification(
 }
 
 /**
+ * Send all tests ready notification for a visit/invoice
+ */
+export async function sendAllTestsReadyNotification(
+  patientId: string,
+  testNames: string[]
+): Promise<NotificationResult[]> {
+  const { data: patient } = await supabase
+    .from('patients')
+    .select('full_name, email, phone')
+    .eq('id', patientId)
+    .single();
+
+  if (!patient) {
+    return [{ success: false, error: 'Patient not found' }];
+  }
+
+  const list = testNames.length > 0 ? testNames.join(", ") : "your tests";
+  const message = `Dear ${patient.full_name},\n\nAll your test results are now ready. Tests: ${list}.\n\nPlease log in to your patient portal to view and download your report.\n\nThank you!`;
+
+  const notificationType = patient.email ? 'email' : 'none';
+  
+  if (notificationType === 'none') {
+    return [{ success: false, error: 'Patient has no email address and SMS is not configured' }];
+  }
+
+  return sendNotification({
+    to: patient.email || '',
+    subject: `All Test Results Ready (${testNames.length || 1})`,
+    message: message,
+    type: 'email',
+    patientId: patientId,
+  });
+}
+
+/**
  * Send reminder notification
  */
 export async function sendReminderNotification(
@@ -391,4 +426,3 @@ export async function sendPaymentReminder(
     patientId: patientId,
   });
 }
-

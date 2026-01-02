@@ -4,35 +4,45 @@ import { Link, useNavigate } from "react-router-dom";
 import { 
   Phone, 
   ArrowRight, 
-  ArrowLeft, 
   Shield, 
   FileText, 
   Clock, 
   HeartPulse,
-  Loader2,
-  CheckCircle2
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
-import PatientSelectorDialog from "@/components/patient/PatientSelectorDialog";
-import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
+import Turnstile from "@/components/ui/turnstile";
 
 const PatientAuth = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, loading, sendOtp, verifyOtp, selectPatient, demoMode } = usePatientAuth();
-  const [step, setStep] = useState<"phone" | "otp" | "select">("phone");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
+  const { isAuthenticated, loading, login, setPassword, requiresPasswordReset, requestPasswordReset } = usePatientAuth();
+  const [step, setStep] = useState<"login" | "reset">("login");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPasswordInput] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [lastLoginPassword, setLastLoginPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [availablePatients, setAvailablePatients] = useState<any[]>([]);
-  const [selectingPatient, setSelectingPatient] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState(true);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetIdentifier, setResetIdentifier] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [loginCaptchaToken, setLoginCaptchaToken] = useState("");
+  const [resetCaptchaToken, setResetCaptchaToken] = useState("");
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
@@ -41,114 +51,105 @@ const PatientAuth = () => {
   }, [loading, isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
+    if (requiresPasswordReset) {
+      setStep("reset");
     }
-  }, [countdown]);
+  }, [requiresPasswordReset]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
+    if (!identifier.trim() || !password) {
+      toast.error("Please enter your login details");
       return;
     }
     setIsLoading(true);
     
-    const { error, demoMode: isDemo } = await sendOtp(phone);
+    if (!loginCaptchaToken) {
+      toast.error("Please complete the security check");
+      return;
+    }
+
+    const { error, passwordResetRequired } = await login(identifier.trim(), password, loginCaptchaToken);
     
     setIsLoading(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    
-    // Update demo mode state based on response
-    if (isDemo !== undefined) {
-      setIsDemoMode(isDemo);
-    }
-    
-    setStep("otp");
-    setCountdown(60);
-    toast.success("OTP sent to your phone number");
-  };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.length !== 6) {
-      toast.error("Please enter the 6-digit OTP");
-      return;
-    }
-    setIsLoading(true);
-    
-    const result = await verifyOtp(phone, otp);
-    
-    setIsLoading(false);
-    if (result.error) {
-      toast.error(result.error.message);
+    if (passwordResetRequired) {
+      setLastLoginPassword(password);
+      setStep("reset");
+      toast.success("Please set a new password to continue");
       return;
     }
 
-    // If multiple patients found, show selection dialog
-    if ((result as any).needsSelection) {
-      const { patients, error: selectError } = await selectPatient(phone);
-      if (selectError || !patients || patients.length === 0) {
-        toast.error("Failed to load patient accounts");
-        return;
-      }
-      setAvailablePatients(patients);
-      setStep("select");
-      return;
-    }
-    
     toast.success("Welcome to your Patient Portal!");
     navigate("/patient/dashboard");
   };
 
-  const handleSelectPatient = async (patientId: string) => {
-    setSelectingPatient(true);
-    try {
-      const { data: patientData, error } = await supabase
-        .from("patients")
-        .select("*")
-        .eq("id", patientId)
-        .eq("phone", phone)
-        .eq("is_active", true)
-        .single();
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      if (error || !patientData) {
-        toast.error("Failed to load patient account");
-        return;
-      }
-
-      // Store patient info and reload to trigger context update
-      localStorage.setItem("patient_phone", phone);
-      localStorage.setItem("patient_id", patientId);
-      
-      // Small delay to ensure localStorage is set, then navigate
-      setTimeout(() => {
-        window.location.href = "/patient/dashboard";
-      }, 100);
-    } catch (error) {
-      toast.error("An error occurred");
-      setSelectingPatient(false);
+    const current = lastLoginPassword || currentPassword;
+    if (!current) {
+      toast.error("Please enter your current password");
+      return;
     }
-  };
 
-  const handleResendOtp = async () => {
-    if (countdown > 0) return;
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
     setIsLoading(true);
-    
-    const { error } = await sendOtp(phone);
-    
+    const { error } = await setPassword(current, newPassword);
     setIsLoading(false);
+
     if (error) {
       toast.error(error.message);
       return;
     }
-    
-    setCountdown(60);
-    toast.success("OTP resent successfully");
+
+    toast.success("Password updated successfully");
+    navigate("/patient/dashboard");
+  };
+
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!resetIdentifier.trim()) {
+      toast.error("Please enter your email, phone, or patient ID");
+      return;
+    }
+
+    if (!resetCaptchaToken) {
+      toast.error("Please complete the security check");
+      return;
+    }
+
+    setResetLoading(true);
+    const { error } = await requestPasswordReset(
+      resetIdentifier.trim(),
+      `${window.location.origin}/patient/reset-password`,
+      resetCaptchaToken
+    );
+    setResetLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("If an account exists, a reset link has been sent.");
+    setResetDialogOpen(false);
+    setResetIdentifier("");
+    setResetCaptchaToken("");
   };
 
   const features = [
@@ -252,106 +253,148 @@ const PatientAuth = () => {
               transition={{ duration: 0.3 }}
               className="bg-card rounded-2xl p-8 shadow-xl border border-border"
             >
-              {step === "phone" ? (
+              {step === "login" ? (
                 <>
                   <div className="mb-8">
                     <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-primary/10 mb-4">
                       <Phone className="h-7 w-7 text-primary" />
                     </div>
                     <h2 className="text-2xl font-heading font-bold text-foreground mb-2">
-                      Welcome Back
+                      Patient Login
                     </h2>
                     <p className="text-muted-foreground">
-                      Enter your registered phone number to access your portal
+                      Sign in using your Patient ID, phone, email, or username.
                     </p>
                   </div>
 
-                  <form onSubmit={handleSendOtp} className="space-y-6">
+                  <form onSubmit={handleLogin} className="space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                          +91
-                        </span>
-                        <Input
-                          id="phone"
-                          type="tel"
-                          placeholder="Enter 10-digit number"
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                          className="pl-14 h-12 text-lg"
-                          required
-                          autoComplete="tel"
-                        />
-                      </div>
+                      <Label htmlFor="identifier">Login ID</Label>
+                      <Input
+                        id="identifier"
+                        placeholder="Patient ID, phone, email, or username"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        className="h-12 text-lg"
+                        required
+                        autoComplete="username"
+                      />
                       <p className="text-xs text-muted-foreground">
-                        We'll send a one-time password to verify your identity
+                        First-time password is your Patient ID.
                       </p>
                     </div>
 
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        className="h-12 text-lg"
+                        required
+                        autoComplete="current-password"
+                      />
+                    </div>
+
+                  {turnstileSiteKey && !resetDialogOpen && (
+                    <Turnstile
+                      siteKey={turnstileSiteKey}
+                      action="patient_login"
+                      onVerify={setLoginCaptchaToken}
+                      onExpire={() => setLoginCaptchaToken("")}
+                    />
+                  )}
+
                     <Button
                       type="submit"
                       variant="clinical"
                       size="lg"
                       className="w-full h-12"
-                      disabled={isLoading || phone.length !== 10}
+                      disabled={isLoading}
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Sending OTP...
+                          Signing in...
                         </>
                       ) : (
                         <>
-                          Continue
+                          Sign In
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </>
                       )}
                     </Button>
+
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        className="text-sm text-primary hover:underline"
+                        onClick={() => setResetDialogOpen(true)}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </form>
                 </>
-              ) : step === "otp" ? (
+              ) : (
                 <>
                   <div className="mb-8">
-                    <button
-                      onClick={() => {
-                        setStep("phone");
-                        setOtp("");
-                      }}
-                      className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                      Change number
-                    </button>
-                    <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-green-100 mb-4">
-                      <CheckCircle2 className="h-7 w-7 text-green-600" />
+                    <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-primary/10 mb-4">
+                      <Phone className="h-7 w-7 text-primary" />
                     </div>
                     <h2 className="text-2xl font-heading font-bold text-foreground mb-2">
-                      Verify OTP
+                      Set New Password
                     </h2>
                     <p className="text-muted-foreground">
-                      Enter the 6-digit code sent to{" "}
-                      <span className="font-medium text-foreground">+91 {phone}</span>
+                      Update your password to complete first-time login.
                     </p>
                   </div>
 
-                  <form onSubmit={handleVerifyOtp} className="space-y-6">
-                    <div className="flex justify-center">
-                      <InputOTP
-                        maxLength={6}
-                        value={otp}
-                        onChange={setOtp}
-                        className="gap-2"
-                      >
-                        <InputOTPGroup className="gap-2">
-                          <InputOTPSlot index={0} className="h-12 w-12 text-lg" />
-                          <InputOTPSlot index={1} className="h-12 w-12 text-lg" />
-                          <InputOTPSlot index={2} className="h-12 w-12 text-lg" />
-                          <InputOTPSlot index={3} className="h-12 w-12 text-lg" />
-                          <InputOTPSlot index={4} className="h-12 w-12 text-lg" />
-                          <InputOTPSlot index={5} className="h-12 w-12 text-lg" />
-                        </InputOTPGroup>
-                      </InputOTP>
+                  <form onSubmit={handleResetPassword} className="space-y-6">
+                    {!lastLoginPassword && (
+                      <div className="space-y-2">
+                        <Label htmlFor="currentPassword">Current Password</Label>
+                        <Input
+                          id="currentPassword"
+                          type="password"
+                          placeholder="Enter current password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="h-12 text-lg"
+                          required
+                          autoComplete="current-password"
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        placeholder="Create a new password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="h-12 text-lg"
+                        required
+                        autoComplete="new-password"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Re-enter new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="h-12 text-lg"
+                        required
+                        autoComplete="new-password"
+                      />
                     </div>
 
                     <Button
@@ -359,52 +402,42 @@ const PatientAuth = () => {
                       variant="clinical"
                       size="lg"
                       className="w-full h-12"
-                      disabled={isLoading || otp.length !== 6}
+                      disabled={isLoading}
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Verifying...
+                          Updating...
                         </>
                       ) : (
                         <>
-                          Verify & Login
+                          Update Password
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </>
                       )}
                     </Button>
 
-                    <p className="text-center text-sm text-muted-foreground">
-                      Didn't receive the code?{" "}
-                      {countdown > 0 ? (
-                        <span className="text-foreground font-medium">
-                          Resend in {countdown}s
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleResendOtp}
-                          className="text-primary hover:underline font-medium"
-                          disabled={isLoading}
-                        >
-                          Resend OTP
-                        </button>
-                      )}
-                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setStep("login")}
+                      disabled={isLoading}
+                    >
+                      Back to Login
+                    </Button>
                   </form>
                 </>
-              ) : null}
-
-              {step !== "select" && (
-                <div className="mt-6 pt-6 border-t border-border text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Are you an employee?{" "}
-                    <Link to="/auth/employee" className="text-primary hover:underline font-medium">
-                      Employee Login
-                    </Link>
-                  </p>
-                </div>
               )}
+
+              <div className="mt-6 pt-6 border-t border-border text-center">
+                <p className="text-sm text-muted-foreground">
+                  Are you an employee?{" "}
+                  <Link to="/auth/employee" className="text-primary hover:underline font-medium">
+                    Employee Login
+                  </Link>
+                </p>
+              </div>
             </motion.div>
           </AnimatePresence>
 
@@ -414,24 +447,55 @@ const PatientAuth = () => {
             </Link>
           </p>
 
-          {/* Demo Mode Notice - only show when demo mode is enabled */}
-          {isDemoMode && (
-            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <p className="text-xs text-amber-800 dark:text-amber-200 text-center">
-                <strong>Demo Mode:</strong> Use OTP <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">123456</span> to login
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Patient Selector Dialog - shown when multiple patients share the same phone */}
-      <PatientSelectorDialog
-        open={step === "select"}
-        patients={availablePatients}
-        phoneNumber={phone}
-        onSelect={handleSelectPatient}
-      />
+      {resetDialogOpen && (
+        <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+          <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              We will email you a secure link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRequestReset} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resetIdentifier">Email, Phone, or Patient ID</Label>
+              <Input
+                id="resetIdentifier"
+                value={resetIdentifier}
+                onChange={(e) => setResetIdentifier(e.target.value)}
+                placeholder="Enter your email, phone, or patient ID"
+                autoComplete="username"
+                required
+              />
+            </div>
+            {turnstileSiteKey && (
+              <Turnstile
+                siteKey={turnstileSiteKey}
+                action="patient_reset_request"
+                onVerify={setResetCaptchaToken}
+                onExpire={() => setResetCaptchaToken("")}
+              />
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setResetDialogOpen(false)}
+                disabled={resetLoading}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={resetLoading}>
+                {resetLoading ? "Sending..." : "Send Reset Link"}
+              </Button>
+            </DialogFooter>
+          </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

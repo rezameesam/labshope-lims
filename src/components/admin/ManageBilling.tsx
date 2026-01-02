@@ -156,6 +156,8 @@ const ManageBilling = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "partial" | "paid">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -464,6 +466,12 @@ const ManageBilling = () => {
     return total;
   };
 
+  const clampDiscount = (value: number, total: number) => {
+    if (!Number.isFinite(value)) return 0;
+    if (value < 0) return 0;
+    return Math.min(value, Math.max(0, total));
+  };
+
   const handleCreateInvoice = async () => {
     if (!selectedPatientId || selectedTestIds.size === 0) {
       toast.error("Please select a patient and at least one test");
@@ -496,7 +504,8 @@ const ManageBilling = () => {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const totalAmount = calculateTotal();
-      const finalAmount = totalAmount - discount;
+      const appliedDiscount = clampDiscount(discount, totalAmount);
+      const finalAmount = totalAmount - appliedDiscount;
       const invoiceNumber = generateInvoiceNumber();
 
       const { data: invoice, error: invoiceError } = await supabase
@@ -505,7 +514,7 @@ const ManageBilling = () => {
           invoice_number: invoiceNumber,
           patient_id: selectedPatientId,
           total_amount: totalAmount,
-          discount_amount: discount,
+          discount_amount: appliedDiscount,
           final_amount: finalAmount,
           notes,
           created_by: userData.user?.id,
@@ -663,7 +672,8 @@ const ManageBilling = () => {
   };
 
   const calculateEditableFinal = () => {
-    return calculateEditableTotal() - editableDiscount;
+    const total = calculateEditableTotal();
+    return total - clampDiscount(editableDiscount, total);
   };
 
   const handleSaveInvoice = async () => {
@@ -672,7 +682,8 @@ const ManageBilling = () => {
     setIsSubmitting(true);
     try {
       const newTotal = calculateEditableTotal();
-      const newFinal = calculateEditableFinal();
+      const appliedDiscount = clampDiscount(editableDiscount, newTotal);
+      const newFinal = newTotal - appliedDiscount;
 
       // Update invoice items
       for (const item of editableItems) {
@@ -692,7 +703,7 @@ const ManageBilling = () => {
         .from("invoices")
         .update({
           total_amount: newTotal,
-          discount_amount: editableDiscount,
+          discount_amount: appliedDiscount,
           final_amount: newFinal,
         })
         .eq("id", selectedInvoice.id);
@@ -959,6 +970,22 @@ const ManageBilling = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pagedInvoices = filteredInvoices.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterStatus]);
+
+  useEffect(() => {
+    if (currentPage !== safePage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
+
   // Stats
   const totalRevenue = invoices.reduce((sum, inv) => sum + inv.paid_amount, 0);
   const pendingAmount = invoices.reduce((sum, inv) => sum + (inv.final_amount - inv.paid_amount), 0);
@@ -1079,7 +1106,7 @@ const ManageBilling = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredInvoices.map((invoice) => (
+                pagedInvoices.map((invoice) => (
                   <TableRow key={invoice.id} className="hover:bg-muted/30">
                     <TableCell className="font-mono font-medium">{invoice.invoice_number}</TableCell>
                     <TableCell>
@@ -1137,6 +1164,51 @@ const ManageBilling = () => {
               )}
             </TableBody>
           </Table>
+          {filteredInvoices.length > 0 && (
+            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredInvoices.length)} of{" "}
+                {filteredInvoices.length}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Rows</span>
+                  <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                    <SelectTrigger className="h-8 w-[90px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={safePage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={safePage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1294,8 +1366,10 @@ const ManageBilling = () => {
                 <Input 
                   type="number" 
                   value={discount} 
-                  onChange={(e) => setDiscount(Number(e.target.value))}
+                  onChange={(e) => setDiscount(Number(e.target.value) || 0)}
                   placeholder="0"
+                  min={0}
+                  max={calculateTotal()}
                 />
               </div>
             </div>
@@ -1303,7 +1377,9 @@ const ManageBilling = () => {
             <div className="p-4 bg-muted rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-semibold">Total Amount</span>
-                <span className="text-2xl font-bold">₹{(calculateTotal() - discount).toLocaleString()}</span>
+                <span className="text-2xl font-bold">
+                  ₹{(calculateTotal() - clampDiscount(discount, calculateTotal())).toLocaleString()}
+                </span>
               </div>
             </div>
 
@@ -1496,9 +1572,10 @@ const ManageBilling = () => {
                   <Input 
                     type="number" 
                     value={editableDiscount} 
-                    onChange={(e) => setEditableDiscount(Number(e.target.value))}
+                    onChange={(e) => setEditableDiscount(Number(e.target.value) || 0)}
                     placeholder="0"
                     min={0}
+                    max={calculateEditableTotal()}
                     step="0.01"
                   />
                 </div>

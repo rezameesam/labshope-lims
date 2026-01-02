@@ -116,7 +116,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-subtle-gradient flex">
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-clinical-navy transform transition-transform duration-300 ${
+        className={`fixed lg:sticky lg:top-0 lg:h-screen lg:self-start inset-y-0 left-0 z-50 w-64 bg-clinical-navy transform transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -133,25 +133,27 @@ const AdminDashboard = () => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-2">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-primary-foreground/10 text-primary-foreground"
-                    : "text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/5"
-                }`}
-              >
-                <tab.icon className="h-5 w-5" />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
+          <div className="flex-1 overflow-y-auto pr-1">
+            <nav className="space-y-2">
+              {visibleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === tab.id
+                      ? "bg-primary-foreground/10 text-primary-foreground"
+                      : "text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/5"
+                  }`}
+                >
+                  <tab.icon className="h-5 w-5" />
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
 
           {/* User Info & Logout */}
           <div className="border-t border-primary-foreground/20 pt-4">
@@ -221,7 +223,7 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === "overview" && <DashboardOverview />}
+            {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "notice-board" && <NoticeBoard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
             {activeTab === "patients" && <ManagePatients />}

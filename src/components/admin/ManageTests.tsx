@@ -29,6 +29,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -139,11 +149,14 @@ const ManageTests = () => {
   const [labFilter, setLabFilter] = useState<string>("all");
   const [collectionCenterFilter, setCollectionCenterFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isAuditDialogOpen, setIsAuditDialogOpen] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<PatientTest | null>(null);
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
@@ -207,6 +220,13 @@ const ManageTests = () => {
     
     return grouped;
   }, [testCatalog, categories]);
+
+  const selectedTestsTotal = useMemo(() => {
+    return selectedTests.reduce((total, testName) => {
+      const catalogTest = testCatalog.find((test) => test.name === testName);
+      return total + (catalogTest?.price || 0);
+    }, 0);
+  }, [selectedTests, testCatalog]);
 
   // Filter tests by search and category
   const filteredTestsByCategory = useMemo(() => {
@@ -377,8 +397,7 @@ const ManageTests = () => {
     fetchCollectionCenters();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     
     if (!selectedPatient) {
       toast.error("Please select a patient");
@@ -490,6 +509,7 @@ const ManageTests = () => {
 
       toast.success(`${selectedTests.length} test(s) added and invoice ${invoiceNumber} created`);
       setIsDialogOpen(false);
+      setIsConfirmOpen(false);
       resetForm();
       fetchData();
     } catch (error: any) {
@@ -497,6 +517,7 @@ const ManageTests = () => {
       toast.error(error.message || "Failed to add test");
     } finally {
       setIsSubmitting(false);
+      setIsConfirmOpen(false);
     }
   };
 
@@ -539,6 +560,10 @@ const ManageTests = () => {
     e.preventDefault();
     if (!selectedTest) return;
     setIsSubmitting(true);
+    const hadResult = Boolean(selectedTest.result) || selectedTest.result_value !== null;
+    const willHaveResult = Boolean(resultData.result) || resultData.result_value !== "";
+    const wasCompleted = selectedTest.status === "completed" && hadResult;
+    const willComplete = resultData.status === "completed" && willHaveResult;
 
     try {
       const updateData: Record<string, unknown> = {
@@ -564,11 +589,47 @@ const ManageTests = () => {
 
       if (error) throw error;
 
-      // Send notification if test is completed and result is entered
-      if (resultData.status === "completed" && (resultData.result || resultData.result_value)) {
+      // Send notification only when the last test in an invoice is completed
+      if (!wasCompleted && willComplete) {
         try {
-          const { sendTestResultNotification } = await import("@/services/notificationService");
-          await sendTestResultNotification(selectedTest.patient_id, selectedTest.test_name, selectedTest.id);
+          const { sendAllTestsReadyNotification, sendTestResultNotification } = await import("@/services/notificationService");
+          const { data: invoiceItem } = await supabase
+            .from("invoice_items")
+            .select("invoice_id")
+            .eq("patient_test_id", selectedTest.id)
+            .maybeSingle();
+
+          if (invoiceItem?.invoice_id) {
+            const { data: invoiceItems, error: invoiceItemsError } = await supabase
+              .from("invoice_items")
+              .select("patient_test_id, patient_tests(status,result,result_value,test_name)")
+              .eq("invoice_id", invoiceItem.invoice_id);
+
+            if (!invoiceItemsError && invoiceItems) {
+              const allCompleted = invoiceItems.every((item) => {
+                const test = item.patient_tests as {
+                  status: string;
+                  result: string | null;
+                  result_value: number | null;
+                } | null;
+                if (!test) return false;
+                const hasResult = Boolean(test.result) || test.result_value !== null;
+                return test.status === "completed" && hasResult;
+              });
+
+              if (allCompleted) {
+                const testNames = invoiceItems
+                  .map((item) => (item.patient_tests as { test_name?: string | null } | null)?.test_name)
+                  .filter((name): name is string => Boolean(name));
+                await sendAllTestsReadyNotification(
+                  selectedTest.patient_id,
+                  testNames.length > 0 ? testNames : [selectedTest.test_name]
+                );
+              }
+            }
+          } else {
+            await sendTestResultNotification(selectedTest.patient_id, selectedTest.test_name, selectedTest.id);
+          }
         } catch (notifError) {
           console.error("Failed to send notification:", notifError);
           // Don't fail the update if notification fails
@@ -697,6 +758,22 @@ const ManageTests = () => {
 
     return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredTests.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pagedTests = filteredTests.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, labFilter, collectionCenterFilter]);
+
+  useEffect(() => {
+    if (currentPage !== safePage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
 
   const pendingCount = tests.filter(t => t.status === "pending").length;
   const inProgressCount = tests.filter(t => t.status === "in_progress").length;
@@ -922,333 +999,421 @@ const ManageTests = () => {
             </Button>
           )}
 
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                resetForm();
+                setIsConfirmOpen(false);
+              }
+            }}
+          >
           <DialogTrigger asChild>
             <Button className="bg-clinical-navy hover:bg-clinical-navy/90">
               <Plus className="h-4 w-4 mr-2" />
               Add Test
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle>Add Tests for Patient</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-hidden flex flex-col">
-              {/* Patient Search Section */}
-              <div className="space-y-2">
-                <Label>Patient *</Label>
-                {selectedPatient ? (
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-full bg-primary/10">
-                        <User className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{selectedPatient.full_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedPatient.patient_id} • {selectedPatient.phone}
-                        </p>
-                      </div>
+          <DialogContent className="max-w-4xl w-[90vw] max-h-[88vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="border-b px-6 py-4">
+            <DialogTitle>Add Tests for Patient</DialogTitle>
+            <DialogDescription>
+              Select tests and create the invoice in one step.
+            </DialogDescription>
+          </DialogHeader>
+            <form onSubmit={(e) => e.preventDefault()} className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-hidden">
+                <ScrollArea className="h-full">
+                  <div className="p-6 space-y-6">
+                    {/* Patient Search Section */}
+                    <div className="space-y-2">
+                      <Label>Patient *</Label>
+                      {selectedPatient ? (
+                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-primary/10">
+                              <User className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{selectedPatient.full_name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {selectedPatient.patient_id} • {selectedPatient.phone}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedPatient(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Search by name, ID, or phone..."
+                              value={patientSearch}
+                              onChange={(e) => setPatientSearch(e.target.value)}
+                              className="pl-10"
+                            />
+                          </div>
+                          {patientSearch && (
+                            <ScrollArea className="h-40 border rounded-lg">
+                              <div className="p-2 space-y-1">
+                                {filteredPatients.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground p-2 text-center">
+                                    No patients found
+                                  </p>
+                                ) : (
+                                  filteredPatients.map((patient) => (
+                                    <button
+                                      key={patient.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPatient(patient);
+                                        setPatientSearch("");
+                                        // Auto-populate lab and collection center from patient
+                                        const patientLabId = patient.lab_id || currentLab?.id || "";
+                                        let patientCollectionCenterId = patient.collection_center_id || "";
+                                        
+                                        // Verify collection center belongs to the patient's lab
+                                        if (patientCollectionCenterId && patientLabId) {
+                                          const collectionCenter = collectionCenters.find(
+                                            cc => cc.id === patientCollectionCenterId && cc.lab_id === patientLabId
+                                          );
+                                          if (!collectionCenter) {
+                                            patientCollectionCenterId = ""; // Clear if doesn't match
+                                          }
+                                        } else if (patientCollectionCenterId && !patientLabId) {
+                                          patientCollectionCenterId = ""; // Clear if no lab selected
+                                        }
+                                        
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          lab_id: patientLabId,
+                                          collection_center_id: patientCollectionCenterId,
+                                        }));
+                                      }}
+                                      className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left transition-colors"
+                                    >
+                                      <div className="p-1.5 rounded-full bg-primary/10">
+                                        <User className="h-3 w-3 text-primary" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium truncate">{patient.full_name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {patient.patient_id} • {patient.phone}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </ScrollArea>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedPatient(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by name, ID, or phone..."
-                        value={patientSearch}
-                        onChange={(e) => setPatientSearch(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                    {patientSearch && (
-                      <ScrollArea className="h-40 border rounded-lg">
-                        <div className="p-2 space-y-1">
-                          {filteredPatients.length === 0 ? (
-                            <p className="text-sm text-muted-foreground p-2 text-center">
-                              No patients found
+
+                    {/* Tests Selection Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Select Tests *</Label>
+                        {selectedTests.length > 0 && (
+                          <Badge variant="secondary">{selectedTests.length} selected</Badge>
+                        )}
+                      </div>
+                      
+                      {/* Search and Category Filter */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search tests..."
+                            value={testSearch}
+                            onChange={(e) => setTestSearch(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Filter by category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Categories</SelectItem>
+                            {categories.map((category) => (
+                              <SelectItem key={category.id} value={category.name}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="Other Tests">Other Tests</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="border rounded-lg max-h-[45vh] overflow-auto">
+                        <div className="p-3 space-y-4">
+                          {Object.entries(filteredTestsByCategory).length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              No tests found
                             </p>
                           ) : (
-                            filteredPatients.map((patient) => (
-                              <button
-                                key={patient.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPatient(patient);
-                                  setPatientSearch("");
-                                  // Auto-populate lab and collection center from patient
-                                  const patientLabId = patient.lab_id || currentLab?.id || "";
-                                  let patientCollectionCenterId = patient.collection_center_id || "";
-                                  
-                                  // Verify collection center belongs to the patient's lab
-                                  if (patientCollectionCenterId && patientLabId) {
-                                    const collectionCenter = collectionCenters.find(
-                                      cc => cc.id === patientCollectionCenterId && cc.lab_id === patientLabId
-                                    );
-                                    if (!collectionCenter) {
-                                      patientCollectionCenterId = ""; // Clear if doesn't match
-                                    }
-                                  } else if (patientCollectionCenterId && !patientLabId) {
-                                    patientCollectionCenterId = ""; // Clear if no lab selected
-                                  }
-                                  
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    lab_id: patientLabId,
-                                    collection_center_id: patientCollectionCenterId,
-                                  }));
-                                }}
-                                className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left transition-colors"
-                              >
-                                <div className="p-1.5 rounded-full bg-primary/10">
-                                  <User className="h-3 w-3 text-primary" />
+                            Object.entries(filteredTestsByCategory).map(([category, categoryTests]) => (
+                              <div key={category} className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                                    {category}
+                                  </h4>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs h-6"
+                                    onClick={() => selectAllInCategory(categoryTests)}
+                                  >
+                                    {categoryTests.every((t) => selectedTests.includes(t.name))
+                                      ? "Deselect All"
+                                      : "Select All"}
+                                  </Button>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium truncate">{patient.full_name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {patient.patient_id} • {patient.phone}
-                                  </p>
+                                <div className="space-y-1">
+                                  {categoryTests.map((test) => (
+                                    <label
+                                      key={test.id}
+                                      className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors"
+                                    >
+                                      <Checkbox
+                                        checked={selectedTests.includes(test.name)}
+                                        onCheckedChange={() => toggleTestSelection(test.name)}
+                                      />
+                                      <div className="flex-1">
+                                        <span className="font-medium">{test.name}</span>
+                                        {test.price && (
+                                          <span className="text-muted-foreground ml-2">
+                                            ₹{test.price}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </label>
+                                  ))}
                                 </div>
-                              </button>
+                              </div>
                             ))
                           )}
                         </div>
-                      </ScrollArea>
-                    )}
-                  </div>
-                )}
-              </div>
+                      </div>
+                    </div>
 
-              {/* Tests Selection Section */}
-              <div className="space-y-2 flex-1 overflow-hidden flex flex-col min-h-0">
-                <div className="flex items-center justify-between">
-                  <Label>Select Tests *</Label>
-                  {selectedTests.length > 0 && (
-                    <Badge variant="secondary">{selectedTests.length} selected</Badge>
-                  )}
-                </div>
-                
-                {/* Search and Category Filter */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search tests..."
-                      value={testSearch}
-                      onChange={(e) => setTestSearch(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Filter by category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.name}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="Other Tests">Other Tests</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <ScrollArea className="h-[500px] border rounded-lg">
-                  <div className="p-3 space-y-4">
-                    {Object.entries(filteredTestsByCategory).length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No tests found
-                      </p>
-                    ) : (
-                      Object.entries(filteredTestsByCategory).map(([category, categoryTests]) => (
-                        <div key={category} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                              {category}
-                            </h4>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs h-6"
-                              onClick={() => selectAllInCategory(categoryTests)}
-                            >
-                              {categoryTests.every((t) => selectedTests.includes(t.name))
-                                ? "Deselect All"
-                                : "Select All"}
-                            </Button>
-                          </div>
-                          <div className="space-y-1">
-                            {categoryTests.map((test) => (
-                              <label
-                                key={test.id}
-                                className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors"
+                    {/* Selected Tests Summary */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Selected Tests</Label>
+                        <span className="text-sm text-muted-foreground">
+                          Total: ₹{selectedTestsTotal}
+                        </span>
+                      </div>
+                      <div className="border rounded-lg p-3">
+                        {selectedTests.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No tests selected yet.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedTests.map((testName) => (
+                              <Badge
+                                key={testName}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => toggleTestSelection(testName)}
                               >
-                                <Checkbox
-                                  checked={selectedTests.includes(test.name)}
-                                  onCheckedChange={() => toggleTestSelection(test.name)}
-                                />
-                                <div className="flex-1">
-                                  <span className="font-medium">{test.name}</span>
-                                  {test.price && (
-                                    <span className="text-muted-foreground ml-2">
-                                      ₹{test.price}
-                                    </span>
-                                  )}
-                                </div>
-                              </label>
+                                {testName}
+                                <X className="h-3 w-3 ml-1" />
+                              </Badge>
                             ))}
                           </div>
-                        </div>
-                      ))
-                    )}
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Click a test to remove it.
+                      </p>
+                    </div>
+
+                    {/* Referred By Section */}
+                    <div className="space-y-2">
+                      <Label>Referred By</Label>
+                      <Select 
+                        value={formData.referred_by} 
+                        onValueChange={(value) => setFormData({ ...formData, referred_by: value, custom_doctor_name: "" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select referral source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="self">Self</SelectItem>
+                          {doctors.map((doctor) => (
+                            <SelectItem key={doctor.id} value={doctor.id}>
+                              Dr. {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ""}
+                              {doctor.commission_percentage ? ` - ${doctor.commission_percentage}%` : ""}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="custom">Other (Enter name)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formData.referred_by === "custom" && (
+                        <Input
+                          placeholder="Enter doctor's name..."
+                          value={formData.custom_doctor_name}
+                          onChange={(e) => setFormData({ ...formData, custom_doctor_name: e.target.value })}
+                          className="mt-2"
+                        />
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="test_date">Test Date *</Label>
+                        <Input
+                          id="test_date"
+                          type="date"
+                          value={formData.test_date}
+                          onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="notes">Notes</Label>
+                        <Input
+                          id="notes"
+                          value={formData.notes}
+                          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                          placeholder="Any notes..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Lab and Collection Center Section */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="lab_id">Lab</Label>
+                        <Select
+                          value={formData.lab_id || "none"}
+                          onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select lab (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {labs.map((lab) => (
+                              <SelectItem key={lab.id} value={lab.id}>
+                                {lab.name} ({lab.lab_code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="collection_center_id">Collection Center</Label>
+                        <Select
+                          value={formData.collection_center_id || "none"}
+                          onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
+                          disabled={!formData.lab_id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={formData.lab_id ? "Select collection center (optional)" : "Select lab first"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {collectionCenters
+                              .filter(cc => cc.lab_id === formData.lab_id)
+                              .map((center) => (
+                                <SelectItem key={center.id} value={center.id}>
+                                  {center.name} ({center.code})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {!formData.lab_id && (
+                          <p className="text-xs text-muted-foreground">Please select a lab first to choose a collection center</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </ScrollArea>
               </div>
 
-              {/* Selected Tests Summary */}
-              {selectedTests.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 max-h-20 overflow-auto p-2 bg-muted/50 rounded-lg">
-                  {selectedTests.map((testName) => (
-                    <Badge
-                      key={testName}
-                      variant="secondary"
-                      className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => toggleTestSelection(testName)}
-                    >
-                      {testName}
-                      <X className="h-3 w-3 ml-1" />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              {/* Referred By Section */}
-              <div className="space-y-2">
-                <Label>Referred By</Label>
-                <Select 
-                  value={formData.referred_by} 
-                  onValueChange={(value) => setFormData({ ...formData, referred_by: value, custom_doctor_name: "" })}
+              <div className="border-t px-6 py-4 flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select referral source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="self">Self</SelectItem>
-                    {doctors.map((doctor) => (
-                      <SelectItem key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ""}
-                        {doctor.commission_percentage ? ` - ${doctor.commission_percentage}%` : ""}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">Other (Enter name)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {formData.referred_by === "custom" && (
-                  <Input
-                    placeholder="Enter doctor's name..."
-                    value={formData.custom_doctor_name}
-                    onChange={(e) => setFormData({ ...formData, custom_doctor_name: e.target.value })}
-                    className="mt-2"
-                  />
-                )}
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-clinical-navy hover:bg-clinical-navy/90"
+                  disabled={isSubmitting || !selectedPatient || selectedTests.length === 0}
+                  onClick={() => setIsConfirmOpen(true)}
+                >
+                  Add {selectedTests.length} Test{selectedTests.length !== 1 ? "s" : ""}
+                </Button>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="test_date">Test Date *</Label>
-                  <Input
-                    id="test_date"
-                    type="date"
-                    value={formData.test_date}
-                    onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Input
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Any notes..."
-                  />
-                </div>
-              </div>
-
-              {/* Lab and Collection Center Section */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="lab_id">Lab</Label>
-                  <Select
-                    value={formData.lab_id || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select lab (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {labs.map((lab) => (
-                        <SelectItem key={lab.id} value={lab.id}>
-                          {lab.name} ({lab.lab_code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="collection_center_id">Collection Center</Label>
-                  <Select
-                    value={formData.collection_center_id || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
-                    disabled={!formData.lab_id}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.lab_id ? "Select collection center (optional)" : "Select lab first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {collectionCenters
-                        .filter(cc => cc.lab_id === formData.lab_id)
-                        .map((center) => (
-                          <SelectItem key={center.id} value={center.id}>
-                            {center.name} ({center.code})
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  {!formData.lab_id && (
-                    <p className="text-xs text-muted-foreground">Please select a lab first to choose a collection center</p>
-                  )}
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
-                disabled={isSubmitting || !selectedPatient || selectedTests.length === 0}
-              >
-                {isSubmitting
-                  ? "Adding..."
-                  : `Add ${selectedTests.length} Test${selectedTests.length !== 1 ? "s" : ""}`}
-              </Button>
             </form>
           </DialogContent>
         </Dialog>
+        <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm test order</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will create test records and generate an invoice.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border p-3">
+                <p className="font-medium">Patient</p>
+                {selectedPatient ? (
+                  <p className="text-muted-foreground">
+                    {selectedPatient.full_name} • {selectedPatient.patient_id} • {selectedPatient.phone}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">No patient selected.</p>
+                )}
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">Tests</p>
+                  <span className="text-muted-foreground">Total ₹{selectedTestsTotal}</span>
+                </div>
+                {selectedTests.length === 0 ? (
+                  <p className="text-muted-foreground mt-2">No tests selected.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedTests.map((testName) => (
+                      <Badge key={testName} variant="secondary">
+                        {testName}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  void handleSubmit();
+                }}
+                disabled={isSubmitting || !selectedPatient || selectedTests.length === 0}
+              >
+                {isSubmitting ? "Adding..." : "Create Invoice"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         </div>
       </div>
 
@@ -1695,7 +1860,7 @@ const ManageTests = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredTests.map((test) => (
+              pagedTests.map((test) => (
                 <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell>
                     <Checkbox
@@ -1801,6 +1966,51 @@ const ManageTests = () => {
             )}
           </TableBody>
         </Table>
+        {filteredTests.length > 0 && (
+          <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredTests.length)} of{" "}
+              {filteredTests.length}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows</span>
+                <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                  <SelectTrigger className="h-8 w-[90px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safePage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {safePage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={safePage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
