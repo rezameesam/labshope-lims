@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, Building2, Lock } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, Building2, Lock, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { Input } from "@/components/ui/input";
@@ -113,6 +113,10 @@ interface PatientFormProps {
   isSubmitting: boolean;
   labs?: { id: string; name: string; lab_code: string }[];
   collectionCenters?: { id: string; name: string; code: string; lab_id: string }[];
+}
+
+interface ManagePatientsProps {
+  onAssignTests?: (patient: Patient) => void;
 }
 
 const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmitting, labs = [], collectionCenters = [] }: PatientFormProps) => {
@@ -268,7 +272,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
   );
 };
 
-const ManagePatients = () => {
+const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const { currentLab } = useLab();
   const { user, isCollector } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -955,6 +959,18 @@ const ManagePatients = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {onAssignTests && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onAssignTests(patient)}
+                          className="h-8 w-8 p-0"
+                          title="Assign tests"
+                          aria-label="Assign tests"
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="sm"
