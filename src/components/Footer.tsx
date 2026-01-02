@@ -112,8 +112,12 @@ const Footer = () => {
             © {currentYear} IRM Clinical Laboratory. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm text-primary-foreground/60">
-            <span>Privacy Policy</span>
-            <span>Terms of Service</span>
+            <Link to="/privacy" className="hover:text-primary-foreground transition-colors">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="hover:text-primary-foreground transition-colors">
+              Terms of Service
+            </Link>
           </div>
         </div>
       </div>
