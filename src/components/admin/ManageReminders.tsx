@@ -80,6 +80,7 @@ const ManageReminders = () => {
   const [patients, setPatients] = useState<Array<{ id: string; full_name: string; patient_id: string; phone: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -164,11 +165,13 @@ const ManageReminders = () => {
       due_date: "",
       notification_method: "both",
     });
+    setPatientSearch("");
     setEditingReminder(null);
   };
 
   const openEditDialog = (reminder: Reminder) => {
     setEditingReminder(reminder);
+    setPatientSearch("");
     setReminderForm({
       patient_id: reminder.patient_id,
       reminder_type: reminder.reminder_type,
@@ -330,6 +333,16 @@ const ManageReminders = () => {
       return matchesSearch && !reminder.is_completed && isPast(reminderDate) && !isToday(reminderDate);
     }
     return matchesSearch;
+  });
+
+  const filteredPatients = patients.filter((patient) => {
+    if (!patientSearch.trim()) return true;
+    const searchLower = patientSearch.toLowerCase();
+    return (
+      patient.full_name.toLowerCase().includes(searchLower) ||
+      patient.patient_id.toLowerCase().includes(searchLower) ||
+      patient.phone.includes(patientSearch)
+    );
   });
 
   const pendingCount = reminders.filter((r) => !r.is_completed).length;
@@ -566,16 +579,36 @@ const ManageReminders = () => {
               <Select
                 value={reminderForm.patient_id}
                 onValueChange={(value) => setReminderForm({ ...reminderForm, patient_id: value })}
+                onOpenChange={(open) => {
+                  if (open) setPatientSearch("");
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
-                <SelectContent>
-                  {patients.map((patient) => (
+                <SelectContent className="p-0">
+                  <div className="sticky top-0 z-10 bg-popover p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="patient-search"
+                        value={patientSearch}
+                        onChange={(e) => setPatientSearch(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        placeholder="Search by name, ID, or phone..."
+                        className="pl-10 h-9"
+                        aria-label="Search patients"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {filteredPatients.map((patient) => (
                     <SelectItem key={patient.id} value={patient.id}>
                       {patient.full_name} ({patient.patient_id})
                     </SelectItem>
-                  ))}
+                    ))}
+                  </div>
                 </SelectContent>
               </Select>
             </div>
@@ -694,4 +727,3 @@ const ManageReminders = () => {
 };
 
 export default ManageReminders;
-

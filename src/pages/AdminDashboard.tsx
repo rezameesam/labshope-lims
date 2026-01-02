@@ -48,11 +48,21 @@ import NoticeBoard from "@/components/admin/NoticeBoard";
 
 type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "notifications" | "system-settings";
 
+type PatientSummary = {
+  id: string;
+  patient_id: string;
+  full_name: string;
+  phone: string;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user, signOut, loading, isStaff, hasRole, isCollector } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedPatientForTests, setSelectedPatientForTests] = useState<PatientSummary | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -70,6 +80,12 @@ const AdminDashboard = () => {
       navigate("/collector");
     }
   }, [user, loading, isStaff, isCollector, navigate]);
+
+  useEffect(() => {
+    if (activeTab !== "tests" && selectedPatientForTests) {
+      setSelectedPatientForTests(null);
+    }
+  }, [activeTab, selectedPatientForTests]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -92,19 +108,19 @@ const AdminDashboard = () => {
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: Home },
     { id: "notice-board" as TabType, label: "Notice Board", icon: Bell },
-    { id: "employees" as TabType, label: "Employees", icon: Users, adminOnly: true },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
-    { id: "test-catalog" as TabType, label: "Test Catalog", icon: FlaskConical },
-    { id: "test-packages" as TabType, label: "Test Packages", icon: Package },
-    { id: "test-templates" as TabType, label: "Templates", icon: FileText },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
-    { id: "inventory" as TabType, label: "Inventory", icon: Package },
-    { id: "doctors" as TabType, label: "Doctors", icon: UserCog },
     { id: "reminders" as TabType, label: "Reminders", icon: Bell },
+    { id: "test-packages" as TabType, label: "Test Packages", icon: Package },
+    { id: "inventory" as TabType, label: "Inventory", icon: Package },
+    { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
+    { id: "test-catalog" as TabType, label: "Test Catalog", icon: FlaskConical },
+    { id: "doctors" as TabType, label: "Doctors", icon: UserCog },
+    { id: "employees" as TabType, label: "Employees", icon: Users, adminOnly: true },
     { id: "labs" as TabType, label: "Labs", icon: Building2, adminOnly: true },
     { id: "collection-centers" as TabType, label: "Collection Centers", icon: MapPin },
-    { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
+    { id: "test-templates" as TabType, label: "Templates", icon: FileText },
     { id: "roles" as TabType, label: "Roles & Permissions", icon: Shield, adminOnly: true },
     { id: "notifications" as TabType, label: "Notifications", icon: Bell, adminOnly: true },
     { id: "system-settings" as TabType, label: "System Settings", icon: Settings, adminOnly: true },
@@ -226,8 +242,15 @@ const AdminDashboard = () => {
             {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "notice-board" && <NoticeBoard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
-            {activeTab === "patients" && <ManagePatients />}
-            {activeTab === "tests" && <ManageTests />}
+            {activeTab === "patients" && (
+              <ManagePatients
+                onAssignTests={(patient) => {
+                  setSelectedPatientForTests(patient);
+                  setActiveTab("tests");
+                }}
+              />
+            )}
+            {activeTab === "tests" && <ManageTests preselectedPatient={selectedPatientForTests} />}
             {activeTab === "test-catalog" && <ManageTestCatalog />}
             {activeTab === "test-packages" && <ManageTestPackages />}
             {activeTab === "test-templates" && <ManageTestTemplates />}

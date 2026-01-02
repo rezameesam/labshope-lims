@@ -132,7 +132,11 @@ interface Doctor {
   commission_percentage: number | null;
 }
 
-const ManageTests = () => {
+interface ManageTestsProps {
+  preselectedPatient?: Patient | null;
+}
+
+const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const { user, isCollector } = useAuth();
   const { currentLab, availableLabs } = useLab();
 
@@ -197,6 +201,33 @@ const ManageTests = () => {
         p.phone.includes(patientSearch)
     ).slice(0, 20);
   }, [patients, patientSearch]);
+
+  useEffect(() => {
+    if (!preselectedPatient) return;
+
+    setSelectedPatient(preselectedPatient);
+    setPatientSearch("");
+
+    const patientLabId = preselectedPatient.lab_id || currentLab?.id || "";
+    let patientCollectionCenterId = preselectedPatient.collection_center_id || "";
+
+    if (patientCollectionCenterId && patientLabId) {
+      const isValidCollectionCenter = collectionCenters.some(
+        (center) => center.id === patientCollectionCenterId && center.lab_id === patientLabId
+      );
+      if (!isValidCollectionCenter) {
+        patientCollectionCenterId = "";
+      }
+    } else if (patientCollectionCenterId && !patientLabId) {
+      patientCollectionCenterId = "";
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      lab_id: patientLabId,
+      collection_center_id: patientCollectionCenterId,
+    }));
+  }, [preselectedPatient, currentLab, collectionCenters]);
 
   // Group tests by category
   const testsByCategory = useMemo(() => {
