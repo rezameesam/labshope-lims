@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, Building2 } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, Building2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -282,6 +283,8 @@ const ManagePatients = () => {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
@@ -299,6 +302,8 @@ const ManagePatients = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicatePhoneDialogOpen, setDuplicatePhoneDialogOpen] = useState(false);
   const [existingPatientsWithPhone, setExistingPatientsWithPhone] = useState<Patient[]>([]);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const fetchPatients = async () => {
     try {
@@ -685,6 +690,42 @@ const ManagePatients = () => {
     }
   };
 
+  const handleAdminResetPassword = async (mode: "email" | "temp") => {
+    if (!selectedPatient) return;
+
+    setResetLoading(true);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/patient-admin-reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          reset_base_url: `${window.location.origin}/patient/reset-password`,
+          mode,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to reset password");
+      }
+
+      if (mode === "temp") {
+        toast.success(`Temporary password set to ${result.temp_password || selectedPatient.patient_id}`);
+      } else {
+        toast.success("Reset link sent to patient's email");
+      }
+
+      setResetDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reset password");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -711,6 +752,22 @@ const ManagePatients = () => {
 
     return matchesSearch && matchesStatus;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pagedPatients = filteredPatients.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterStatus]);
+
+  useEffect(() => {
+    if (currentPage !== safePage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
 
   return (
     <div className="space-y-6">
@@ -853,7 +910,7 @@ const ManagePatients = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredPatients.map((patient) => (
+              pagedPatients.map((patient) => (
                 <TableRow key={patient.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell className="font-mono text-sm font-medium text-primary">
                     {patient.patient_id}
@@ -921,6 +978,51 @@ const ManagePatients = () => {
             )}
           </TableBody>
         </Table>
+        {filteredPatients.length > 0 && (
+          <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredPatients.length)} of{" "}
+              {filteredPatients.length}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows</span>
+                <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                  <SelectTrigger className="h-8 w-[90px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safePage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {safePage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={safePage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Edit Dialog */}
@@ -1162,6 +1264,14 @@ const ManagePatients = () => {
 
               {/* Actions */}
               <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setResetDialogOpen(true)}
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Reset Password
+                </Button>
                 <Button 
                   variant="outline" 
                   className="flex-1"
@@ -1188,6 +1298,58 @@ const ManagePatients = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Reset Patient Password
+            </DialogTitle>
+            <DialogDescription>
+              Send a reset link or set a temporary password for the patient.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPatient && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choose how to reset the password for {selectedPatient.full_name}.
+              </p>
+              <div className="space-y-2">
+                <Button
+                  className="w-full"
+                  onClick={() => handleAdminResetPassword("email")}
+                  disabled={resetLoading || !selectedPatient.email}
+                >
+                  Send Reset Link to Email
+                </Button>
+                {!selectedPatient.email && (
+                  <p className="text-xs text-amber-600">
+                    No email on file. Add an email to enable reset links.
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleAdminResetPassword("temp")}
+                  disabled={resetLoading}
+                >
+                  Set Temporary Password (Patient ID)
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setResetDialogOpen(false)}
+              disabled={resetLoading}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Print Options Dialog */}
       <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>

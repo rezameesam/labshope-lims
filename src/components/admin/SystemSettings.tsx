@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, CreditCard, Mail, Key, Save, Eye, EyeOff, CheckCircle2, AlertCircle, MessageSquare } from "lucide-react";
+import { Settings, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,7 +40,8 @@ const SystemSettings = () => {
       const { data, error } = await supabase
         .from("system_settings" as any)
         .select("*")
-        .order("category, label");
+        .order("category")
+        .order("label");
 
       if (error) throw error;
 
@@ -129,12 +129,8 @@ const SystemSettings = () => {
         <p className="text-muted-foreground">Manage API keys and system configuration</p>
       </div>
 
-      <Tabs defaultValue="sms" className="space-y-4">
+      <Tabs defaultValue="payment" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="sms" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            SMS / OTP
-          </TabsTrigger>
           <TabsTrigger value="payment" className="gap-2">
             <CreditCard className="h-4 w-4" />
             Payment Gateway
@@ -148,115 +144,6 @@ const SystemSettings = () => {
             Other
           </TabsTrigger>
         </TabsList>
-
-        {/* SMS/OTP Settings */}
-        <TabsContent value="sms" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Patient Login (OTP via MSG91)
-              </CardTitle>
-              <CardDescription>
-                Configure SMS OTP settings for patient portal login. Get your credentials from{" "}
-                <a
-                  href="https://msg91.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  MSG91 Dashboard
-                </a>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Demo Mode Toggle - Prominent */}
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label htmlFor="demo_mode" className="text-base font-medium">Demo Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      When enabled, patients can login with OTP <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1 rounded">123456</span> (no SMS sent)
-                    </p>
-                  </div>
-                  <Switch
-                    id="demo_mode"
-                    checked={formData["demo_mode_enabled"] === "true"}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, demo_mode_enabled: checked ? "true" : "false" }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* MSG91 Configuration */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">MSG91 Configuration</h4>
-                
-                {getSettingsByCategory("sms")
-                  .filter(s => s.setting_key !== "demo_mode_enabled")
-                  .map((setting) => (
-                    <div key={setting.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={setting.setting_key}>
-                          {setting.setting_key === "msg91_template_id" ? "Template ID" : 
-                           setting.setting_key === "msg91_sender_id" ? "Sender ID" : setting.setting_key}
-                        </Label>
-                        {isConfigured(setting) && (
-                          <Badge variant="outline" className="text-xs text-green-600">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Configured
-                          </Badge>
-                        )}
-                      </div>
-                      {setting.description && (
-                        <p className="text-xs text-muted-foreground">{setting.description}</p>
-                      )}
-                      <Input
-                        id={setting.setting_key}
-                        value={formData[setting.setting_key] || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, [setting.setting_key]: e.target.value }))
-                        }
-                        placeholder={
-                          setting.setting_key === "msg91_template_id" 
-                            ? "e.g., 60d2c3e4f5..." 
-                            : setting.setting_key === "msg91_sender_id" 
-                              ? "e.g., IRMLAB (6 chars)" 
-                              : ""
-                        }
-                      />
-                    </div>
-                  ))}
-              </div>
-
-              {/* Status Info */}
-              {formData["demo_mode_enabled"] === "false" && !formData["msg91_template_id"] && (
-                <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm">
-                      <p className="font-medium text-red-900 dark:text-red-100 mb-1">
-                        Configuration Required
-                      </p>
-                      <p className="text-red-700 dark:text-red-300">
-                        Demo mode is disabled but MSG91 Template ID is not configured. Patients won't be able to login.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="p-4 bg-muted/50 border rounded-lg">
-                <h4 className="font-medium text-sm mb-2">MSG91 Auth Key</h4>
-                <p className="text-xs text-muted-foreground">
-                  The MSG91 Auth Key is stored securely as a Supabase secret. It was configured when setting up this integration.
-                  To update it, contact your administrator.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Payment Settings */}
         <TabsContent value="payment" className="space-y-4">
@@ -442,4 +329,3 @@ const SystemSettings = () => {
 };
 
 export default SystemSettings;
-

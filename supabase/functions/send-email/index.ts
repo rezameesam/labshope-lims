@@ -122,26 +122,7 @@ serve(async (req) => {
       }
     }
 
-    // Fallback to SMTP using native Deno fetch (no nodemailer needed)
-    const smtpHost = Deno.env.get("SMTP_HOST") || "smtp.yandex.com";
-    const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "465", 10);
-    const smtpUser = Deno.env.get("SMTP_USER");
-    const smtpPassword = Deno.env.get("SMTP_PASSWORD");
-    const smtpFrom = Deno.env.get("SMTP_FROM") || smtpUser;
-
-    if (!smtpUser || !smtpPassword) {
-      return new Response(
-        JSON.stringify({ 
-          error: "Email service not configured. Please set RESEND_API_KEY or SMTP credentials.",
-          hint: "Resend is recommended: https://resend.com (free 3,000 emails/month)"
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    // Use a simple SMTP client library for Deno
-    // For now, we'll use a webhook-based approach or recommend Resend
-    // Since native SMTP in Deno is complex, let's use Mailgun or SendGrid as alternatives
+    // SMTP is not supported in Supabase Edge Functions (no raw TCP).
     
     // Try Mailgun if configured
     const mailgunApiKey = Deno.env.get("MAILGUN_API_KEY");

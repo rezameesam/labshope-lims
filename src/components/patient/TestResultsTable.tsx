@@ -69,9 +69,10 @@ interface TestResultsTableProps {
   patient: PatientInfo;
   patientDbId?: string;
   loading?: boolean;
+  onPayNow?: () => void;
 }
 
-const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsTableProps) => {
+const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: TestResultsTableProps) => {
   const [selectedTest, setSelectedTest] = useState<TestResult | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -475,12 +476,22 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading }: TestResultsT
           <CardContent className="py-4">
             <div className="flex items-center gap-3">
               <Lock className="h-5 w-5 text-amber-600" />
-              <div>
+              <div className="flex-1">
                 <p className="font-semibold text-amber-900 dark:text-amber-100">Outstanding Dues</p>
                 <p className="text-sm text-amber-700 dark:text-amber-300">
                   You have outstanding dues of ₹{outstandingAmount.toLocaleString()}. Please clear your dues to download test reports.
                 </p>
               </div>
+              {onPayNow && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onPayNow}
+                  className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                >
+                  Pay Now
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

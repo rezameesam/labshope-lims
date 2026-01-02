@@ -4,9 +4,7 @@ import { motion } from "framer-motion";
 import { 
   LogOut, 
   FileText, 
-  Calendar, 
   User, 
-  Download, 
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -16,7 +14,6 @@ import {
   MapPin,
   Droplet,
   Activity,
-  Printer,
   Lock,
   GitBranch
 } from "lucide-react";
@@ -26,23 +23,21 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
-import { format } from "date-fns";
 import TestResultsTable from "@/components/patient/TestResultsTable";
-import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import BillingPortal from "@/components/patient/BillingPortal";
 import PatientHistoryTimeline from "@/components/patient/PatientHistoryTimeline";
 
@@ -75,16 +70,18 @@ interface PatientTest {
 
 const PatientDashboard = () => {
   const navigate = useNavigate();
-  const { patient, loading, isAuthenticated, signOut } = usePatientAuth();
+  const { patient, loading, isAuthenticated, signOut, setPassword } = usePatientAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [testsLoading, setTestsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("results");
-  const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
-  const [historyPrintDialogOpen, setHistoryPrintDialogOpen] = useState(false);
-  const [historyPrintOptions, setHistoryPrintOptions] = useState({ includeHeader: true, includeFooter: true });
   const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [checkingDues, setCheckingDues] = useState(true);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -175,6 +172,40 @@ const PatientDashboard = () => {
     }
   }, [patient?.id]);
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!currentPassword || !newPassword) {
+      toast.error("Please enter your current and new password");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setUpdatingPassword(true);
+    const { error } = await setPassword(currentPassword, newPassword);
+    setUpdatingPassword(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Password updated successfully");
+    setPasswordDialogOpen(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
   // Check for outstanding dues
   useEffect(() => {
     const checkOutstandingDues = async () => {
@@ -237,88 +268,6 @@ const PatientDashboard = () => {
 
   const pendingTests = tests.filter(t => t.status === "pending" || t.status === "processing");
   const completedTests = tests.filter(t => t.status === "completed");
-
-  const toggleHistorySelection = (testId: string) => {
-    const newSelected = new Set(historySelectedIds);
-    if (newSelected.has(testId)) {
-      newSelected.delete(testId);
-    } else {
-      newSelected.add(testId);
-    }
-    setHistorySelectedIds(newSelected);
-  };
-
-  const selectAllHistoryTests = () => {
-    const allCompletedIds = new Set(completedTests.map(t => t.id));
-    setHistorySelectedIds(allCompletedIds);
-  };
-
-  const clearHistorySelection = () => {
-    setHistorySelectedIds(new Set());
-  };
-
-  const handleHistoryPrint = () => {
-    // Check for outstanding dues first
-    if (hasOutstandingDues) {
-      toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
-      return;
-    }
-
-    const testsToprint = historySelectedIds.size > 0 
-      ? tests.filter(t => historySelectedIds.has(t.id))
-      : completedTests;
-
-    if (testsToprint.length === 0) {
-      toast.error("No completed tests to print");
-      return;
-    }
-
-    const uniqueNames = Array.from(
-      new Set(testsToprint.map((t) => t.entered_by_name).filter(Boolean) as string[])
-    );
-    const enteredByLabel =
-      uniqueNames.length === 1
-        ? uniqueNames[0]
-        : uniqueNames.length > 1
-          ? "Multiple Staff"
-          : undefined;
-
-    const success = generateMultiTestReportPDF(
-      {
-        full_name: patient!.full_name,
-        patient_id: patient!.patient_id,
-        phone: patient!.phone,
-        gender: patient!.gender || undefined,
-        blood_group: patient!.blood_group || undefined,
-      },
-      testsToprint.map(t => ({
-        id: t.id,
-        test_name: t.test_name,
-        test_date: t.test_date,
-        status: t.status,
-        result: t.result,
-        result_value: t.result_value,
-        result_unit: t.result_unit,
-        is_abnormal: t.is_abnormal,
-        normal_range_text: t.normal_range_text || undefined,
-        entered_by_name: t.entered_by_name,
-        lab_name: t.labs?.name,
-        lab_code: t.labs?.lab_code,
-        collection_center_name: t.collection_centers?.name,
-        collection_center_code: t.collection_centers?.code,
-      })),
-      enteredByLabel,
-      historyPrintOptions
-    );
-
-    if (success) {
-      toast.success(`Report downloaded successfully`);
-      setHistoryPrintDialogOpen(false);
-      setHistorySelectedIds(new Set());
-    } else {
-      toast.error("Failed to generate report");
-    }
-  };
 
   if (loading) {
     return (
@@ -457,14 +406,10 @@ const PatientDashboard = () => {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-5">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="results" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Results
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              History
             </TabsTrigger>
             <TabsTrigger value="timeline" className="flex items-center gap-2">
               <GitBranch className="h-4 w-4" />
@@ -493,145 +438,10 @@ const PatientDashboard = () => {
               }}
               patientDbId={patient.id}
               loading={testsLoading}
+              onPayNow={() => setActiveTab("billing")}
             />
           </TabsContent>
 
-          {/* History Tab */}
-          <TabsContent value="history">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Calendar className="h-5 w-5" />
-                      Test History
-                    </CardTitle>
-                    <CardDescription>Complete history of all your tests</CardDescription>
-                  </div>
-                  {completedTests.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {historySelectedIds.size > 0 && (
-                        <Badge variant="secondary">
-                          {historySelectedIds.size} selected
-                        </Badge>
-                      )}
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={historySelectedIds.size === completedTests.length ? clearHistorySelection : selectAllHistoryTests}
-                      >
-                        {historySelectedIds.size === completedTests.length ? "Deselect All" : "Select All"}
-                      </Button>
-                      <Button 
-                        size="sm"
-                        onClick={() => setHistoryPrintDialogOpen(true)}
-                        className="gap-2"
-                        disabled={hasOutstandingDues}
-                      >
-                        {hasOutstandingDues ? (
-                          <Lock className="h-4 w-4" />
-                        ) : (
-                          <Printer className="h-4 w-4" />
-                        )}
-                        Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Outstanding Dues Warning */}
-                {!checkingDues && hasOutstandingDues && (
-                  <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Lock className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-amber-900 dark:text-amber-100">
-                          Outstanding Dues: ₹{outstandingAmount.toLocaleString()}
-                        </p>
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
-                          Please clear your outstanding dues to download test reports. You can make a payment in the Billing tab.
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setActiveTab("billing")}
-                        className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                      >
-                        Pay Now
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {testsLoading ? (
-                  <Skeleton className="h-40 w-full" />
-                ) : tests.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Test History</h3>
-                    <p className="text-muted-foreground">Your test history will be shown here.</p>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
-                    <div className="space-y-6">
-                      {tests.map((test, index) => (
-                        <motion.div
-                          key={test.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="relative pl-10"
-                        >
-                          <div className="absolute left-2 top-1 h-5 w-5 rounded-full bg-background border-2 border-primary flex items-center justify-center">
-                            {test.status === "completed" ? (
-                              <CheckCircle2 className="h-3 w-3 text-green-500" />
-                            ) : (
-                              <Clock className="h-3 w-3 text-yellow-500" />
-                            )}
-                          </div>
-                          <div className="bg-muted/30 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-3">
-                                {test.status === "completed" && (
-                                  <Checkbox
-                                    checked={historySelectedIds.has(test.id)}
-                                    onCheckedChange={() => toggleHistorySelection(test.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                )}
-                                <h4 className="font-medium text-foreground">{test.test_name}</h4>
-                              </div>
-                              {getStatusBadge(test.status)}
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(test.test_date), "MMMM dd, yyyy")}
-                              {test.created_at && (
-                                <span className="ml-2">
-                                  {format(new Date(test.created_at), "HH:mm")}
-                                </span>
-                              )}
-                            </p>
-                            {test.result && (
-                              <p className="mt-2 text-sm text-foreground">
-                                Result: <span className="font-medium">{test.result}</span>
-                              </p>
-                            )}
-                            {test.notes && (
-                              <p className="mt-1 text-sm text-muted-foreground italic">
-                                Note: {test.notes}
-                              </p>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Timeline Tab */}
           <TabsContent value="timeline">
@@ -754,71 +564,86 @@ const PatientDashboard = () => {
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-6 flex justify-end">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => setPasswordDialogOpen(true)}
+                  >
+                    <Lock className="h-4 w-4" />
+                    Change Password
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </main>
 
-      {/* History Print Options Dialog */}
-      <Dialog open={historyPrintDialogOpen} onOpenChange={setHistoryPrintDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Printer className="h-5 w-5" />
-              Print Options
+              <Lock className="h-5 w-5" />
+              Change Password
             </DialogTitle>
+            <DialogDescription>
+              Update your password to keep your account secure.
+            </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-6 py-4">
-            <p className="text-sm text-muted-foreground">
-              Configure options for pre-printed A4 paper. Disable header/footer to leave space for pre-printed letterhead.
-            </p>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="history-include-header" className="flex flex-col gap-1">
-                  <span>Include Header</span>
-                  <span className="font-normal text-xs text-muted-foreground">
-                    Print lab name and contact info
-                  </span>
-                </Label>
-                <Switch
-                  id="history-include-header"
-                  checked={historyPrintOptions.includeHeader}
-                  onCheckedChange={(checked) => 
-                    setHistoryPrintOptions(prev => ({ ...prev, includeHeader: checked }))
-                  }
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="history-include-footer" className="flex flex-col gap-1">
-                  <span>Include Footer</span>
-                  <span className="font-normal text-xs text-muted-foreground">
-                    Print generation info and disclaimer
-                  </span>
-                </Label>
-                <Switch
-                  id="history-include-footer"
-                  checked={historyPrintOptions.includeFooter}
-                  onCheckedChange={(checked) => 
-                    setHistoryPrintOptions(prev => ({ ...prev, includeFooter: checked }))
-                  }
-                />
-              </div>
-            </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setHistoryPrintDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleHistoryPrint} className="gap-2">
-              <Printer className="h-4 w-4" />
-              Print {historySelectedIds.size > 0 ? `(${historySelectedIds.size})` : "All"}
-            </Button>
-          </DialogFooter>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPasswordDialogOpen(false)}
+                disabled={updatingPassword}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updatingPassword}>
+                {updatingPassword ? "Updating..." : "Update Password"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

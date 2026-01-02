@@ -129,7 +129,7 @@ const EmployeeAuth = () => {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-6" autoComplete="off">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
                 <div className="relative">
@@ -157,6 +157,10 @@ const EmployeeAuth = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 pr-10"
+                    name="password"
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                   />
                   <button

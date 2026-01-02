@@ -85,6 +85,8 @@ const ManageTestCatalog = () => {
   const [testToDelete, setTestToDelete] = useState<Test | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testIdColumnExists, setTestIdColumnExists] = useState<boolean | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Test form state
   const [testForm, setTestForm] = useState({
@@ -495,6 +497,22 @@ const ManageTestCatalog = () => {
     return matchesSearch && matchesCategory;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredTests.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pagedTests = filteredTests.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterCategory]);
+
+  useEffect(() => {
+    if (currentPage !== safePage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -656,7 +674,7 @@ const ManageTestCatalog = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTests.map((test) => (
+                pagedTests.map((test) => (
                   <TableRow key={test.id} className="hover:bg-muted/30">
                     <TableCell>
                       {test.test_id ? (
@@ -728,6 +746,51 @@ const ManageTestCatalog = () => {
               )}
             </TableBody>
           </Table>
+          {filteredTests.length > 0 && (
+            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredTests.length)} of{" "}
+                {filteredTests.length}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Rows</span>
+                  <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                    <SelectTrigger className="h-8 w-[90px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={safePage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={safePage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1007,4 +1070,3 @@ const ManageTestCatalog = () => {
 };
 
 export default ManageTestCatalog;
-

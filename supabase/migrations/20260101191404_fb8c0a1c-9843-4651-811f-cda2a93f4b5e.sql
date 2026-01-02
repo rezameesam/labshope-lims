@@ -39,17 +39,18 @@ ALTER TABLE public.otp_codes ENABLE ROW LEVEL SECURITY;
 -- No policies needed as edge functions use service role key
 
 -- Create index for phone lookups
-CREATE INDEX idx_otp_codes_phone ON public.otp_codes(phone);
-CREATE INDEX idx_otp_codes_expires_at ON public.otp_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_otp_codes_phone ON public.otp_codes(phone);
+CREATE INDEX IF NOT EXISTS idx_otp_codes_expires_at ON public.otp_codes(expires_at);
 
 -- Insert default system settings for SMS/OTP
-INSERT INTO public.system_settings (setting_key, setting_value, setting_type, category, description) VALUES
-('demo_mode_enabled', 'true', 'boolean', 'sms', 'Enable demo login mode (OTP: 123456)'),
-('msg91_template_id', '', 'text', 'sms', 'MSG91 OTP Template ID'),
-('msg91_sender_id', 'IRMLAB', 'text', 'sms', 'MSG91 Sender ID (6 characters)')
+INSERT INTO public.system_settings (setting_key, setting_value, setting_type, category, label, description, is_encrypted) VALUES
+('demo_mode_enabled', 'true', 'boolean', 'sms', 'Demo Mode Enabled', 'Enable demo login mode (OTP: 123456)', false),
+('msg91_template_id', '', 'text', 'sms', 'MSG91 Template ID', 'MSG91 OTP Template ID', false),
+('msg91_sender_id', 'IRMLAB', 'text', 'sms', 'MSG91 Sender ID', 'MSG91 Sender ID (6 characters)', false)
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- Trigger to update updated_at
+DROP TRIGGER IF EXISTS update_system_settings_updated_at ON public.system_settings;
 CREATE TRIGGER update_system_settings_updated_at
 BEFORE UPDATE ON public.system_settings
 FOR EACH ROW
