@@ -879,42 +879,47 @@ const ManageBilling = () => {
       head: [["#", "Test Name", "Qty", "Unit Price", "Amount"]],
       body: tableData,
       theme: "striped",
+      margin: { left: 14, right: 20 },
+      styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak", cellWidth: "wrap" },
       headStyles: { fillColor: [41, 65, 112], textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 15 },
-        1: { cellWidth: "auto" },
-        2: { cellWidth: 20, halign: "center" },
-        3: { cellWidth: 35, halign: "right" },
-        4: { cellWidth: 35, halign: "right" }
+        0: { cellWidth: 12, halign: "center" },
+        1: { cellWidth: 82 },
+        2: { cellWidth: 16, halign: "center" },
+        3: { cellWidth: 34, halign: "center" },
+        4: { cellWidth: 34, halign: "center" }
       }
     });
     
     // Summary section
     const finalY = (doc as any).lastAutoTable?.finalY || 120;
     
+    const amountX = pageWidth - 22;
+    const labelX = amountX - 56;
+
     doc.setFont("helvetica", "normal");
-    doc.text("Subtotal:", pageWidth - 70, finalY + 15);
-    doc.text(`₹${Number(invoice.total_amount).toLocaleString()}`, pageWidth - 14, finalY + 15, { align: "right" });
+    doc.text("Subtotal:", labelX, finalY + 15);
+    doc.text(`₹${Number(invoice.total_amount).toLocaleString()}`, amountX, finalY + 15, { align: "right" });
     
     if (invoice.discount_amount > 0) {
-      doc.text("Discount:", pageWidth - 70, finalY + 22);
-      doc.text(`-₹${Number(invoice.discount_amount).toLocaleString()}`, pageWidth - 14, finalY + 22, { align: "right" });
+      doc.text("Discount:", labelX, finalY + 22);
+      doc.text(`-₹${Number(invoice.discount_amount).toLocaleString()}`, amountX, finalY + 22, { align: "right" });
     }
     
     doc.setFont("helvetica", "bold");
-    doc.text("Total:", pageWidth - 70, finalY + 32);
-    doc.text(`₹${Number(invoice.final_amount).toLocaleString()}`, pageWidth - 14, finalY + 32, { align: "right" });
+    doc.text("Total:", labelX, finalY + 32);
+    doc.text(`₹${Number(invoice.final_amount).toLocaleString()}`, amountX, finalY + 32, { align: "right" });
     
     doc.setFont("helvetica", "normal");
-    doc.text("Paid:", pageWidth - 70, finalY + 42);
-    doc.text(`₹${Number(invoice.paid_amount).toLocaleString()}`, pageWidth - 14, finalY + 42, { align: "right" });
+    doc.text("Paid:", labelX, finalY + 42);
+    doc.text(`₹${Number(invoice.paid_amount).toLocaleString()}`, amountX, finalY + 42, { align: "right" });
     
     const outstanding = invoice.final_amount - invoice.paid_amount;
     let summaryEndY = finalY + 42;
     if (outstanding > 0) {
       doc.setTextColor(255, 100, 100);
-      doc.text("Outstanding:", pageWidth - 70, finalY + 52);
-      doc.text(`₹${outstanding.toLocaleString()}`, pageWidth - 14, finalY + 52, { align: "right" });
+      doc.text("Outstanding:", labelX, finalY + 52);
+      doc.text(`₹${outstanding.toLocaleString()}`, amountX, finalY + 52, { align: "right" });
       doc.setTextColor(0, 0, 0);
       summaryEndY = finalY + 52;
     }

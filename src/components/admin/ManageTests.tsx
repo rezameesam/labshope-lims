@@ -1450,7 +1450,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
       {/* Result Dialog */}
       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Update Test Result</DialogTitle>
           </DialogHeader>

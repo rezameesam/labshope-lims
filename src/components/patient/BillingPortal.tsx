@@ -217,7 +217,14 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
           ]),
           theme: "striped",
           headStyles: { fillColor: [26, 54, 93] },
-          margin: { left: 20, right: 20 },
+          margin: { left: 20, right: 24 },
+          styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak", cellWidth: "wrap" },
+          columnStyles: {
+            0: { cellWidth: 84 },
+            1: { cellWidth: 16, halign: "center" },
+            2: { cellWidth: 34, halign: "center" },
+            3: { cellWidth: 34, halign: "center" }
+          }
         });
 
         // Get the final Y position after table
@@ -226,15 +233,16 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
 
         // Summary
         doc.setFontSize(10);
-        const rightX = 150;
+        const amountX = 182;
+        const rightX = 140;
         doc.text("Subtotal:", rightX, yOffset);
-        doc.text(`₹${invoice.total_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+        doc.text(`₹${invoice.total_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
         
         if (invoice.discount_amount > 0) {
           yOffset += 7;
           doc.setTextColor(34, 139, 34);
           doc.text("Discount:", rightX, yOffset);
-          doc.text(`-₹${invoice.discount_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+          doc.text(`-₹${invoice.discount_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
           doc.setTextColor(0, 0, 0);
         }
         
@@ -242,20 +250,20 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         doc.setFontSize(12);
         doc.setFont(undefined as unknown as string, "bold");
         doc.text("Total:", rightX, yOffset);
-        doc.text(`₹${invoice.final_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+        doc.text(`₹${invoice.final_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
         
         yOffset += 7;
         doc.setFontSize(10);
         doc.setFont(undefined as unknown as string, "normal");
         doc.setTextColor(34, 139, 34);
         doc.text("Paid:", rightX, yOffset);
-        doc.text(`₹${invoice.paid_amount.toLocaleString()}`, 190, yOffset, { align: "right" });
+        doc.text(`₹${invoice.paid_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
         
         if (invoice.final_amount - invoice.paid_amount > 0) {
           yOffset += 7;
           doc.setTextColor(255, 140, 0);
           doc.text("Outstanding:", rightX, yOffset);
-          doc.text(`₹${(invoice.final_amount - invoice.paid_amount).toLocaleString()}`, 190, yOffset, { align: "right" });
+          doc.text(`₹${(invoice.final_amount - invoice.paid_amount).toLocaleString()}`, amountX, yOffset, { align: "right" });
         }
         
         doc.setTextColor(0, 0, 0);
