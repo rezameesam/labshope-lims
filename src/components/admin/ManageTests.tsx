@@ -60,6 +60,8 @@ interface PatientTest {
   result: string | null;
   result_value: number | null;
   result_unit: string | null;
+  registry_serial: string | null;
+  result_items: ResultItem[] | null;
   is_abnormal: boolean | null;
   normal_range_text: string | null;
   notes: string | null;
@@ -116,6 +118,7 @@ interface TestCategory {
 
 interface Test {
   id: string;
+  test_id: string | null;
   name: string;
   price: number | null;
   category_id: string | null;
@@ -123,6 +126,13 @@ interface Test {
   normal_range_text: string | null;
   normal_range_min: number | null;
   normal_range_max: number | null;
+  panel_items?: Array<{
+    name: string;
+    unit: string | null;
+    normal_range_min: number | null;
+    normal_range_max: number | null;
+    normal_range_text: string | null;
+  }> | null;
 }
 
 interface Doctor {
@@ -134,6 +144,35 @@ interface Doctor {
 
 interface ManageTestsProps {
   preselectedPatient?: Patient | null;
+}
+
+interface ResultItem {
+  name: string;
+  value: number | string | null;
+  unit: string | null;
+  normal_range_min: number | null;
+  normal_range_max: number | null;
+  normal_range_text: string | null;
+}
+
+interface ResultItemInput {
+  name: string;
+  value: string;
+  unit: string;
+  normal_range_min: string;
+  normal_range_max: string;
+  normal_range_text: string;
+}
+
+interface ResultDataState {
+  result: string;
+  result_value: string;
+  result_unit: string;
+  normal_range_text: string;
+  is_abnormal: boolean;
+  status: string;
+  result_items: ResultItemInput[];
+  registry_serial: string;
 }
 
 const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
@@ -176,14 +215,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     lab_id: "",
     collection_center_id: "",
   });
-  const [resultData, setResultData] = useState({
+  const [resultData, setResultData] = useState<ResultDataState>({
     result: "",
     result_value: "",
     result_unit: "",
     normal_range_text: "",
     is_abnormal: false,
     status: "completed",
+    result_items: [],
+    registry_serial: "",
   });
+  const [usePanelResults, setUsePanelResults] = useState(false);
   const [printOptions, setPrintOptions] = useState({
     includeHeader: true,
     includeFooter: true,
@@ -272,7 +314,11 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       
       // Filter by search
       const matchingTests = searchLower
-        ? tests.filter((t) => t.name.toLowerCase().includes(searchLower))
+        ? tests.filter((t) => {
+            const nameMatch = t.name.toLowerCase().includes(searchLower);
+            const codeMatch = t.test_id?.toLowerCase().includes(searchLower) || false;
+            return nameMatch || codeMatch;
+          })
         : tests;
       
       if (matchingTests.length > 0) {
@@ -290,9 +336,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       let testsQuery = supabase
         .from("patient_tests")
         .select(`
-          id, patient_id, test_name, test_date, status, result, result_value, result_unit, 
+          id, patient_id, test_name, test_date, status, result, result_value, result_unit, result_items, registry_serial,
           is_abnormal, normal_range_text, notes, created_at, created_by, updated_by, 
-          result_entered_by, result_entered_at, test_id, lab_id, collection_center_id,
+          result_entered_by, result_entered_at, test_id, lab_id, collection_center_id, registry_serial,
           collected_by, collected_at,
           patients (
             patient_id,
@@ -333,7 +379,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         testsQuery.order("created_at", { ascending: false }),
         patientsQuery,
         supabase.from("test_categories").select("id, name"),
-        supabase.from("tests").select("id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
+        supabase.from("tests").select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max, panel_items"),
         supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
       ]);
 
@@ -427,6 +473,153 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     fetchLabs();
     fetchCollectionCenters();
   }, []);
+
+  const emptyResultItem = (): ResultItemInput => ({
+    name: "",
+    value: "",
+    unit: "",
+    normal_range_min: "",
+    normal_range_max: "",
+    normal_range_text: "",
+  });
+
+  const normalizePanelDefaults = (items?: Test["panel_items"]): ResultItemInput[] => {
+    if (!items || !Array.isArray(items)) return [];
+    return items.map((item) => ({
+      name: typeof item?.name === "string" ? item.name : "",
+      value: "",
+      unit: typeof item?.unit === "string" ? item.unit : "",
+      normal_range_min: item?.normal_range_min !== null && item?.normal_range_min !== undefined
+        ? String(item.normal_range_min)
+        : "",
+      normal_range_max: item?.normal_range_max !== null && item?.normal_range_max !== undefined
+        ? String(item.normal_range_max)
+        : "",
+      normal_range_text: typeof item?.normal_range_text === "string" ? item.normal_range_text : "",
+    }));
+  };
+
+  const getDefaultPanelItems = (testName?: string | null): ResultItemInput[] => {
+    const catalogTest = testCatalog.find((test) => test.name === testName);
+    const catalogDefaults = normalizePanelDefaults(catalogTest?.panel_items);
+    if (catalogDefaults.length > 0) return catalogDefaults;
+
+    const normalizedName = testName?.toLowerCase() || "";
+    const isCbc = normalizedName.includes("cbc") || normalizedName.includes("complete blood");
+    if (!isCbc) return [];
+
+    return [
+      { name: "WBC", value: "", unit: "10^9/L", normal_range_min: "3.5", normal_range_max: "10.0", normal_range_text: "" },
+      { name: "LYM", value: "", unit: "10^9/L", normal_range_min: "0.5", normal_range_max: "5.0", normal_range_text: "" },
+      { name: "MID", value: "", unit: "10^9/L", normal_range_min: "0.1", normal_range_max: "1.5", normal_range_text: "" },
+      { name: "GRAN", value: "", unit: "10^9/L", normal_range_min: "1.2", normal_range_max: "8.0", normal_range_text: "" },
+      { name: "LYM%", value: "", unit: "%", normal_range_min: "15.0", normal_range_max: "50.0", normal_range_text: "" },
+      { name: "MID%", value: "", unit: "%", normal_range_min: "2.0", normal_range_max: "15.0", normal_range_text: "" },
+      { name: "GRA%", value: "", unit: "%", normal_range_min: "35.0", normal_range_max: "80.0", normal_range_text: "" },
+      { name: "HGB", value: "", unit: "g/dL", normal_range_min: "11.5", normal_range_max: "16.5", normal_range_text: "" },
+      { name: "RBC", value: "", unit: "10^12/L", normal_range_min: "3.50", normal_range_max: "5.50", normal_range_text: "" },
+      { name: "MCV", value: "", unit: "fL", normal_range_min: "75.0", normal_range_max: "100.0", normal_range_text: "" },
+      { name: "HCT", value: "", unit: "%", normal_range_min: "35.0", normal_range_max: "50.0", normal_range_text: "" },
+      { name: "MCH", value: "", unit: "pg", normal_range_min: "25.0", normal_range_max: "35.0", normal_range_text: "" },
+      { name: "MCHC", value: "", unit: "g/dL", normal_range_min: "31.0", normal_range_max: "38.0", normal_range_text: "" },
+      { name: "RDW%", value: "", unit: "%", normal_range_min: "11.0", normal_range_max: "16.0", normal_range_text: "" },
+      { name: "RDWa", value: "", unit: "fL", normal_range_min: "30.0", normal_range_max: "150.0", normal_range_text: "" },
+      { name: "PLT", value: "", unit: "10^9/L", normal_range_min: "100", normal_range_max: "400", normal_range_text: "" },
+      { name: "MPV", value: "", unit: "fL", normal_range_min: "8.0", normal_range_max: "11.0", normal_range_text: "" },
+      { name: "PCT", value: "", unit: "%", normal_range_min: "0.01", normal_range_max: "9.99", normal_range_text: "" },
+      { name: "PDW", value: "", unit: "fL", normal_range_min: "0.1", normal_range_max: "99.9", normal_range_text: "" },
+      { name: "LPCR", value: "", unit: "%", normal_range_min: "0.1", normal_range_max: "99.9", normal_range_text: "" },
+    ];
+  };
+
+  const parseOptionalNumber = (value: string): number | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const numberValue = Number(trimmed);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const parseItemValue = (value: string): number | string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const numberValue = Number(trimmed);
+    return Number.isFinite(numberValue) ? numberValue : trimmed;
+  };
+
+  const getPanelAbnormal = (items: ResultItemInput[]) =>
+    items.some((item) => {
+      const value = parseOptionalNumber(item.value);
+      if (value === null) return false;
+      const min = parseOptionalNumber(item.normal_range_min);
+      const max = parseOptionalNumber(item.normal_range_max);
+      if (min !== null && value < min) return true;
+      if (max !== null && value > max) return true;
+      return false;
+    });
+
+  const normalizePanelItems = (items: ResultItem[] | null): ResultItemInput[] => {
+    if (!items || !Array.isArray(items)) return [];
+    return items.map((item) => ({
+      name: typeof item?.name === "string" ? item.name : "",
+      value: item?.value !== null && item?.value !== undefined ? String(item.value) : "",
+      unit: typeof item?.unit === "string" ? item.unit : "",
+      normal_range_min: item?.normal_range_min !== null && item?.normal_range_min !== undefined
+        ? String(item.normal_range_min)
+        : "",
+      normal_range_max: item?.normal_range_max !== null && item?.normal_range_max !== undefined
+        ? String(item.normal_range_max)
+        : "",
+      normal_range_text: typeof item?.normal_range_text === "string" ? item.normal_range_text : "",
+    }));
+  };
+
+  const serializePanelItems = (items: ResultItemInput[]) =>
+    items
+      .map((item) => {
+        const name = item.name.trim();
+        const unit = item.unit.trim();
+        const rangeText = item.normal_range_text.trim();
+        return {
+          name,
+          value: parseItemValue(item.value),
+          unit: unit || null,
+          normal_range_min: parseOptionalNumber(item.normal_range_min),
+          normal_range_max: parseOptionalNumber(item.normal_range_max),
+          normal_range_text: rangeText || null,
+        };
+      })
+      .filter((item) => item.name || item.value !== null || item.unit || item.normal_range_text);
+
+  const updatePanelItem = (index: number, field: keyof ResultItemInput, value: string) => {
+    setResultData((prev) => {
+      const updatedItems = prev.result_items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      const next = { ...prev, result_items: updatedItems };
+      if (usePanelResults) {
+        next.is_abnormal = getPanelAbnormal(updatedItems);
+      }
+      return next;
+    });
+  };
+
+  const addPanelItem = () => {
+    setResultData((prev) => ({
+      ...prev,
+      result_items: [...prev.result_items, emptyResultItem()],
+    }));
+  };
+
+  const removePanelItem = (index: number) => {
+    setResultData((prev) => {
+      const updatedItems = prev.result_items.filter((_, itemIndex) => itemIndex !== index);
+      const next = { ...prev, result_items: updatedItems };
+      if (usePanelResults) {
+        next.is_abnormal = getPanelAbnormal(updatedItems);
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
     
@@ -591,24 +784,36 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     e.preventDefault();
     if (!selectedTest) return;
     setIsSubmitting(true);
-    const hadResult = Boolean(selectedTest.result) || selectedTest.result_value !== null;
-    const willHaveResult = Boolean(resultData.result) || resultData.result_value !== "";
+    const panelItems = usePanelResults ? serializePanelItems(resultData.result_items) : [];
+    const hasPanelResults = panelItems.length > 0;
+    const hadResult =
+      Boolean(selectedTest.result) ||
+      selectedTest.result_value !== null ||
+      (selectedTest.result_items && selectedTest.result_items.length > 0);
+    const willHaveResult =
+      Boolean(resultData.result) ||
+      resultData.result_value !== "" ||
+      hasPanelResults;
     const wasCompleted = selectedTest.status === "completed" && hadResult;
     const willComplete = resultData.status === "completed" && willHaveResult;
 
     try {
+      const panelAbnormal = usePanelResults ? getPanelAbnormal(resultData.result_items) : false;
+      const finalAbnormal = usePanelResults ? panelAbnormal || resultData.is_abnormal : resultData.is_abnormal;
       const updateData: Record<string, unknown> = {
         result: resultData.result || null,
-        result_value: resultData.result_value ? parseFloat(resultData.result_value) : null,
-        result_unit: resultData.result_unit || null,
-        normal_range_text: resultData.normal_range_text || null,
-        is_abnormal: resultData.is_abnormal,
+        result_value: usePanelResults ? null : (resultData.result_value ? parseFloat(resultData.result_value) : null),
+        result_unit: usePanelResults ? null : (resultData.result_unit || null),
+        normal_range_text: usePanelResults ? null : (resultData.normal_range_text || null),
+        result_items: hasPanelResults ? panelItems : null,
+        registry_serial: resultData.registry_serial.trim() || null,
+        is_abnormal: finalAbnormal,
         status: resultData.status,
         updated_by: user?.id,
       };
 
       // If result is being entered for the first time, track who entered it
-      if (!selectedTest.result && (resultData.result || resultData.result_value)) {
+      if (!hadResult && willHaveResult) {
         updateData.result_entered_by = user?.id;
         updateData.result_entered_at = new Date().toISOString();
       }
@@ -670,7 +875,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       toast.success("Test result updated successfully");
       setIsResultDialogOpen(false);
       setSelectedTest(null);
-      setResultData({ result: "", result_value: "", result_unit: "", normal_range_text: "", is_abnormal: false, status: "completed" });
+      setResultData({
+        result: "",
+        result_value: "",
+        result_unit: "",
+        normal_range_text: "",
+        is_abnormal: false,
+        status: "completed",
+        result_items: [],
+        registry_serial: "",
+      });
+      setUsePanelResults(false);
       fetchData();
     } catch (error: any) {
       console.error("Error updating result:", error);
@@ -684,10 +899,13 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     setSelectedTest(test);
     // Try to find the test in catalog to get default unit and normal range
     const catalogTest = testCatalog.find(t => t.name === test.test_name);
+    const panelItems = normalizePanelItems(test.result_items);
     
     // Calculate if result is abnormal based on normal range
     let isAbnormal = test.is_abnormal || false;
-    if (test.result_value !== null && test.result_value !== undefined && catalogTest) {
+    if (panelItems.length > 0) {
+      isAbnormal = getPanelAbnormal(panelItems);
+    } else if (test.result_value !== null && test.result_value !== undefined && catalogTest) {
       const value = test.result_value;
       const min = catalogTest.normal_range_min;
       const max = catalogTest.normal_range_max;
@@ -708,7 +926,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       normal_range_text: test.normal_range_text || catalogTest?.normal_range_text || "",
       is_abnormal: isAbnormal,
       status: test.status,
+      result_items: panelItems,
+      registry_serial: test.registry_serial || "",
     });
+    setUsePanelResults(panelItems.length > 0);
     setIsResultDialogOpen(true);
   };
 
@@ -853,6 +1074,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         result: test.result,
         result_value: test.result_value,
         result_unit: test.result_unit,
+        result_items: test.result_items,
+        registry_serial: test.registry_serial,
         is_abnormal: test.is_abnormal || false,
         normal_range_text: test.normal_range_text || undefined,
         lab_name: test.labs?.name,
@@ -1222,12 +1445,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                                         onCheckedChange={() => toggleTestSelection(test.name)}
                                       />
                                       <div className="flex-1">
-                                        <span className="font-medium">{test.name}</span>
-                                        {test.price && (
-                                          <span className="text-muted-foreground ml-2">
-                                            ₹{test.price}
-                                          </span>
-                                        )}
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-medium">{test.name}</span>
+                                          {test.test_id && (
+                                            <Badge variant="outline" className="font-mono text-[10px]">
+                                              {test.test_id}
+                                            </Badge>
+                                          )}
+                                          {test.price && (
+                                            <span className="text-muted-foreground">
+                                              ₹{test.price}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                     </label>
                                   ))}
@@ -1503,42 +1733,214 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
               </Select>
             </div>
 
-            {/* Numeric Result Value and Unit */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="result_value">Result Value</Label>
-                <div className="relative">
-                  <Input
-                    id="result_value"
-                    type="number"
-                    step="any"
-                    value={resultData.result_value}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
-                      
-                      // Auto-detect abnormal based on normal range
-                      let isAbnormal = resultData.is_abnormal;
-                      if (value && catalogTest) {
-                        const numValue = parseFloat(value);
-                        if (!isNaN(numValue)) {
-                          const min = catalogTest.normal_range_min;
-                          const max = catalogTest.normal_range_max;
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">Panel Results</p>
+                <p className="text-xs text-muted-foreground">
+                  Use multiple result rows for tests like CBC.
+                </p>
+              </div>
+              <Switch
+                checked={usePanelResults}
+                onCheckedChange={(checked) => {
+                  setUsePanelResults(checked);
+                  if (checked && resultData.result_items.length === 0) {
+                    setResultData((prev) => {
+                      const defaults = getDefaultPanelItems(selectedTest?.test_name);
+                      return {
+                        ...prev,
+                        result_items: defaults.length > 0 ? defaults : [emptyResultItem()],
+                        is_abnormal: defaults.length > 0 ? getPanelAbnormal(defaults) : false,
+                      };
+                    });
+                  }
+                }}
+              />
+            </div>
+
+            {usePanelResults ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const defaults = getDefaultPanelItems(selectedTest?.test_name);
+                      if (defaults.length === 0) {
+                        toast.info("No default panel template available for this test.");
+                        return;
+                      }
+                      setResultData((prev) => ({
+                        ...prev,
+                        result_items: defaults,
+                        is_abnormal: getPanelAbnormal(defaults),
+                      }));
+                    }}
+                  >
+                    Load Panel Template
+                  </Button>
+                </div>
+                {resultData.result_items.map((item, index) => (
+                  <div key={`panel-item-${index}`} className="rounded-lg border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Result Item {index + 1}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removePanelItem(index)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Item Name</Label>
+                        <Input
+                          value={item.name}
+                          onChange={(e) => updatePanelItem(index, "name", e.target.value)}
+                          placeholder="e.g. WBC, HGB, PLT"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Value</Label>
+                        <Input
+                          value={item.value}
+                          onChange={(e) => updatePanelItem(index, "value", e.target.value)}
+                          placeholder="e.g. 7.0"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-2">
+                        <Label>Unit</Label>
+                        <Input
+                          value={item.unit}
+                          onChange={(e) => updatePanelItem(index, "unit", e.target.value)}
+                          placeholder="e.g. 10^9/L"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Normal Min</Label>
+                        <Input
+                          value={item.normal_range_min}
+                          onChange={(e) => updatePanelItem(index, "normal_range_min", e.target.value)}
+                          placeholder="Min"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Normal Max</Label>
+                        <Input
+                          value={item.normal_range_max}
+                          onChange={(e) => updatePanelItem(index, "normal_range_max", e.target.value)}
+                          placeholder="Max"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Normal Range (Text)</Label>
+                      <Input
+                        value={item.normal_range_text}
+                        onChange={(e) => updatePanelItem(index, "normal_range_text", e.target.value)}
+                        placeholder="Optional: e.g. 3.5 - 10.0"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={addPanelItem}>
+                  Add Result Item
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Numeric Result Value and Unit */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="result_value">Result Value</Label>
+                    <div className="relative">
+                      <Input
+                        id="result_value"
+                        type="number"
+                        step="any"
+                        value={resultData.result_value}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
                           
-                          if (min !== null && max !== null) {
-                            isAbnormal = numValue < min || numValue > max;
-                          } else if (min !== null) {
-                            isAbnormal = numValue < min;
-                          } else if (max !== null) {
-                            isAbnormal = numValue > max;
+                          // Auto-detect abnormal based on normal range
+                          let isAbnormal = resultData.is_abnormal;
+                          if (value && catalogTest) {
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue)) {
+                              const min = catalogTest.normal_range_min;
+                              const max = catalogTest.normal_range_max;
+                              
+                              if (min !== null && max !== null) {
+                                isAbnormal = numValue < min || numValue > max;
+                              } else if (min !== null) {
+                                isAbnormal = numValue < min;
+                              } else if (max !== null) {
+                                isAbnormal = numValue > max;
+                              }
+                            }
+                          }
+                          
+                          setResultData({ ...resultData, result_value: value, is_abnormal: isAbnormal });
+                        }}
+                        placeholder="e.g. 12.5"
+                        className={(() => {
+                          const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                          if (resultData.result_value && catalogTest) {
+                            const numValue = parseFloat(resultData.result_value);
+                            if (!isNaN(numValue)) {
+                              const min = catalogTest.normal_range_min;
+                              const max = catalogTest.normal_range_max;
+                              let isOutOfRange = false;
+                              if (min !== null && max !== null) {
+                                isOutOfRange = numValue < min || numValue > max;
+                              } else if (min !== null) {
+                                isOutOfRange = numValue < min;
+                              } else if (max !== null) {
+                                isOutOfRange = numValue > max;
+                              }
+                              if (isOutOfRange) {
+                                return "border-red-500 focus-visible:ring-red-500";
+                              }
+                            }
+                          }
+                          return "";
+                        })()}
+                      />
+                      {(() => {
+                        const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                        if (resultData.result_value && catalogTest) {
+                          const numValue = parseFloat(resultData.result_value);
+                          if (!isNaN(numValue)) {
+                            const min = catalogTest.normal_range_min;
+                            const max = catalogTest.normal_range_max;
+                            let isOutOfRange = false;
+                            if (min !== null && max !== null) {
+                              isOutOfRange = numValue < min || numValue > max;
+                            } else if (min !== null) {
+                              isOutOfRange = numValue < min;
+                            } else if (max !== null) {
+                              isOutOfRange = numValue > max;
+                            }
+                            if (isOutOfRange) {
+                              return (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                  <AlertCircle className="h-4 w-4 text-red-500" />
+                                </div>
+                              );
+                            }
                           }
                         }
-                      }
-                      
-                      setResultData({ ...resultData, result_value: value, is_abnormal: isAbnormal });
-                    }}
-                    placeholder="e.g. 12.5"
-                    className={(() => {
+                        return null;
+                      })()}
+                    </div>
+                    {(() => {
                       const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
                       if (resultData.result_value && catalogTest) {
                         const numValue = parseFloat(resultData.result_value);
@@ -1546,139 +1948,91 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                           const min = catalogTest.normal_range_min;
                           const max = catalogTest.normal_range_max;
                           let isOutOfRange = false;
+                          let message = "";
                           if (min !== null && max !== null) {
                             isOutOfRange = numValue < min || numValue > max;
+                            if (numValue < min) {
+                              message = `Value is below normal range (min: ${min})`;
+                            } else if (numValue > max) {
+                              message = `Value is above normal range (max: ${max})`;
+                            }
                           } else if (min !== null) {
                             isOutOfRange = numValue < min;
+                            if (isOutOfRange) {
+                              message = `Value is below normal range (min: ${min})`;
+                            }
                           } else if (max !== null) {
                             isOutOfRange = numValue > max;
+                            if (isOutOfRange) {
+                              message = `Value is above normal range (max: ${max})`;
+                            }
                           }
                           if (isOutOfRange) {
-                            return "border-red-500 focus-visible:ring-red-500";
+                            return (
+                              <p className="text-xs text-red-600 font-medium mt-1">
+                                {message}
+                              </p>
+                            );
+                          } else if (min !== null || max !== null) {
+                            return (
+                              <p className="text-xs text-green-600 font-medium mt-1">
+                                Value is within normal range
+                              </p>
+                            );
                           }
                         }
                       }
-                      return "";
+                      return null;
                     })()}
-                  />
-                  {(() => {
-                    const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
-                    if (resultData.result_value && catalogTest) {
-                      const numValue = parseFloat(resultData.result_value);
-                      if (!isNaN(numValue)) {
-                        const min = catalogTest.normal_range_min;
-                        const max = catalogTest.normal_range_max;
-                        let isOutOfRange = false;
-                        if (min !== null && max !== null) {
-                          isOutOfRange = numValue < min || numValue > max;
-                        } else if (min !== null) {
-                          isOutOfRange = numValue < min;
-                        } else if (max !== null) {
-                          isOutOfRange = numValue > max;
-                        }
-                        if (isOutOfRange) {
-                          return (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                              <AlertCircle className="h-4 w-4 text-red-500" />
-                            </div>
-                          );
-                        }
-                      }
-                    }
-                    return null;
-                  })()}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="result_unit">Unit</Label>
+                    <Input
+                      id="result_unit"
+                      value={resultData.result_unit}
+                      onChange={(e) => setResultData({ ...resultData, result_unit: e.target.value })}
+                      placeholder="e.g. mg/dL, U/L"
+                    />
+                  </div>
                 </div>
+                
+                {/* Show Normal Range from Catalog if available */}
                 {(() => {
                   const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
-                  if (resultData.result_value && catalogTest) {
-                    const numValue = parseFloat(resultData.result_value);
-                    if (!isNaN(numValue)) {
-                      const min = catalogTest.normal_range_min;
-                      const max = catalogTest.normal_range_max;
-                      let isOutOfRange = false;
-                      let message = "";
-                      if (min !== null && max !== null) {
-                        isOutOfRange = numValue < min || numValue > max;
-                        if (numValue < min) {
-                          message = `Value is below normal range (min: ${min})`;
-                        } else if (numValue > max) {
-                          message = `Value is above normal range (max: ${max})`;
-                        }
-                      } else if (min !== null) {
-                        isOutOfRange = numValue < min;
-                        if (isOutOfRange) {
-                          message = `Value is below normal range (min: ${min})`;
-                        }
-                      } else if (max !== null) {
-                        isOutOfRange = numValue > max;
-                        if (isOutOfRange) {
-                          message = `Value is above normal range (max: ${max})`;
-                        }
-                      }
-                      if (isOutOfRange) {
-                        return (
-                          <p className="text-xs text-red-600 font-medium mt-1">
-                            {message}
-                          </p>
-                        );
-                      } else if (min !== null || max !== null) {
-                        return (
-                          <p className="text-xs text-green-600 font-medium mt-1">
-                            Value is within normal range
-                          </p>
-                        );
-                      }
-                    }
+                  if (catalogTest && (catalogTest.normal_range_min !== null || catalogTest.normal_range_max !== null)) {
+                    const min = catalogTest.normal_range_min;
+                    const max = catalogTest.normal_range_max;
+                    const rangeText = min !== null && max !== null 
+                      ? `${min} - ${max} ${catalogTest.unit || ''}`.trim()
+                      : min !== null 
+                        ? `≥ ${min} ${catalogTest.unit || ''}`.trim()
+                        : `≤ ${max} ${catalogTest.unit || ''}`.trim();
+                    
+                    return (
+                      <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                        <p className="text-sm font-medium text-blue-900">Normal Range (from catalog):</p>
+                        <p className="text-sm text-blue-700">{rangeText}</p>
+                      </div>
+                    );
                   }
                   return null;
                 })()}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="result_unit">Unit</Label>
-                <Input
-                  id="result_unit"
-                  value={resultData.result_unit}
-                  onChange={(e) => setResultData({ ...resultData, result_unit: e.target.value })}
-                  placeholder="e.g. mg/dL, U/L"
-                />
-              </div>
-            </div>
-            
-            {/* Show Normal Range from Catalog if available */}
-            {(() => {
-              const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
-              if (catalogTest && (catalogTest.normal_range_min !== null || catalogTest.normal_range_max !== null)) {
-                const min = catalogTest.normal_range_min;
-                const max = catalogTest.normal_range_max;
-                const rangeText = min !== null && max !== null 
-                  ? `${min} - ${max} ${catalogTest.unit || ''}`.trim()
-                  : min !== null 
-                    ? `≥ ${min} ${catalogTest.unit || ''}`.trim()
-                    : `≤ ${max} ${catalogTest.unit || ''}`.trim();
-                
-                return (
-                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                    <p className="text-sm font-medium text-blue-900">Normal Range (from catalog):</p>
-                    <p className="text-sm text-blue-700">{rangeText}</p>
-                  </div>
-                );
-              }
-              return null;
-            })()}
 
-            {/* Normal Range */}
-            <div className="space-y-2">
-              <Label htmlFor="normal_range_text">Normal Range</Label>
-              <Input
-                id="normal_range_text"
-                value={resultData.normal_range_text}
-                onChange={(e) => setResultData({ ...resultData, normal_range_text: e.target.value })}
-                placeholder="e.g. 70-100 mg/dL, < 40 U/L, Negative"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter the reference range for this test result
-              </p>
-            </div>
+                {/* Normal Range */}
+                <div className="space-y-2">
+                  <Label htmlFor="normal_range_text">Normal Range</Label>
+                  <Input
+                    id="normal_range_text"
+                    value={resultData.normal_range_text}
+                    onChange={(e) => setResultData({ ...resultData, normal_range_text: e.target.value })}
+                    placeholder="e.g. 70-100 mg/dL, < 40 U/L, Negative"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the reference range for this test result
+                  </p>
+                </div>
+              </>
+            )}
 
             {/* Text Result (for qualitative results) */}
             <div className="space-y-2">
@@ -1689,6 +2043,16 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 onChange={(e) => setResultData({ ...resultData, result: e.target.value })}
                 placeholder="Enter detailed results, observations, or qualitative findings..."
                 rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="registry_serial">Registry Serial (optional)</Label>
+              <Input
+                id="registry_serial"
+                value={resultData.registry_serial}
+                onChange={(e) => setResultData({ ...resultData, registry_serial: e.target.value })}
+                placeholder="e.g. REG-2024-1123"
               />
             </div>
 
@@ -1710,6 +2074,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 <p className="text-xs text-muted-foreground">
                   {(() => {
                     const catalogTest = testCatalog.find(t => t.name === selectedTest?.test_name);
+                    if (usePanelResults && resultData.result_items.length > 0) {
+                      return "Automatically detected from panel ranges. You can override if needed.";
+                    }
                     if (catalogTest && resultData.result_value && (catalogTest.normal_range_min !== null || catalogTest.normal_range_max !== null)) {
                       return "Automatically detected based on normal range. You can override if needed.";
                     }
@@ -1948,7 +2315,11 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     {getStatusBadge(test.status)}
                   </TableCell>
                   <TableCell>
-                    {test.result_value !== null && test.result_value !== undefined ? (
+                    {test.result_items && test.result_items.length > 0 ? (
+                      <span className="text-sm font-medium">
+                        Panel ({test.result_items.length})
+                      </span>
+                    ) : test.result_value !== null && test.result_value !== undefined ? (
                       <span className="text-sm font-medium">
                         {test.result_value}
                         {test.result_unit && ` ${test.result_unit}`}

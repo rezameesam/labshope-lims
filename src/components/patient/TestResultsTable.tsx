@@ -37,6 +37,15 @@ interface TestResult {
   result: string | null;
   result_value: number | null;
   result_unit: string | null;
+  result_items?: Array<{
+    name: string;
+    value: number | string | null;
+    unit: string | null;
+    normal_range_min: number | null;
+    normal_range_max: number | null;
+    normal_range_text: string | null;
+  }> | null;
+  registry_serial?: string | null;
   is_abnormal: boolean;
   normal_range_text?: string | null;
   notes: string | null;
@@ -297,6 +306,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             result: t.result,
             result_value: t.result_value,
             result_unit: t.result_unit,
+            result_items: t.result_items,
+            registry_serial: t.registry_serial,
             is_abnormal: t.is_abnormal,
             normal_range_text: t.normal_range_text,
             entered_by_name: t.entered_by_name,
@@ -357,6 +368,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             result: t.result,
             result_value: t.result_value,
             result_unit: t.result_unit,
+            result_items: t.result_items,
+            registry_serial: t.registry_serial,
             is_abnormal: t.is_abnormal,
             normal_range_text: t.normal_range_text,
             entered_by_name: t.entered_by_name,
@@ -419,6 +432,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             result: test.result,
             result_value: test.result_value,
             result_unit: test.result_unit,
+            result_items: test.result_items,
+            registry_serial: test.registry_serial,
             is_abnormal: test.is_abnormal,
             normal_range_text: test.normal_range_text,
             entered_by_name: test.entered_by_name,
@@ -605,11 +620,15 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                       </TableCell>
                       <TableCell className="text-center">
                         <span className={test.is_abnormal ? "text-red-600 font-semibold" : ""}>
-                          {test.result_value !== null ? test.result_value : test.result || "-"}
+                          {test.result_items && test.result_items.length > 0
+                            ? `Panel (${test.result_items.length})`
+                            : test.result_value !== null
+                              ? test.result_value
+                              : test.result || "-"}
                         </span>
                       </TableCell>
                       <TableCell className="text-center text-muted-foreground">
-                        {test.result_unit || "-"}
+                        {test.result_items && test.result_items.length > 0 ? "-" : test.result_unit || "-"}
                       </TableCell>
                       <TableCell className="text-center">
                         {test.is_abnormal ? (
@@ -666,15 +685,49 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                             <div>
                               <span className="text-muted-foreground">Result:</span>
                               <p className={`font-medium ${test.is_abnormal ? "text-red-600" : ""}`}>
-                                {test.result_value !== null 
-                                  ? `${test.result_value} ${test.result_unit || ""}` 
-                                  : test.result || "N/A"}
+                                {test.result_items && test.result_items.length > 0
+                                  ? `Panel (${test.result_items.length} items)`
+                                  : test.result_value !== null 
+                                    ? `${test.result_value} ${test.result_unit || ""}` 
+                                    : test.result || "N/A"}
                               </p>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Status:</span>
                               <p className="font-medium">{test.is_abnormal ? "Abnormal" : "Normal"}</p>
                             </div>
+                            {test.result_items && test.result_items.length > 0 && (
+                              <div className="col-span-2 md:col-span-4">
+                                <span className="text-muted-foreground">Panel Results:</span>
+                                <div className="mt-2 grid gap-2">
+                                  <div className="grid grid-cols-4 text-xs font-medium text-muted-foreground">
+                                    <span>Item</span>
+                                    <span>Value</span>
+                                    <span>Unit</span>
+                                    <span>Range</span>
+                                  </div>
+                                  {test.result_items.map((item, index) => {
+                                    const rangeText =
+                                      item.normal_range_text ||
+                                      (item.normal_range_min !== null && item.normal_range_max !== null
+                                        ? `${item.normal_range_min} - ${item.normal_range_max}`
+                                        : item.normal_range_min !== null
+                                          ? `≥ ${item.normal_range_min}`
+                                          : item.normal_range_max !== null
+                                            ? `≤ ${item.normal_range_max}`
+                                            : "-");
+                                    return (
+                                      <div key={`${test.id}-item-${index}`} className="grid grid-cols-4 text-sm">
+                                        <span className="font-medium">{item.name || "-"}</span>
+                                        <span>{item.value ?? "-"}</span>
+                                        <span className="text-muted-foreground">{item.unit || "-"}</span>
+                                        <span className="text-muted-foreground">{rangeText}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                             {test.notes && (
                               <div className="col-span-2 md:col-span-4">
                                 <span className="text-muted-foreground">Notes:</span>

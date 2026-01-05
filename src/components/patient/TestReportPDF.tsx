@@ -8,6 +8,15 @@ interface TestResult {
   result: string | null;
   result_value: number | null;
   result_unit: string | null;
+  result_items?: Array<{
+    name: string;
+    value: number | string | null;
+    unit: string | null;
+    normal_range_min: number | null;
+    normal_range_max: number | null;
+    normal_range_text: string | null;
+  }> | null;
+  registry_serial?: string | null;
   is_abnormal: boolean;
   normal_range_text?: string;
   normal_range_min?: number;
@@ -37,6 +46,7 @@ interface ReportData {
   collection_center_name?: string;
   collection_center_code?: string;
   entered_by?: string;
+  registry_serial?: string;
   options?: ReportOptions;
 }
 
@@ -144,8 +154,15 @@ export const generateTestReportPDF = (data: ReportData) => {
   doc.setFont("helvetica", "normal");
   doc.text(format(new Date(data.test_date), "dd MMM yyyy"), col2X + 28, patientInfoY + 14);
   
-  // Lab and Collection Center info (if available)
+  // Lab, registry, and collection center info (if available)
   let infoY = patientInfoY + 21;
+  if (data.registry_serial) {
+    doc.setFont("helvetica", "bold");
+    doc.text("Registry No:", col1X, infoY);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.registry_serial, col1X + 25, infoY);
+    infoY += 7;
+  }
   if (data.lab_name || data.collection_center_name) {
     if (data.lab_name) {
       doc.setFont("helvetica", "bold");
@@ -168,31 +185,89 @@ export const generateTestReportPDF = (data: ReportData) => {
   }
 
   // Test Results Section - calculate start Y position based on whether lab info was added
-  const testResultsStartY = (data.lab_name || data.collection_center_name) ? infoY + 5 : patientInfoY + 30;
+  const testResultsStartY = (data.lab_name || data.collection_center_name || data.registry_serial)
+    ? infoY + 5
+    : patientInfoY + 30;
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text("TEST RESULTS", 14, testResultsStartY);
   
   doc.line(14, testResultsStartY + 2, pageWidth - 14, testResultsStartY + 2);
 
+  const parseNumber = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const buildRangeText = (
+    min: number | string | null | undefined,
+    max: number | string | null | undefined,
+    text: string | null | undefined
+  ) => {
+    if (text) return text;
+    const minValue = parseNumber(min);
+    const maxValue = parseNumber(max);
+    if (minValue !== null && maxValue !== null) return `${minValue} - ${maxValue}`;
+    if (minValue !== null) return `≥ ${minValue}`;
+    if (maxValue !== null) return `≤ ${maxValue}`;
+    return "-";
+  };
+
+  const isItemAbnormal = (
+    value: number | string | null | undefined,
+    min: number | string | null | undefined,
+    max: number | string | null | undefined
+  ) => {
+    const numericValue = parseNumber(value);
+    if (numericValue === null) return false;
+    const minValue = parseNumber(min);
+    const maxValue = parseNumber(max);
+    if (minValue !== null && numericValue < minValue) return true;
+    if (maxValue !== null && numericValue > maxValue) return true;
+    return false;
+  };
+
   // Prepare table data
-  const tableData = data.tests.map((test) => {
-    const normalRange = test.normal_range_text || 
-      (test.normal_range_min !== undefined && test.normal_range_max !== undefined 
-        ? `${test.normal_range_min} - ${test.normal_range_max}` 
-        : "-");
-    
-    const resultDisplay = test.result_value !== null 
-      ? `${test.result_value} ${test.result_unit || ""}`
+  const tableData = data.tests.flatMap((test) => {
+    if (test.result_items && test.result_items.length > 0) {
+      return test.result_items.map((item) => {
+        const normalRange = buildRangeText(
+          item.normal_range_min,
+          item.normal_range_max,
+          item.normal_range_text
+        );
+        const resultDisplay = item.value !== null && item.value !== undefined
+          ? `${item.value} ${item.unit || ""}`.trim()
+          : "Pending";
+        return [
+          `${test.test_name} - ${item.name || "Item"}`,
+          resultDisplay,
+          item.unit || "-",
+          normalRange,
+          isItemAbnormal(item.value, item.normal_range_min, item.normal_range_max) ? "⚠️" : "✓"
+        ];
+      });
+    }
+
+    const normalRange = buildRangeText(
+      test.normal_range_min,
+      test.normal_range_max,
+      test.normal_range_text || null
+    );
+
+    const resultDisplay = test.result_value !== null
+      ? `${test.result_value} ${test.result_unit || ""}`.trim()
       : test.result || "Pending";
-    
-    return [
+
+    return [[
       test.test_name,
       resultDisplay,
       test.result_unit || "-",
       normalRange,
       test.is_abnormal ? "⚠️" : "✓"
-    ];
+    ]];
   });
 
   autoTable(doc, {
@@ -286,6 +361,15 @@ export const generateMultiTestReportPDF = (
     result: string | null;
     result_value?: number | null;
     result_unit?: string | null;
+    result_items?: Array<{
+      name: string;
+      value: number | string | null;
+      unit: string | null;
+      normal_range_min: number | null;
+      normal_range_max: number | null;
+      normal_range_text: string | null;
+    }> | null;
+    registry_serial?: string | null;
     is_abnormal?: boolean;
     normal_range_text?: string;
     entered_by_name?: string;
@@ -308,6 +392,8 @@ export const generateMultiTestReportPDF = (
     result: t.result,
     result_value: t.result_value || null,
     result_unit: t.result_unit || null,
+    result_items: t.result_items || null,
+    registry_serial: t.registry_serial || null,
     is_abnormal: t.is_abnormal || false,
     normal_range_text: t.normal_range_text
   }));
@@ -327,6 +413,7 @@ export const generateMultiTestReportPDF = (
     collection_center_name: firstTest.collection_center_name,
     collection_center_code: firstTest.collection_center_code,
     entered_by: employeeName,
+    registry_serial: firstTest.registry_serial || undefined,
     options
   });
 
