@@ -49,6 +49,15 @@ interface PatientTest {
   result: string | null;
   result_value: number | null;
   result_unit: string | null;
+  result_items: Array<{
+    name: string;
+    value: number | string | null;
+    unit: string | null;
+    normal_range_min: number | null;
+    normal_range_max: number | null;
+    normal_range_text: string | null;
+  }> | null;
+  registry_serial: string | null;
   is_abnormal: boolean;
   normal_range_text: string | null;
   report_url: string | null;

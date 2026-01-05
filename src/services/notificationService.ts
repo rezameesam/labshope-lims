@@ -32,6 +32,13 @@ export interface NotificationResult {
   method?: 'email' | 'sms';
 }
 
+interface PatientWelcomePayload {
+  email: string;
+  fullName: string;
+  patientId: string;
+  portalUrl: string;
+}
+
 /**
  * Send email notification using Supabase Edge Function (server-side)
  * This calls the send-email Edge Function which uses nodemailer on the server
@@ -388,6 +395,22 @@ export async function sendPromotionalMessage(
   }
 
   return { sent, failed };
+}
+
+/**
+ * Send patient portal credentials after first registration.
+ */
+export async function sendPatientWelcomeEmail(
+  payload: PatientWelcomePayload
+): Promise<NotificationResult[]> {
+  const message = `Dear ${payload.fullName},\n\nYour patient portal access has been created.\n\nUser ID: ${payload.patientId}\nTemporary Password: ${payload.patientId}\n\nPortal: ${payload.portalUrl}\n\nPlease log in and change your password on your first visit.\n\nThank you!`;
+
+  return sendNotification({
+    to: payload.email,
+    subject: "Your Patient Portal Access",
+    message,
+    type: "email",
+  });
 }
 
 /**

@@ -45,6 +45,7 @@ import { format } from "date-fns";
 import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import { sendPatientWelcomeEmail } from "@/services/notificationService";
 
 interface Patient {
   id: string;
@@ -526,6 +527,23 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       if (error) throw error;
 
       toast.success(`Patient ${formData.full_name} added successfully`);
+      if (formData.email?.trim()) {
+        try {
+          const portalUrl = `${window.location.origin}/auth/patient`;
+          const results = await sendPatientWelcomeEmail({
+            email: formData.email.trim(),
+            fullName: formData.full_name,
+            patientId,
+            portalUrl,
+          });
+          if (!results.some((result) => result.success)) {
+            toast.error("Patient created, but failed to send portal credentials email.");
+          }
+        } catch (emailError) {
+          console.error("Failed to send patient welcome email:", emailError);
+          toast.error("Patient created, but failed to send portal credentials email.");
+        }
+      }
       setIsDialogOpen(false);
       setDuplicatePhoneDialogOpen(false);
       resetForm();

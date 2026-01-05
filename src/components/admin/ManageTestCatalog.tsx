@@ -60,6 +60,7 @@ interface Test {
   normal_range_min: number | null;
   normal_range_max: number | null;
   normal_range_text: string | null;
+  panel_items: PanelItem[] | null;
   sample_type: string | null;
   created_at: string;
 }
@@ -68,6 +69,22 @@ interface TestCategory {
   id: string;
   name: string;
   description: string | null;
+}
+
+interface PanelItem {
+  name: string;
+  unit: string | null;
+  normal_range_min: number | null;
+  normal_range_max: number | null;
+  normal_range_text: string | null;
+}
+
+interface PanelItemInput {
+  name: string;
+  unit: string;
+  normal_range_min: string;
+  normal_range_max: string;
+  normal_range_text: string;
 }
 
 const ManageTestCatalog = () => {
@@ -99,6 +116,7 @@ const ManageTestCatalog = () => {
     normal_range_min: "",
     normal_range_max: "",
     normal_range_text: "",
+    panel_items: [] as PanelItemInput[],
     sample_type: "Blood",
   });
 
@@ -185,10 +203,57 @@ const ManageTestCatalog = () => {
       normal_range_min: "",
       normal_range_max: "",
       normal_range_text: "",
+      panel_items: [],
       sample_type: "Blood",
     });
     setSelectedTest(null);
   };
+
+  const emptyPanelItem = (): PanelItemInput => ({
+    name: "",
+    unit: "",
+    normal_range_min: "",
+    normal_range_max: "",
+    normal_range_text: "",
+  });
+
+  const parseOptionalNumber = (value: string): number | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const numberValue = Number(trimmed);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  };
+
+  const normalizePanelItems = (items: PanelItem[] | null): PanelItemInput[] => {
+    if (!items || !Array.isArray(items)) return [];
+    return items.map((item) => ({
+      name: typeof item?.name === "string" ? item.name : "",
+      unit: typeof item?.unit === "string" ? item.unit : "",
+      normal_range_min: item?.normal_range_min !== null && item?.normal_range_min !== undefined
+        ? String(item.normal_range_min)
+        : "",
+      normal_range_max: item?.normal_range_max !== null && item?.normal_range_max !== undefined
+        ? String(item.normal_range_max)
+        : "",
+      normal_range_text: typeof item?.normal_range_text === "string" ? item.normal_range_text : "",
+    }));
+  };
+
+  const serializePanelItems = (items: PanelItemInput[]) =>
+    items
+      .map((item) => {
+        const name = item.name.trim();
+        const unit = item.unit.trim();
+        const rangeText = item.normal_range_text.trim();
+        return {
+          name,
+          unit: unit || null,
+          normal_range_min: parseOptionalNumber(item.normal_range_min),
+          normal_range_max: parseOptionalNumber(item.normal_range_max),
+          normal_range_text: rangeText || null,
+        };
+      })
+      .filter((item) => item.name || item.unit || item.normal_range_text);
 
   const generateTestId = (testName: string): string => {
     // Generate a test ID based on test name initials
@@ -256,6 +321,7 @@ const ManageTestCatalog = () => {
         normal_range_min: test.normal_range_min?.toString() || "",
         normal_range_max: test.normal_range_max?.toString() || "",
         normal_range_text: test.normal_range_text || "",
+        panel_items: normalizePanelItems(test.panel_items),
         sample_type: test.sample_type || "Blood",
       });
     } else {
@@ -379,6 +445,7 @@ const ManageTestCatalog = () => {
         }
       }
 
+      const panelItems = serializePanelItems(testForm.panel_items);
       const testData: any = {
         name: testForm.name.trim(),
         description: testForm.description.trim() || null,
@@ -388,6 +455,7 @@ const ManageTestCatalog = () => {
         normal_range_min: testForm.normal_range_min ? parseFloat(testForm.normal_range_min) : null,
         normal_range_max: testForm.normal_range_max ? parseFloat(testForm.normal_range_max) : null,
         normal_range_text: testForm.normal_range_text.trim() || null,
+        panel_items: panelItems.length > 0 ? panelItems : null,
         sample_type: testForm.sample_type || "Blood",
       };
 
@@ -482,6 +550,29 @@ const ManageTestCatalog = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const updatePanelItem = (index: number, field: keyof PanelItemInput, value: string) => {
+    setTestForm((prev) => {
+      const updated = prev.panel_items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      return { ...prev, panel_items: updated };
+    });
+  };
+
+  const addPanelItem = () => {
+    setTestForm((prev) => ({
+      ...prev,
+      panel_items: [...prev.panel_items, emptyPanelItem()],
+    }));
+  };
+
+  const removePanelItem = (index: number) => {
+    setTestForm((prev) => ({
+      ...prev,
+      panel_items: prev.panel_items.filter((_, itemIndex) => itemIndex !== index),
+    }));
   };
 
   const filteredTests = tests.filter((test) => {
@@ -977,6 +1068,87 @@ const ManageTestCatalog = () => {
                 onChange={(e) => setTestForm({ ...testForm, normal_range_text: e.target.value })}
                 placeholder="e.g., 4.5-5.5 g/dL or Negative"
               />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Panel Items (optional)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Define default result rows for multi-item tests like CBC.
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addPanelItem}>
+                  Add Item
+                </Button>
+              </div>
+
+              {testForm.panel_items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No panel items added.</p>
+              ) : (
+                <div className="space-y-3">
+                  {testForm.panel_items.map((item, index) => (
+                    <div key={`panel-item-${index}`} className="rounded-lg border p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Item {index + 1}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removePanelItem(index)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Item Name</Label>
+                          <Input
+                            value={item.name}
+                            onChange={(e) => updatePanelItem(index, "name", e.target.value)}
+                            placeholder="e.g., WBC, HGB"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Unit</Label>
+                          <Input
+                            value={item.unit}
+                            onChange={(e) => updatePanelItem(index, "unit", e.target.value)}
+                            placeholder="e.g., 10^9/L"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Normal Min</Label>
+                          <Input
+                            value={item.normal_range_min}
+                            onChange={(e) => updatePanelItem(index, "normal_range_min", e.target.value)}
+                            placeholder="Min"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Normal Max</Label>
+                          <Input
+                            value={item.normal_range_max}
+                            onChange={(e) => updatePanelItem(index, "normal_range_max", e.target.value)}
+                            placeholder="Max"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Normal Range (Text)</Label>
+                        <Input
+                          value={item.normal_range_text}
+                          onChange={(e) => updatePanelItem(index, "normal_range_text", e.target.value)}
+                          placeholder="Optional: e.g., 3.5 - 10.0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

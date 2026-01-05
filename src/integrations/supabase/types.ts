@@ -936,9 +936,11 @@ export type Database = {
           patient_id: string
           performed_by: string | null
           report_url: string | null
+          registry_serial: string | null
           result: string | null
           result_entered_at: string | null
           result_entered_by: string | null
+          result_items: Json | null
           result_unit: string | null
           result_value: number | null
           status: string
@@ -962,9 +964,11 @@ export type Database = {
           patient_id: string
           performed_by?: string | null
           report_url?: string | null
+          registry_serial?: string | null
           result?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
+          result_items?: Json | null
           result_unit?: string | null
           result_value?: number | null
           status?: string
@@ -988,9 +992,11 @@ export type Database = {
           patient_id?: string
           performed_by?: string | null
           report_url?: string | null
+          registry_serial?: string | null
           result?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
+          result_items?: Json | null
           result_unit?: string | null
           result_value?: number | null
           status?: string
@@ -1517,6 +1523,7 @@ export type Database = {
           normal_range_max: number | null
           normal_range_min: number | null
           normal_range_text: string | null
+          panel_items: Json | null
           price: number | null
           sample_type: string | null
           test_id: string | null
@@ -1531,6 +1538,7 @@ export type Database = {
           normal_range_max?: number | null
           normal_range_min?: number | null
           normal_range_text?: string | null
+          panel_items?: Json | null
           price?: number | null
           sample_type?: string | null
           test_id?: string | null
@@ -1545,6 +1553,7 @@ export type Database = {
           normal_range_max?: number | null
           normal_range_min?: number | null
           normal_range_text?: string | null
+          panel_items?: Json | null
           price?: number | null
           sample_type?: string | null
           test_id?: string | null
