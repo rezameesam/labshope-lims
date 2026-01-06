@@ -294,6 +294,11 @@ export async function sendNotification(
   options: NotificationOptions
 ): Promise<NotificationResult[]> {
   const results: NotificationResult[] = [];
+  const website = "https://irmclinic.com";
+  const messageHasWebsite = options.message.toLowerCase().includes("irmclinic.com");
+  const messageWithWebsite = messageHasWebsite
+    ? options.message
+    : `${options.message}\n\nWebsite: ${website}`;
 
   // Get patient info if patientId provided
   let patientEmail: string | null = null;
@@ -324,10 +329,10 @@ export async function sendNotification(
   if (emailTo && (options.type === 'email' || options.type === 'both')) {
     const emailHtml = generateEmailTemplate(
       options.subject || 'Notification',
-      options.message,
+      messageWithWebsite,
       'general'
     );
-    const emailText = generateEmailText(options.subject || "Notification", options.message);
+    const emailText = generateEmailText(options.subject || "Notification", messageWithWebsite);
     const emailResult = await sendEmail(emailTo, options.subject || 'Notification', emailHtml, emailText);
     results.push(emailResult);
   }
