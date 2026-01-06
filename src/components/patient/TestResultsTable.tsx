@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X, Printer, Lock, AlertCircle } from "lucide-react";
+import { useState, useMemo, useEffect, Fragment } from "react";
+import { Download, Eye, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Calendar, Tag, Filter, X, Printer, Lock, AlertCircle, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface TestResult {
   id: string;
+  test_id?: string | null;
   test_name: string;
   test_date: string;
   status: string;
@@ -46,6 +47,9 @@ interface TestResult {
     normal_range_text: string | null;
   }> | null;
   registry_serial?: string | null;
+  test_package_id?: string | null;
+  test_package_name?: string | null;
+  test_package_group_id?: string | null;
   is_abnormal: boolean;
   normal_range_text?: string | null;
   notes: string | null;
@@ -87,7 +91,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
-  const [groupBy, setGroupBy] = useState<"date" | "category" | "status">("date");
+  const [groupBy, setGroupBy] = useState<"date" | "category" | "status" | "package">("date");
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
   const [isPrintOptionsOpen, setIsPrintOptionsOpen] = useState(false);
   
@@ -181,18 +185,33 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
   // Group tests by different criteria
   const groupedTests = useMemo(() => {
     const grouped: Record<string, TestResult[]> = {};
+    const labels = new Map<string, string>();
     
     dateFilteredTests.forEach(test => {
       let key = "";
+      let label = "";
       switch (groupBy) {
         case "date":
-          key = format(new Date(test.test_date), "MMMM yyyy");
+          label = format(new Date(test.test_date), "MMMM yyyy");
+          key = label;
           break;
         case "category":
-          key = test.category || "Uncategorized";
+          label = test.category || "Uncategorized";
+          key = label;
           break;
         case "status":
-          key = test.is_abnormal ? "Abnormal Results" : "Normal Results";
+          label = test.is_abnormal ? "Abnormal Results" : "Normal Results";
+          key = label;
+          break;
+        case "package":
+          if (test.test_package_group_id) {
+            key = `pkg-${test.test_package_group_id}`;
+            label = `${test.test_package_name || "Package"} • ${format(new Date(test.test_date), "dd MMM yyyy")}`;
+          } else {
+            key = `test-${test.id}`;
+            label = test.test_name;
+          }
+          labels.set(key, label);
           break;
       }
       
@@ -216,10 +235,10 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
       sortedKeys.forEach(key => {
         sortedGrouped[key] = grouped[key];
       });
-      return sortedGrouped;
+      return { grouped: sortedGrouped, labels };
     }
 
-    return grouped;
+    return { grouped, labels };
   }, [dateFilteredTests, groupBy]);
 
   const toggleRow = (id: string) => {
@@ -255,6 +274,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
     setSelectedTestIds(newSelected);
   };
 
+  const [expandedPackageGroups, setExpandedPackageGroups] = useState<Set<string>>(new Set());
+
   const selectAllTests = () => {
     const allIds = new Set(dateFilteredTests.map(t => t.id));
     setSelectedTestIds(allIds);
@@ -264,16 +285,16 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
     setSelectedTestIds(new Set());
   };
 
-  const checkDuesBeforeDownload = (callback: () => void) => {
+  const checkDuesBeforeDownload = (callback: () => Promise<void> | void) => {
     if (hasOutstandingDues) {
       toast.error(`Please clear outstanding dues of ₹${outstandingAmount.toLocaleString()} to download reports`);
       return;
     }
-    callback();
+    void callback();
   };
 
   const handleDownloadAll = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
-    checkDuesBeforeDownload(() => {
+    checkDuesBeforeDownload(async () => {
       if (dateFilteredTests.length === 0) {
         toast.error("No completed tests to download");
         return;
@@ -290,7 +311,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             : undefined;
 
       try {
-        const success = generateMultiTestReportPDF(
+        const success = await generateMultiTestReportPDF(
           {
             full_name: patient.full_name,
             patient_id: patient.patient_id,
@@ -300,6 +321,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
           },
           dateFilteredTests.map(t => ({
             id: t.id,
+            test_id: t.test_id || null,
+            category: t.category || null,
             test_name: t.test_name,
             test_date: t.test_date,
             status: t.status,
@@ -310,6 +333,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             registry_serial: t.registry_serial,
             is_abnormal: t.is_abnormal,
             normal_range_text: t.normal_range_text,
+            notes: t.notes,
             entered_by_name: t.entered_by_name,
             lab_name: t.labs?.name,
             lab_code: t.labs?.lab_code,
@@ -332,14 +356,17 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
     });
   };
 
-  const handleDownloadSelected = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
-    checkDuesBeforeDownload(() => {
-      if (selectedTestIds.size === 0) {
+  const handleDownloadSelected = (
+    options?: { includeHeader: boolean; includeFooter: boolean },
+    overrideTests?: TestResult[]
+  ) => {
+    checkDuesBeforeDownload(async () => {
+      if (!overrideTests && selectedTestIds.size === 0) {
         toast.error("Please select at least one test to download");
         return;
       }
 
-      const selectedTests = dateFilteredTests.filter((t) => selectedTestIds.has(t.id));
+      const selectedTests = overrideTests || dateFilteredTests.filter((t) => selectedTestIds.has(t.id));
 
       const uniqueNames = Array.from(
         new Set(selectedTests.map((t) => t.entered_by_name).filter(Boolean) as string[])
@@ -352,7 +379,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             : undefined;
 
       try {
-        const success = generateMultiTestReportPDF(
+        const success = await generateMultiTestReportPDF(
           {
             full_name: patient.full_name,
             patient_id: patient.patient_id,
@@ -362,6 +389,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
           },
           selectedTests.map(t => ({
             id: t.id,
+            test_id: t.test_id || null,
+            category: t.category || null,
             test_name: t.test_name,
             test_date: t.test_date,
             status: t.status,
@@ -372,6 +401,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             registry_serial: t.registry_serial,
             is_abnormal: t.is_abnormal,
             normal_range_text: t.normal_range_text,
+            notes: t.notes,
             entered_by_name: t.entered_by_name,
             lab_name: t.labs?.name,
             lab_code: t.labs?.lab_code,
@@ -414,9 +444,9 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
   };
 
   const handleDownloadSingle = (test: TestResult) => {
-    checkDuesBeforeDownload(() => {
+    checkDuesBeforeDownload(async () => {
       try {
-        const success = generateMultiTestReportPDF(
+        const success = await generateMultiTestReportPDF(
           {
             full_name: patient.full_name,
             patient_id: patient.patient_id,
@@ -426,6 +456,8 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
           },
           [{
             id: test.id,
+            test_id: test.test_id || null,
+            category: test.category || null,
             test_name: test.test_name,
             test_date: test.test_date,
             status: test.status,
@@ -436,6 +468,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             registry_serial: test.registry_serial,
             is_abnormal: test.is_abnormal,
             normal_range_text: test.normal_range_text,
+            notes: test.notes,
             entered_by_name: test.entered_by_name,
             lab_name: test.labs?.name,
             lab_code: test.labs?.lab_code,
@@ -598,148 +631,400 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dateFilteredTests.map((test) => (
-                  <>
-                    <TableRow 
-                      key={test.id} 
-                      className="hover:bg-muted/30 cursor-pointer transition-colors"
-                      onClick={() => toggleRow(test.id)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {expandedRows.has(test.id) ? (
-                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          {test.test_name}
-                          {test.is_abnormal && (
-                            <AlertTriangle className="h-4 w-4 text-red-500" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={test.is_abnormal ? "text-red-600 font-semibold" : ""}>
-                          {test.result_items && test.result_items.length > 0
-                            ? `Panel (${test.result_items.length})`
-                            : test.result_value !== null
-                              ? test.result_value
-                              : test.result || "-"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center text-muted-foreground">
-                        {test.result_items && test.result_items.length > 0 ? "-" : test.result_unit || "-"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {test.is_abnormal ? (
-                          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Abnormal</Badge>
-                        ) : (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Normal</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <div className="flex flex-col gap-0.5">
-                          <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
-                          {test.created_at && (
-                            <span className="text-xs">
-                              {format(new Date(test.created_at), "HH:mm")}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadSingle(test);
-                          }}
-                          className="gap-1"
-                          disabled={hasOutstandingDues}
-                        >
-                          {hasOutstandingDues ? (
-                            <Lock className="h-3.5 w-3.5" />
-                          ) : (
-                            <Download className="h-3.5 w-3.5" />
-                          )}
-                          PDF
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {expandedRows.has(test.id) && (
-                      <TableRow key={`${test.id}-details`}>
-                        <TableCell colSpan={6} className="bg-muted/20 p-4">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Test Date:</span>
-                              <p className="font-medium">
-                                {format(new Date(test.test_date), "MMMM dd, yyyy")}
-                                {test.created_at && (
-                                  <span className="text-sm text-muted-foreground ml-2">
-                                    {format(new Date(test.created_at), "HH:mm")}
+                {(() => {
+                  const packageMap = new Map<string, TestResult[]>();
+                  const rows: Array<
+                    | { kind: "single"; test: TestResult }
+                    | { kind: "package"; groupId: string }
+                  > = [];
+                  const seenGroups = new Set<string>();
+
+                  dateFilteredTests.forEach((test) => {
+                    const groupId = test.test_package_group_id;
+                    if (groupId) {
+                      const existing = packageMap.get(groupId) || [];
+                      packageMap.set(groupId, [...existing, test]);
+                      if (!seenGroups.has(groupId)) {
+                        seenGroups.add(groupId);
+                        rows.push({ kind: "package", groupId });
+                      }
+                    } else {
+                      rows.push({ kind: "single", test });
+                    }
+                  });
+
+                  return rows.map((row) => {
+                    if (row.kind === "package") {
+                      const testsInGroup = packageMap.get(row.groupId) || [];
+                      if (testsInGroup.length === 0) return null;
+                      const firstTest = testsInGroup[0];
+                      const isExpanded = expandedPackageGroups.has(row.groupId);
+                      const completedCount = testsInGroup.filter((t) => t.status === "completed").length;
+
+                      return (
+                        <Fragment key={`pkg-${row.groupId}`}>
+                          <TableRow key={`pkg-${row.groupId}`} className="bg-muted/20">
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setExpandedPackageGroups((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(row.groupId)) {
+                                        next.delete(row.groupId);
+                                      } else {
+                                        next.add(row.groupId);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </Button>
+                                <span>
+                                  {firstTest.test_package_name || "Package"} ({testsInGroup.length} tests)
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center text-muted-foreground">
+                              {completedCount}/{testsInGroup.length} results
+                            </TableCell>
+                            <TableCell className="text-center text-muted-foreground">-</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="secondary">Package</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              <div className="flex flex-col gap-0.5">
+                                <span>{format(new Date(firstTest.test_date), "dd MMM yyyy")}</span>
+                                {firstTest.created_at && (
+                                  <span className="text-xs">
+                                    {format(new Date(firstTest.created_at), "HH:mm")}
                                   </span>
                                 )}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Result:</span>
-                              <p className={`font-medium ${test.is_abnormal ? "text-red-600" : ""}`}>
-                                {test.result_items && test.result_items.length > 0
-                                  ? `Panel (${test.result_items.length} items)`
-                                  : test.result_value !== null 
-                                    ? `${test.result_value} ${test.result_unit || ""}` 
-                                    : test.result || "N/A"}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Status:</span>
-                              <p className="font-medium">{test.is_abnormal ? "Abnormal" : "Normal"}</p>
-                            </div>
-                            {test.result_items && test.result_items.length > 0 && (
-                              <div className="col-span-2 md:col-span-4">
-                                <span className="text-muted-foreground">Panel Results:</span>
-                                <div className="mt-2 grid gap-2">
-                                  <div className="grid grid-cols-4 text-xs font-medium text-muted-foreground">
-                                    <span>Item</span>
-                                    <span>Value</span>
-                                    <span>Unit</span>
-                                    <span>Range</span>
-                                  </div>
-                                  {test.result_items.map((item, index) => {
-                                    const rangeText =
-                                      item.normal_range_text ||
-                                      (item.normal_range_min !== null && item.normal_range_max !== null
-                                        ? `${item.normal_range_min} - ${item.normal_range_max}`
-                                        : item.normal_range_min !== null
-                                          ? `≥ ${item.normal_range_min}`
-                                          : item.normal_range_max !== null
-                                            ? `≤ ${item.normal_range_max}`
-                                            : "-");
-                                    return (
-                                      <div key={`${test.id}-item-${index}`} className="grid grid-cols-4 text-sm">
-                                        <span className="font-medium">{item.name || "-"}</span>
-                                        <span>{item.value ?? "-"}</span>
-                                        <span className="text-muted-foreground">{item.unit || "-"}</span>
-                                        <span className="text-muted-foreground">{rangeText}</span>
+                              </div>
+                            </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const selectedTests = testsInGroup;
+                                const selectedIds = new Set(selectedTests.map((t) => t.id));
+                                setSelectedTestIds(selectedIds);
+                                handleDownloadSelected({ includeHeader: printOptions.includeHeader, includeFooter: printOptions.includeFooter }, selectedTests);
+                              }}
+                              className="gap-1"
+                              disabled={hasOutstandingDues}
+                            >
+                              {hasOutstandingDues ? (
+                                <Lock className="h-3.5 w-3.5" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                              PDF
+                            </Button>
+                          </TableCell>
+                          </TableRow>
+                          {isExpanded &&
+                            testsInGroup.map((test) => (
+                              <Fragment key={test.id}>
+                                <TableRow
+                                  key={test.id}
+                                  className="hover:bg-muted/30 cursor-pointer transition-colors"
+                                  onClick={() => toggleRow(test.id)}
+                                >
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2 pl-6">
+                                      {expandedRows.has(test.id) ? (
+                                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                      {test.test_name}
+                                      {test.is_abnormal && (
+                                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <span className={test.is_abnormal ? "text-red-600 font-semibold" : ""}>
+                                      {test.result_items && test.result_items.length > 0
+                                        ? `Panel (${test.result_items.length})`
+                                        : test.result_value !== null
+                                          ? test.result_value
+                                          : test.result || "-"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-center text-muted-foreground">
+                                    {test.result_items && test.result_items.length > 0 ? "-" : test.result_unit || "-"}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {test.is_abnormal ? (
+                                      <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Abnormal</Badge>
+                                    ) : (
+                                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Normal</Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                                      {test.created_at && (
+                                        <span className="text-xs">
+                                          {format(new Date(test.created_at), "HH:mm")}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownloadSingle(test);
+                                      }}
+                                      className="gap-1"
+                                      disabled={hasOutstandingDues}
+                                    >
+                                      {hasOutstandingDues ? (
+                                        <Lock className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <Download className="h-3.5 w-3.5" />
+                                      )}
+                                      PDF
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                                {expandedRows.has(test.id) && (
+                                  <TableRow key={`${test.id}-details`}>
+                                    <TableCell colSpan={6} className="bg-muted/20 p-4">
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                        <div>
+                                          <span className="text-muted-foreground">Test Date:</span>
+                                          <p className="font-medium">
+                                            {format(new Date(test.test_date), "MMMM dd, yyyy")}
+                                            {test.created_at && (
+                                              <span className="text-sm text-muted-foreground ml-2">
+                                                {format(new Date(test.created_at), "HH:mm")}
+                                              </span>
+                                            )}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <span className="text-muted-foreground">Result:</span>
+                                          <p className={`font-medium ${test.is_abnormal ? "text-red-600" : ""}`}>
+                                            {test.result_items && test.result_items.length > 0
+                                              ? `Panel (${test.result_items.length} items)`
+                                              : test.result_value !== null 
+                                                ? `${test.result_value} ${test.result_unit || ""}` 
+                                                : test.result || "N/A"}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <span className="text-muted-foreground">Status:</span>
+                                          <p className="font-medium">{test.is_abnormal ? "Abnormal" : "Normal"}</p>
+                                        </div>
+                                        {test.result_items && test.result_items.length > 0 && (
+                                          <div className="col-span-2 md:col-span-4">
+                                            <span className="text-muted-foreground">Panel Results:</span>
+                                            <div className="mt-2 grid gap-2">
+                                              <div className="grid grid-cols-4 text-xs font-medium text-muted-foreground">
+                                                <span>Item</span>
+                                                <span>Value</span>
+                                                <span>Unit</span>
+                                                <span>Range</span>
+                                              </div>
+                                              {test.result_items.map((item, index) => {
+                                                const rangeText =
+                                                  item.normal_range_text ||
+                                                  (item.normal_range_min !== null && item.normal_range_max !== null
+                                                    ? `${item.normal_range_min} - ${item.normal_range_max}`
+                                                    : item.normal_range_min !== null
+                                                      ? `≥ ${item.normal_range_min}`
+                                                      : item.normal_range_max !== null
+                                                        ? `≤ ${item.normal_range_max}`
+                                                        : "-");
+                                                return (
+                                                  <div key={`${test.id}-item-${index}`} className="grid grid-cols-4 text-sm">
+                                                    <span className="font-medium">{item.name || "-"}</span>
+                                                    <span>{item.value ?? "-"}</span>
+                                                    <span className="text-muted-foreground">{item.unit || "-"}</span>
+                                                    <span className="text-muted-foreground">{rangeText}</span>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {test.notes && (
+                                          <div className="col-span-2 md:col-span-4">
+                                            <span className="text-muted-foreground">Notes:</span>
+                                            <p className="font-medium">{test.notes}</p>
+                                          </div>
+                                        )}
                                       </div>
-                                    );
-                                  })}
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </Fragment>
+                            ))}
+                        </Fragment>
+                      );
+                    }
+
+                    const test = row.test;
+                    return (
+                      <Fragment key={test.id}>
+                        <TableRow 
+                          key={test.id} 
+                          className="hover:bg-muted/30 cursor-pointer transition-colors"
+                          onClick={() => toggleRow(test.id)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {expandedRows.has(test.id) ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              )}
+                              {test.test_name}
+                              {test.is_abnormal && (
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className={test.is_abnormal ? "text-red-600 font-semibold" : ""}>
+                              {test.result_items && test.result_items.length > 0
+                                ? `Panel (${test.result_items.length})`
+                                : test.result_value !== null
+                                  ? test.result_value
+                                  : test.result || "-"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center text-muted-foreground">
+                            {test.result_items && test.result_items.length > 0 ? "-" : test.result_unit || "-"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {test.is_abnormal ? (
+                              <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Abnormal</Badge>
+                            ) : (
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Normal</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                              {test.created_at && (
+                                <span className="text-xs">
+                                  {format(new Date(test.created_at), "HH:mm")}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadSingle(test);
+                              }}
+                              className="gap-1"
+                              disabled={hasOutstandingDues}
+                            >
+                              {hasOutstandingDues ? (
+                                <Lock className="h-3.5 w-3.5" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                              PDF
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        {expandedRows.has(test.id) && (
+                          <TableRow key={`${test.id}-details`}>
+                            <TableCell colSpan={6} className="bg-muted/20 p-4">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <span className="text-muted-foreground">Test Date:</span>
+                                  <p className="font-medium">
+                                    {format(new Date(test.test_date), "MMMM dd, yyyy")}
+                                    {test.created_at && (
+                                      <span className="text-sm text-muted-foreground ml-2">
+                                        {format(new Date(test.created_at), "HH:mm")}
+                                      </span>
+                                    )}
+                                  </p>
                                 </div>
+                                <div>
+                                  <span className="text-muted-foreground">Result:</span>
+                                  <p className={`font-medium ${test.is_abnormal ? "text-red-600" : ""}`}>
+                                    {test.result_items && test.result_items.length > 0
+                                      ? `Panel (${test.result_items.length} items)`
+                                      : test.result_value !== null 
+                                        ? `${test.result_value} ${test.result_unit || ""}` 
+                                        : test.result || "N/A"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Status:</span>
+                                  <p className="font-medium">{test.is_abnormal ? "Abnormal" : "Normal"}</p>
+                                </div>
+                                {test.result_items && test.result_items.length > 0 && (
+                                  <div className="col-span-2 md:col-span-4">
+                                    <span className="text-muted-foreground">Panel Results:</span>
+                                    <div className="mt-2 grid gap-2">
+                                      <div className="grid grid-cols-4 text-xs font-medium text-muted-foreground">
+                                        <span>Item</span>
+                                        <span>Value</span>
+                                        <span>Unit</span>
+                                        <span>Range</span>
+                                      </div>
+                                      {test.result_items.map((item, index) => {
+                                        const rangeText =
+                                          item.normal_range_text ||
+                                          (item.normal_range_min !== null && item.normal_range_max !== null
+                                            ? `${item.normal_range_min} - ${item.normal_range_max}`
+                                            : item.normal_range_min !== null
+                                              ? `≥ ${item.normal_range_min}`
+                                              : item.normal_range_max !== null
+                                                ? `≤ ${item.normal_range_max}`
+                                                : "-");
+                                        return (
+                                          <div key={`${test.id}-item-${index}`} className="grid grid-cols-4 text-sm">
+                                            <span className="font-medium">{item.name || "-"}</span>
+                                            <span>{item.value ?? "-"}</span>
+                                            <span className="text-muted-foreground">{item.unit || "-"}</span>
+                                            <span className="text-muted-foreground">{rangeText}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {test.notes && (
+                                  <div className="col-span-2 md:col-span-4">
+                                    <span className="text-muted-foreground">Notes:</span>
+                                    <p className="font-medium">{test.notes}</p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {test.notes && (
-                              <div className="col-span-2 md:col-span-4">
-                                <span className="text-muted-foreground">Notes:</span>
-                                <p className="font-medium">{test.notes}</p>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                ))}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
           )}
@@ -839,10 +1124,11 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             {/* Quick Actions */}
             <div className="flex items-center justify-between flex-shrink-0">
               <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
-                <TabsList className="grid grid-cols-3 w-64">
+                <TabsList className="grid grid-cols-4 w-80">
                   <TabsTrigger value="date">By Date</TabsTrigger>
                   <TabsTrigger value="category">Category</TabsTrigger>
                   <TabsTrigger value="status">Status</TabsTrigger>
+                  <TabsTrigger value="package">Package</TabsTrigger>
                 </TabsList>
               </Tabs>
               <div className="flex gap-2">
@@ -866,17 +1152,20 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             {/* Tests List */}
             <ScrollArea className="flex-1 border rounded-lg">
               <div className="p-4 space-y-4">
-                {Object.entries(groupedTests).map(([group, groupTests]) => (
-                  <div key={group} className="space-y-2">
+                {Object.entries(groupedTests.grouped).map(([groupKey, groupTests]) => {
+                  const groupLabel = groupedTests.labels.get(groupKey) || groupKey;
+                  return (
+                  <div key={groupKey} className="space-y-2">
                     <div className="flex items-center justify-between sticky top-0 bg-background py-1">
                       <h4 className="font-semibold text-sm flex items-center gap-2">
                         {groupBy === "date" && <Calendar className="h-4 w-4" />}
                         {groupBy === "category" && <Tag className="h-4 w-4" />}
-                        {groupBy === "status" && (group === "Abnormal Results" ? 
+                        {groupBy === "status" && (groupLabel === "Abnormal Results" ? 
                           <AlertTriangle className="h-4 w-4 text-red-500" /> : 
                           <CheckCircle className="h-4 w-4 text-green-500" />
                         )}
-                        {group}
+                        {groupBy === "package" && <Package className="h-4 w-4" />}
+                        {groupLabel}
                       </h4>
                       <Button 
                         variant="ghost" 
@@ -917,31 +1206,11 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                       ))}
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             </ScrollArea>
 
-            {/* Print Options */}
-            <div className="flex items-center justify-between border-t pt-4">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="header"
-                    checked={printOptions.includeHeader}
-                    onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeHeader: checked }))}
-                  />
-                  <Label htmlFor="header" className="text-sm">Include Header</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="footer"
-                    checked={printOptions.includeFooter}
-                    onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeFooter: checked }))}
-                  />
-                  <Label htmlFor="footer" className="text-sm">Include Footer</Label>
-                </div>
-              </div>
-            </div>
           </div>
 
           <DialogFooter className="flex-shrink-0">

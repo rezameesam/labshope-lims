@@ -58,6 +58,9 @@ interface PatientTest {
     normal_range_text: string | null;
   }> | null;
   registry_serial: string | null;
+  test_package_id: string | null;
+  test_package_name: string | null;
+  test_package_group_id: string | null;
   is_abnormal: boolean;
   normal_range_text: string | null;
   report_url: string | null;

@@ -359,6 +359,10 @@ const ManageTestPackages = () => {
                   const individualPrice = packageTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
                   const savings = individualPrice - pkg.price;
 
+                  const testNames = packageTests.map((t) => t.name);
+                  const previewNames = testNames.slice(0, 4);
+                  const remainingCount = Math.max(0, testNames.length - previewNames.length);
+
                   return (
                     <TableRow key={pkg.id}>
                       <TableCell className="font-medium">{pkg.name}</TableCell>
@@ -366,7 +370,15 @@ const ManageTestPackages = () => {
                         {pkg.description || "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{pkg.tests.length} tests</Badge>
+                        <div className="space-y-1">
+                          <Badge variant="outline">{pkg.tests.length} tests</Badge>
+                          {previewNames.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              {previewNames.join(", ")}
+                              {remainingCount > 0 ? ` + ${remainingCount} more` : ""}
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col items-end">
@@ -509,6 +521,32 @@ const ManageTestPackages = () => {
                   {packageForm.selectedTests.length} test(s) selected
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <Label>Selected Tests</Label>
+                {(() => {
+                  const selectedTestsData = tests.filter((t) => packageForm.selectedTests.includes(t.id));
+                  if (selectedTestsData.length === 0) {
+                    return <p className="text-sm text-muted-foreground">No tests selected yet.</p>;
+                  }
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTestsData.map((test) => (
+                        <Badge
+                          key={test.id}
+                          variant="secondary"
+                          className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => toggleTestSelection(test.id)}
+                        >
+                          {test.name}
+                          <X className="h-3 w-3 ml-1" />
+                        </Badge>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <p className="text-xs text-muted-foreground">Click a test to remove it.</p>
+              </div>
             </div>
           </ScrollArea>
           <DialogFooter>
@@ -545,4 +583,3 @@ const ManageTestPackages = () => {
 };
 
 export default ManageTestPackages;
-

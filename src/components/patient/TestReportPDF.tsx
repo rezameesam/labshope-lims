@@ -2,8 +2,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TestResult {
+  test_id?: string | null;
+  category?: string | null;
   test_name: string;
   result: string | null;
   result_value: number | null;
@@ -21,6 +24,7 @@ interface TestResult {
   normal_range_text?: string;
   normal_range_min?: number;
   normal_range_max?: number;
+  notes?: string | null;
 }
 
 interface PatientInfo {
@@ -37,6 +41,20 @@ interface ReportOptions {
   includeFooter?: boolean;
 }
 
+interface ReportTemplate {
+  id: string;
+  name: string;
+  test_category: string | null;
+  test_id: string | null;
+  header_template: string | null;
+  footer_template: string | null;
+  result_format: string;
+  include_normal_range: boolean | null;
+  include_abnormal_flag: boolean | null;
+  include_notes: boolean | null;
+  is_default: boolean | null;
+}
+
 interface ReportData {
   patient: PatientInfo;
   test_date: string;
@@ -48,6 +66,7 @@ interface ReportData {
   entered_by?: string;
   registry_serial?: string;
   options?: ReportOptions;
+  template?: ReportTemplate | null;
 }
 
 // Lab Information
@@ -59,11 +78,78 @@ const LAB_INFO = {
   email: "irmclinic@gmail.com",
 };
 
+const stripHtml = (html: string) =>
+  html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .trim();
+
+const resolveReportTemplate = async (tests: TestResult[], templateId?: string) => {
+  const { data: templates, error } = await supabase
+    .from("test_templates")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error || !templates || templates.length === 0) {
+    return null;
+  }
+
+  if (templateId) {
+    const override = templates.find((t) => t.id === templateId);
+    if (override) return override;
+  }
+
+  const defaultTemplate = templates.find((t) => t.is_default);
+  const testIds = Array.from(new Set(tests.map((t) => t.test_id).filter(Boolean)));
+  const categoryNames = Array.from(new Set(tests.map((t) => t.category).filter(Boolean)));
+
+  if (tests.length === 1 && testIds.length === 1) {
+    const match = templates.find((t) => t.test_id === testIds[0]);
+    if (match) return match;
+  }
+  if (tests.length === 1 && categoryNames.length === 1) {
+    const match = templates.find((t) => t.test_category === categoryNames[0]);
+    if (match) return match;
+  }
+
+  if (testIds.length > 0) {
+    const { data: testRows } = await supabase
+      .from("tests")
+      .select("id, test_categories(name)")
+      .in("id", testIds);
+
+    const resolvedCategoryNames = Array.from(
+      new Set(
+        (testRows || [])
+          .map((row: any) => row.test_categories?.name)
+          .filter(Boolean)
+      )
+    );
+
+    if (resolvedCategoryNames.length === 1) {
+      const categoryMatch = templates.find(
+        (t) => t.test_category === resolvedCategoryNames[0]
+      );
+      if (categoryMatch) return categoryMatch;
+    }
+  }
+
+  return defaultTemplate || null;
+};
+
 export const generateTestReportPDF = (data: ReportData) => {
   try {
     const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const options = data.options || { includeHeader: true, includeFooter: true };
+  const template = data.template;
+  const includeNormalRange = template?.include_normal_range ?? true;
+  const includeAbnormalFlag = template?.include_abnormal_flag ?? true;
+  const includeNotes = template?.include_notes ?? false;
+  const resultFormat = template?.result_format || "table";
+  const headerText = template?.header_template ? stripHtml(template.header_template) : "";
+  const footerText = template?.footer_template ? stripHtml(template.footer_template) : "";
   
   // Always reserve space for header area (for pre-printed paper compatibility)
   const HEADER_RESERVED_HEIGHT = 55;
@@ -185,9 +271,18 @@ export const generateTestReportPDF = (data: ReportData) => {
   }
 
   // Test Results Section - calculate start Y position based on whether lab info was added
-  const testResultsStartY = (data.lab_name || data.collection_center_name || data.registry_serial)
+  let testResultsStartY = (data.lab_name || data.collection_center_name || data.registry_serial)
     ? infoY + 5
     : patientInfoY + 30;
+
+  if (headerText) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    const headerLines = doc.splitTextToSize(headerText, pageWidth - 28);
+    doc.text(headerLines, 14, testResultsStartY);
+    testResultsStartY += headerLines.length * 4 + 4;
+  }
+
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text("TEST RESULTS", 14, testResultsStartY);
@@ -229,83 +324,241 @@ export const generateTestReportPDF = (data: ReportData) => {
     return false;
   };
 
-  // Prepare table data
-  const tableData = data.tests.flatMap((test) => {
-    if (test.result_items && test.result_items.length > 0) {
-      return test.result_items.map((item) => {
-        const normalRange = buildRangeText(
-          item.normal_range_min,
-          item.normal_range_max,
-          item.normal_range_text
-        );
-        const resultDisplay = item.value !== null && item.value !== undefined
-          ? `${item.value} ${item.unit || ""}`.trim()
-          : "Pending";
-        return [
-          `${test.test_name} - ${item.name || "Item"}`,
-          resultDisplay,
-          item.unit || "-",
-          normalRange,
-          isItemAbnormal(item.value, item.normal_range_min, item.normal_range_max) ? "⚠️" : "✓"
-        ];
-      });
-    }
+  if (resultFormat === "list") {
+    const listData = data.tests.flatMap((test) => {
+      const buildListRow = (label: string, value: string, notes?: string | null) => {
+        let display = value;
+        if (includeNotes && notes) {
+          display = `${display} | Notes: ${notes}`;
+        }
+        return [label, display];
+      };
 
-    const normalRange = buildRangeText(
-      test.normal_range_min,
-      test.normal_range_max,
-      test.normal_range_text || null
-    );
+      if (test.result_items && test.result_items.length > 0) {
+        return test.result_items.map((item, index) => {
+          const normalRange = buildRangeText(
+            item.normal_range_min,
+            item.normal_range_max,
+            item.normal_range_text
+          );
+          const resultDisplay = item.value !== null && item.value !== undefined
+            ? `${item.value} ${item.unit || ""}`.trim()
+            : "Pending";
+          const extras = [];
+          if (includeNormalRange) extras.push(`Range: ${normalRange}`);
+          if (includeAbnormalFlag) {
+            extras.push(isItemAbnormal(item.value, item.normal_range_min, item.normal_range_max) ? "ABN" : "OK");
+          }
+          const value = extras.length > 0 ? `${resultDisplay} (${extras.join(" • ")})` : resultDisplay;
+          return buildListRow(
+            `${test.test_name} - ${item.name || "Item"}`,
+            value,
+            includeNotes && index === 0 ? test.notes : null
+          );
+        });
+      }
 
-    const resultDisplay = test.result_value !== null
-      ? `${test.result_value} ${test.result_unit || ""}`.trim()
-      : test.result || "Pending";
+      const normalRange = buildRangeText(
+        test.normal_range_min,
+        test.normal_range_max,
+        test.normal_range_text || null
+      );
 
-    return [[
-      test.test_name,
-      resultDisplay,
-      test.result_unit || "-",
-      normalRange,
-      test.is_abnormal ? "⚠️" : "✓"
-    ]];
-  });
+      const resultDisplay = test.result_value !== null
+        ? `${test.result_value} ${test.result_unit || ""}`.trim()
+        : test.result || "Pending";
+      const extras = [];
+      if (includeNormalRange) extras.push(`Range: ${normalRange}`);
+      if (includeAbnormalFlag) {
+        extras.push(test.is_abnormal ? "ABN" : "OK");
+      }
+      const value = extras.length > 0 ? `${resultDisplay} (${extras.join(" • ")})` : resultDisplay;
+      return [buildListRow(test.test_name, value, test.notes)];
+    });
 
-  autoTable(doc, {
-    startY: testResultsStartY + 8,
-    head: [["Test Name", "Result", "Unit", "Normal Range", "Status"]],
-    body: tableData,
-    theme: "striped",
-    headStyles: {
-      fillColor: [30, 58, 138],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      fontSize: 10
-    },
-    bodyStyles: {
-      fontSize: 9,
-      textColor: [0, 0, 0]
-    },
-    alternateRowStyles: {
-      fillColor: [240, 245, 255]
-    },
-    columnStyles: {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 35, halign: "center" },
-      2: { cellWidth: 25, halign: "center" },
-      3: { cellWidth: 40, halign: "center" },
-      4: { cellWidth: 20, halign: "center" }
-    },
-    didParseCell: (data) => {
-      // Highlight abnormal results in red
-      if (data.section === "body" && data.column.index === 4) {
-        const rowData = tableData[data.row.index];
-        if (rowData && rowData[4] === "⚠️") {
-          data.cell.styles.textColor = [220, 38, 38];
-          data.cell.styles.fontStyle = "bold";
+    autoTable(doc, {
+      startY: testResultsStartY + 8,
+      head: [["Test", "Result"]],
+      body: listData,
+      theme: "striped",
+      headStyles: {
+        fillColor: [30, 58, 138],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9,
+        textColor: [0, 0, 0]
+      },
+      alternateRowStyles: {
+        fillColor: [240, 245, 255]
+      },
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: pageWidth - 28 - 60 }
+      }
+    });
+  } else {
+    const headers = ["Test Name", "Result", "Unit"];
+    if (includeNormalRange) headers.push("Normal Range");
+    if (includeNotes) headers.push("Notes");
+    if (includeAbnormalFlag) headers.push("Status");
+
+    const tableData = data.tests.flatMap((test) => {
+      const makeRow = (
+        name: string,
+        resultDisplay: string,
+        unit: string,
+        normalRange: string,
+        notes: string | null,
+        status: string
+      ) => {
+        const row = [name, resultDisplay, unit];
+        if (includeNormalRange) row.push(normalRange);
+        if (includeNotes) row.push(notes || "-");
+        if (includeAbnormalFlag) row.push(status);
+        return row;
+      };
+
+      if (test.result_items && test.result_items.length > 0) {
+        return test.result_items.map((item, index) => {
+          const normalRange = buildRangeText(
+            item.normal_range_min,
+            item.normal_range_max,
+            item.normal_range_text
+          );
+          const resultDisplay = item.value !== null && item.value !== undefined
+            ? `${item.value} ${item.unit || ""}`.trim()
+            : "Pending";
+          const status = includeAbnormalFlag
+            ? (isItemAbnormal(item.value, item.normal_range_min, item.normal_range_max) ? "ABN" : "OK")
+            : "";
+          return makeRow(
+            `${test.test_name} - ${item.name || "Item"}`,
+            resultDisplay,
+            item.unit || "-",
+            normalRange,
+            index === 0 ? test.notes || null : null,
+            status
+          );
+        });
+      }
+
+      const normalRange = buildRangeText(
+        test.normal_range_min,
+        test.normal_range_max,
+        test.normal_range_text || null
+      );
+
+      const resultDisplay = test.result_value !== null
+        ? `${test.result_value} ${test.result_unit || ""}`.trim()
+        : test.result || "Pending";
+
+      return [makeRow(
+        test.test_name,
+        resultDisplay,
+        test.result_unit || "-",
+        normalRange,
+        test.notes || null,
+        includeAbnormalFlag ? (test.is_abnormal ? "ABN" : "OK") : ""
+      )];
+    });
+
+    const availableWidth = pageWidth - 28;
+    const baseWeights = [
+      4,
+      2,
+      1,
+      includeNormalRange ? 2 : 0,
+      includeNotes ? 2 : 0,
+      includeAbnormalFlag ? 1 : 0
+    ].filter((w) => w > 0);
+    const totalWeight = baseWeights.reduce((sum, w) => sum + w, 0) || 1;
+    const unitWidth = availableWidth / totalWeight;
+    const widths = [];
+    widths.push(4 * unitWidth);
+    widths.push(2 * unitWidth);
+    widths.push(1 * unitWidth);
+    if (includeNormalRange) widths.push(2 * unitWidth);
+    if (includeNotes) widths.push(2 * unitWidth);
+    if (includeAbnormalFlag) widths.push(1 * unitWidth);
+
+    const statusColumnIndex = includeAbnormalFlag ? headers.length - 1 : -1;
+
+    autoTable(doc, {
+      startY: testResultsStartY + 8,
+      head: [headers],
+      body: tableData,
+      theme: "striped",
+      headStyles: {
+        fillColor: [30, 58, 138],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9,
+        textColor: [0, 0, 0]
+      },
+      alternateRowStyles: {
+        fillColor: [240, 245, 255]
+      },
+      columnStyles: widths.reduce((acc, width, index) => {
+        acc[index] = {
+          cellWidth: width,
+          halign: index === 0 ? "left" : "center"
+        };
+        return acc;
+      }, {} as Record<number, { cellWidth: number; halign: "left" | "center" }>),
+      didParseCell: (data) => {
+        if (includeAbnormalFlag && data.section === "body" && data.column.index === statusColumnIndex) {
+          data.cell.text = [""];
+          const rowData = tableData[data.row.index];
+          if (rowData && rowData[statusColumnIndex] === "ABN") {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = "bold";
+          }
+        }
+      },
+      didDrawCell: (data) => {
+        if (!includeAbnormalFlag) return;
+        if (data.section === "body" && data.column.index === statusColumnIndex) {
+          const rowData = tableData[data.row.index];
+          if (!rowData) return;
+          const status = rowData[statusColumnIndex];
+          const cellX = data.cell.x;
+          const cellY = data.cell.y;
+          const cellW = data.cell.width;
+          const cellH = data.cell.height;
+          const centerX = cellX + cellW / 2;
+          const centerY = cellY + cellH / 2;
+          const size = 2.5;
+
+          if (status === "ABN") {
+            doc.setFillColor(220, 38, 38);
+            doc.triangle(
+              centerX,
+              centerY - size,
+              centerX - size,
+              centerY + size,
+              centerX + size,
+              centerY + size,
+              "F"
+            );
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(8);
+            doc.text("!", centerX, centerY + 2, { align: "center" });
+          } else {
+            doc.setDrawColor(16, 185, 129);
+            doc.setLineWidth(0.8);
+            doc.line(centerX - size, centerY, centerX - size / 3, centerY + size / 1.2);
+            doc.line(centerX - size / 3, centerY + size / 1.2, centerX + size, centerY - size / 1.2);
+          }
         }
       }
-    }
-  });
+    });
+  }
 
   // Footer section
   const finalY = (doc as any).lastAutoTable.finalY || patientInfoY + 100;
@@ -325,6 +578,19 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.text(data.entered_by, 55, finalY + 12);
   }
   
+  if (footerText) {
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    const footerLines = doc.splitTextToSize(footerText, pageWidth - 28);
+    const footerTextHeight = footerLines.length * 4;
+    let footerTextY = finalY + 18;
+    if (footerTextY + footerTextHeight > footerStartY - 6) {
+      doc.addPage();
+      footerTextY = 20;
+    }
+    doc.text(footerLines, 14, footerTextY);
+  }
+
   // Only include footer content if option is true
   if (options.includeFooter !== false) {
     const footerY = footerStartY;
@@ -351,10 +617,12 @@ export const generateTestReportPDF = (data: ReportData) => {
   }
 };
 
-export const generateMultiTestReportPDF = (
+export const generateMultiTestReportPDF = async (
   patient: PatientInfo,
   tests: Array<{
     id: string;
+    test_id?: string | null;
+    category?: string | null;
     test_name: string;
     test_date: string;
     status: string;
@@ -370,6 +638,7 @@ export const generateMultiTestReportPDF = (
       normal_range_text: string | null;
     }> | null;
     registry_serial?: string | null;
+    notes?: string | null;
     is_abnormal?: boolean;
     normal_range_text?: string;
     entered_by_name?: string;
@@ -379,7 +648,8 @@ export const generateMultiTestReportPDF = (
     collection_center_code?: string;
   }>,
   enteredByName?: string,
-  options?: ReportOptions
+  options?: ReportOptions,
+  templateId?: string
 ) => {
   const completedTests = tests.filter(t => t.status === "completed");
   
@@ -388,6 +658,8 @@ export const generateMultiTestReportPDF = (
   }
 
   const testResults: TestResult[] = completedTests.map(t => ({
+    test_id: t.test_id || null,
+    category: t.category || null,
     test_name: t.test_name,
     result: t.result,
     result_value: t.result_value || null,
@@ -395,7 +667,8 @@ export const generateMultiTestReportPDF = (
     result_items: t.result_items || null,
     registry_serial: t.registry_serial || null,
     is_abnormal: t.is_abnormal || false,
-    normal_range_text: t.normal_range_text
+    normal_range_text: t.normal_range_text,
+    notes: t.notes || null
   }));
 
   // Get entered by name from the first test that has it, or use passed parameter
@@ -403,6 +676,8 @@ export const generateMultiTestReportPDF = (
   
   // Get lab and collection center from the first test (assuming all tests in a batch are from the same lab/center)
   const firstTest = completedTests[0];
+
+  const template = await resolveReportTemplate(testResults, templateId);
 
   generateTestReportPDF({
     patient,
@@ -414,7 +689,8 @@ export const generateMultiTestReportPDF = (
     collection_center_code: firstTest.collection_center_code,
     entered_by: employeeName,
     registry_serial: firstTest.registry_serial || undefined,
-    options
+    options,
+    template
   });
 
   return true;
