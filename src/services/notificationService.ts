@@ -15,6 +15,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import logoUrl from "@/assets/logo.png";
 
 // Types
 export interface NotificationOptions {
@@ -154,15 +155,45 @@ function generateEmailTemplate(
   message: string,
   type: 'test_result' | 'reminder' | 'promotion' | 'payment' | 'general'
 ): string {
-  const colors = {
-    test_result: '#10B981',
-    reminder: '#3B82F6',
-    promotion: '#F59E0B',
-    payment: '#EF4444',
-    general: '#6B7280',
+  const brand = {
+    name: "IRM Clinical Laboratory",
+    tagline: "Accurate. Reliable. Timely.",
+    address: "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
+    phone: "+91-9419034607 | +91-9622635767",
+    email: "irmclinic@gmail.com",
+    primary: "#1E3A8A",
+    accent: "#3B82F6",
+    background: "#F5F8FF",
+    text: "#0F172A",
+    muted: "#64748B",
+    border: "#E2E8F0",
   };
 
-  const color = colors[type] || colors.general;
+  const accentMap: Record<typeof type, string> = {
+    test_result: "#16A34A",
+    reminder: brand.accent,
+    promotion: "#F59E0B",
+    payment: "#DC2626",
+    general: brand.primary,
+  };
+
+  const accentColor = accentMap[type] || brand.primary;
+  const logoSource =
+    import.meta.env.VITE_PUBLIC_LOGO_URL ||
+    (typeof window !== "undefined"
+      ? new URL(logoUrl, window.location.origin).toString()
+      : logoUrl);
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const formattedMessage = escapeHtml(message).replace(/\n/g, "<br/>");
+  const preheader = escapeHtml(title).slice(0, 80);
 
   return `
     <!DOCTYPE html>
@@ -172,20 +203,77 @@ function generateEmailTemplate(
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${title}</title>
     </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: ${color}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0;">${title}</h1>
-      </div>
-      <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-        <div style="white-space: pre-wrap; font-size: 16px;">${message}</div>
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center;">
-          <p>This is an automated message from your clinic.</p>
-          <p>Please do not reply to this email.</p>
-        </div>
-      </div>
+    <body style="margin:0; padding:0; background:${brand.background}; font-family: 'Segoe UI', Arial, sans-serif; color:${brand.text};">
+      <div style="display:none; max-height:0; overflow:hidden; opacity:0;">${preheader}</div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${brand.background}; padding: 32px 12px;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); border:1px solid ${brand.border};">
+              <tr>
+                <td style="padding: 22px 28px; background:${brand.primary}; color:#ffffff;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td style="vertical-align:middle; width:56px;">
+                        ${
+                          logoSource
+                            ? `<img src="${logoSource}" alt="${brand.name}" width="32" height="32" style="display:block; border-radius:8px; background:#ffffff; padding:3px;">`
+                            : ""
+                        }
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <div style="font-size:18px; font-weight:700; letter-spacing:0.3px;">${brand.name}</div>
+                        <div style="font-size:12px; opacity:0.85;">${brand.tagline}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 28px;">
+                  <div style="font-size:20px; font-weight:700; margin-bottom: 10px;">${title}</div>
+                  <div style="height:4px; width:64px; background:${accentColor}; border-radius:999px; margin-bottom:18px;"></div>
+                  <div style="font-size:15px; line-height:1.7; color:${brand.text};">${formattedMessage}</div>
+                  <div style="margin-top:24px; padding:14px 16px; border-left:4px solid ${accentColor}; background:#F8FAFC; border-radius:10px; font-size:13px; color:${brand.muted};">
+                    For assistance, contact us at ${brand.phone} or ${brand.email}.
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 18px 28px; border-top:1px solid ${brand.border}; background:#ffffff;">
+                  <div style="font-size:12px; color:${brand.muted}; text-align:center;">
+                    ${brand.address}<br/>
+                    This is an automated message. Please do not reply.
+                  </div>
+                </td>
+              </tr>
+            </table>
+            <div style="font-size:11px; color:${brand.muted}; margin-top:16px; text-align:center;">
+              © ${new Date().getFullYear()} ${brand.name}. All rights reserved.
+            </div>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;
+}
+
+function generateEmailText(
+  title: string,
+  message: string
+): string {
+  return [
+    title,
+    "",
+    message,
+    "",
+    "IRM Clinical Laboratory",
+    "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
+    "Phone: +91-9419034607 | +91-9622635767",
+    "Email: irmclinic@gmail.com",
+    "",
+    "This is an automated message. Please do not reply.",
+  ].join("\n");
 }
 
 /**
@@ -228,7 +316,8 @@ export async function sendNotification(
       options.message,
       'general'
     );
-    const emailResult = await sendEmail(emailTo, options.subject || 'Notification', emailHtml);
+    const emailText = generateEmailText(options.subject || "Notification", options.message);
+    const emailResult = await sendEmail(emailTo, options.subject || 'Notification', emailHtml, emailText);
     results.push(emailResult);
   }
 

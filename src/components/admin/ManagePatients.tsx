@@ -75,6 +75,7 @@ interface Patient {
 
 interface PatientTest {
   id: string;
+  test_id?: string | null;
   test_name: string;
   test_date: string;
   status: string;
@@ -396,7 +397,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     try {
       const { data, error } = await supabase
         .from("patient_tests")
-        .select("id, test_name, test_date, status, result, result_value, result_unit, is_abnormal, notes, result_entered_by")
+        .select("id, test_id, test_name, test_date, status, result, result_value, result_unit, is_abnormal, notes, result_entered_by")
         .eq("patient_id", patientId)
         .order("test_date", { ascending: false });
 
@@ -653,7 +654,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setSelectedTestIds(new Set());
   };
 
-  const handlePrintTests = () => {
+  const handlePrintTests = async () => {
     if (!selectedPatient) return;
     
     const testsToPrint = selectedTestIds.size > 0 
@@ -675,24 +676,29 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           ? "Multiple Staff"
           : undefined;
 
-    const success = generateMultiTestReportPDF(
-      {
-        full_name: selectedPatient.full_name,
-        patient_id: selectedPatient.patient_id,
-        phone: selectedPatient.phone,
-        gender: selectedPatient.gender || undefined,
-        blood_group: selectedPatient.blood_group || undefined,
-      },
-      testsToPrint,
-      enteredByLabel,
-      printOptions
-    );
+    try {
+      const success = await generateMultiTestReportPDF(
+        {
+          full_name: selectedPatient.full_name,
+          patient_id: selectedPatient.patient_id,
+          phone: selectedPatient.phone,
+          gender: selectedPatient.gender || undefined,
+          blood_group: selectedPatient.blood_group || undefined,
+        },
+        testsToPrint,
+        enteredByLabel,
+        printOptions
+      );
 
-    if (success) {
-      toast.success("Report downloaded successfully");
-      setPrintDialogOpen(false);
-    } else {
-      toast.error("Failed to generate report");
+      if (success) {
+        toast.success("Report downloaded successfully");
+        setPrintDialogOpen(false);
+      } else {
+        toast.error("Failed to generate report");
+      }
+    } catch (error: any) {
+      console.error("Error generating report:", error);
+      toast.error("Failed to generate report: " + (error.message || "Unknown error"));
     }
   };
 

@@ -947,6 +947,9 @@ export type Database = {
           test_date: string
           test_id: string | null
           test_name: string
+          test_package_group_id: string | null
+          test_package_id: string | null
+          test_package_name: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -975,6 +978,9 @@ export type Database = {
           test_date?: string
           test_id?: string | null
           test_name: string
+          test_package_group_id?: string | null
+          test_package_id?: string | null
+          test_package_name?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1003,6 +1009,9 @@ export type Database = {
           test_date?: string
           test_id?: string | null
           test_name?: string
+          test_package_group_id?: string | null
+          test_package_id?: string | null
+          test_package_name?: string | null
           updated_at?: string
           updated_by?: string | null
         }

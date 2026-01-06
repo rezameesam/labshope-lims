@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2 } from "lucide-react";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,6 +62,9 @@ interface PatientTest {
   result_unit: string | null;
   registry_serial: string | null;
   result_items: ResultItem[] | null;
+  test_package_id: string | null;
+  test_package_name: string | null;
+  test_package_group_id: string | null;
   is_abnormal: boolean | null;
   normal_range_text: string | null;
   notes: string | null;
@@ -142,6 +145,21 @@ interface Doctor {
   commission_percentage: number | null;
 }
 
+interface TestPackage {
+  id: string;
+  name: string;
+  price: number | null;
+  discount_percentage: number | null;
+  is_active: boolean | null;
+  tests: string[];
+}
+
+interface ReportTemplateOption {
+  id: string;
+  name: string;
+  is_default: boolean | null;
+}
+
 interface ManageTestsProps {
   preselectedPatient?: Patient | null;
 }
@@ -183,6 +201,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
   const [testCatalog, setTestCatalog] = useState<Test[]>([]);
+  const [testPackages, setTestPackages] = useState<TestPackage[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [labs, setLabs] = useState<Array<{ id: string; name: string; lab_code: string }>>([]);
   const [collectionCenters, setCollectionCenters] = useState<Array<{ id: string; name: string; code: string; lab_id: string }>>([]);
@@ -207,6 +226,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState<string>("none");
+  const [appliedPackage, setAppliedPackage] = useState<TestPackage | null>(null);
+  const [showPackageTestsIndividually, setShowPackageTestsIndividually] = useState(false);
+  const [expandedPackageGroups, setExpandedPackageGroups] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     test_date: new Date().toISOString().split("T")[0],
     notes: "",
@@ -230,6 +253,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     includeHeader: true,
     includeFooter: true,
   });
+  const [reportTemplates, setReportTemplates] = useState<ReportTemplateOption[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("auto");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Filter patients by search
@@ -295,11 +320,26 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   }, [testCatalog, categories]);
 
   const selectedTestsTotal = useMemo(() => {
-    return selectedTests.reduce((total, testName) => {
+    const packageTestNames = appliedPackage
+      ? new Set(
+          testCatalog
+            .filter((test) => appliedPackage.tests.includes(test.id))
+            .map((test) => test.name)
+        )
+      : new Set<string>();
+    const hasPackageTests = appliedPackage
+      ? selectedTests.some((testName) => packageTestNames.has(testName))
+      : false;
+    const extraTestsTotal = selectedTests.reduce((total, testName) => {
+      if (hasPackageTests && packageTestNames.has(testName)) {
+        return total;
+      }
       const catalogTest = testCatalog.find((test) => test.name === testName);
       return total + (catalogTest?.price || 0);
     }, 0);
-  }, [selectedTests, testCatalog]);
+
+    return extraTestsTotal + (hasPackageTests ? appliedPackage?.price || 0 : 0);
+  }, [selectedTests, testCatalog, appliedPackage]);
 
   // Filter tests by search and category
   const filteredTestsByCategory = useMemo(() => {
@@ -337,6 +377,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .from("patient_tests")
         .select(`
           id, patient_id, test_name, test_date, status, result, result_value, result_unit, result_items, registry_serial,
+          test_package_id, test_package_name, test_package_group_id,
           is_abnormal, normal_range_text, notes, created_at, created_by, updated_by, 
           result_entered_by, result_entered_at, test_id, lab_id, collection_center_id, registry_serial,
           collected_by, collected_at,
@@ -375,12 +416,15 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         patientsQuery = patientsQuery.eq("created_by", user.id);
       }
 
-      const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes] = await Promise.all([
+      const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes, packagesRes, packageTestsRes, templatesRes] = await Promise.all([
         testsQuery.order("created_at", { ascending: false }),
         patientsQuery,
         supabase.from("test_categories").select("id, name"),
         supabase.from("tests").select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max, panel_items"),
         supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
+        supabase.from("test_packages").select("id, name, price, discount_percentage, is_active").eq("is_active", true),
+        supabase.from("test_package_tests").select("package_id, test_id"),
+        supabase.from("test_templates").select("id, name, is_default").order("name"),
       ]);
 
       if (testsRes.error) throw testsRes.error;
@@ -388,6 +432,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       if (categoriesRes.error) throw categoriesRes.error;
       if (catalogRes.error) throw catalogRes.error;
       if (doctorsRes.error) throw doctorsRes.error;
+      if (packagesRes.error) throw packagesRes.error;
+      if (packageTestsRes.error) throw packageTestsRes.error;
+      if (templatesRes.error) throw templatesRes.error;
 
       let testsData = (testsRes.data || []) as unknown as PatientTest[];
       
@@ -408,6 +455,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       setCategories(categoriesRes.data || []);
       setTestCatalog((catalogRes.data || []) as Test[]);
       setDoctors(doctorsRes.data || []);
+      const packageTestsMap = new Map<string, string[]>();
+      (packageTestsRes.data || []).forEach((row) => {
+        const existing = packageTestsMap.get(row.package_id) || [];
+        packageTestsMap.set(row.package_id, [...existing, row.test_id]);
+      });
+      const packages = (packagesRes.data || []).map((pkg) => ({
+        ...pkg,
+        tests: packageTestsMap.get(pkg.id) || [],
+      })) as TestPackage[];
+      setTestPackages(packages);
+      setReportTemplates((templatesRes.data || []) as ReportTemplateOption[]);
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error("Failed to fetch data: " + (error.message || "Unknown error"));
@@ -417,6 +475,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       setCategories([]);
       setTestCatalog([]);
       setDoctors([]);
+      setTestPackages([]);
     } finally {
       setLoading(false);
     }
@@ -473,6 +532,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     fetchLabs();
     fetchCollectionCenters();
   }, []);
+
+  useEffect(() => {
+    if (!appliedPackage) return;
+    const packageNames = new Set(
+      testCatalog
+        .filter((test) => appliedPackage.tests.includes(test.id))
+        .map((test) => test.name)
+    );
+    const hasPackageTests = selectedTests.some((name) => packageNames.has(name));
+    if (!hasPackageTests) {
+      setAppliedPackage(null);
+      setSelectedPackageId("none");
+    }
+  }, [appliedPackage, selectedTests, testCatalog]);
 
   const emptyResultItem = (): ResultItemInput => ({
     name: "",
@@ -637,6 +710,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
     try {
       const { data: userData } = await supabase.auth.getUser();
+      const packageGroupId = appliedPackage ? crypto.randomUUID() : null;
+      const packageTestNames = appliedPackage
+        ? new Set(
+            testCatalog
+              .filter((test) => appliedPackage.tests.includes(test.id))
+              .map((test) => test.name)
+          )
+        : new Set<string>();
+      const hasPackageTests = appliedPackage
+        ? selectedTests.some((testName) => packageTestNames.has(testName))
+        : false;
       
       // Insert all selected tests for the patient
       const testsToInsert = selectedTests.map((testName) => ({
@@ -650,6 +734,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         collected_at: new Date().toISOString(), // Track when sample was collected
         lab_id: formData.lab_id || null,
         collection_center_id: formData.collection_center_id || null,
+        test_package_id: hasPackageTests && appliedPackage ? appliedPackage.id : null,
+        test_package_name: hasPackageTests && appliedPackage ? appliedPackage.name : null,
+        test_package_group_id: hasPackageTests && appliedPackage ? packageGroupId : null,
       }));
 
       const { data: insertedTests, error } = await supabase
@@ -666,7 +753,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       let totalAmount = 0;
       const invoiceItemsData = selectedTests.map((testName) => {
         const catalogTest = testCatalog.find(t => t.name === testName);
-        const price = catalogTest?.price || 0;
+        const price = hasPackageTests && packageTestNames.has(testName)
+          ? 0
+          : (catalogTest?.price || 0);
         totalAmount += price;
         return {
           test_name: testName,
@@ -676,6 +765,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           patient_test_id: insertedTests?.find(t => t.test_name === testName)?.id || null
         };
       });
+      if (hasPackageTests && appliedPackage) {
+        const packagePrice = appliedPackage.price || 0;
+        totalAmount += packagePrice;
+        invoiceItemsData.push({
+          test_name: `${appliedPackage.name} (Package)`,
+          unit_price: packagePrice,
+          quantity: 1,
+          amount: packagePrice,
+          patient_test_id: null
+        });
+      }
 
       // Create the invoice
       const { data: invoice, error: invoiceError } = await supabase
@@ -748,6 +848,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const resetForm = () => {
     setSelectedPatient(null);
     setSelectedTests([]);
+    setSelectedPackageId("none");
+    setAppliedPackage(null);
+    setShowPackageTestsIndividually(false);
     setPatientSearch("");
     setTestSearch("");
     setSelectedCategoryFilter("all");
@@ -778,6 +881,38 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     } else {
       setSelectedTests((prev) => [...new Set([...prev, ...testNames])]);
     }
+  };
+
+  const handleAddPackageTests = () => {
+    if (!selectedPackageId || selectedPackageId === "none") {
+      toast.error("Please select a package");
+      return;
+    }
+    const selectedPackage = testPackages.find((pkg) => pkg.id === selectedPackageId);
+    if (!selectedPackage) {
+      toast.error("Selected package not found");
+      return;
+    }
+    const packageTests = testCatalog.filter((test) => selectedPackage.tests.includes(test.id));
+    const packageTestNames = packageTests.map((test) => test.name);
+    const missingCount = selectedPackage.tests.length - packageTestNames.length;
+    if (missingCount > 0) {
+      toast.warning(`Some tests in this package are missing from the catalog (${missingCount}).`);
+    }
+    setSelectedTests((prev) => {
+      let next = prev;
+      if (appliedPackage && appliedPackage.id !== selectedPackage.id) {
+        const previousPackageNames = new Set(
+          testCatalog
+            .filter((test) => appliedPackage.tests.includes(test.id))
+            .map((test) => test.name)
+        );
+        next = next.filter((name) => !previousPackageNames.has(name));
+      }
+      return [...new Set([...next, ...packageTestNames])];
+    });
+    setAppliedPackage(selectedPackage);
+    toast.success(`Added ${packageTestNames.length} test(s) from ${selectedPackage.name}`);
   };
 
   const handleResultSubmit = async (e: React.FormEvent) => {
@@ -1011,11 +1146,36 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredTests.length / pageSize));
+  const groupedRows = useMemo(() => {
+    const groupMap = new Map<string, PatientTest[]>();
+    const rows: Array<
+      | { kind: "single"; test: PatientTest }
+      | { kind: "package"; groupId: string }
+    > = [];
+    const seenGroups = new Set<string>();
+
+    filteredTests.forEach((test) => {
+      const groupId = test.test_package_group_id;
+      if (groupId) {
+        const existing = groupMap.get(groupId) || [];
+        groupMap.set(groupId, [...existing, test]);
+        if (!seenGroups.has(groupId)) {
+          seenGroups.add(groupId);
+          rows.push({ kind: "package", groupId });
+        }
+      } else {
+        rows.push({ kind: "single", test });
+      }
+    });
+
+    return { rows, groupMap };
+  }, [filteredTests]);
+
+  const totalPages = Math.max(1, Math.ceil(groupedRows.rows.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const pagedTests = filteredTests.slice(startIndex, endIndex);
+  const pagedRows = groupedRows.rows.slice(startIndex, endIndex);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1049,6 +1209,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     }
   };
 
+  const togglePackageSelection = (groupId: string) => {
+    const testsInGroup = groupedRows.groupMap.get(groupId) || [];
+    const completedIds = testsInGroup.filter(t => t.status === "completed").map(t => t.id);
+    if (completedIds.length === 0) {
+      return;
+    }
+    const allSelected = completedIds.every((id) => selectedTestIds.includes(id));
+    if (allSelected) {
+      setSelectedTestIds((prev) => prev.filter((id) => !completedIds.includes(id)));
+    } else {
+      setSelectedTestIds((prev) => [...new Set([...prev, ...completedIds])]);
+    }
+  };
+
   const handlePrintSelected = async () => {
     const selectedTestsData = tests.filter(t => selectedTestIds.includes(t.id) && t.status === "completed");
     
@@ -1056,6 +1230,11 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       toast.error("No completed tests selected for printing");
       return;
     }
+
+    const categoryNameById = new Map(categories.map((category) => [category.id, category.name]));
+    const categoryByTestId = new Map(
+      testCatalog.map((test) => [test.id, test.category_id ? categoryNameById.get(test.category_id) || null : null])
+    );
 
     // Group tests by patient
     const testsByPatient = selectedTestsData.reduce((acc, test) => {
@@ -1068,6 +1247,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       }
       acc[patientId].tests.push({
         id: test.id,
+        test_id: test.test_id,
+        category: test.test_id ? categoryByTestId.get(test.test_id) || null : null,
         test_name: test.test_name,
         test_date: test.test_date,
         status: test.status,
@@ -1076,6 +1257,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         result_unit: test.result_unit,
         result_items: test.result_items,
         registry_serial: test.registry_serial,
+        notes: test.notes,
         is_abnormal: test.is_abnormal || false,
         normal_range_text: test.normal_range_text || undefined,
         lab_name: test.labs?.name,
@@ -1088,18 +1270,25 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
     // Generate PDF for each patient
     let printedCount = 0;
-    for (const patientData of Object.values(testsByPatient)) {
-      const success = generateMultiTestReportPDF(
-        {
-          full_name: patientData.patient.full_name,
-          patient_id: patientData.patient.patient_id,
-          phone: patientData.patient.phone,
-        },
-        patientData.tests,
-        undefined,
-        printOptions
-      );
-      if (success) printedCount++;
+    try {
+      for (const patientData of Object.values(testsByPatient)) {
+        const success = await generateMultiTestReportPDF(
+          {
+            full_name: patientData.patient.full_name,
+            patient_id: patientData.patient.patient_id,
+            phone: patientData.patient.phone,
+          },
+          patientData.tests,
+          undefined,
+          printOptions,
+          selectedTemplateId === "auto" ? undefined : selectedTemplateId
+        );
+        if (success) printedCount++;
+      }
+    } catch (error) {
+      console.error("Error generating report PDFs:", error);
+      toast.error("Failed to generate report PDF");
+      return;
     }
 
     if (printedCount > 0) {
@@ -1269,8 +1458,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
               Add Test
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl w-[90vw] max-h-[88vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="border-b px-6 py-4">
+          <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="border-b px-4 py-3">
             <DialogTitle>Add Tests for Patient</DialogTitle>
             <DialogDescription>
               Select tests and create the invoice in one step.
@@ -1279,112 +1468,192 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             <form onSubmit={(e) => e.preventDefault()} className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
-                  <div className="p-6 space-y-6">
-                    {/* Patient Search Section */}
-                    <div className="space-y-2">
-                      <Label>Patient *</Label>
-                      {selectedPatient ? (
-                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-primary/10">
-                              <User className="h-4 w-4 text-primary" />
-                            </div>
-                            <div>
-                              <p className="font-medium">{selectedPatient.full_name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedPatient.patient_id} • {selectedPatient.phone}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedPatient(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              placeholder="Search by name, ID, or phone..."
-                              value={patientSearch}
-                              onChange={(e) => setPatientSearch(e.target.value)}
-                              className="pl-10"
-                            />
-                          </div>
-                          {patientSearch && (
-                            <ScrollArea className="h-40 border rounded-lg">
-                              <div className="p-2 space-y-1">
-                                {filteredPatients.length === 0 ? (
-                                  <p className="text-sm text-muted-foreground p-2 text-center">
-                                    No patients found
-                                  </p>
-                                ) : (
-                                  filteredPatients.map((patient) => (
-                                    <button
-                                      key={patient.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedPatient(patient);
-                                        setPatientSearch("");
-                                        // Auto-populate lab and collection center from patient
-                                        const patientLabId = patient.lab_id || currentLab?.id || "";
-                                        let patientCollectionCenterId = patient.collection_center_id || "";
-                                        
-                                        // Verify collection center belongs to the patient's lab
-                                        if (patientCollectionCenterId && patientLabId) {
-                                          const collectionCenter = collectionCenters.find(
-                                            cc => cc.id === patientCollectionCenterId && cc.lab_id === patientLabId
-                                          );
-                                          if (!collectionCenter) {
-                                            patientCollectionCenterId = ""; // Clear if doesn't match
-                                          }
-                                        } else if (patientCollectionCenterId && !patientLabId) {
-                                          patientCollectionCenterId = ""; // Clear if no lab selected
-                                        }
-                                        
-                                        setFormData(prev => ({
-                                          ...prev,
-                                          lab_id: patientLabId,
-                                          collection_center_id: patientCollectionCenterId,
-                                        }));
-                                      }}
-                                      className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left transition-colors"
-                                    >
-                                      <div className="p-1.5 rounded-full bg-primary/10">
-                                        <User className="h-3 w-3 text-primary" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{patient.full_name}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {patient.patient_id} • {patient.phone}
-                                        </p>
-                                      </div>
-                                    </button>
-                                  ))
-                                )}
+                  <div className="p-4 space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Patient Search Section */}
+                      <div className="space-y-2">
+                        <Label>Patient *</Label>
+                        {selectedPatient ? (
+                          <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 rounded-full bg-primary/10">
+                                <User className="h-4 w-4 text-primary" />
                               </div>
-                            </ScrollArea>
-                          )}
+                              <div>
+                                <p className="font-medium">{selectedPatient.full_name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {selectedPatient.patient_id} • {selectedPatient.phone}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedPatient(null)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search by name, ID, or phone..."
+                                value={patientSearch}
+                                onChange={(e) => setPatientSearch(e.target.value)}
+                                className="pl-10"
+                              />
+                            </div>
+                            {patientSearch && (
+                              <ScrollArea className="h-36 border rounded-lg">
+                                <div className="p-2 space-y-1">
+                                  {filteredPatients.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground p-2 text-center">
+                                      No patients found
+                                    </p>
+                                  ) : (
+                                    filteredPatients.map((patient) => (
+                                      <button
+                                        key={patient.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedPatient(patient);
+                                          setPatientSearch("");
+                                          // Auto-populate lab and collection center from patient
+                                          const patientLabId = patient.lab_id || currentLab?.id || "";
+                                          let patientCollectionCenterId = patient.collection_center_id || "";
+                                          
+                                          // Verify collection center belongs to the patient's lab
+                                          if (patientCollectionCenterId && patientLabId) {
+                                            const collectionCenter = collectionCenters.find(
+                                              cc => cc.id === patientCollectionCenterId && cc.lab_id === patientLabId
+                                            );
+                                            if (!collectionCenter) {
+                                              patientCollectionCenterId = ""; // Clear if doesn't match
+                                            }
+                                          } else if (patientCollectionCenterId && !patientLabId) {
+                                            patientCollectionCenterId = ""; // Clear if no lab selected
+                                          }
+                                          
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            lab_id: patientLabId,
+                                            collection_center_id: patientCollectionCenterId,
+                                          }));
+                                        }}
+                                        className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left transition-colors"
+                                      >
+                                        <div className="p-1.5 rounded-full bg-primary/10">
+                                          <User className="h-3 w-3 text-primary" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium truncate">{patient.full_name}</p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {patient.patient_id} • {patient.phone}
+                                          </p>
+                                        </div>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </ScrollArea>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Lab and Collection Center Section */}
+                      <div className="space-y-2">
+                        {/* <Label>Lab & Collection Center</Label> */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="lab_id">Lab</Label>
+                            <Select
+                              value={formData.lab_id || "none"}
+                              onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select lab (optional)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {labs.map((lab) => (
+                                  <SelectItem key={lab.id} value={lab.id}>
+                                    {lab.name} ({lab.lab_code})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="collection_center_id">Collection Center</Label>
+                            <Select
+                              value={formData.collection_center_id || "none"}
+                              onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
+                              disabled={!formData.lab_id}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={formData.lab_id ? "Select center (optional)" : "Select lab first"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {collectionCenters
+                                  .filter(cc => cc.lab_id === formData.lab_id)
+                                  .map((center) => (
+                                    <SelectItem key={center.id} value={center.id}>
+                                      {center.name} ({center.code})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            {!formData.lab_id && (
+                              <p className="text-xs text-muted-foreground">Please select a lab first</p>
+                            )}
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </div>
 
                     {/* Tests Selection Section */}
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <Label>Select Tests *</Label>
                         {selectedTests.length > 0 && (
                           <Badge variant="secondary">{selectedTests.length} selected</Badge>
                         )}
                       </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-2">
+                        <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select package (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Package</SelectItem>
+                            {testPackages.map((pkg) => (
+                              <SelectItem key={pkg.id} value={pkg.id}>
+                                {pkg.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleAddPackageTests}
+                          disabled={selectedPackageId === "none"}
+                        >
+                          Add Package Tests
+                        </Button>
+                        <div className="text-xs text-muted-foreground flex items-center">
+                          Package price replaces individual test prices in billing.
+                        </div>
+                      </div>
                       
                       {/* Search and Category Filter */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
@@ -1409,96 +1678,153 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="border rounded-lg max-h-[45vh] overflow-auto">
-                        <div className="p-3 space-y-4">
-                          {Object.entries(filteredTestsByCategory).length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">
-                              No tests found
-                            </p>
-                          ) : (
-                            Object.entries(filteredTestsByCategory).map(([category, categoryTests]) => (
-                              <div key={category} className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                                    {category}
-                                  </h4>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-xs h-6"
-                                    onClick={() => selectAllInCategory(categoryTests)}
-                                  >
-                                    {categoryTests.every((t) => selectedTests.includes(t.name))
-                                      ? "Deselect All"
-                                      : "Select All"}
-                                  </Button>
-                                </div>
-                                <div className="space-y-1">
-                                  {categoryTests.map((test) => (
-                                    <label
-                                      key={test.id}
-                                      className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors"
-                                    >
-                                      <Checkbox
-                                        checked={selectedTests.includes(test.name)}
-                                        onCheckedChange={() => toggleTestSelection(test.name)}
-                                      />
-                                      <div className="flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <span className="font-medium">{test.name}</span>
-                                          {test.test_id && (
-                                            <Badge variant="outline" className="font-mono text-[10px]">
-                                              {test.test_id}
-                                            </Badge>
-                                          )}
-                                          {test.price && (
-                                            <span className="text-muted-foreground">
-                                              ₹{test.price}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
                     </div>
 
-                    {/* Selected Tests Summary */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Selected Tests</Label>
-                        <span className="text-sm text-muted-foreground">
-                          Total: ₹{selectedTestsTotal}
-                        </span>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <div className="lg:col-span-2">
+                        <div className="border rounded-lg max-h-[56vh] overflow-auto">
+                          <div className="p-3 space-y-4">
+                            {Object.entries(filteredTestsByCategory).length === 0 ? (
+                              <p className="text-sm text-muted-foreground text-center py-4">
+                                No tests found
+                              </p>
+                            ) : (
+                              Object.entries(filteredTestsByCategory).map(([category, categoryTests]) => (
+                                <div key={category} className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                                      {category}
+                                    </h4>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-xs h-6"
+                                      onClick={() => selectAllInCategory(categoryTests)}
+                                    >
+                                      {categoryTests.every((t) => selectedTests.includes(t.name))
+                                        ? "Deselect All"
+                                        : "Select All"}
+                                    </Button>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {categoryTests.map((test) => (
+                                      <label
+                                        key={test.id}
+                                        className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors"
+                                      >
+                                        <Checkbox
+                                          checked={selectedTests.includes(test.name)}
+                                          onCheckedChange={() => toggleTestSelection(test.name)}
+                                        />
+                                        <div className="flex-1">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="font-medium">{test.name}</span>
+                                            {test.test_id && (
+                                              <Badge variant="outline" className="font-mono text-[10px]">
+                                                {test.test_id}
+                                              </Badge>
+                                            )}
+                                            {test.price && (
+                                              <span className="text-muted-foreground">
+                                                ₹{test.price}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="border rounded-lg p-3">
-                        {selectedTests.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No tests selected yet.</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {selectedTests.map((testName) => (
-                              <Badge
-                                key={testName}
-                                variant="secondary"
-                                className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => toggleTestSelection(testName)}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Selected Tests</Label>
+                          <span className="text-sm text-muted-foreground">
+                            Total: ₹{selectedTestsTotal}
+                          </span>
+                        </div>
+                        {appliedPackage && (
+                          <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-2 text-sm">
+                            <span className="font-medium">
+                              Package: {appliedPackage.name} (₹{appliedPackage.price || 0}) • {appliedPackage.tests.length} tests
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">Show tests</span>
+                              <Switch
+                                checked={showPackageTestsIndividually}
+                                onCheckedChange={setShowPackageTestsIndividually}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const packageNames = new Set(
+                                    testCatalog
+                                      .filter((test) => appliedPackage.tests.includes(test.id))
+                                      .map((test) => test.name)
+                                  );
+                                  setSelectedTests((prev) => prev.filter((name) => !packageNames.has(name)));
+                                  setAppliedPackage(null);
+                                  setSelectedPackageId("none");
+                                  setShowPackageTestsIndividually(false);
+                                }}
+                                className="text-muted-foreground hover:text-destructive"
                               >
-                                {testName}
-                                <X className="h-3 w-3 ml-1" />
-                              </Badge>
-                            ))}
+                                Remove Package
+                              </Button>
+                            </div>
                           </div>
                         )}
+                        <div className="border rounded-lg p-3 h-[38vh] overflow-y-auto">
+                          {selectedTests.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No tests selected yet.</p>
+                          ) : (
+                            (() => {
+                              const packageNames = new Set(
+                                appliedPackage
+                                  ? testCatalog
+                                      .filter((test) => appliedPackage.tests.includes(test.id))
+                                      .map((test) => test.name)
+                                  : []
+                              );
+                              const visibleTests = showPackageTestsIndividually
+                                ? selectedTests
+                                : selectedTests.filter((name) => !packageNames.has(name));
+                              if (visibleTests.length === 0) {
+                                return (
+                                  <p className="text-sm text-muted-foreground">
+                                    Only package tests selected.
+                                  </p>
+                                );
+                              }
+                              return (
+                                <div className="flex flex-wrap gap-2">
+                                  {visibleTests.map((testName) => (
+                                    <Badge
+                                      key={testName}
+                                      variant="secondary"
+                                      className="cursor-pointer hover:bg-destructive/10 hover:text-destructive"
+                                      onClick={() => toggleTestSelection(testName)}
+                                    >
+                                      {testName}
+                                      <X className="h-3 w-3 ml-1" />
+                                    </Badge>
+                                  ))}
+                                </div>
+                              );
+                            })()
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Click a test to remove it.
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Click a test to remove it.
-                      </p>
                     </div>
 
                     {/* Referred By Section */}
@@ -1554,58 +1880,11 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       </div>
                     </div>
 
-                    {/* Lab and Collection Center Section */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="lab_id">Lab</Label>
-                        <Select
-                          value={formData.lab_id || "none"}
-                          onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select lab (optional)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {labs.map((lab) => (
-                              <SelectItem key={lab.id} value={lab.id}>
-                                {lab.name} ({lab.lab_code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="collection_center_id">Collection Center</Label>
-                        <Select
-                          value={formData.collection_center_id || "none"}
-                          onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
-                          disabled={!formData.lab_id}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={formData.lab_id ? "Select collection center (optional)" : "Select lab first"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {collectionCenters
-                              .filter(cc => cc.lab_id === formData.lab_id)
-                              .map((center) => (
-                                <SelectItem key={center.id} value={center.id}>
-                                  {center.name} ({center.code})
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        {!formData.lab_id && (
-                          <p className="text-xs text-muted-foreground">Please select a lab first to choose a collection center</p>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </ScrollArea>
               </div>
 
-              <div className="border-t px-6 py-4 flex items-center justify-between">
+              <div className="border-t px-4 py-3 flex items-center justify-between">
                 <Button
                   type="button"
                   variant="outline"
@@ -1653,11 +1932,32 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                   <p className="text-muted-foreground mt-2">No tests selected.</p>
                 ) : (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {selectedTests.map((testName) => (
-                      <Badge key={testName} variant="secondary">
-                        {testName}
-                      </Badge>
-                    ))}
+                    {(() => {
+                      const packageNames = new Set(
+                        appliedPackage
+                          ? testCatalog
+                              .filter((test) => appliedPackage.tests.includes(test.id))
+                              .map((test) => test.name)
+                          : []
+                      );
+                      const visibleTests = showPackageTestsIndividually
+                        ? selectedTests
+                        : selectedTests.filter((name) => !packageNames.has(name));
+                      return (
+                        <>
+                          {appliedPackage && !showPackageTestsIndividually && (
+                            <Badge variant="secondary">
+                              {appliedPackage.name} (Package)
+                            </Badge>
+                          )}
+                          {visibleTests.map((testName) => (
+                            <Badge key={testName} variant="secondary">
+                              {testName}
+                            </Badge>
+                          ))}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -2157,7 +2457,15 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       </Dialog>
 
       {/* Print Options Dialog */}
-      <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+      <Dialog
+        open={isPrintDialogOpen}
+        onOpenChange={(open) => {
+          setIsPrintDialogOpen(open);
+          if (!open) {
+            setSelectedTemplateId("auto");
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2170,6 +2478,26 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           </DialogHeader>
           
           <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="report-template" className="text-base font-medium">Report Template</Label>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger id="report-template">
+                  <SelectValue placeholder="Auto (Default)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto (Default)</SelectItem>
+                  {reportTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}{template.is_default ? " (Default)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Auto picks test, category, or default template.
+              </p>
+            </div>
+
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="include-header" className="text-base font-medium">Include Header</Label>
@@ -2258,121 +2586,362 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 </TableCell>
               </TableRow>
             ) : (
-              pagedTests.map((test) => (
-                <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedTestIds.includes(test.id)}
-                      onCheckedChange={() => togglePrintSelection(test.id)}
-                      disabled={test.status !== "completed"}
-                      aria-label={`Select ${test.test_name}`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{test.patients?.full_name}</p>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {test.patients?.patient_id}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <p className="font-medium">{test.test_name}</p>
-                    {test.notes && (
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {test.notes}
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-sm">{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+              pagedRows.map((row) => {
+                if (row.kind === "package") {
+                  const testsInGroup = groupedRows.groupMap.get(row.groupId) || [];
+                  if (testsInGroup.length === 0) {
+                    return null;
+                  }
+                  const firstTest = testsInGroup[0];
+                  const completedInGroup = testsInGroup.filter((t) => t.status === "completed").length;
+                  const totalInGroup = testsInGroup.length;
+                  const hasCompleted = completedInGroup > 0;
+                  const allCompleted = completedInGroup === totalInGroup;
+                  const groupStatus = allCompleted
+                    ? "completed"
+                    : testsInGroup.some((t) => t.status === "in_progress")
+                      ? "in_progress"
+                      : "pending";
+                  const isExpanded = expandedPackageGroups.has(row.groupId);
+
+                  return (
+                    <>
+                      <TableRow key={`package-${row.groupId}`} className="bg-muted/30">
+                        <TableCell>
+                          <Checkbox
+                            checked={hasCompleted && testsInGroup.filter((t) => t.status === "completed").every((t) => selectedTestIds.includes(t.id))}
+                            onCheckedChange={() => togglePackageSelection(row.groupId)}
+                            disabled={!hasCompleted}
+                            aria-label={`Select ${firstTest.test_package_name || "package"} tests`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{firstTest.patients?.full_name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              {firstTest.patients?.patient_id}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setExpandedPackageGroups((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(row.groupId)) {
+                                    next.delete(row.groupId);
+                                  } else {
+                                    next.add(row.groupId);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="h-7 w-7 p-0"
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <div>
+                              <p className="font-medium">
+                                {firstTest.test_package_name || "Package"} ({totalInGroup} tests)
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Package group
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm">{format(new Date(firstTest.test_date), "dd MMM yyyy")}</span>
+                            </div>
+                            {firstTest.created_at && (
+                              <span className="text-xs text-muted-foreground ml-5">
+                                {format(new Date(firstTest.created_at), "HH:mm")}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {firstTest.labs?.lab_code ? (
+                            <span className="text-sm font-mono font-medium">{firstTest.labs.lab_code}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {firstTest.collection_centers?.code ? (
+                            <span className="text-sm font-mono font-medium">{firstTest.collection_centers.code}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(groupStatus)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {completedInGroup}/{totalInGroup} completed
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setExpandedPackageGroups((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(row.groupId)) {
+                                  next.delete(row.groupId);
+                                } else {
+                                  next.add(row.groupId);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="gap-1.5"
+                          >
+                            {isExpanded ? "Hide Tests" : "View Tests"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded &&
+                        testsInGroup.map((test) => (
+                          <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedTestIds.includes(test.id)}
+                                onCheckedChange={() => togglePrintSelection(test.id)}
+                                disabled={test.status !== "completed"}
+                                aria-label={`Select ${test.test_name}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{test.patients?.full_name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  {test.patients?.patient_id}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium">{test.test_name}</p>
+                              {test.notes && (
+                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  {test.notes}
+                                </p>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span className="text-sm">{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                                </div>
+                                {test.created_at && (
+                                  <span className="text-xs text-muted-foreground ml-5">
+                                    {format(new Date(test.created_at), "HH:mm")}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {test.labs?.lab_code ? (
+                                <span className="text-sm font-mono font-medium">{test.labs.lab_code}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {test.collection_centers?.code ? (
+                                <span className="text-sm font-mono font-medium">{test.collection_centers.code}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(test.status)}
+                            </TableCell>
+                            <TableCell>
+                              {test.result_items && test.result_items.length > 0 ? (
+                                <span className="text-sm font-medium">
+                                  Panel ({test.result_items.length})
+                                </span>
+                              ) : test.result_value !== null && test.result_value !== undefined ? (
+                                <span className="text-sm font-medium">
+                                  {test.result_value}
+                                  {test.result_unit && ` ${test.result_unit}`}
+                                </span>
+                              ) : test.result ? (
+                                <span className="text-sm truncate max-w-[150px] block">
+                                  {test.result.substring(0, 50)}{test.result.length > 50 ? "..." : ""}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openAuditDialog(test)}
+                                  className="gap-1 text-muted-foreground hover:text-foreground"
+                                  title="View audit history"
+                                >
+                                  <History className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openResultDialog(test)}
+                                  className="gap-1.5"
+                                >
+                                  {test.status === "completed" ? (
+                                    <>
+                                      <CheckCircle className="h-3.5 w-3.5" />
+                                      View
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clock className="h-3.5 w-3.5" />
+                                      Update
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </>
+                  );
+                }
+
+                const test = row.test;
+                return (
+                  <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedTestIds.includes(test.id)}
+                        onCheckedChange={() => togglePrintSelection(test.id)}
+                        disabled={test.status !== "completed"}
+                        aria-label={`Select ${test.test_name}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{test.patients?.full_name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {test.patients?.patient_id}
+                        </p>
                       </div>
-                      {test.created_at && (
-                        <span className="text-xs text-muted-foreground ml-5">
-                          {format(new Date(test.created_at), "HH:mm")}
-                        </span>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium">{test.test_name}</p>
+                      {test.notes && (
+                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                          {test.notes}
+                        </p>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {test.labs?.lab_code ? (
-                      <span className="text-sm font-mono font-medium">{test.labs.lab_code}</span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {test.collection_centers?.code ? (
-                      <span className="text-sm font-mono font-medium">{test.collection_centers.code}</span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(test.status)}
-                  </TableCell>
-                  <TableCell>
-                    {test.result_items && test.result_items.length > 0 ? (
-                      <span className="text-sm font-medium">
-                        Panel ({test.result_items.length})
-                      </span>
-                    ) : test.result_value !== null && test.result_value !== undefined ? (
-                      <span className="text-sm font-medium">
-                        {test.result_value}
-                        {test.result_unit && ` ${test.result_unit}`}
-                      </span>
-                    ) : test.result ? (
-                      <span className="text-sm truncate max-w-[150px] block">
-                        {test.result.substring(0, 50)}{test.result.length > 50 ? "..." : ""}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openAuditDialog(test)}
-                        className="gap-1 text-muted-foreground hover:text-foreground"
-                        title="View audit history"
-                      >
-                        <History className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openResultDialog(test)}
-                        className="gap-1.5"
-                      >
-                        {test.status === "completed" ? (
-                          <>
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            View
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="h-3.5 w-3.5" />
-                            Update
-                          </>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm">{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                        </div>
+                        {test.created_at && (
+                          <span className="text-xs text-muted-foreground ml-5">
+                            {format(new Date(test.created_at), "HH:mm")}
+                          </span>
                         )}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {test.labs?.lab_code ? (
+                        <span className="text-sm font-mono font-medium">{test.labs.lab_code}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {test.collection_centers?.code ? (
+                        <span className="text-sm font-mono font-medium">{test.collection_centers.code}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(test.status)}
+                    </TableCell>
+                    <TableCell>
+                      {test.result_items && test.result_items.length > 0 ? (
+                        <span className="text-sm font-medium">
+                          Panel ({test.result_items.length})
+                        </span>
+                      ) : test.result_value !== null && test.result_value !== undefined ? (
+                        <span className="text-sm font-medium">
+                          {test.result_value}
+                          {test.result_unit && ` ${test.result_unit}`}
+                        </span>
+                      ) : test.result ? (
+                        <span className="text-sm truncate max-w-[150px] block">
+                          {test.result.substring(0, 50)}{test.result.length > 50 ? "..." : ""}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openAuditDialog(test)}
+                          className="gap-1 text-muted-foreground hover:text-foreground"
+                          title="View audit history"
+                        >
+                          <History className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openResultDialog(test)}
+                          className="gap-1.5"
+                        >
+                          {test.status === "completed" ? (
+                            <>
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              View
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="h-3.5 w-3.5" />
+                              Update
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
         {filteredTests.length > 0 && (
           <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredTests.length)} of{" "}
-              {filteredTests.length}
+              Showing {startIndex + 1}-{Math.min(endIndex, groupedRows.rows.length)} of{" "}
+              {groupedRows.rows.length}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
