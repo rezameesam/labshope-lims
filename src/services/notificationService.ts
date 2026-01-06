@@ -161,6 +161,7 @@ function generateEmailTemplate(
     address: "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
     phone: "+91-9419034607 | +91-9622635767",
     email: "irmclinic@gmail.com",
+    website: "https://irmclinic.com",
     primary: "#1E3A8A",
     accent: "#3B82F6",
     background: "#F5F8FF",
@@ -234,7 +235,8 @@ function generateEmailTemplate(
                   <div style="height:4px; width:64px; background:${accentColor}; border-radius:999px; margin-bottom:18px;"></div>
                   <div style="font-size:15px; line-height:1.7; color:${brand.text};">${formattedMessage}</div>
                   <div style="margin-top:24px; padding:14px 16px; border-left:4px solid ${accentColor}; background:#F8FAFC; border-radius:10px; font-size:13px; color:${brand.muted};">
-                    For assistance, contact us at ${brand.phone} or ${brand.email}.
+                    For assistance, contact us at ${brand.phone} or ${brand.email}.<br/>
+                    Visit: <a href="${brand.website}" style="color:${accentColor}; text-decoration:none;">${brand.website}</a>
                   </div>
                 </td>
               </tr>
@@ -242,6 +244,7 @@ function generateEmailTemplate(
                 <td style="padding: 18px 28px; border-top:1px solid ${brand.border}; background:#ffffff;">
                   <div style="font-size:12px; color:${brand.muted}; text-align:center;">
                     ${brand.address}<br/>
+                    <a href="${brand.website}" style="color:${brand.muted}; text-decoration:none;">${brand.website}</a><br/>
                     This is an automated message. Please do not reply.
                   </div>
                 </td>
@@ -262,18 +265,26 @@ function generateEmailText(
   title: string,
   message: string
 ): string {
+  const website = "https://irmclinic.com";
+  const normalized = message.toLowerCase();
+  const hasWebsite = normalized.includes("irmclinic.com");
+
   return [
     title,
     "",
     message,
+    hasWebsite ? "" : `Visit: ${website}`,
     "",
     "IRM Clinical Laboratory",
     "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
     "Phone: +91-9419034607 | +91-9622635767",
     "Email: irmclinic@gmail.com",
+    `Website: ${website}`,
     "",
     "This is an automated message. Please do not reply.",
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 /**
