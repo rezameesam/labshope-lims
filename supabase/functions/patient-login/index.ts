@@ -13,6 +13,8 @@ interface PatientLoginRequest {
   turnstile_token?: string;
 }
 
+const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -55,12 +57,69 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const [patient] = patients;
+    const authEmail = buildPatientAuthEmail(patient.id);
+
+    const { data: patientRecord, error: patientRecordError } = await supabase
+      .from("patients")
+      .select("id, user_id")
+      .eq("id", patient.id)
+      .single();
+
+    if (patientRecordError || !patientRecord) {
+      return new Response(
+        JSON.stringify({ error: "Patient record not found." }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const existingUserId = patientRecord.user_id || null;
+    let authUserId = existingUserId;
+    let resolvedAuthEmail = authEmail;
+
+    if (authUserId) {
+      const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(authUserId);
+      if (authUserError || !authUserData?.user) {
+        authUserId = null;
+      } else if (authUserData.user.email) {
+        resolvedAuthEmail = authUserData.user.email;
+      }
+    }
+
+    if (!authUserId) {
+      const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
+        email: authEmail,
+        password,
+        email_confirmed: true,
+        user_metadata: {
+          patient_id: patient.patient_id,
+          patient_record_id: patient.id,
+        },
+      });
+
+      if (createError || !createdUser?.user) {
+        return new Response(
+          JSON.stringify({ error: "Unable to create patient auth account." }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      authUserId = createdUser.user.id;
+      resolvedAuthEmail = createdUser.user.email || authEmail;
+
+      await supabase
+        .from("patients")
+        .update({ user_id: authUserId })
+        .eq("id", patient.id);
+    } else {
+      await supabase.auth.admin.updateUserById(authUserId, { password });
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         patient,
         password_reset_required: patient.password_reset_required === true,
+        auth_email: resolvedAuthEmail,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
@@ -72,6 +131,11 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+function buildPatientAuthEmail(patientId: string): string {
+  const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  return `patient-${normalizedId}@${PATIENT_AUTH_DOMAIN}`;
+}
 
 async function verifyTurnstile(token: string, req: Request): Promise<string | null> {
   const origin = req.headers.get("origin") || req.headers.get("referer") || "";

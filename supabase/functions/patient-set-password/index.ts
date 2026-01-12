@@ -13,6 +13,8 @@ interface PatientSetPasswordRequest {
   new_password: string;
 }
 
+const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -57,6 +59,45 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    const { data: patientRecord, error: patientError } = await supabase
+      .from("patients")
+      .select("id, user_id")
+      .eq("id", patient_id)
+      .single();
+
+    if (patientError || !patientRecord) {
+      return new Response(
+        JSON.stringify({ error: "Patient record not found." }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const authEmail = buildPatientAuthEmail(patientRecord.id);
+    if (!patientRecord.user_id) {
+      const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
+        email: authEmail,
+        password: new_password,
+        email_confirmed: true,
+        user_metadata: {
+          patient_record_id: patientRecord.id,
+        },
+      });
+
+      if (createError || !createdUser?.user) {
+        return new Response(
+          JSON.stringify({ error: "Unable to create patient auth account." }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      await supabase
+        .from("patients")
+        .update({ user_id: createdUser.user.id })
+        .eq("id", patientRecord.id);
+    } else {
+      await supabase.auth.admin.updateUserById(patientRecord.user_id, { password: new_password });
+    }
+
     return new Response(
       JSON.stringify({ success: true }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -69,3 +110,8 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+function buildPatientAuthEmail(patientId: string): string {
+  const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  return `patient-${normalizedId}@${PATIENT_AUTH_DOMAIN}`;
+}

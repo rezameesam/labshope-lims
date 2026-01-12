@@ -30,7 +30,7 @@ Or manually in Supabase Dashboard:
 Add these to your `.env` file:
 
 ```env
-VITE_RAZORPAY_KEY_ID=rzp_test_RydGUMk2onInkU
+VITE_RAZORPAY_KEY_ID=rzp_live_S2oKUccJd4u81n
 ```
 
 ### Step 3: Set Supabase Secrets
@@ -39,15 +39,15 @@ Set Razorpay credentials as Supabase secrets for Edge Functions:
 
 ```bash
 # Set Razorpay credentials
-supabase secrets set RAZORPAY_KEY_ID=rzp_test_RydGUMk2onInkU
-supabase secrets set RAZORPAY_KEY_SECRET=aBGYqeGBV9YRFMoeFIHgOlMK
+supabase secrets set RAZORPAY_KEY_ID=rzp_live_S2oKUccJd4u81n
+supabase secrets set RAZORPAY_KEY_SECRET=yYiptUdhb4AOCRBlQob77dTm
 ```
 
 Or via Dashboard:
 1. Go to Project Settings → Edge Functions → Secrets
 2. Add:
-   - `RAZORPAY_KEY_ID` = `rzp_test_RydGUMk2onInkU`
-   - `RAZORPAY_KEY_SECRET` = `aBGYqeGBV9YRFMoeFIHgOlMK`
+   - `RAZORPAY_KEY_ID` = `rzp_live_S2oKUccJd4u81n`
+   - `RAZORPAY_KEY_SECRET` = `yYiptUdhb4AOCRBlQob77dTm`
    - (Optional) `RAZORPAY_WEBHOOK_SECRET` = Your webhook secret
 
 ### Step 4: Deploy Edge Functions
@@ -165,4 +165,3 @@ When ready for production:
 
 - Razorpay Docs: https://razorpay.com/docs/
 - Razorpay Support: support@razorpay.com
-
