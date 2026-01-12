@@ -98,6 +98,8 @@ interface Patient {
   patient_id: string;
   full_name: string;
   phone: string;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
 }
 
 interface PatientTest {
@@ -257,7 +259,7 @@ const ManageBilling = () => {
       
       let query: any = supabase
         .from("patients")
-        .select("id, patient_id, full_name, phone")
+        .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
         .eq("is_active", true);
 
       // Note: Collectors shouldn't be here, but add restriction just in case
@@ -513,6 +515,8 @@ const ManageBilling = () => {
         .insert({
           invoice_number: invoiceNumber,
           patient_id: selectedPatientId,
+          lab_id: selectedPatient?.lab_id || null,
+          collection_center_id: selectedPatient?.collection_center_id || null,
           total_amount: totalAmount,
           discount_amount: appliedDiscount,
           final_amount: finalAmount,
