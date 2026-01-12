@@ -89,7 +89,7 @@ serve(async (req: Request): Promise<Response> => {
       const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
         email: authEmail,
         password,
-        email_confirmed: true,
+        email_confirm: true,
         user_metadata: {
           patient_id: patient.patient_id,
           patient_record_id: patient.id,
@@ -111,13 +111,15 @@ serve(async (req: Request): Promise<Response> => {
         .update({ user_id: authUserId })
         .eq("id", patient.id);
     } else {
-      await supabase.auth.admin.updateUserById(authUserId, { password });
+      await supabase.auth.admin.updateUserById(authUserId, {
+        password,
+        email_confirm: true,
+      });
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        patient,
         password_reset_required: patient.password_reset_required === true,
         auth_email: resolvedAuthEmail,
       }),

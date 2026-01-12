@@ -153,7 +153,7 @@ async function ensureAuthUserPassword(
     const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
       email: authEmail,
       password,
-      email_confirmed: true,
+      email_confirm: true,
       user_metadata: {
         patient_record_id: patientRecord.id,
       },
@@ -166,7 +166,10 @@ async function ensureAuthUserPassword(
         .eq("id", patientRecord.id);
     }
   } else {
-    await supabase.auth.admin.updateUserById(patientRecord.user_id, { password });
+    await supabase.auth.admin.updateUserById(patientRecord.user_id, {
+      password,
+      email_confirm: true,
+    });
   }
 }
 

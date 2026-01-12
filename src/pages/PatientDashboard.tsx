@@ -132,7 +132,14 @@ const PatientDashboard = () => {
           error = result.error;
           
           // If join fails due to missing tables/columns, fallback to basic query
-          if (error && (error.code === "PGRST116" || error.code === "42P01" || error.message?.includes("Could not find"))) {
+          if (
+            error &&
+            (error.code === "PGRST116" ||
+              error.code === "PGRST201" ||
+              error.code === "42P01" ||
+              error.message?.includes("Could not find") ||
+              error.message?.includes("relationship"))
+          ) {
             const basicResult = await supabase
               .from("patient_tests")
               .select("*")
@@ -159,12 +166,14 @@ const PatientDashboard = () => {
           (data || []).map(async (test: any) => {
             let testWithEmployee = { ...test };
             if (test.result_entered_by) {
-              const { data: empData } = await supabase
+              const { data: empData, error: empError } = await supabase
                 .from("employees")
                 .select("full_name")
                 .eq("user_id", test.result_entered_by)
-                .single();
-              testWithEmployee.entered_by_name = empData?.full_name;
+                .maybeSingle();
+              if (!empError && empData?.full_name) {
+                testWithEmployee.entered_by_name = empData.full_name;
+              }
             }
             return testWithEmployee;
           })

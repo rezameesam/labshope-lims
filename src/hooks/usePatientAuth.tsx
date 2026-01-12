@@ -50,7 +50,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         .select("*")
         .eq("user_id", userId)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
       if (!isMounted) return;
 
@@ -68,7 +68,14 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData.session?.user?.id || null;
-        await loadPatientForUser(userId);
+        await Promise.race([
+          loadPatientForUser(userId),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error("Patient load timeout")), 6000)
+          ),
+        ]).catch((error) => {
+          console.warn("Patient load delayed:", error);
+        });
       } catch (error) {
         console.error("Error checking patient session:", error);
         setPatient(null);
@@ -83,7 +90,10 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     checkSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      await loadPatientForUser(session?.user?.id || null);
+      loadPatientForUser(session?.user?.id || null);
+      if (isMounted) {
+        setLoading(false);
+      }
     });
 
     return () => {
