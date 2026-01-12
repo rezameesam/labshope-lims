@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -763,6 +763,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .insert({
           invoice_number: invoiceNumber,
           patient_id: selectedPatient.id,
+          lab_id: formData.lab_id || selectedPatient.lab_id || null,
+          collection_center_id: formData.collection_center_id || selectedPatient.collection_center_id || null,
           total_amount: totalAmount,
           final_amount: totalAmount,
           created_by: userData.user?.id,
@@ -1356,6 +1358,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="tests_search"
+              name="tests_search"
               placeholder="Search by test, patient..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1445,14 +1449,14 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
               Select tests and create the invoice in one step.
             </DialogDescription>
           </DialogHeader>
-            <form onSubmit={(e) => e.preventDefault()} className="flex-1 overflow-hidden flex flex-col">
-              <div className="flex-1 overflow-hidden">
+            <form onSubmit={(e) => e.preventDefault()} className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {/* Patient Search Section */}
                       <div className="space-y-2">
-                        <Label>Patient *</Label>
+                        <Label htmlFor="patient_search">Patient *</Label>
                         {selectedPatient ? (
                           <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
                             <div className="flex items-center gap-3">
@@ -1480,6 +1484,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
+                                id="patient_search"
+                                name="patient_search"
                                 placeholder="Search by name, ID, or phone..."
                                 value={patientSearch}
                                 onChange={(e) => setPatientSearch(e.target.value)}
@@ -1554,9 +1560,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                               value={formData.lab_id || "none"}
                               onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
                             >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select lab (optional)" />
-                              </SelectTrigger>
+                            <SelectTrigger id="lab_id">
+                              <SelectValue placeholder="Select lab (optional)" />
+                            </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">None</SelectItem>
                                 {labs.map((lab) => (
@@ -1574,9 +1580,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                               onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
                               disabled={!formData.lab_id}
                             >
-                              <SelectTrigger>
-                                <SelectValue placeholder={formData.lab_id ? "Select center (optional)" : "Select lab first"} />
-                              </SelectTrigger>
+                            <SelectTrigger id="collection_center_id">
+                              <SelectValue placeholder={formData.lab_id ? "Select center (optional)" : "Select lab first"} />
+                            </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">None</SelectItem>
                                 {collectionCenters
@@ -1599,7 +1605,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     {/* Tests Selection Section */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <Label>Select Tests *</Label>
+                        <p className="text-sm font-medium leading-none">Select Tests *</p>
                         {selectedTests.length > 0 && (
                           <Badge variant="secondary">{selectedTests.length} selected</Badge>
                         )}
@@ -1637,6 +1643,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
+                            id="test_search"
+                            name="test_search"
                             placeholder="Search tests..."
                             value={testSearch}
                             onChange={(e) => setTestSearch(e.target.value)}
@@ -1689,11 +1697,13 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                                   </div>
                                   <div className="space-y-1">
                                     {categoryTests.map((test) => (
-                                      <label
+                                      <Label
                                         key={test.id}
+                                        htmlFor={`test_select_${test.id}`}
                                         className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer transition-colors"
                                       >
                                         <Checkbox
+                                          id={`test_select_${test.id}`}
                                           checked={selectedTests.includes(test.name)}
                                           onCheckedChange={() => toggleTestSelection(test.name)}
                                         />
@@ -1712,7 +1722,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                                             )}
                                           </div>
                                         </div>
-                                      </label>
+                                      </Label>
                                     ))}
                                   </div>
                                 </div>
@@ -1723,7 +1733,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label>Selected Tests</Label>
+                          <p className="text-sm font-medium leading-none">Selected Tests</p>
                           <span className="text-sm text-muted-foreground">
                             Total: ₹{selectedTestsTotal}
                           </span>
@@ -1809,12 +1819,12 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
                     {/* Referred By Section */}
                     <div className="space-y-2">
-                      <Label>Referred By</Label>
+                      <Label htmlFor="referred_by">Referred By</Label>
                       <Select 
                         value={formData.referred_by} 
                         onValueChange={(value) => setFormData({ ...formData, referred_by: value, custom_doctor_name: "" })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="referred_by">
                           <SelectValue placeholder="Select referral source" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1830,6 +1840,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       </Select>
                       {formData.referred_by === "custom" && (
                         <Input
+                          id="custom_doctor_name"
+                          name="custom_doctor_name"
                           placeholder="Enter doctor's name..."
                           value={formData.custom_doctor_name}
                           onChange={(e) => setFormData({ ...formData, custom_doctor_name: e.target.value })}
@@ -1864,7 +1876,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 </ScrollArea>
               </div>
 
-              <div className="border-t px-4 py-3 flex items-center justify-between">
+              <div className="border-t px-4 py-3 flex items-center justify-between shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -1987,7 +1999,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 value={resultData.status}
                 onValueChange={(value) => setResultData({ ...resultData, status: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2077,16 +2089,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <Label>Item Name</Label>
+                        <Label htmlFor={`panel_item_name_${index}`}>Item Name</Label>
                         <Input
+                          id={`panel_item_name_${index}`}
+                          name={`panel_item_name_${index}`}
                           value={item.name}
                           onChange={(e) => updatePanelItem(index, "name", e.target.value)}
                           placeholder="e.g. WBC, HGB, PLT"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Value</Label>
+                        <Label htmlFor={`panel_item_value_${index}`}>Value</Label>
                         <Input
+                          id={`panel_item_value_${index}`}
+                          name={`panel_item_value_${index}`}
                           value={item.value}
                           onChange={(e) => updatePanelItem(index, "value", e.target.value)}
                           placeholder="e.g. 7.0"
@@ -2095,24 +2111,30 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-2">
-                        <Label>Unit</Label>
+                        <Label htmlFor={`panel_item_unit_${index}`}>Unit</Label>
                         <Input
+                          id={`panel_item_unit_${index}`}
+                          name={`panel_item_unit_${index}`}
                           value={item.unit}
                           onChange={(e) => updatePanelItem(index, "unit", e.target.value)}
                           placeholder="e.g. 10^9/L"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Normal Min</Label>
+                        <Label htmlFor={`panel_item_min_${index}`}>Normal Min</Label>
                         <Input
+                          id={`panel_item_min_${index}`}
+                          name={`panel_item_min_${index}`}
                           value={item.normal_range_min}
                           onChange={(e) => updatePanelItem(index, "normal_range_min", e.target.value)}
                           placeholder="Min"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Normal Max</Label>
+                        <Label htmlFor={`panel_item_max_${index}`}>Normal Max</Label>
                         <Input
+                          id={`panel_item_max_${index}`}
+                          name={`panel_item_max_${index}`}
                           value={item.normal_range_max}
                           onChange={(e) => updatePanelItem(index, "normal_range_max", e.target.value)}
                           placeholder="Max"
@@ -2120,8 +2142,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Normal Range (Text)</Label>
+                      <Label htmlFor={`panel_item_range_${index}`}>Normal Range (Text)</Label>
                       <Input
+                        id={`panel_item_range_${index}`}
+                        name={`panel_item_range_${index}`}
                         value={item.normal_range_text}
                         onChange={(e) => updatePanelItem(index, "normal_range_text", e.target.value)}
                         placeholder="Optional: e.g. 3.5 - 10.0"
@@ -2585,7 +2609,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                   const isExpanded = expandedPackageGroups.has(row.groupId);
 
                   return (
-                    <>
+                    <Fragment key={`package-${row.groupId}`}>
                       <TableRow key={`package-${row.groupId}`} className="bg-muted/30">
                         <TableCell>
                           <Checkbox
@@ -2801,7 +2825,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                             </TableCell>
                           </TableRow>
                         ))}
-                    </>
+                    </Fragment>
                   );
                 }
 
