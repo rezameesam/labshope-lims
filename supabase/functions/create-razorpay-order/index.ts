@@ -71,10 +71,10 @@ serve(async (req: Request) => {
     
     const razorpayKeyId = settingsMap.get("razorpay_key_id")?.trim() || 
                           Deno.env.get("RAZORPAY_KEY_ID") || 
-                          "rzp_test_RydGUMk2onInkU";
+                          "rzp_live_S2oKUccJd4u81n";
     const razorpayKeySecret = settingsMap.get("razorpay_key_secret")?.trim() || 
                               Deno.env.get("RAZORPAY_KEY_SECRET") || 
-                              "aBGYqeGBV9YRFMoeFIHgOlMK";
+                              "yYiptUdhb4AOCRBlQob77dTm";
 
     const { invoice_id, invoice_ids, amount }: CreateOrderRequest = await req.json();
     const hasBulkInvoices = Array.isArray(invoice_ids) && invoice_ids.length > 0;

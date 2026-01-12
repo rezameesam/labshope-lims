@@ -13,6 +13,8 @@ interface ResetPasswordRequest {
   turnstile_token?: string;
 }
 
+const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -73,6 +75,35 @@ serve(async (req: Request): Promise<Response> => {
 
     if (updatePwError) {
       throw updatePwError;
+    }
+
+    const { data: patientRecord, error: patientError } = await supabase
+      .from("patients")
+      .select("id, user_id")
+      .eq("id", resetRow.patient_id)
+      .single();
+
+    if (!patientError && patientRecord) {
+      const authEmail = buildPatientAuthEmail(patientRecord.id);
+      if (!patientRecord.user_id) {
+        const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
+          email: authEmail,
+          password: new_password,
+          email_confirmed: true,
+          user_metadata: {
+            patient_record_id: patientRecord.id,
+          },
+        });
+
+        if (!createError && createdUser?.user) {
+          await supabase
+            .from("patients")
+            .update({ user_id: createdUser.user.id })
+            .eq("id", patientRecord.id);
+        }
+      } else {
+        await supabase.auth.admin.updateUserById(patientRecord.user_id, { password: new_password });
+      }
     }
 
     const { error: markError } = await supabase
@@ -145,4 +176,9 @@ async function hashToken(token: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function buildPatientAuthEmail(patientId: string): string {
+  const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  return `patient-${normalizedId}@${PATIENT_AUTH_DOMAIN}`;
 }
