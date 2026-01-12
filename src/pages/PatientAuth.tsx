@@ -62,30 +62,33 @@ const PatientAuth = () => {
       toast.error("Please enter your login details");
       return;
     }
-    setIsLoading(true);
-    
+
     if (!loginCaptchaToken) {
       toast.error("Please complete the security check");
       return;
     }
 
-    const { error, passwordResetRequired } = await login(identifier.trim(), password, loginCaptchaToken);
-    
-    setIsLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    setIsLoading(true);
+    try {
+      const { error, passwordResetRequired } = await login(identifier.trim(), password, loginCaptchaToken);
 
-    if (passwordResetRequired) {
-      setLastLoginPassword(password);
-      setStep("reset");
-      toast.success("Please set a new password to continue");
-      return;
-    }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
 
-    toast.success("Welcome to your Patient Portal!");
-    navigate("/patient/dashboard");
+      if (passwordResetRequired) {
+        setLastLoginPassword(password);
+        setStep("reset");
+        toast.success("Please set a new password to continue");
+        return;
+      }
+
+      toast.success("Welcome to your Patient Portal!");
+      navigate("/patient/dashboard");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -108,16 +111,19 @@ const PatientAuth = () => {
     }
 
     setIsLoading(true);
-    const { error } = await setPassword(current, newPassword);
-    setIsLoading(false);
+    try {
+      const { error } = await setPassword(current, newPassword);
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Password updated successfully");
+      navigate("/patient/dashboard");
+    } finally {
+      setIsLoading(false);
     }
-
-    toast.success("Password updated successfully");
-    navigate("/patient/dashboard");
   };
 
   const handleRequestReset = async (e: React.FormEvent) => {

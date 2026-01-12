@@ -12,7 +12,6 @@ import { sendNotification } from "@/services/notificationService";
 
 const NotificationSettings = () => {
   const [emailConfigured, setEmailConfigured] = useState(false);
-  const [emailService, setEmailService] = useState<'smtp' | 'resend' | 'gmail' | 'none'>('none');
   const [testEmail, setTestEmail] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
 
@@ -21,21 +20,11 @@ const NotificationSettings = () => {
     // Note: SMTP credentials are in Supabase Edge Function secrets, not client-side env vars
     // So we assume SMTP is configured if Supabase URL is available (Edge Function exists)
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const resendKey = import.meta.env.VITE_RESEND_API_KEY;
-    const gmailUser = import.meta.env.VITE_GMAIL_USER;
     
     // SMTP is configured via Edge Function secrets, so if Supabase is configured, assume SMTP is available
     if (supabaseUrl) {
-      setEmailService('smtp');
-      setEmailConfigured(true);
-    } else if (resendKey) {
-      setEmailService('resend');
-      setEmailConfigured(true);
-    } else if (gmailUser) {
-      setEmailService('gmail');
       setEmailConfigured(true);
     } else {
-      setEmailService('none');
       setEmailConfigured(false);
     }
   }, []);
@@ -147,17 +136,17 @@ const NotificationSettings = () => {
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground mb-4">
               <li>Use your existing Yandex email: <code className="bg-muted px-1 rounded">no-reply@irmclinic.com</code></li>
               <li>Get your Yandex email password (or create an app password)</li>
-              <li>Add to .env file:
+              <li>Add these as Supabase Edge Function secrets:
                 <div className="bg-muted p-2 rounded mt-2 font-mono text-xs">
-                  VITE_SMTP_HOST=smtp.yandex.com<br/>
-                  VITE_SMTP_PORT=465<br/>
-                  VITE_SMTP_USER=no-reply@irmclinic.com<br/>
-                  VITE_SMTP_PASSWORD=your_yandex_password<br/>
-                  VITE_SMTP_FROM=no-reply@irmclinic.com<br/>
-                  VITE_SMTP_SECURE=true
+                  SMTP_HOST=smtp.yandex.com<br/>
+                  SMTP_PORT=465<br/>
+                  SMTP_USER=no-reply@irmclinic.com<br/>
+                  SMTP_PASSWORD=your_yandex_password<br/>
+                  SMTP_FROM=no-reply@irmclinic.com<br/>
+                  SMTP_SECURE=true
                 </div>
               </li>
-              <li>Install: <code className="bg-muted px-1 rounded">npm install nodemailer</code></li>
+              <li>Deploy/update the Edge Function after adding secrets</li>
             </ol>
             <p className="text-xs text-muted-foreground italic">
               ✅ Uses your own domain - professional and free!
@@ -168,9 +157,8 @@ const NotificationSettings = () => {
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground mb-4">
               <li>Sign up at <a href="https://resend.com" target="_blank" className="text-primary underline">resend.com</a></li>
               <li>Get your API key from the dashboard</li>
-              <li>Add to .env: <code className="bg-muted px-1 rounded">VITE_RESEND_API_KEY=re_...</code></li>
-              <li>Add to .env: <code className="bg-muted px-1 rounded">VITE_RESEND_FROM_EMAIL=no-reply@irmclinic.com</code></li>
-              <li>Install: <code className="bg-muted px-1 rounded">npm install resend</code></li>
+              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">RESEND_API_KEY=re_...</code></li>
+              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">RESEND_FROM_EMAIL=no-reply@irmclinic.com</code></li>
             </ol>
           </div>
           <div>
@@ -179,9 +167,8 @@ const NotificationSettings = () => {
               <li>Go to your Google Account → Security</li>
               <li>Enable 2-Step Verification</li>
               <li>Create an App Password</li>
-              <li>Add to .env: <code className="bg-muted px-1 rounded">VITE_GMAIL_USER=your@gmail.com</code></li>
-              <li>Add to .env: <code className="bg-muted px-1 rounded">VITE_GMAIL_APP_PASSWORD=your_app_password</code></li>
-              <li>Install: <code className="bg-muted px-1 rounded">npm install nodemailer</code></li>
+              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">SMTP_USER=your@gmail.com</code></li>
+              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">SMTP_PASSWORD=your_app_password</code></li>
             </ol>
           </div>
         </CardContent>
@@ -191,4 +178,3 @@ const NotificationSettings = () => {
 };
 
 export default NotificationSettings;
-

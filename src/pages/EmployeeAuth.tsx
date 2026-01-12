@@ -36,7 +36,7 @@ const EmployeeAuth = () => {
     }
     
     setIsLoading(true);
-    const { error } = await signIn(email, password);
+    const { error, isStaff: signedInStaff, isCollector: signedInCollector } = await signIn(email, password);
     setIsLoading(false);
 
     if (error) {
@@ -49,6 +49,11 @@ const EmployeeAuth = () => {
     }
 
     toast.success("Signed in successfully!");
+    if (signedInStaff) {
+      navigate(signedInCollector ? "/collector" : "/admin");
+    } else {
+      toast.error("Your account does not have staff access.");
+    }
   };
 
   if (authLoading) {
@@ -129,7 +134,7 @@ const EmployeeAuth = () => {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6" autoComplete="off">
+            <form onSubmit={handleLogin} className="space-y-6" autoComplete="on">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
                 <div className="relative">
@@ -141,6 +146,7 @@ const EmployeeAuth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
+                    autoComplete="username"
                     required
                   />
                 </div>
@@ -158,7 +164,7 @@ const EmployeeAuth = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 pr-10"
                     name="password"
-                    autoComplete="new-password"
+                    autoComplete="current-password"
                     autoCorrect="off"
                     spellCheck={false}
                     required

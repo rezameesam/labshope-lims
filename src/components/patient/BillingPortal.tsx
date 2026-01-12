@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -580,6 +581,9 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
               <Receipt className="h-5 w-5" />
               Invoice {selectedInvoice?.invoice_number}
             </DialogTitle>
+            <DialogDescription>
+              Review invoice items, payments, and download a copy.
+            </DialogDescription>
           </DialogHeader>
           
           {selectedInvoice && (

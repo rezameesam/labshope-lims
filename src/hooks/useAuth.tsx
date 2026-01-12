@@ -9,7 +9,15 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   roles: UserRole[];
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{
+    error: Error | null;
+    roles?: UserRole[];
+    isStaff?: boolean;
+    isCollector?: boolean;
+  }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
@@ -84,7 +92,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       email,
       password,
     });
-    return { error: error as Error | null };
+    if (error) {
+      return { error: error as Error };
+    }
+
+    if (!error) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const nextSession = sessionData.session ?? null;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (nextSession?.user) {
+        const nextRoles = await fetchUserRoles(nextSession.user.id);
+        setRoles(nextRoles);
+        const nextIsStaff = nextRoles.some((role) =>
+          role === "admin" || role === "employee" || role === "collector"
+        );
+        const nextIsCollector =
+          nextRoles.includes("collector") &&
+          !nextRoles.includes("admin") &&
+          !nextRoles.includes("employee");
+        return {
+          error: null,
+          roles: nextRoles,
+          isStaff: nextIsStaff,
+          isCollector: nextIsCollector,
+        };
+      } else {
+        setRoles([]);
+      }
+    }
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string) => {

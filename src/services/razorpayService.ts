@@ -77,7 +77,10 @@ export const initiateRazorpayPayment = async (
       throw new Error('Razorpay is not available');
     }
 
-    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_S2oKUccJd4u81n';
+    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+    if (!razorpayKey) {
+      throw new Error('Razorpay key is not configured');
+    }
 
     const options: RazorpayOptions = {
       key: razorpayKey,
