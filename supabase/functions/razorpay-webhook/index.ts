@@ -48,24 +48,40 @@ serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const razorpayWebhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "";
+    const razorpayWebhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET");
+
+    // SECURITY: Webhook secret is REQUIRED to prevent payment fraud
+    if (!razorpayWebhookSecret) {
+      console.error("RAZORPAY_WEBHOOK_SECRET not configured - rejecting webhook");
+      return new Response(
+        JSON.stringify({ error: "Webhook not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Get webhook signature from headers
-    const razorpaySignature = req.headers.get("X-Razorpay-Signature") || "";
+    const razorpaySignature = req.headers.get("X-Razorpay-Signature");
+
+    // SECURITY: Signature is REQUIRED
+    if (!razorpaySignature) {
+      console.error("Missing X-Razorpay-Signature header");
+      return new Response(
+        JSON.stringify({ error: "Missing signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Read request body
     const body = await req.text();
 
-    // Verify webhook signature if secret is provided
-    if (razorpayWebhookSecret && razorpaySignature) {
-      const isValid = await verifyWebhookSignature(body, razorpaySignature, razorpayWebhookSecret);
-      if (!isValid) {
-        console.error("Invalid webhook signature");
-        return new Response(
-          JSON.stringify({ error: "Invalid signature" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    // Verify webhook signature - MANDATORY
+    const isValid = await verifyWebhookSignature(body, razorpaySignature, razorpayWebhookSecret);
+    if (!isValid) {
+      console.error("Invalid webhook signature - possible fraud attempt");
+      return new Response(
+        JSON.stringify({ error: "Invalid signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const webhookData = JSON.parse(body);
