@@ -60,7 +60,6 @@ interface Test {
   normal_range_min: number | null;
   normal_range_max: number | null;
   normal_range_text: string | null;
-  panel_items: PanelItem[] | null;
   sample_type: string | null;
   created_at: string;
 }
@@ -321,7 +320,7 @@ const ManageTestCatalog = () => {
         normal_range_min: test.normal_range_min?.toString() || "",
         normal_range_max: test.normal_range_max?.toString() || "",
         normal_range_text: test.normal_range_text || "",
-        panel_items: normalizePanelItems(test.panel_items),
+        panel_items: [],
         sample_type: test.sample_type || "Blood",
       });
     } else {

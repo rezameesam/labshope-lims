@@ -129,13 +129,6 @@ interface Test {
   normal_range_text: string | null;
   normal_range_min: number | null;
   normal_range_max: number | null;
-  panel_items?: Array<{
-    name: string;
-    unit: string | null;
-    normal_range_min: number | null;
-    normal_range_max: number | null;
-    normal_range_text: string | null;
-  }> | null;
 }
 
 interface Doctor {
@@ -420,7 +413,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         testsQuery.order("created_at", { ascending: false }),
         patientsQuery,
         supabase.from("test_categories").select("id, name"),
-        supabase.from("tests").select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max, panel_items"),
+        supabase.from("tests").select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
         supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
         supabase.from("test_packages").select("id, name, price, discount_percentage, is_active").eq("is_active", true),
         supabase.from("test_package_tests").select("package_id, test_id"),
@@ -556,25 +549,12 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     normal_range_text: "",
   });
 
-  const normalizePanelDefaults = (items?: Test["panel_items"]): ResultItemInput[] => {
-    if (!items || !Array.isArray(items)) return [];
-    return items.map((item) => ({
-      name: typeof item?.name === "string" ? item.name : "",
-      value: "",
-      unit: typeof item?.unit === "string" ? item.unit : "",
-      normal_range_min: item?.normal_range_min !== null && item?.normal_range_min !== undefined
-        ? String(item.normal_range_min)
-        : "",
-      normal_range_max: item?.normal_range_max !== null && item?.normal_range_max !== undefined
-        ? String(item.normal_range_max)
-        : "",
-      normal_range_text: typeof item?.normal_range_text === "string" ? item.normal_range_text : "",
-    }));
+  const normalizePanelDefaults = (): ResultItemInput[] => {
+    return [];
   };
 
   const getDefaultPanelItems = (testName?: string | null): ResultItemInput[] => {
-    const catalogTest = testCatalog.find((test) => test.name === testName);
-    const catalogDefaults = normalizePanelDefaults(catalogTest?.panel_items);
+    const catalogDefaults = normalizePanelDefaults();
     if (catalogDefaults.length > 0) return catalogDefaults;
 
     const normalizedName = testName?.toLowerCase() || "";
