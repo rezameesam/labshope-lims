@@ -132,9 +132,10 @@ serve(async (req) => {
       try {
         const mailgunUrl = `https://api.mailgun.net/v3/${mailgunDomain}/messages`;
         const auth = btoa(`api:${mailgunApiKey}`);
+        const mailgunFrom = Deno.env.get("MAILGUN_FROM_EMAIL") || `noreply@${mailgunDomain}`;
         
         const formData = new FormData();
-        formData.append("from", smtpFrom || `noreply@${mailgunDomain}`);
+        formData.append("from", mailgunFrom);
         formData.append("to", to);
         formData.append("subject", subject);
         formData.append("html", htmlContent);
@@ -167,6 +168,7 @@ serve(async (req) => {
     const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
     if (sendgridApiKey) {
       try {
+        const sendgridFrom = Deno.env.get("SENDGRID_FROM_EMAIL") || "no-reply@irmclinic.com";
         const sendgridResponse = await fetch("https://api.sendgrid.com/v3/mail/send", {
           method: "POST",
           headers: {
@@ -177,7 +179,7 @@ serve(async (req) => {
             personalizations: [{
               to: [{ email: to }],
             }],
-            from: { email: smtpFrom || "no-reply@irmclinic.com" },
+            from: { email: sendgridFrom },
             subject: subject,
             content: [
               {

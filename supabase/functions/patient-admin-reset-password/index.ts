@@ -134,7 +134,7 @@ serve(async (req: Request): Promise<Response> => {
 });
 
 async function ensureAuthUserPassword(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   patientId: string,
   password: string
 ): Promise<void> {
@@ -147,15 +147,17 @@ async function ensureAuthUserPassword(
   if (patientError || !patientRecord) {
     return;
   }
+  
+  const record = patientRecord as { id: string; user_id: string | null };
 
-  const authEmail = buildPatientAuthEmail(patientRecord.id);
-  if (!patientRecord.user_id) {
+  const authEmail = buildPatientAuthEmail(record.id);
+  if (!record.user_id) {
     const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
       email: authEmail,
       password,
       email_confirm: true,
       user_metadata: {
-        patient_record_id: patientRecord.id,
+        patient_record_id: record.id,
       },
     });
 
@@ -163,10 +165,10 @@ async function ensureAuthUserPassword(
       await supabase
         .from("patients")
         .update({ user_id: createdUser.user.id })
-        .eq("id", patientRecord.id);
+        .eq("id", record.id);
     }
   } else {
-    await supabase.auth.admin.updateUserById(patientRecord.user_id, {
+    await supabase.auth.admin.updateUserById(record.user_id, {
       password,
       email_confirm: true,
     });
