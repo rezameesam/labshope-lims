@@ -56,6 +56,8 @@ interface TestResult {
   category?: string;
   entered_by_name?: string;
   created_at?: string;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
   labs?: {
     id: string;
     name: string;
@@ -389,6 +391,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
           },
           selectedTests.map(t => ({
             id: t.id,
+            lab_id: t.lab_id,
             test_id: t.test_id || null,
             category: t.category || null,
             test_name: t.test_name,
@@ -403,6 +406,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             normal_range_text: t.normal_range_text,
             notes: t.notes,
             entered_by_name: t.entered_by_name,
+            collection_center_id: t.collection_center_id,
             lab_name: t.labs?.name,
             lab_code: t.labs?.lab_code,
             collection_center_name: t.collection_centers?.name,
@@ -456,6 +460,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
           },
           [{
             id: test.id,
+            lab_id: test.lab_id,
             test_id: test.test_id || null,
             category: test.category || null,
             test_name: test.test_name,
@@ -470,6 +475,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             normal_range_text: test.normal_range_text,
             notes: test.notes,
             entered_by_name: test.entered_by_name,
+            collection_center_id: test.collection_center_id,
             lab_name: test.labs?.name,
             lab_code: test.labs?.lab_code,
             collection_center_name: test.collection_centers?.name,
@@ -511,6 +517,32 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             <span className="text-muted-foreground">Loading test results...</span>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (hasOutstandingDues) {
+    return (
+      <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+        <CardContent className="py-10 space-y-4">
+          <div className="flex items-center gap-3">
+            <Lock className="h-5 w-5 text-amber-600" />
+            <div>
+              <p className="font-semibold text-amber-900 dark:text-amber-100">Results Locked</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Outstanding dues of ₹{outstandingAmount.toLocaleString()} detected. Please clear your dues to view or download reports.
+              </p>
+            </div>
+          </div>
+          {onPayNow && (
+            <div className="flex gap-3">
+              <Button onClick={onPayNow} className="gap-2">
+                <Lock className="h-4 w-4" />
+                Go to Billing & Pay
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     );

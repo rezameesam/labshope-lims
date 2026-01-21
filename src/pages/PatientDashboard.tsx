@@ -466,7 +466,12 @@ const PatientDashboard = () => {
 
           {/* Timeline Tab */}
           <TabsContent value="timeline">
-            <PatientHistoryTimeline tests={tests} />
+            <PatientHistoryTimeline 
+              tests={tests}
+              hasOutstandingDues={hasOutstandingDues}
+              outstandingAmount={outstandingAmount}
+              onPayNow={() => setActiveTab("billing")}
+            />
           </TabsContent>
 
           {/* Billing Tab */}

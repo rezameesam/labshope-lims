@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { sendNotification } from "@/services/notificationService";
 
 const NotificationSettings = () => {
   const [emailConfigured, setEmailConfigured] = useState(false);
@@ -37,6 +36,7 @@ const NotificationSettings = () => {
 
     setSendingTest(true);
     try {
+      const { sendNotification } = await import("@/services/notificationService");
       const results = await sendNotification({
         to: testEmail,
         subject: "Test Email from Clinic System",

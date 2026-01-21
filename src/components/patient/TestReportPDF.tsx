@@ -181,7 +181,8 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text(data.lab_name || LAB_INFO.name, centerX, 12, { align: "center" });
+    // Header always uses the main brand name
+    doc.text(LAB_INFO.name, centerX, 12, { align: "center" });
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
@@ -224,6 +225,17 @@ export const generateTestReportPDF = (data: ReportData) => {
   doc.setFont("helvetica", "normal");
   doc.text(`+91-${data.patient.phone}`, col1X + 25, patientInfoY + 14);
   
+  // Lab info row (shows the specific lab and code)
+  doc.setFont("helvetica", "bold");
+  doc.text("Lab:", col1X, patientInfoY + 21);
+  doc.setFont("helvetica", "normal");
+  const labDisplay = data.lab_name
+    ? `${data.lab_name}${data.lab_code ? ` (${data.lab_code})` : ""}`
+    : data.lab_code
+      ? `Lab Code: ${data.lab_code}`
+      : "Not specified";
+  doc.text(labDisplay, col1X + 25, patientInfoY + 21);
+  
   // Right column
   doc.setFont("helvetica", "bold");
   doc.text("Gender:", col2X, patientInfoY);
@@ -240,8 +252,8 @@ export const generateTestReportPDF = (data: ReportData) => {
   doc.setFont("helvetica", "normal");
   doc.text(format(new Date(data.test_date), "dd MMM yyyy"), col2X + 28, patientInfoY + 14);
   
-  // Lab, registry, and collection center info (if available)
-  let infoY = patientInfoY + 21;
+  // Registry and collection center info (if available)
+  let infoY = patientInfoY + 28; // start after the lab row
   if (data.registry_serial) {
     doc.setFont("helvetica", "bold");
     doc.text("Registry No:", col1X, infoY);
@@ -249,31 +261,20 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.text(data.registry_serial, col1X + 25, infoY);
     infoY += 7;
   }
-  if (data.lab_name || data.collection_center_name) {
-    if (data.lab_name) {
-      doc.setFont("helvetica", "bold");
-      doc.text("Lab:", col1X, infoY);
-      doc.setFont("helvetica", "normal");
-      // Show only lab code if available, otherwise show shortened name
-      const labDisplay = data.lab_code || (data.lab_name.length > 20 ? data.lab_name.substring(0, 20) + "..." : data.lab_name);
-      doc.text(labDisplay, col1X + 25, infoY);
-      infoY += 7;
-    }
-    if (data.collection_center_name) {
-      doc.setFont("helvetica", "bold");
-      doc.text("Center:", col1X, infoY);
-      doc.setFont("helvetica", "normal");
-      // Show only collection center code if available, otherwise show shortened name
-      const centerDisplay = data.collection_center_code || (data.collection_center_name.length > 20 ? data.collection_center_name.substring(0, 20) + "..." : data.collection_center_name);
-      doc.text(centerDisplay, col1X + 25, infoY);
-      infoY += 7;
-    }
+  if (data.collection_center_name) {
+    doc.setFont("helvetica", "bold");
+    doc.text("Center:", col1X, infoY);
+    doc.setFont("helvetica", "normal");
+    // Show only collection center code if available, otherwise show shortened name
+    const centerDisplay = data.collection_center_code || (data.collection_center_name.length > 20 ? data.collection_center_name.substring(0, 20) + "..." : data.collection_center_name);
+    doc.text(centerDisplay, col1X + 25, infoY);
+    infoY += 7;
   }
 
   // Test Results Section - calculate start Y position based on whether lab info was added
-  let testResultsStartY = (data.lab_name || data.collection_center_name || data.registry_serial)
+  let testResultsStartY = (data.collection_center_name || data.registry_serial)
     ? infoY + 5
-    : patientInfoY + 30;
+    : patientInfoY + 33;
 
   if (headerText) {
     doc.setFontSize(9);
@@ -642,6 +643,7 @@ export const generateMultiTestReportPDF = async (
     is_abnormal?: boolean;
     normal_range_text?: string;
     entered_by_name?: string;
+    lab_id?: string | null;
     lab_name?: string;
     lab_code?: string;
     collection_center_name?: string;
@@ -676,6 +678,26 @@ export const generateMultiTestReportPDF = async (
   
   // Get lab and collection center from the first test (assuming all tests in a batch are from the same lab/center)
   const firstTest = completedTests[0];
+  let labName = firstTest.lab_name;
+  let labCode = firstTest.lab_code;
+
+  // If lab details weren't populated in the caller, try to resolve them from Supabase
+  if ((!labName || !labCode) && firstTest.lab_id) {
+    try {
+      const { data: labRow } = await supabase
+        .from("labs")
+        .select("name, lab_code")
+        .eq("id", firstTest.lab_id)
+        .maybeSingle();
+      
+      if (labRow) {
+        labName = labName || labRow.name;
+        labCode = labCode || labRow.lab_code;
+      }
+    } catch (error) {
+      console.warn("Could not resolve lab info for report:", error);
+    }
+  }
 
   const template = await resolveReportTemplate(testResults, templateId);
 
@@ -683,8 +705,8 @@ export const generateMultiTestReportPDF = async (
     patient,
     test_date: completedTests[0].test_date,
     tests: testResults,
-    lab_name: firstTest.lab_name || "IRM Clinical Laboratory",
-    lab_code: firstTest.lab_code,
+    lab_name: labName || "IRM Clinical Laboratory",
+    lab_code: labCode,
     collection_center_name: firstTest.collection_center_name,
     collection_center_code: firstTest.collection_center_code,
     entered_by: employeeName,

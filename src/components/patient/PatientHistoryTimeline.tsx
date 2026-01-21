@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { format, parseISO, isAfter, isBefore, subMonths } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, TrendingUp, TrendingDown, Minus, FlaskConical, CheckCircle2, AlertCircle, Activity } from "lucide-react";
 import {
@@ -37,9 +38,38 @@ interface PatientTest {
 
 interface PatientHistoryTimelineProps {
   tests: PatientTest[];
+  hasOutstandingDues?: boolean;
+  outstandingAmount?: number;
+  onPayNow?: () => void;
 }
 
-const PatientHistoryTimeline = ({ tests }: PatientHistoryTimelineProps) => {
+const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstandingAmount = 0, onPayNow }: PatientHistoryTimelineProps) => {
+  if (hasOutstandingDues) {
+    return (
+      <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+        <CardContent className="py-10 space-y-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <div>
+              <p className="font-semibold text-amber-900 dark:text-amber-100">Timeline Locked</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Outstanding dues of ₹{outstandingAmount.toLocaleString()} detected. Please clear your dues to view your test history.
+              </p>
+            </div>
+          </div>
+          {onPayNow && (
+            <div className="flex gap-3">
+              <Button onClick={onPayNow} className="gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Go to Billing & Pay
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Group tests by date
   const testsByDate = useMemo(() => {
     const grouped = new Map<string, PatientTest[]>();
