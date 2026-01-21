@@ -45,7 +45,6 @@ import { format } from "date-fns";
 import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
-import { sendPatientWelcomeEmail } from "@/services/notificationService";
 
 interface Patient {
   id: string;
@@ -86,6 +85,18 @@ interface PatientTest {
   notes?: string | null;
   result_entered_by?: string | null;
   entered_by_name?: string;
+  lab_id?: string | null;
+  collection_center_id?: string | null;
+  labs?: {
+    id: string;
+    name: string;
+    lab_code: string;
+  } | null;
+  collection_centers?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
 }
 
 interface BillingSummary {
@@ -397,7 +408,31 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     try {
       const { data, error } = await supabase
         .from("patient_tests")
-        .select("id, test_id, test_name, test_date, status, result, result_value, result_unit, is_abnormal, notes, result_entered_by")
+        .select(`
+          id,
+          test_id,
+          test_name,
+          test_date,
+          status,
+          result,
+          result_value,
+          result_unit,
+          is_abnormal,
+          notes,
+          result_entered_by,
+          lab_id,
+          collection_center_id,
+          labs (
+            id,
+            name,
+            lab_code
+          ),
+          collection_centers (
+            id,
+            name,
+            code
+          )
+        `)
         .eq("patient_id", patientId)
         .order("test_date", { ascending: false });
 
@@ -531,6 +566,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       if (formData.email?.trim()) {
         try {
           const portalUrl = `${window.location.origin}/auth/patient`;
+          const { sendPatientWelcomeEmail } = await import("@/services/notificationService");
           const results = await sendPatientWelcomeEmail({
             email: formData.email.trim(),
             fullName: formData.full_name,
@@ -676,6 +712,24 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           ? "Multiple Staff"
           : undefined;
 
+    const testsWithLabInfo = testsToPrint.map((t) => {
+      const labId = t.lab_id || selectedPatient?.lab_id || null;
+      const collectionCenterId = t.collection_center_id || selectedPatient?.collection_center_id || null;
+      const labFromList = labId ? labs.find((lab) => lab.id === labId) : undefined;
+      const collectionCenterFromList = collectionCenterId
+        ? collectionCenters.find((cc) => cc.id === collectionCenterId)
+        : undefined;
+
+      return {
+        ...t,
+        lab_id: labId,
+        lab_name: t.labs?.name || labFromList?.name || selectedPatient?.labs?.name || currentLab?.name,
+        lab_code: t.labs?.lab_code || labFromList?.lab_code || selectedPatient?.labs?.lab_code || currentLab?.lab_code,
+        collection_center_name: t.collection_centers?.name || collectionCenterFromList?.name || selectedPatient?.collection_centers?.name,
+        collection_center_code: t.collection_centers?.code || collectionCenterFromList?.code || selectedPatient?.collection_centers?.code,
+      };
+    });
+
     try {
       const success = await generateMultiTestReportPDF(
         {
@@ -685,7 +739,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           gender: selectedPatient.gender || undefined,
           blood_group: selectedPatient.blood_group || undefined,
         },
-        testsToPrint,
+        testsWithLabInfo,
         enteredByLabel,
         printOptions
       );

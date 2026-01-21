@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { sendPromotionalMessage } from "@/services/notificationService";
 
 const SendPromotion = () => {
   const [patients, setPatients] = useState<Array<{ id: string; full_name: string; email: string | null; phone: string }>>([]);
@@ -102,6 +101,7 @@ const SendPromotion = () => {
     setSending(true);
     try {
       const patientIds = Array.from(selectedPatients);
+      const { sendPromotionalMessage } = await import("@/services/notificationService");
       const result = await sendPromotionalMessage(
         patientIds,
         subject,
@@ -274,4 +274,3 @@ const SendPromotion = () => {
 };
 
 export default SendPromotion;
-

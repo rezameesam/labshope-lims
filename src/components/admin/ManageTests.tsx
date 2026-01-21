@@ -1227,8 +1227,12 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           tests: []
         };
       }
+      const labFromList = labs.find((lab) => lab.id === test.lab_id);
+      const resolvedLabName = test.labs?.name || labFromList?.name || currentLab?.name;
+      const resolvedLabCode = test.labs?.lab_code || labFromList?.lab_code || currentLab?.lab_code;
       acc[patientId].tests.push({
         id: test.id,
+        lab_id: test.lab_id,
         test_id: test.test_id,
         category: test.test_id ? categoryByTestId.get(test.test_id) || null : null,
         test_name: test.test_name,
@@ -1242,8 +1246,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         notes: test.notes,
         is_abnormal: test.is_abnormal || false,
         normal_range_text: test.normal_range_text || undefined,
-        lab_name: test.labs?.name,
-        lab_code: test.labs?.lab_code,
+        lab_name: resolvedLabName || undefined,
+        lab_code: resolvedLabCode || undefined,
         collection_center_name: test.collection_centers?.name,
         collection_center_code: test.collection_centers?.code,
       });
