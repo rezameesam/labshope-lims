@@ -10,7 +10,8 @@ const corsHeaders = {
 interface EmployeeAdminResetRequest {
   employee_id: string;
   reset_base_url?: string;
-  mode?: "email" | "temp";
+  mode?: "email" | "temp" | "set";
+  custom_password?: string;
 }
 
 type EmployeeRecord = {
@@ -79,7 +80,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { employee_id, reset_base_url, mode }: EmployeeAdminResetRequest = await req.json();
+    const { employee_id, reset_base_url, mode, custom_password }: EmployeeAdminResetRequest = await req.json();
     const resolvedMode = mode || "email";
 
     if (!employee_id) {
@@ -114,15 +115,46 @@ serve(async (req: Request): Promise<Response> => {
       const tempPassword = generatePassword(12);
       const userId = await ensureEmployeeAuthUser(supabaseAdmin, employeeRecord, tempPassword);
 
-      if (userId && employeeRecord.user_id) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
-          password: tempPassword,
-          email_confirm: true,
-        });
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: tempPassword,
+        email_confirm: true,
+      });
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: updateError.message || "Failed to set temporary password." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
 
       return new Response(
         JSON.stringify({ success: true, temp_password: tempPassword }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (resolvedMode === "set") {
+      const password = String(custom_password || "");
+      if (password.length < 6) {
+        return new Response(
+          JSON.stringify({ error: "Custom password must be at least 6 characters." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const userId = await ensureEmployeeAuthUser(supabaseAdmin, employeeRecord, generatePassword(12));
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password,
+        email_confirm: true,
+      });
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: updateError.message || "Failed to set custom password." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
