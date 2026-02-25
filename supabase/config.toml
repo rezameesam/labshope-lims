@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.employee-admin-reset-password]
+verify_jwt = false

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,6 +82,7 @@ const ManageEmployees = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -105,6 +106,7 @@ const ManageEmployees = () => {
   const [employeeCustomRoles, setEmployeeCustomRoles] = useState<Set<string>>(new Set());
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isAssigningRoles, setIsAssigningRoles] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const fetchEmployees = async () => {
     try {
@@ -288,6 +290,48 @@ const ManageEmployees = () => {
       department: employee.department || "",
     });
     setIsEditDialogOpen(true);
+  };
+
+  const handleAdminResetPassword = async (mode: "email" | "temp") => {
+    if (!selectedEmployee) return;
+
+    setResetLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("You must be signed in.");
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/employee-admin-reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          employee_id: selectedEmployee.id,
+          reset_base_url: `${window.location.origin}/employee/reset-password`,
+          mode,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to reset password");
+      }
+
+      if (mode === "temp") {
+        toast.success(`Temporary password: ${result.temp_password}`);
+      } else {
+        toast.success("Reset link sent to employee email");
+      }
+      setIsResetDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reset password");
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const fetchCustomRoles = async () => {
@@ -676,6 +720,15 @@ const ManageEmployees = () => {
                           <Edit2 className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedEmployee(employee);
+                            setIsResetDialogOpen(true);
+                          }}
+                        >
+                          <KeyRound className="h-4 w-4 mr-2" />
+                          Reset Password
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => toggleEmployeeStatus(employee)}>
                           {employee.is_active ? (
@@ -784,6 +837,37 @@ const ManageEmployees = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Employee Password</DialogTitle>
+            <DialogDescription>
+              Choose how to reset password for {selectedEmployee?.full_name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Button
+              className="w-full"
+              disabled={resetLoading || !selectedEmployee?.email}
+              onClick={() => handleAdminResetPassword("email")}
+            >
+              {resetLoading ? "Processing..." : "Send Reset Link by Email"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={resetLoading}
+              onClick={() => handleAdminResetPassword("temp")}
+            >
+              {resetLoading ? "Processing..." : "Set Temporary Password"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Temporary password is shown once. Share it securely with the employee.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Employee Details Sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
