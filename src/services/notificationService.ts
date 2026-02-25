@@ -22,7 +22,7 @@ export interface NotificationOptions {
   to: string; // email or phone number
   subject?: string; // for email
   message: string;
-  type: 'email' | 'sms' | 'both';
+  type: 'email' | 'sms' | 'whatsapp' | 'both' | 'email_whatsapp' | 'all';
   patientId?: string;
   reminderId?: string;
 }
@@ -30,7 +30,8 @@ export interface NotificationOptions {
 export interface NotificationResult {
   success: boolean;
   error?: string;
-  method?: 'email' | 'sms';
+  warning?: string;
+  method?: 'email' | 'sms' | 'whatsapp';
 }
 
 interface PatientWelcomePayload {
@@ -145,6 +146,73 @@ async function sendSMS(
     return { success: false, error: error.message || "Failed to send SMS", method: 'sms' };
   }
   */
+}
+
+/**
+ * Send WhatsApp notification using Supabase Edge Function (Meta WhatsApp Cloud API)
+ */
+async function sendWhatsApp(
+  to: string,
+  message: string,
+  templateName?: string
+): Promise<NotificationResult> {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return {
+        success: false,
+        error: "Supabase configuration missing",
+        method: "whatsapp",
+      };
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        to,
+        message,
+        ...(templateName ? { type: "template", templateName, templateParams: [message] } : {}),
+      }),
+    });
+
+    let result: any = {};
+    try {
+      result = await response.json();
+    } catch {
+      result = {};
+    }
+
+    if (!response.ok || !result.success) {
+      const message = result.error || "Failed to send WhatsApp message";
+      const hint = result.hint ? ` ${result.hint}` : "";
+      return {
+        success: false,
+        error: `${message}${hint}`,
+        method: "whatsapp",
+      };
+    }
+
+    const providerStatus = String(result.messageStatus || "accepted").toLowerCase();
+    const normalizedTo = String(result.to || to);
+    const warning = providerStatus !== "delivered"
+      ? `WhatsApp accepted for +${normalizedTo}. Delivery is pending confirmation.`
+      : undefined;
+
+    return { success: true, method: "whatsapp", warning };
+  } catch (error: any) {
+    console.error("WhatsApp send error:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to send WhatsApp message",
+      method: "whatsapp",
+    };
+  }
 }
 
 /**
@@ -317,16 +385,20 @@ export async function sendNotification(
     }
   }
 
-  // Determine recipients
-  const emailTo = options.type === 'email' || options.type === 'both' 
-    ? (options.to || patientEmail) 
-    : null;
-  const smsTo = options.type === 'sms' || options.type === 'both' 
-    ? (options.to || patientPhone) 
-    : null;
+  const explicitTo = (options.to || "").trim();
+  const explicitIsEmail = explicitTo.includes("@");
+  const explicitEmail = explicitIsEmail ? explicitTo : null;
+  const explicitPhone = explicitTo && !explicitIsEmail ? explicitTo : null;
+
+  const sendEmailChannel = options.type === "email" || options.type === "both" || options.type === "email_whatsapp" || options.type === "all";
+  const sendSmsChannel = options.type === "sms" || options.type === "both" || options.type === "all";
+  const sendWhatsAppChannel = options.type === "whatsapp" || options.type === "email_whatsapp" || options.type === "all";
+
+  const emailTo = sendEmailChannel ? (explicitEmail || patientEmail) : null;
+  const phoneTo = sendSmsChannel || sendWhatsAppChannel ? (explicitPhone || patientPhone) : null;
 
   // Send email
-  if (emailTo && (options.type === 'email' || options.type === 'both')) {
+  if (emailTo && sendEmailChannel) {
     const emailHtml = generateEmailTemplate(
       options.subject || 'Notification',
       messageWithWebsite,
@@ -337,20 +409,29 @@ export async function sendNotification(
     results.push(emailResult);
   }
 
+  // Send WhatsApp
+  if (phoneTo && sendWhatsAppChannel) {
+    const whatsappResult = await sendWhatsApp(phoneTo, messageWithWebsite);
+    results.push(whatsappResult);
+  } else if (sendWhatsAppChannel) {
+    results.push({ success: false, error: "WhatsApp recipient not available", method: "whatsapp" });
+  }
+
   // Send SMS (only if Twilio is configured)
-  if (smsTo && (options.type === 'sms' || options.type === 'both')) {
+  if (phoneTo && sendSmsChannel) {
     const twilioConfigured = !!import.meta.env.VITE_TWILIO_ACCOUNT_SID;
     if (twilioConfigured) {
-      const smsResult = await sendSMS(smsTo, options.message);
+      const smsResult = await sendSMS(phoneTo, options.message);
       results.push(smsResult);
     } else {
       // SMS not configured, skip silently or log
       console.log("SMS not configured, skipping SMS notification");
       if (options.type === 'sms') {
-        // If only SMS was requested and it's not configured, return error
         results.push({ success: false, error: "SMS service not configured", method: 'sms' });
       }
     }
+  } else if (sendSmsChannel && options.type === "sms") {
+    results.push({ success: false, error: "SMS recipient not available", method: "sms" });
   }
 
   // Update reminder notification_sent if reminderId provided
@@ -382,20 +463,24 @@ export async function sendTestResultNotification(
     return [{ success: false, error: 'Patient not found' }];
   }
 
-  const message = `Dear ${patient.full_name},\n\nYour test results for "${testName}" are now ready. Please log in to your patient portal to view and download your report.\n\nThank you!`;
+  const portalUrl = `${window.location.origin}/auth/patient`;
+  const message = `Dear ${patient.full_name},\n\nYour test results for "${testName}" are now ready.\nReport Reference: ${testId}\n\nPlease log in to your patient portal to view and download your report:\n${portalUrl}\n\nThank you!`;
 
-  // Use email if available, otherwise skip (SMS not configured yet)
-  const notificationType = patient.email ? 'email' : 'none';
-  
-  if (notificationType === 'none') {
-    return [{ success: false, error: 'Patient has no email address and SMS is not configured' }];
+  if (!patient.email && !patient.phone) {
+    return [{ success: false, error: "Patient has no email or phone number" }];
   }
 
+  const notificationType = patient.email && patient.phone
+    ? "email_whatsapp"
+    : patient.email
+      ? "email"
+      : "whatsapp";
+
   return sendNotification({
-    to: patient.email || '',
+    to: patient.email || patient.phone || "",
     subject: `Test Results Ready: ${testName}`,
     message: message,
-    type: 'email',
+    type: notificationType,
     patientId: patientId,
   });
 }
@@ -418,19 +503,24 @@ export async function sendAllTestsReadyNotification(
   }
 
   const list = testNames.length > 0 ? testNames.join(", ") : "your tests";
-  const message = `Dear ${patient.full_name},\n\nAll your test results are now ready. Tests: ${list}.\n\nPlease log in to your patient portal to view and download your report.\n\nThank you!`;
+  const portalUrl = `${window.location.origin}/auth/patient`;
+  const message = `Dear ${patient.full_name},\n\nAll your test results are now ready. Tests: ${list}.\n\nPlease log in to your patient portal to view and download your report:\n${portalUrl}\n\nThank you!`;
 
-  const notificationType = patient.email ? 'email' : 'none';
-  
-  if (notificationType === 'none') {
-    return [{ success: false, error: 'Patient has no email address and SMS is not configured' }];
+  if (!patient.email && !patient.phone) {
+    return [{ success: false, error: "Patient has no email or phone number" }];
   }
 
+  const notificationType = patient.email && patient.phone
+    ? "email_whatsapp"
+    : patient.email
+      ? "email"
+      : "whatsapp";
+
   return sendNotification({
-    to: patient.email || '',
+    to: patient.email || patient.phone || "",
     subject: `All Test Results Ready (${testNames.length || 1})`,
     message: message,
-    type: 'email',
+    type: notificationType,
     patientId: patientId,
   });
 }
@@ -465,7 +555,7 @@ export async function sendReminderNotification(
     to: patient.email || patient.phone || '',
     subject: reminder.title,
     message: reminder.message || reminder.title,
-    type: notificationMethod as 'email' | 'sms' | 'both',
+    type: notificationMethod as NotificationOptions["type"],
     patientId: reminder.patient_id,
     reminderId: reminderId,
   });
@@ -478,7 +568,7 @@ export async function sendPromotionalMessage(
   patientIds: string[],
   subject: string,
   message: string,
-  type: 'email' | 'sms' | 'both' = 'both'
+  type: NotificationOptions["type"] = 'both'
 ): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
@@ -539,18 +629,21 @@ export async function sendPaymentReminder(
   const invoiceText = invoiceNumber ? ` (Invoice: ${invoiceNumber})` : '';
   const message = `Dear ${patient.full_name},\n\nYou have an outstanding payment of ₹${amount.toFixed(2)}${invoiceText}. Please make the payment at your earliest convenience.\n\nThank you!`;
 
-  // Use email if available, otherwise skip (SMS not configured yet)
-  const notificationType = patient.email ? 'email' : 'none';
-  
-  if (notificationType === 'none') {
-    return [{ success: false, error: 'Patient has no email address and SMS is not configured' }];
+  if (!patient.email && !patient.phone) {
+    return [{ success: false, error: "Patient has no email or phone number" }];
   }
 
+  const notificationType = patient.email && patient.phone
+    ? "email_whatsapp"
+    : patient.email
+      ? "email"
+      : "whatsapp";
+
   return sendNotification({
-    to: patient.email || '',
+    to: patient.email || patient.phone || "",
     subject: `Payment Reminder: Outstanding Amount ₹${amount.toFixed(2)}`,
     message: message,
-    type: 'email',
+    type: notificationType,
     patientId: patientId,
   });
 }

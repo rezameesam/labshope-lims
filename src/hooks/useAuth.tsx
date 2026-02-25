@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
 
 type UserRole = "admin" | "employee" | "patient" | "collector";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  currentSessionId: string | null;
   loading: boolean;
   roles: UserRole[];
   signIn: (
@@ -30,6 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<UserRole[]>([]);
 
@@ -140,17 +143,97 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
+    setCurrentSessionId(null);
   };
 
   const hasRole = (role: UserRole) => roles.includes(role);
   const isStaff = hasRole("admin") || hasRole("employee") || hasRole("collector");
   const isCollector = hasRole("collector") && !hasRole("admin") && !hasRole("employee");
 
+  useEffect(() => {
+    setCurrentSessionId(extractSessionIdFromAccessToken(session?.access_token || null));
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token || !user?.id || !isStaff) {
+      return;
+    }
+
+    const sessionId = extractSessionIdFromAccessToken(session.access_token);
+    if (!sessionId) {
+      return;
+    }
+
+    const metadata = getClientSessionMetadata();
+    let trackingDisabled = false;
+    let isMounted = true;
+
+    const trackSession = async () => {
+      if (!isMounted || trackingDisabled) {
+        return;
+      }
+
+      const { error } = await (supabase as any).rpc("upsert_employee_session", {
+        _session_id: sessionId,
+        _device_name: metadata.deviceName,
+        _browser: metadata.browser,
+        _os: metadata.os,
+        _location: metadata.location,
+        _user_agent: metadata.userAgent,
+      });
+
+      if (error) {
+        if (error.code === "PGRST202") {
+          trackingDisabled = true;
+        }
+        const message = String(error.message || "").toLowerCase();
+        const sessionInvalid = message.includes("session inactive") || message.includes("session revoked");
+
+        if (sessionInvalid) {
+          trackingDisabled = true;
+          await supabase.auth.signOut({ scope: "local" });
+          setRoles([]);
+          setCurrentSessionId(null);
+          return;
+        }
+
+        console.warn("Unable to upsert employee session:", error.message || error);
+      }
+    };
+
+    void trackSession();
+
+    const intervalId = window.setInterval(() => {
+      void trackSession();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void trackSession();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void trackSession();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [session?.access_token, user?.id, isStaff]);
+
   return (
     <AuthContext.Provider
       value={{
         user,
         session,
+        currentSessionId,
         loading,
         roles,
         signIn,
