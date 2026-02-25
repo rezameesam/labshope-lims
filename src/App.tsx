@@ -14,6 +14,7 @@ const PatientAuth = lazy(() => import("./pages/PatientAuth"));
 const PatientDashboard = lazy(() => import("./pages/PatientDashboard"));
 const PatientResetPassword = lazy(() => import("./pages/PatientResetPassword"));
 const EmployeeAuth = lazy(() => import("./pages/EmployeeAuth"));
+const EmployeeResetPassword = lazy(() => import("./pages/EmployeeResetPassword"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const CollectorDashboard = lazy(() => import("./pages/CollectorDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -48,6 +49,7 @@ const App = () => (
                     <Route path="/patient/reset-password" element={<PatientResetPassword />} />
                     <Route path="/patient/dashboard" element={<PatientDashboard />} />
                     <Route path="/auth/employee" element={<EmployeeAuth />} />
+                    <Route path="/employee/reset-password" element={<EmployeeResetPassword />} />
                     <Route path="/admin" element={<AdminDashboard />} />
                     <Route path="/collector" element={<CollectorDashboard />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

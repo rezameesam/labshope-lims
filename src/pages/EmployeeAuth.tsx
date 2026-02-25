@@ -5,9 +5,18 @@ import { Mail, Lock, ArrowRight, Shield, Users, Eye, EyeOff } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const EmployeeAuth = () => {
   const navigate = useNavigate();
@@ -16,6 +25,9 @@ const EmployeeAuth = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user && isStaff) {
@@ -53,6 +65,32 @@ const EmployeeAuth = () => {
       navigate(signedInCollector ? "/collector" : "/admin");
     } else {
       toast.error("Your account does not have staff access.");
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim()) {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const redirectTo = `${window.location.origin}/employee/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Password reset link sent. Please check your email.");
+      setForgotDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to send reset link");
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -187,7 +225,10 @@ const EmployeeAuth = () => {
                 <button
                   type="button"
                   className="text-sm text-primary hover:underline"
-                  onClick={() => toast.info("Contact administrator to reset password")}
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setForgotDialogOpen(true);
+                  }}
                 >
                   Forgot password?
                 </button>
@@ -222,6 +263,42 @@ const EmployeeAuth = () => {
           </p>
         </div>
       </div>
+
+      <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Employee Password</DialogTitle>
+            <DialogDescription>
+              Enter your employee login email. We will send a password reset link.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="forgot-email">Email Address</Label>
+            <Input
+              id="forgot-email"
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              placeholder="employee@irmclinic.com"
+              autoComplete="email"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setForgotDialogOpen(false)}
+              disabled={forgotLoading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleForgotPassword} disabled={forgotLoading}>
+              {forgotLoading ? "Sending..." : "Send Reset Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
