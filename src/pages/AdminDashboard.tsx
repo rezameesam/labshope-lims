@@ -21,7 +21,8 @@ import {
   Building2,
   MapPin,
   Shield,
-  Laptop
+  Laptop,
+  Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,8 +48,9 @@ import NotificationSettings from "@/components/admin/NotificationSettings";
 import SystemSettings from "@/components/admin/SystemSettings";
 import NoticeBoard from "@/components/admin/NoticeBoard";
 import ActiveSessions from "@/components/account/ActiveSessions";
+import ManageVisitorLogs from "@/components/admin/ManageVisitorLogs";
 
-type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "notifications" | "system-settings";
+type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
 
 type PatientSummary = {
   id: string;
@@ -125,6 +127,7 @@ const AdminDashboard = () => {
     { id: "test-templates" as TabType, label: "Templates", icon: FileText },
     { id: "roles" as TabType, label: "Roles & Permissions", icon: Shield, adminOnly: true },
     { id: "security" as TabType, label: "Security", icon: Laptop },
+    { id: "visitor-logs" as TabType, label: "Visitor Logs", icon: Globe, adminOnly: true },
     { id: "notifications" as TabType, label: "Notifications", icon: Bell, adminOnly: true },
     { id: "system-settings" as TabType, label: "System Settings", icon: Settings, adminOnly: true },
   ];
@@ -266,6 +269,7 @@ const AdminDashboard = () => {
             {activeTab === "reports" && <FinancialReports />}
             {activeTab === "roles" && hasRole("admin") && <ManageRoles />}
             {activeTab === "security" && <ActiveSessions />}
+            {activeTab === "visitor-logs" && hasRole("admin") && <ManageVisitorLogs />}
             {activeTab === "notifications" && hasRole("admin") && <NotificationSettings />}
             {activeTab === "system-settings" && hasRole("admin") && <SystemSettings />}
           </motion.div>
