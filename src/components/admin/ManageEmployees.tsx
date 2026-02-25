@@ -107,6 +107,7 @@ const ManageEmployees = () => {
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isAssigningRoles, setIsAssigningRoles] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [customResetPassword, setCustomResetPassword] = useState("");
 
   const fetchEmployees = async () => {
     try {
@@ -292,8 +293,12 @@ const ManageEmployees = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleAdminResetPassword = async (mode: "email" | "temp") => {
+  const handleAdminResetPassword = async (mode: "email" | "temp" | "set") => {
     if (!selectedEmployee) return;
+    if (mode === "set" && customResetPassword.length < 6) {
+      toast.error("Custom password must be at least 6 characters");
+      return;
+    }
 
     setResetLoading(true);
     try {
@@ -313,6 +318,7 @@ const ManageEmployees = () => {
           employee_id: selectedEmployee.id,
           reset_base_url: `${window.location.origin}/employee/reset-password`,
           mode,
+          ...(mode === "set" ? { custom_password: customResetPassword } : {}),
         }),
       });
 
@@ -323,9 +329,12 @@ const ManageEmployees = () => {
 
       if (mode === "temp") {
         toast.success(`Temporary password: ${result.temp_password}`);
+      } else if (mode === "set") {
+        toast.success("Custom password set successfully");
       } else {
         toast.success("Reset link sent to employee email");
       }
+      setCustomResetPassword("");
       setIsResetDialogOpen(false);
     } catch (error: any) {
       toast.error(error.message || "Failed to reset password");
@@ -723,6 +732,7 @@ const ManageEmployees = () => {
                         <DropdownMenuItem
                           onClick={() => {
                             setSelectedEmployee(employee);
+                            setCustomResetPassword("");
                             setIsResetDialogOpen(true);
                           }}
                         >
@@ -862,6 +872,24 @@ const ManageEmployees = () => {
             >
               {resetLoading ? "Processing..." : "Set Temporary Password"}
             </Button>
+            <div className="space-y-2 border rounded-md p-3">
+              <Label htmlFor="custom-reset-password">Set Custom Password</Label>
+              <Input
+                id="custom-reset-password"
+                type="text"
+                value={customResetPassword}
+                onChange={(e) => setCustomResetPassword(e.target.value)}
+                placeholder="Enter new password (min 6 chars)"
+              />
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={resetLoading || customResetPassword.length < 6}
+                onClick={() => handleAdminResetPassword("set")}
+              >
+                {resetLoading ? "Processing..." : "Apply Custom Password"}
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
               Temporary password is shown once. Share it securely with the employee.
             </p>
