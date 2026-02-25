@@ -8,7 +8,8 @@ import {
   UserPlus,
   FlaskConical,
   ClipboardList,
-  Home
+  Home,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,8 +18,9 @@ import logo from "@/assets/logo.png";
 import ManagePatients from "@/components/admin/ManagePatients";
 import ManageTests from "@/components/admin/ManageTests";
 import DashboardOverview from "@/components/admin/DashboardOverview";
+import ActiveSessions from "@/components/account/ActiveSessions";
 
-type TabType = "overview" | "patients" | "tests";
+type TabType = "overview" | "patients" | "tests" | "security";
 
 const CollectorDashboard = () => {
   const navigate = useNavigate();
@@ -61,6 +63,7 @@ const CollectorDashboard = () => {
     { id: "overview" as TabType, label: "Overview", icon: Home },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Test Collection", icon: FlaskConical },
+    { id: "security" as TabType, label: "Security", icon: Shield },
   ];
 
   return (
@@ -171,6 +174,7 @@ const CollectorDashboard = () => {
             {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "patients" && <ManagePatients />}
             {activeTab === "tests" && <ManageTests />}
+            {activeTab === "security" && <ActiveSessions />}
           </motion.div>
         </div>
       </main>

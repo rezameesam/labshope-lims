@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { Settings, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,6 +106,11 @@ const SystemSettings = () => {
   };
 
   const getSettingsByCategory = (category: string) => {
+    if (category === "other") {
+      return settings.filter(
+        (s) => s.category !== "payment" && s.category !== "email" && s.category !== "whatsapp"
+      );
+    }
     return settings.filter((s) => s.category === category);
   };
 
@@ -138,6 +143,10 @@ const SystemSettings = () => {
           <TabsTrigger value="email" className="gap-2">
             <Mail className="h-4 w-4" />
             Email
+          </TabsTrigger>
+          <TabsTrigger value="whatsapp" className="gap-2">
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
           </TabsTrigger>
           <TabsTrigger value="other" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -276,6 +285,63 @@ const SystemSettings = () => {
                   <li>Or CLI: <code className="bg-background px-1 rounded">supabase secrets set KEY=value</code></li>
                 </ul>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* WhatsApp Settings */}
+        <TabsContent value="whatsapp" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5" />
+                WhatsApp Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure WhatsApp Cloud API behavior from database settings. API secrets must be set in Supabase Edge Function secrets.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {getSettingsByCategory("whatsapp").length === 0 ? (
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>No WhatsApp settings found in database.</p>
+                  <p>
+                    Run migration <code className="bg-background px-1 rounded">20260225120000_add_whatsapp_integration.sql</code> and refresh this page.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {getSettingsByCategory("whatsapp").map((setting) => (
+                    <div key={setting.id} className="space-y-2">
+                      <Label htmlFor={setting.setting_key}>{setting.label}</Label>
+                      {setting.description && (
+                        <p className="text-xs text-muted-foreground">{setting.description}</p>
+                      )}
+                      <Input
+                        id={setting.setting_key}
+                        value={formData[setting.setting_key] || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, [setting.setting_key]: e.target.value }))
+                        }
+                        placeholder={`Enter ${setting.label.toLowerCase()}`}
+                      />
+                    </div>
+                  ))}
+                  <div className="p-4 bg-muted rounded-lg text-sm text-muted-foreground">
+                    Set these Edge Function secrets in Supabase:
+                    <div className="mt-2 font-mono text-xs">
+                      WHATSAPP_ACCESS_TOKEN<br />
+                      WHATSAPP_PHONE_NUMBER_ID<br />
+                      WHATSAPP_VERIFY_TOKEN<br />
+                      WHATSAPP_APP_SECRET
+                    </div>
+                    <p className="mt-3 text-xs">
+                      If Meta app is in Development mode, add recipient numbers to the WhatsApp API Setup
+                      test recipient list before sends will work.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

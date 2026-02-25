@@ -13,6 +13,7 @@ import {
   Mail,
   Phone,
   User,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,7 @@ interface Reminder {
   is_completed: boolean;
   completed_at: string | null;
   notification_sent: boolean;
-  notification_method: string; // 'email' | 'sms' | 'both' | 'none'
+  notification_method: string; // 'email' | 'sms' | 'whatsapp' | 'both' | 'email_whatsapp' | 'none'
   created_at: string;
 }
 
@@ -259,10 +260,41 @@ const ManageReminders = () => {
     try {
       const { sendReminderNotification } = await import("@/services/notificationService");
       const results = await sendReminderNotification(reminderId);
-      
-      if (results.some(r => r.success)) {
-        toast.success("Reminder notification sent successfully");
+
+      const successful = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+      const warnings = successful
+        .map((r) => r.warning)
+        .filter((value): value is string => !!value);
+      const channelLabel = (method?: string) => (method || "channel").toUpperCase();
+
+      if (successful.length > 0 && failed.length === 0) {
+        if (warnings.length > 0) {
+          toast.success(`Reminder accepted. ${warnings[0]}`);
+        } else {
+          toast.success("Reminder notification sent successfully");
+        }
         fetchData();
+        return;
+      }
+
+      if (successful.length > 0 && failed.length > 0) {
+        const sentVia = Array.from(new Set(successful.map((r) => channelLabel(r.method)))).join(", ");
+        const failureDetails = failed
+          .map((r) => `${channelLabel(r.method)}: ${r.error || "Failed"}`)
+          .join(" | ");
+        const warningText = warnings.length > 0 ? ` ${warnings[0]}` : "";
+
+        toast.error(`Partial delivery. Sent via ${sentVia}. ${failureDetails}${warningText}`);
+        fetchData();
+        return;
+      }
+
+      if (failed.length > 0) {
+        const failureDetails = failed
+          .map((r) => `${channelLabel(r.method)}: ${r.error || "Failed"}`)
+          .join(" | ");
+        toast.error(failureDetails);
       } else {
         toast.error(results[0]?.error || "Failed to send reminder notification");
       }
@@ -505,6 +537,9 @@ const ManageReminders = () => {
                             {reminder.notification_method.includes("sms") && (
                               <Phone className="h-3 w-3 text-muted-foreground" />
                             )}
+                            {reminder.notification_method.includes("whatsapp") && (
+                              <MessageCircle className="h-3 w-3 text-muted-foreground" />
+                            )}
                             {reminder.notification_sent && (
                               <Badge variant="outline" className="text-xs">Sent</Badge>
                             )}
@@ -643,8 +678,10 @@ const ManageReminders = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="both">Email & SMS</SelectItem>
+                    <SelectItem value="email_whatsapp">Email & WhatsApp</SelectItem>
                     <SelectItem value="email">Email Only</SelectItem>
                     <SelectItem value="sms">SMS Only</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp Only</SelectItem>
                     <SelectItem value="none">None</SelectItem>
                   </SelectContent>
                 </Select>
