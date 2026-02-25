@@ -59,6 +59,24 @@ const isPublicPath = (path: string) => {
   return publicPaths.includes(path);
 };
 
+const getBrowserCountry = (): { country_code: string | null; country_name: string | null } => {
+  const locale = navigator.languages?.[0] || navigator.language || "";
+  const parts = locale.replace(/_/g, "-").split("-");
+  const candidate = parts.find((part, index) => index > 0 && /^[A-Za-z]{2}$/.test(part));
+  const countryCode = candidate ? candidate.toUpperCase() : null;
+
+  if (!countryCode) {
+    return { country_code: null, country_name: null };
+  }
+
+  try {
+    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    return { country_code: countryCode, country_name: displayNames.of(countryCode) || countryCode };
+  } catch {
+    return { country_code: countryCode, country_name: countryCode };
+  }
+};
+
 const CookieConsent = () => {
   const location = useLocation();
   const [consent, setConsent] = useState<ConsentState | null>(null);
@@ -71,6 +89,7 @@ const CookieConsent = () => {
   });
 
   const isPublic = useMemo(() => isPublicPath(location.pathname), [location.pathname]);
+  const browserCountry = useMemo(() => getBrowserCountry(), []);
 
   useEffect(() => {
     if (!isPublic) return;
@@ -94,6 +113,7 @@ const CookieConsent = () => {
       path: location.pathname,
       referrer: document.referrer || null,
       consent: current,
+      ...browserCountry,
     };
 
     const sendLog = async () => {
@@ -105,7 +125,7 @@ const CookieConsent = () => {
     };
 
     sendLog();
-  }, [isPublic, location.pathname, consent]);
+  }, [isPublic, location.pathname, consent, browserCountry]);
 
   const applyConsent = (nextPrefs: typeof prefs) => {
     const nextConsent: ConsentState = {
@@ -125,6 +145,7 @@ const CookieConsent = () => {
         path: location.pathname,
         referrer: document.referrer || null,
         consent: nextConsent,
+        ...browserCountry,
       },
     });
   };

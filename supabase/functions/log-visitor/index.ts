@@ -14,6 +14,60 @@ type ConsentPayload = {
   ads?: boolean;
 };
 
+const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+
+const normalizeCountryCode = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toUpperCase();
+  if (!COUNTRY_CODE_PATTERN.test(normalized)) {
+    return null;
+  }
+  if (normalized === "XX" || normalized === "ZZ") {
+    return null;
+  }
+  return normalized;
+};
+
+const parseCountryFromAcceptLanguage = (acceptLanguage: string | null): string | null => {
+  if (!acceptLanguage) {
+    return null;
+  }
+
+  const locales = acceptLanguage.split(",").map((item) => item.split(";")[0].trim());
+  for (const locale of locales) {
+    if (!locale) {
+      continue;
+    }
+    const parts = locale.replace(/_/g, "-").split("-");
+    for (let index = 1; index < parts.length; index += 1) {
+      const candidate = normalizeCountryCode(parts[index]);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+};
+
+const resolveCountryName = (countryCode: string | null, countryNameFromBody: unknown): string | null => {
+  if (typeof countryNameFromBody === "string" && countryNameFromBody.trim()) {
+    return countryNameFromBody.trim();
+  }
+
+  if (!countryCode) {
+    return null;
+  }
+
+  try {
+    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    return displayNames.of(countryCode) || countryCode;
+  } catch {
+    return countryCode;
+  }
+};
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -40,15 +94,43 @@ serve(async (req: Request) => {
     const forwardedFor = req.headers.get("x-forwarded-for") || "";
     const ip = forwardedFor.split(",")[0]?.trim() || req.headers.get("x-real-ip") || null;
     const userAgent = req.headers.get("user-agent") || null;
+    const countryHeader =
+      req.headers.get("cf-ipcountry") ||
+      req.headers.get("x-vercel-ip-country") ||
+      req.headers.get("x-country") ||
+      req.headers.get("x-geo-country") ||
+      req.headers.get("cloudfront-viewer-country");
+    const acceptLanguage = req.headers.get("accept-language");
 
-    const { error } = await supabaseAdmin.from("visitor_logs").insert({
+    const countryCode =
+      normalizeCountryCode(body.country_code) ||
+      normalizeCountryCode(countryHeader) ||
+      parseCountryFromAcceptLanguage(acceptLanguage);
+    const countryName = resolveCountryName(countryCode, body.country_name);
+
+    const insertPayload = {
       event_type: eventType,
       path,
       referrer,
       consent,
       ip,
       user_agent: userAgent,
-    });
+      country_code: countryCode,
+      country_name: countryName,
+    };
+    let { error } = await supabaseAdmin.from("visitor_logs").insert(insertPayload);
+    if (error && (String(error.message || "").includes("country_code") || String(error.message || "").includes("country_name"))) {
+      const fallbackPayload = {
+        event_type: eventType,
+        path,
+        referrer,
+        consent,
+        ip,
+        user_agent: userAgent,
+      };
+      const fallbackResult = await supabaseAdmin.from("visitor_logs").insert(fallbackPayload);
+      error = fallbackResult.error;
+    }
 
     if (error) {
       console.error("Failed to log visitor:", error);
