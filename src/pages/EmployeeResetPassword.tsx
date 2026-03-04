@@ -68,7 +68,7 @@ const EmployeeResetPassword = () => {
 
       await supabase.auth.signOut();
       toast.success("Password updated successfully. Please sign in.");
-      navigate("/auth/employee");
+      navigate("/auth/staff");
     } catch (error: any) {
       toast.error(error?.message || "Failed to update password.");
     } finally {
@@ -91,8 +91,8 @@ const EmployeeResetPassword = () => {
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mb-4">
             <Lock className="h-6 w-6 text-primary" />
           </div>
-          <h2 className="text-2xl font-heading font-bold text-foreground mb-2">Employee Password Reset</h2>
-          <p className="text-muted-foreground">Create a new password for your employee account.</p>
+          <h2 className="text-2xl font-heading font-bold text-foreground mb-2">Staff Password Reset</h2>
+          <p className="text-muted-foreground">Create a new password for your staff account.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -133,8 +133,8 @@ const EmployeeResetPassword = () => {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          <Link to="/auth/employee" className="text-primary hover:underline">
-            Back to employee login
+          <Link to="/auth/staff" className="text-primary hover:underline">
+            Back to staff login
           </Link>
         </p>
       </div>

@@ -76,7 +76,7 @@ const EmployeeAuth = () => {
 
     setForgotLoading(true);
     try {
-      const redirectTo = `${window.location.origin}/employee/reset-password`;
+      const redirectTo = `${window.location.origin}/staff/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
         redirectTo,
       });
@@ -118,7 +118,7 @@ const EmployeeAuth = () => {
 
         <div>
           <h2 className="text-4xl font-heading font-bold text-primary-foreground mb-4">
-            Employee Portal
+            Staff Portal
           </h2>
           <p className="text-primary-foreground/80 text-lg max-w-md">
             Access the laboratory management system to manage patient records, 
@@ -165,10 +165,10 @@ const EmployeeAuth = () => {
           >
             <div className="mb-8">
               <h2 className="text-2xl font-heading font-bold text-foreground mb-2">
-                Employee Login
+                Staff Login
               </h2>
               <p className="text-muted-foreground">
-                Sign in with your employee credentials
+                Sign in with your staff credentials
               </p>
             </div>
 
@@ -267,9 +267,9 @@ const EmployeeAuth = () => {
       <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reset Employee Password</DialogTitle>
+            <DialogTitle>Reset Staff Password</DialogTitle>
             <DialogDescription>
-              Enter your employee login email. We will send a password reset link.
+              Enter your staff login email. We will send a password reset link.
             </DialogDescription>
           </DialogHeader>
 
@@ -280,7 +280,7 @@ const EmployeeAuth = () => {
               type="email"
               value={forgotEmail}
               onChange={(e) => setForgotEmail(e.target.value)}
-              placeholder="employee@irmclinic.com"
+              placeholder="staff@irmclinic.com"
               autoComplete="email"
             />
           </div>

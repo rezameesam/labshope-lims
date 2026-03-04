@@ -54,7 +54,10 @@ const isPublicPath = (path: string) => {
     "/terms",
     "/auth/patient",
     "/patient/reset-password",
+    "/auth/staff",
     "/auth/employee",
+    "/staff/reset-password",
+    "/employee/reset-password",
   ];
   return publicPaths.includes(path);
 };

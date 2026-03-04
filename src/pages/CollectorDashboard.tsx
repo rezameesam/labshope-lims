@@ -30,7 +30,7 @@ const CollectorDashboard = () => {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth/employee");
+      navigate("/auth/staff");
     }
   }, [user, loading, navigate]);
 
@@ -44,7 +44,7 @@ const CollectorDashboard = () => {
   const handleSignOut = async () => {
     await signOut();
     toast.success("Signed out successfully");
-    navigate("/auth/employee");
+    navigate("/auth/staff");
   };
 
   if (loading) {

@@ -82,7 +82,7 @@ VALUES (
 After creating the admin:
 
 1. Go to your app
-2. Navigate to employee login page
+2. Navigate to staff login page
 3. Log in with:
    - Email: `admin@irmclinic.com`
    - Password: `YourSecurePassword123!`

@@ -61,16 +61,16 @@ const Navbar = () => {
               <Phone className="h-4 w-4" />
               <span>9419034607</span>
             </a>
-            <Link to="/auth/employee">
+            <Link to="/auth/staff">
               <Button variant="outline" size="sm">
                 <Users className="h-4 w-4" />
-                Employee
+                Staff
               </Button>
             </Link>
             <Link to="/auth/patient">
               <Button variant="clinical" size="sm">
                 <User className="h-4 w-4" />
-                Patient Login
+                Patient
               </Button>
             </Link>
           </div>
@@ -114,10 +114,10 @@ const Navbar = () => {
                     <span>9419034607</span>
                   </a>
                   <div className="flex gap-2">
-                    <Link to="/auth/employee" className="flex-1">
+                    <Link to="/auth/staff" className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Users className="h-4 w-4" />
-                        Employee
+                        Staff
                       </Button>
                     </Link>
                     <Link to="/auth/patient" className="flex-1">
