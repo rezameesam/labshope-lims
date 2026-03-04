@@ -438,9 +438,9 @@ const PatientAuth = () => {
 
               <div className="mt-6 pt-6 border-t border-border text-center">
                 <p className="text-sm text-muted-foreground">
-                  Are you an employee?{" "}
-                  <Link to="/auth/employee" className="text-primary hover:underline font-medium">
-                    Employee Login
+                  Are you a staff member?{" "}
+                  <Link to="/auth/staff" className="text-primary hover:underline font-medium">
+                    Staff Login
                   </Link>
                 </p>
               </div>

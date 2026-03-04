@@ -316,7 +316,7 @@ const ManageEmployees = () => {
         },
         body: JSON.stringify({
           employee_id: selectedEmployee.id,
-          reset_base_url: `${window.location.origin}/employee/reset-password`,
+          reset_base_url: `${window.location.origin}/staff/reset-password`,
           mode,
           ...(mode === "set" ? { custom_password: customResetPassword } : {}),
         }),

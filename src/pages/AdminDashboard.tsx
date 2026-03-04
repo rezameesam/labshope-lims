@@ -70,7 +70,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth/employee");
+      navigate("/auth/staff");
     }
   }, [user, loading, navigate]);
 
@@ -94,7 +94,7 @@ const AdminDashboard = () => {
   const handleSignOut = async () => {
     await signOut();
     toast.success("Signed out successfully");
-    navigate("/auth/employee");
+    navigate("/auth/staff");
   };
 
   if (loading) {
