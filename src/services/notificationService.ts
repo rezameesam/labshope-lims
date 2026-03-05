@@ -16,6 +16,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import logoUrl from "@/assets/logo.png";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 // Types
 export interface NotificationOptions {
@@ -41,6 +42,24 @@ interface PatientWelcomePayload {
   portalUrl: string;
 }
 
+async function getFunctionAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (publishableKey) {
+    headers.apikey = publishableKey;
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  return headers;
+}
+
 /**
  * Send email notification using Supabase Edge Function (server-side)
  * This calls the send-email Edge Function which uses nodemailer on the server
@@ -52,11 +71,10 @@ async function sendEmail(
   textContent?: string
 ): Promise<NotificationResult> {
   try {
-    // Get Supabase URL and anon key from environment variables
+    // Get Supabase URL from environment variables
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl) {
       return { 
         success: false, 
         error: "Supabase configuration missing", 
@@ -64,13 +82,12 @@ async function sendEmail(
       };
     }
 
+    const headers = await getFunctionAuthHeaders();
+
     // Call the Supabase Edge Function
     const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
+      headers,
       body: JSON.stringify({
         to,
         subject,
@@ -158,9 +175,8 @@ async function sendWhatsApp(
 ): Promise<NotificationResult> {
   try {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl) {
       return {
         success: false,
         error: "Supabase configuration missing",
@@ -168,12 +184,11 @@ async function sendWhatsApp(
       };
     }
 
+    const headers = await getFunctionAuthHeaders();
+
     const response = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseAnonKey}`,
-      },
+      headers,
       body: JSON.stringify({
         to,
         message,
@@ -189,6 +204,13 @@ async function sendWhatsApp(
     }
 
     if (!response.ok || !result.success) {
+      if (response.status === 401) {
+        return {
+          success: false,
+          error: "Unauthorized to call WhatsApp service. Please sign in again and retry.",
+          method: "whatsapp",
+        };
+      }
       const message = result.error || "Failed to send WhatsApp message";
       const hint = result.hint ? ` ${result.hint}` : "";
       return {
@@ -199,9 +221,9 @@ async function sendWhatsApp(
     }
 
     const providerStatus = String(result.messageStatus || "accepted").toLowerCase();
-    const normalizedTo = String(result.to || to);
+    const normalizedTo = formatPhoneForDisplay(String(result.to || to));
     const warning = providerStatus !== "delivered"
-      ? `WhatsApp accepted for +${normalizedTo}. Delivery is pending confirmation.`
+      ? `WhatsApp accepted for ${normalizedTo}. Delivery is pending confirmation.`
       : undefined;
 
     return { success: true, method: "whatsapp", warning };

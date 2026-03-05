@@ -83,6 +83,23 @@ const getMetaErrorDetails = (payload: any) => {
   const code = payload?.error?.code;
   const subcode = payload?.error?.error_subcode;
 
+  const tokenExpired =
+    code === 190 &&
+    (subcode === 463 ||
+      normalized.includes("session has expired") ||
+      normalized.includes("error validating access token"));
+
+  if (tokenExpired) {
+    return {
+      userMessage:
+        "WhatsApp access token has expired. Update WHATSAPP_ACCESS_TOKEN in Supabase Edge Function secrets.",
+      hint:
+        "Generate a new token in Meta and rotate the secret, then retry. Consider using a long-lived System User token.",
+      code,
+      subcode,
+    };
+  }
+
   const recipientNotAllowed =
     normalized.includes("recipient phone number") &&
     (normalized.includes("not in list") || normalized.includes("not in allowed list"));

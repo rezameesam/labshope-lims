@@ -45,6 +45,14 @@ import { format } from "date-fns";
 import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  DEFAULT_COUNTRY_CODE,
+  PHONE_COUNTRY_OPTIONS,
+  buildStoragePhoneNumber,
+  formatPhoneForDisplay,
+  getPhoneLookupVariants,
+  splitPhoneForForm,
+} from "@/lib/phone";
 
 interface Patient {
   id: string;
@@ -108,6 +116,7 @@ interface BillingSummary {
 
 interface PatientFormData {
   full_name: string;
+  country_code: string;
   phone: string;
   email: string;
   address: string;
@@ -137,6 +146,14 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
   const filteredCollectionCenters = formData.lab_id && collectionCenters
     ? collectionCenters.filter(cc => cc.lab_id === formData.lab_id)
     : [];
+  const countryCodeOptions = PHONE_COUNTRY_OPTIONS.some(
+    (option) => option.value === formData.country_code
+  )
+    ? PHONE_COUNTRY_OPTIONS
+    : [
+        { value: formData.country_code, label: `Custom (+${formData.country_code})` },
+        ...PHONE_COUNTRY_OPTIONS,
+      ];
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -154,14 +171,40 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
 
       <div className="space-y-2">
         <Label htmlFor="phone">Phone Number *</Label>
-        <Input
-          id="phone"
-          type="tel"
-          value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          required
-          placeholder="e.g. 9419034607"
-        />
+        <div className="flex gap-2">
+          <Select
+            value={formData.country_code}
+            onValueChange={(value) => setFormData({ ...formData, country_code: value })}
+          >
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="Country code" />
+            </SelectTrigger>
+            <SelectContent>
+              {countryCodeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            id="phone"
+            type="tel"
+            value={formData.phone}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                phone: e.target.value.replace(/[^\d]/g, ""),
+              })
+            }
+            required
+            maxLength={15}
+            placeholder="Mobile number"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Example: +{formData.country_code} {formData.phone || "XXXXXXXXXX"}
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -307,6 +350,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
+    country_code: DEFAULT_COUNTRY_CODE,
     phone: "",
     email: "",
     address: "",
@@ -514,11 +558,20 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setIsSubmitting(true);
 
     try {
+      const normalizedPhone = buildStoragePhoneNumber(formData.country_code, formData.phone);
+      if (!normalizedPhone) {
+        toast.error("Please enter a valid phone number");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const phoneLookupVariants = getPhoneLookupVariants(normalizedPhone, formData.country_code);
+
       // Check for existing patients with the same phone number
       const { data: existingPatients, error: checkError } = await supabase
         .from("patients")
         .select("id, patient_id, full_name, phone, date_of_birth, gender, email, address, blood_group, is_active, created_at")
-        .eq("phone", formData.phone)
+        .in("phone", phoneLookupVariants)
         .eq("is_active", true);
 
       if (checkError) throw checkError;
@@ -532,7 +585,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       }
 
       // No duplicates, proceed with creation
-      await createPatient();
+      await createPatient(normalizedPhone);
     } catch (error: any) {
       console.error("Error checking/adding patient:", error);
       toast.error(error.message || "Failed to add patient");
@@ -540,8 +593,15 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
   };
 
-  const createPatient = async () => {
+  const createPatient = async (normalizedPhoneOverride?: string) => {
     try {
+      const normalizedPhone = normalizedPhoneOverride || buildStoragePhoneNumber(formData.country_code, formData.phone);
+      if (!normalizedPhone) {
+        toast.error("Please enter a valid phone number");
+        setIsSubmitting(false);
+        return;
+      }
+
       const patientId = generatePatientId();
 
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -549,7 +609,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const { error } = await supabase.from("patients").insert({
         patient_id: patientId,
         full_name: formData.full_name,
-        phone: formData.phone,
+        phone: normalizedPhone,
         email: formData.email || null,
         address: formData.address || null,
         date_of_birth: formData.date_of_birth || null,
@@ -599,11 +659,18 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setIsSubmitting(true);
 
     try {
+      const normalizedPhone = buildStoragePhoneNumber(formData.country_code, formData.phone);
+      if (!normalizedPhone) {
+        toast.error("Please enter a valid phone number");
+        setIsSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("patients")
         .update({
           full_name: formData.full_name,
-          phone: formData.phone,
+          phone: normalizedPhone,
           email: formData.email || null,
           address: formData.address || null,
           date_of_birth: formData.date_of_birth || null,
@@ -632,6 +699,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const resetForm = () => {
     setFormData({
       full_name: "",
+      country_code: DEFAULT_COUNTRY_CODE,
       phone: "",
       email: "",
       address: "",
@@ -644,10 +712,12 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   };
 
   const openEditDialog = (patient: Patient) => {
+    const parsedPhone = splitPhoneForForm(patient.phone, DEFAULT_COUNTRY_CODE);
     setSelectedPatient(patient);
     setFormData({
       full_name: patient.full_name,
-      phone: patient.phone,
+      country_code: parsedPhone.countryCode,
+      phone: parsedPhone.nationalNumber,
       email: patient.email || "",
       address: patient.address || "",
       date_of_birth: patient.date_of_birth || "",
@@ -822,10 +892,14 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   };
 
   const filteredPatients = patients.filter((patient) => {
+    const searchLower = search.toLowerCase();
+    const searchDigits = search.replace(/[^\d]/g, "");
+    const phoneDigits = patient.phone.replace(/[^\d]/g, "");
     const matchesSearch = 
-      patient.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      patient.phone.includes(search) ||
-      patient.patient_id.toLowerCase().includes(search.toLowerCase());
+      patient.full_name.toLowerCase().includes(searchLower) ||
+      patient.patient_id.toLowerCase().includes(searchLower) ||
+      formatPhoneForDisplay(patient.phone).toLowerCase().includes(searchLower) ||
+      (searchDigits.length > 0 && phoneDigits.includes(searchDigits));
     
     const matchesStatus = 
       filterStatus === "all" ||
@@ -1008,7 +1082,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
                       <Phone className="h-3 w-3 text-muted-foreground" />
-                      {patient.phone}
+                      {formatPhoneForDisplay(patient.phone)}
                     </div>
                     {patient.email && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -1175,7 +1249,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Phone className="h-3 w-3" /> Phone
                   </p>
-                  <p className="font-medium">{selectedPatient.phone}</p>
+                  <p className="font-medium">{formatPhoneForDisplay(selectedPatient.phone)}</p>
                 </div>
                 {selectedPatient.email && (
                   <div className="space-y-1">
@@ -1512,8 +1586,8 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         open={duplicatePhoneDialogOpen}
         onOpenChange={setDuplicatePhoneDialogOpen}
         existingPatients={existingPatientsWithPhone}
-        phoneNumber={formData.phone || ""}
-        onContinue={createPatient}
+        phoneNumber={buildStoragePhoneNumber(formData.country_code, formData.phone) || formData.phone || ""}
+        onContinue={() => createPatient()}
         onCancel={() => {
           setDuplicatePhoneDialogOpen(false);
           setIsSubmitting(false);

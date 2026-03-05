@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 interface Patient {
   id: string;
@@ -54,7 +53,7 @@ const PatientSelectorDialog = ({
             Multiple Accounts Found
           </DialogTitle>
           <DialogDescription className="pt-2">
-            The phone number <strong>+91-{phoneNumber}</strong> is registered with multiple patient
+            The phone number <strong>{formatPhoneForDisplay(phoneNumber)}</strong> is registered with multiple patient
             accounts. Please select which patient you are:
           </DialogDescription>
         </DialogHeader>
@@ -118,4 +117,3 @@ const PatientSelectorDialog = ({
 };
 
 export default PatientSelectorDialog;
-

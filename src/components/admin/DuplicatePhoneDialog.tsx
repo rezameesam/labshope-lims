@@ -9,8 +9,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 interface ExistingPatient {
   id: string;
@@ -47,7 +47,7 @@ const DuplicatePhoneDialog = ({
             <AlertDialogTitle>Phone Number Already Registered</AlertDialogTitle>
           </div>
           <AlertDialogDescription className="pt-2">
-            The phone number <strong>+91-{phoneNumber}</strong> is already registered with{" "}
+            The phone number <strong>{formatPhoneForDisplay(phoneNumber)}</strong> is already registered with{" "}
             {existingPatients.length} patient{existingPatients.length > 1 ? "s" : ""}. This is common
             when registering family members (e.g., minors, elderly) who share the same contact number.
           </AlertDialogDescription>
@@ -120,4 +120,3 @@ const DuplicatePhoneDialog = ({
 };
 
 export default DuplicatePhoneDialog;
-
