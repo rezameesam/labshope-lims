@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 interface TestResult {
   test_id?: string | null;
@@ -223,7 +224,7 @@ export const generateTestReportPDF = (data: ReportData) => {
   doc.setFont("helvetica", "bold");
   doc.text("Phone:", col1X, patientInfoY + 14);
   doc.setFont("helvetica", "normal");
-  doc.text(`+91-${data.patient.phone}`, col1X + 25, patientInfoY + 14);
+  doc.text(formatPhoneForDisplay(data.patient.phone), col1X + 25, patientInfoY + 14);
   
   // Lab info row (shows the specific lab and code)
   doc.setFont("helvetica", "bold");

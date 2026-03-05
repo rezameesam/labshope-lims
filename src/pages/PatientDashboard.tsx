@@ -40,6 +40,7 @@ import logo from "@/assets/logo.png";
 import TestResultsTable from "@/components/patient/TestResultsTable";
 import BillingPortal from "@/components/patient/BillingPortal";
 import PatientHistoryTimeline from "@/components/patient/PatientHistoryTimeline";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 interface PatientTest {
   id: string;
@@ -318,7 +319,7 @@ const PatientDashboard = () => {
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
               <Phone className="h-4 w-4" />
-              <span>+91 {patient.phone}</span>
+              <span>{formatPhoneForDisplay(patient.phone)}</span>
             </div>
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -539,7 +540,7 @@ const PatientDashboard = () => {
                       <Phone className="h-5 w-5 text-primary" />
                       <div>
                         <p className="text-xs text-muted-foreground">Phone Number</p>
-                        <p className="font-medium text-foreground">+91 {patient.phone}</p>
+                        <p className="font-medium text-foreground">{formatPhoneForDisplay(patient.phone)}</p>
                       </div>
                     </div>
 

@@ -34,6 +34,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -607,6 +608,9 @@ const ManageReminders = () => {
             <DialogTitle>
               {editingReminder ? "Edit Reminder" : "Create Reminder"}
             </DialogTitle>
+            <DialogDescription>
+              Configure reminder details and choose how the patient should be notified.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
