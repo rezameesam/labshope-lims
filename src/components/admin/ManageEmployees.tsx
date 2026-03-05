@@ -58,6 +58,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useLab } from "@/contexts/LabContext";
 
 interface Employee {
   id: string;
@@ -74,6 +75,7 @@ interface Employee {
 }
 
 const ManageEmployees = () => {
+  const { currentLab } = useLab();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -174,6 +176,7 @@ const ManageEmployees = () => {
             designation: formData.designation || null,
             department: formData.department || null,
             role: formData.role,
+            lab_id: currentLab?.id || null,
           }),
         }
       );

@@ -73,6 +73,43 @@ serve(async (req: Request) => {
     const userId = authData.user.id;
     const employeeId = `ADM${Math.floor(1000 + Math.random() * 9000)}`;
 
+    // Resolve default lab for first admin.
+    let targetLabId: string | null = null;
+    const { data: defaultLab, error: defaultLabError } = await supabaseAdmin
+      .from("labs")
+      .select("id")
+      .eq("lab_code", "LAB001")
+      .limit(1)
+      .maybeSingle();
+
+    if (!defaultLabError && defaultLab?.id) {
+      targetLabId = defaultLab.id;
+    } else if (!defaultLabError) {
+      const { data: insertedLab, error: insertLabError } = await supabaseAdmin
+        .from("labs")
+        .insert({
+          lab_code: "LAB001",
+          name: "Main Laboratory",
+          type: "main",
+          is_active: true,
+        })
+        .select("id")
+        .single();
+
+      if (!insertLabError && insertedLab?.id) {
+        targetLabId = insertedLab.id;
+      } else {
+        console.error("Failed creating LAB001 fallback:", insertLabError);
+        const { data: retryLab } = await supabaseAdmin
+          .from("labs")
+          .select("id")
+          .eq("lab_code", "LAB001")
+          .limit(1)
+          .maybeSingle();
+        targetLabId = retryLab?.id || null;
+      }
+    }
+
     // Create employee record
     const { error: employeeError } = await supabaseAdmin.from("employees").insert({
       user_id: userId,
@@ -81,6 +118,7 @@ serve(async (req: Request) => {
       email,
       designation: "Administrator",
       department: "Administration",
+      ...(targetLabId ? { lab_id: targetLabId } : {}),
     });
 
     if (employeeError) {
@@ -99,6 +137,25 @@ serve(async (req: Request) => {
     if (roleError) {
       console.error("Error assigning role:", roleError);
       throw roleError;
+    }
+
+    // Best-effort lab membership setup for first admin.
+    if (targetLabId) {
+      const { error: labUserError } = await supabaseAdmin
+        .from("lab_users")
+        .upsert(
+          {
+            user_id: userId,
+            lab_id: targetLabId,
+            role: "admin",
+            is_primary: true,
+          },
+          { onConflict: "user_id,lab_id" }
+        );
+
+      if (labUserError) {
+        console.error("Failed to attach first admin to lab:", labUserError);
+      }
     }
 
     console.log(`First admin created successfully: ${email}`);
