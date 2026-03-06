@@ -77,6 +77,7 @@ const LAB_INFO = {
   address: "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
   phone: "+91-9419034607 | +91-9622635767",
   email: "irmclinic@gmail.com",
+  website: "https://irmclinic.com",
 };
 
 const stripHtml = (html: string) =>
@@ -85,6 +86,9 @@ const stripHtml = (html: string) =>
     .replace(/<\/p>/gi, "\n")
     .replace(/<[^>]*>/g, "")
     .trim();
+
+const hasWebsiteReference = (value: string) =>
+  value.toLowerCase().includes("irmclinic.com");
 
 const resolveReportTemplate = async (tests: TestResult[], templateId?: string) => {
   const { data: templates, error } = await supabase
@@ -151,6 +155,10 @@ export const generateTestReportPDF = (data: ReportData) => {
   const resultFormat = template?.result_format || "table";
   const headerText = template?.header_template ? stripHtml(template.header_template) : "";
   const footerText = template?.footer_template ? stripHtml(template.footer_template) : "";
+  const reportHasWebsite = hasWebsiteReference(headerText) || hasWebsiteReference(footerText);
+  const emailLine = reportHasWebsite
+    ? `Email: ${LAB_INFO.email}`
+    : `Email: ${LAB_INFO.email} | Website: ${LAB_INFO.website}`;
   
   // Always reserve space for header area (for pre-printed paper compatibility)
   const HEADER_RESERVED_HEIGHT = 55;
@@ -189,7 +197,7 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.setFont("helvetica", "normal");
     doc.text(LAB_INFO.address, centerX, 21, { align: "center" });
     doc.text(`Phone: ${LAB_INFO.phone}`, centerX, 27, { align: "center" });
-    doc.text(`Email: ${LAB_INFO.email}`, centerX, 33, { align: "center" });
+    doc.text(emailLine, centerX, 33, { align: "center" });
   }
   // If not including header, space is still reserved (empty) for pre-printed paper
 
@@ -607,6 +615,9 @@ export const generateTestReportPDF = (data: ReportData) => {
     doc.setFontSize(8);
     doc.setTextColor(30, 58, 138);
     doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 19, { align: "center" });
+    if (!reportHasWebsite && options.includeHeader === false) {
+      doc.text(emailLine, pageWidth / 2, footerY + 24, { align: "center" });
+    }
   }
   // If not including footer, space is still reserved (empty) for pre-printed paper
 
