@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAuthenticatedUserFromRequest, getPatientPasswordError } from "../_shared/patient-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,12 +9,9 @@ const corsHeaders = {
 };
 
 interface PatientSetPasswordRequest {
-  patient_id: string;
   current_password: string;
   new_password: string;
 }
-
-const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -21,100 +19,102 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { patient_id, current_password, new_password }: PatientSetPasswordRequest = await req.json();
+    const { current_password, new_password }: PatientSetPasswordRequest = await req.json();
 
-    if (!patient_id || !current_password || !new_password) {
-      return new Response(
-        JSON.stringify({ error: "Patient ID, current password, and new password are required." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    if (!current_password || !new_password) {
+      return jsonResponse({ error: "Current password and new password are required." }, 400);
     }
 
-    if (new_password.length < 6) {
-      return new Response(
-        JSON.stringify({ error: "New password must be at least 6 characters." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    if (current_password === new_password) {
+      return jsonResponse({ error: "New password must be different from your current password." }, 400);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const passwordError = getPatientPasswordError(new_password);
+    if (passwordError) {
+      return jsonResponse({ error: passwordError }, 400);
+    }
 
-    const { data, error } = await supabase
-      .rpc("patient_set_password", {
-        p_patient_id: patient_id,
-        p_current_password: current_password,
-        p_new_password: new_password,
-      });
-
-    if (error) {
+    const authenticated = await getAuthenticatedUserFromRequest(req).catch((error) => {
+      if (error instanceof Response) {
+        return error;
+      }
       throw error;
+    });
+
+    if (authenticated instanceof Response) {
+      return withCors(authenticated);
     }
 
-    if (!data) {
-      return new Response(
-        JSON.stringify({ error: "Current password is incorrect." }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse({ error: "Server configuration missing." }, 500);
     }
 
-    const { data: patientRecord, error: patientError } = await supabase
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: patient, error: patientError } = await supabaseAdmin
       .from("patients")
       .select("id, user_id")
-      .eq("id", patient_id)
-      .single();
+      .eq("user_id", authenticated.user.id)
+      .eq("is_active", true)
+      .maybeSingle();
 
-    if (patientError || !patientRecord) {
-      return new Response(
-        JSON.stringify({ error: "Patient record not found." }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    if (patientError || !patient) {
+      return jsonResponse({ error: "Patient session is not linked to an active account." }, 404);
     }
 
-    const authEmail = buildPatientAuthEmail(patientRecord.id);
-    if (!patientRecord.user_id) {
-      const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
-        email: authEmail,
-        password: new_password,
-        email_confirm: true,
-        user_metadata: {
-          patient_record_id: patientRecord.id,
-        },
-      });
+    const { data: passwordUpdated, error: passwordUpdateError } = await supabaseAdmin.rpc("patient_set_password", {
+      p_patient_id: patient.id,
+      p_current_password: current_password,
+      p_new_password: new_password,
+    });
 
-      if (createError || !createdUser?.user) {
-        return new Response(
-          JSON.stringify({ error: "Unable to create patient auth account." }),
-          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
-
-      await supabase
-        .from("patients")
-        .update({ user_id: createdUser.user.id })
-        .eq("id", patientRecord.id);
-    } else {
-      await supabase.auth.admin.updateUserById(patientRecord.user_id, {
-        password: new_password,
-        email_confirm: true,
-      });
+    if (passwordUpdateError) {
+      throw passwordUpdateError;
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    if (!passwordUpdated) {
+      return jsonResponse({ error: "Current password is incorrect." }, 401);
+    }
+
+    const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(authenticated.user.id, {
+      password: new_password,
+      email_confirm: true,
+    });
+
+    if (authUpdateError) {
+      return jsonResponse({ error: authUpdateError.message || "Unable to update account password." }, 500);
+    }
+
+    await supabaseAdmin
+      .from("patient_password_resets")
+      .delete()
+      .eq("patient_id", patient.id)
+      .is("used_at", null);
+
+    return jsonResponse({ success: true }, 200);
   } catch (error: any) {
     console.error("Error in patient-set-password:", error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ error: error.message || "Internal server error" }, 500);
   }
 });
 
-function buildPatientAuthEmail(patientId: string): string {
-  const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  return `patient-${normalizedId}@${PATIENT_AUTH_DOMAIN}`;
+function jsonResponse(payload: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
+function withCors(response: Response): Response {
+  const headers = new Headers(response.headers);
+  Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

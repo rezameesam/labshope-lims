@@ -847,13 +847,20 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
 
     setResetLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("You must be signed in.");
+      }
+
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/patient-admin-reset-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           patient_id: selectedPatient.id,
-          reset_base_url: `${window.location.origin}/patient/reset-password`,
           mode,
         }),
       });

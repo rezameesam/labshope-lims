@@ -1,37 +1,39 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
-  LogOut, 
-  FileText, 
-  User, 
-  Clock,
-  CheckCircle2,
+import { format, formatDistanceToNow } from "date-fns";
+import {
+  Activity,
   AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  Droplet,
+  FileText,
   FlaskConical,
-  Phone,
+  GitBranch,
+  Lock,
+  LogOut,
   Mail,
   MapPin,
-  Droplet,
-  Activity,
-  Lock,
-  GitBranch
+  Phone,
+  ShieldCheck,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +42,11 @@ import logo from "@/assets/logo.png";
 import TestResultsTable from "@/components/patient/TestResultsTable";
 import BillingPortal from "@/components/patient/BillingPortal";
 import PatientHistoryTimeline from "@/components/patient/PatientHistoryTimeline";
+import PatientActiveSessions from "@/components/patient/PatientActiveSessions";
+import PasswordRequirements from "@/components/patient/PasswordRequirements";
+import PageErrorBoundary from "@/components/PageErrorBoundary";
 import { formatPhoneForDisplay } from "@/lib/phone";
+import { validatePatientPassword } from "@/lib/patientSecurity";
 
 interface PatientTest {
   id: string;
@@ -81,12 +87,38 @@ interface PatientTest {
   } | null;
 }
 
+const formatTimestamp = (value?: string | null) => {
+  if (!value) {
+    return "Not available";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Not available";
+  }
+
+  return `${format(parsed, "dd MMM yyyy, hh:mm a")} (${formatDistanceToNow(parsed, { addSuffix: true })})`;
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return "Not provided";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Not provided";
+  }
+
+  return format(parsed, "dd MMM yyyy");
+};
+
 const PatientDashboard = () => {
   const navigate = useNavigate();
   const { patient, loading, isAuthenticated, signOut, setPassword } = usePatientAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [testsLoading, setTestsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("results");
+  const [activeTab, setActiveTab] = useState("profile");
   const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [checkingDues, setCheckingDues] = useState(true);
@@ -102,14 +134,41 @@ const PatientDashboard = () => {
     }
   }, [loading, isAuthenticated, navigate]);
 
+  const refreshDues = useCallback(async () => {
+    if (!patient?.id) {
+      setCheckingDues(false);
+      return;
+    }
+
+    try {
+      const { data: invoices, error } = await supabase
+        .from("invoices")
+        .select("final_amount, paid_amount, payment_status")
+        .eq("patient_id", patient.id);
+
+      if (error) throw error;
+
+      const totalBilled = invoices?.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0) || 0;
+      const totalPaid = invoices?.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0) || 0;
+      const outstanding = totalBilled - totalPaid;
+
+      setHasOutstandingDues(outstanding > 0);
+      setOutstandingAmount(Math.max(0, outstanding));
+    } catch (error) {
+      console.error("Error checking outstanding dues:", error);
+    } finally {
+      setCheckingDues(false);
+    }
+  }, [patient?.id]);
+
   useEffect(() => {
     const fetchTests = async () => {
       if (!patient?.id) return;
 
       try {
-        // Try to fetch with lab/collection center joins, fallback to basic query if it fails
-        let data, error;
-        
+        let data;
+        let error;
+
         try {
           const result = await supabase
             .from("patient_tests")
@@ -128,11 +187,10 @@ const PatientDashboard = () => {
             `)
             .eq("patient_id", patient.id)
             .order("created_at", { ascending: false });
-          
+
           data = result.data;
           error = result.error;
-          
-          // If join fails due to missing tables/columns, fallback to basic query
+
           if (
             error &&
             (error.code === "PGRST116" ||
@@ -149,8 +207,7 @@ const PatientDashboard = () => {
             data = basicResult.data;
             error = basicResult.error;
           }
-        } catch (err: any) {
-          // If join fails, try basic query
+        } catch {
           const basicResult = await supabase
             .from("patient_tests")
             .select("*")
@@ -161,11 +218,10 @@ const PatientDashboard = () => {
         }
 
         if (error) throw error;
-        
-        // Fetch employee names for tests with result_entered_by
+
         const testsWithEmployees = await Promise.all(
           (data || []).map(async (test: any) => {
-            let testWithEmployee = { ...test };
+            const testWithEmployee = { ...test };
             if (test.result_entered_by) {
               const { data: empData, error: empError } = await supabase
                 .from("employees")
@@ -177,9 +233,9 @@ const PatientDashboard = () => {
               }
             }
             return testWithEmployee;
-          })
+          }),
         );
-        
+
         setTests(testsWithEmployees);
       } catch (error) {
         console.error("Error fetching tests:", error);
@@ -190,9 +246,10 @@ const PatientDashboard = () => {
     };
 
     if (patient?.id) {
-      fetchTests();
+      void fetchTests();
+      void refreshDues();
     }
-  }, [patient?.id]);
+  }, [patient?.id, refreshDues]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,8 +259,9 @@ const PatientDashboard = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
+    const passwordValidationMessage = validatePatientPassword(newPassword);
+    if (passwordValidationMessage) {
+      toast.error(passwordValidationMessage);
       return;
     }
 
@@ -221,53 +279,12 @@ const PatientDashboard = () => {
       return;
     }
 
-    toast.success("Password updated successfully");
+    toast.success("Password updated successfully. Other sessions have been signed out.");
     setPasswordDialogOpen(false);
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
   };
-
-  // Check for outstanding dues
-  useEffect(() => {
-    const checkOutstandingDues = async () => {
-      if (!patient?.id) {
-        setCheckingDues(false);
-        return;
-      }
-
-      try {
-        const { data: invoices, error } = await supabase
-          .from("invoices")
-          .select("final_amount, paid_amount, payment_status")
-          .eq("patient_id", patient.id);
-
-        if (error) throw error;
-
-        // Calculate outstanding dues with proper null handling
-        const totalBilled = invoices?.reduce((sum, inv) => {
-          const finalAmount = Number(inv.final_amount) || 0;
-          return sum + finalAmount;
-        }, 0) || 0;
-        
-        const totalPaid = invoices?.reduce((sum, inv) => {
-          const paidAmount = Number(inv.paid_amount) || 0;
-          return sum + paidAmount;
-        }, 0) || 0;
-        
-        const outstanding = totalBilled - totalPaid;
-
-        setHasOutstandingDues(outstanding > 0);
-        setOutstandingAmount(Math.max(0, outstanding));
-      } catch (error) {
-        console.error("Error checking outstanding dues:", error);
-      } finally {
-        setCheckingDues(false);
-      }
-    };
-
-    checkOutstandingDues();
-  }, [patient?.id]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -275,348 +292,397 @@ const PatientDashboard = () => {
     navigate("/auth/patient");
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle2 className="h-3 w-3 mr-1" />Completed</Badge>;
-      case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
-      case "processing":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100"><Activity className="h-3 w-3 mr-1" />Processing</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const pendingTests = tests.filter(t => t.status === "pending" || t.status === "processing");
-  const completedTests = tests.filter(t => t.status === "completed");
+  const pendingTests = useMemo(
+    () => tests.filter((test) => test.status === "pending" || test.status === "processing"),
+    [tests],
+  );
+  const completedTests = useMemo(() => tests.filter((test) => test.status === "completed"), [tests]);
+  const abnormalTests = useMemo(() => tests.filter((test) => test.is_abnormal), [tests]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-subtle-gradient text-clinical-navy">
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!patient) return null;
+  if (!patient) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-subtle-gradient px-6">
+        <Card className="w-full max-w-lg border border-border bg-card shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-clinical-navy">Loading patient portal</CardTitle>
+            <CardDescription>
+              We could not finish loading your patient record yet. If this screen persists, return to login and try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            <Button variant="outline" onClick={() => navigate("/auth/patient")}>
+              Back to Login
+            </Button>
+            <Button onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-subtle-gradient">
+      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="IRM Clinical" className="h-10 w-10" />
+            <img src={logo} alt="IRM Clinical" className="h-11 w-11 rounded-2xl border border-border bg-card p-1" />
             <div>
-              <h1 className="font-heading font-bold text-lg text-foreground">Patient Portal</h1>
+              <h1 className="font-heading text-lg font-semibold text-clinical-navy">Patient Portal</h1>
               <p className="text-xs text-muted-foreground">IRM Clinical Laboratory</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground md:flex">
               <Phone className="h-4 w-4" />
               <span>{formatPhoneForDisplay(patient.phone)}</span>
             </div>
             <Button variant="outline" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
+              <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex items-center gap-4 mb-2">
-            <Avatar className="h-14 w-14 bg-primary/10">
-              <AvatarFallback className="bg-primary text-primary-foreground text-lg font-semibold">
-                {patient.full_name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-2xl font-heading font-bold text-foreground">
-                Welcome, {patient.full_name}
-              </h2>
-              <p className="text-muted-foreground">Patient ID: {patient.patient_id}</p>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <div className="overflow-hidden rounded-[32px] border border-primary-foreground/10 bg-hero-gradient px-6 py-8 text-primary-foreground shadow-xl sm:px-8 lg:px-10">
+            <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+              <div>
+                <div className="mb-6 flex items-center gap-4">
+                  <Avatar className="h-16 w-16 border border-white/10 bg-white/10">
+                    <AvatarFallback className="bg-primary-foreground text-lg font-semibold text-primary">
+                      {patient.full_name?.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.22em] text-primary-foreground/80">Verified patient account</p>
+                    <h2 className="font-heading text-3xl font-bold">{patient.full_name}</h2>
+                    <p className="mt-1 text-primary-foreground/80">Patient ID: {patient.patient_id}</p>
+                  </div>
+                </div>
+
+                <p className="max-w-2xl text-sm leading-7 text-primary-foreground/80 sm:text-base">
+                  Review current investigations, download completed reports, track outstanding billing, and manage your account security from one portal.
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-3 text-sm text-primary-foreground/80">
+                  <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Secure password policy</div>
+                  <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Session management</div>
+                  <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Report access and billing</div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <div className="flex items-center gap-3 text-primary-foreground">
+                    <ShieldCheck className="h-5 w-5" />
+                    <p className="font-medium">Account security</p>
+                  </div>
+                  <p className="mt-2 text-sm text-primary-foreground/70">Last password change</p>
+                  <p className="mt-1 text-sm font-medium text-primary-foreground">{formatTimestamp(patient.last_password_change)}</p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <div className="flex items-center gap-3 text-primary-foreground">
+                    <CalendarClock className="h-5 w-5" />
+                    <p className="font-medium">Billing overview</p>
+                  </div>
+                  <p className="mt-2 text-sm text-primary-foreground/70">Outstanding amount</p>
+                  <p className="mt-1 text-2xl font-semibold text-primary-foreground">
+                    {checkingDues ? "Checking..." : `Rs. ${outstandingAmount.toFixed(2)}`}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </motion.div>
+        </motion.section>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="border-l-4 border-l-primary">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
+        <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              label: "Total Tests",
+              value: tests.length,
+              icon: FlaskConical,
+              tone: "text-cyan-700 bg-cyan-50 border-cyan-200",
+            },
+            {
+              label: "Completed Reports",
+              value: completedTests.length,
+              icon: CheckCircle2,
+              tone: "text-emerald-700 bg-emerald-50 border-emerald-200",
+            },
+            {
+              label: "Pending / Processing",
+              value: pendingTests.length,
+              icon: Clock,
+              tone: "text-amber-700 bg-amber-50 border-amber-200",
+            },
+            {
+              label: "Abnormal Results",
+              value: abnormalTests.length,
+              icon: Activity,
+              tone: "text-rose-700 bg-rose-50 border-rose-200",
+            },
+          ].map((card, index) => (
+            <motion.div
+              key={card.label}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 * index }}
+            >
+              <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                <CardContent className="flex items-center justify-between p-5">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Tests</p>
-                    <p className="text-2xl font-bold text-foreground">{tests.length}</p>
+                    <p className="text-sm text-muted-foreground">{card.label}</p>
+                    <p className="mt-2 text-3xl font-semibold text-clinical-navy">{card.value}</p>
                   </div>
-                  <FlaskConical className="h-8 w-8 text-primary/50" />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Completed</p>
-                    <p className="text-2xl font-bold text-foreground">{completedTests.length}</p>
+                  <div className={`rounded-2xl border p-3 ${card.tone}`}>
+                    <card.icon className="h-6 w-6" />
                   </div>
-                  <CheckCircle2 className="h-8 w-8 text-green-500/50" />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </section>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card className="border-l-4 border-l-yellow-500">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pending</p>
-                    <p className="text-2xl font-bold text-foreground">{pendingTests.length}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-yellow-500/50" />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Card className="border-l-4 border-l-red-500">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Blood Group</p>
-                    <p className="text-2xl font-bold text-foreground">{patient.blood_group || "N/A"}</p>
-                  </div>
-                  <Droplet className="h-8 w-8 text-red-500/50" />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
-            <TabsTrigger value="results" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-2 md:grid-cols-5">
+            <TabsTrigger value="results" className="gap-2 rounded-xl">
               <FileText className="h-4 w-4" />
               Results
             </TabsTrigger>
-            <TabsTrigger value="timeline" className="flex items-center gap-2">
+            <TabsTrigger value="timeline" className="gap-2 rounded-xl">
               <GitBranch className="h-4 w-4" />
               Timeline
             </TabsTrigger>
-            <TabsTrigger value="billing" className="flex items-center gap-2">
+            <TabsTrigger value="billing" className="gap-2 rounded-xl">
               <FlaskConical className="h-4 w-4" />
               Billing
             </TabsTrigger>
-            <TabsTrigger value="profile" className="flex items-center gap-2">
+            <TabsTrigger value="profile" className="gap-2 rounded-xl">
               <User className="h-4 w-4" />
               Profile
             </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2 rounded-xl">
+              <ShieldCheck className="h-4 w-4" />
+              Security
+            </TabsTrigger>
           </TabsList>
 
-          {/* Results Tab */}
           <TabsContent value="results">
-            <TestResultsTable 
-              tests={tests}
-              patient={{
-                full_name: patient.full_name,
-                patient_id: patient.patient_id,
-                phone: patient.phone,
-                gender: patient.gender,
-                blood_group: patient.blood_group,
-              }}
-              patientDbId={patient.id}
-              loading={testsLoading}
-              onPayNow={() => setActiveTab("billing")}
-            />
+            <PageErrorBoundary
+              title="Results could not be loaded"
+              description="The results view hit an unexpected error. You can retry or switch to another portal section."
+            >
+              <TestResultsTable
+                tests={tests}
+                patient={{
+                  full_name: patient.full_name,
+                  patient_id: patient.patient_id,
+                  phone: patient.phone,
+                  gender: patient.gender,
+                  blood_group: patient.blood_group,
+                }}
+                patientDbId={patient.id}
+                loading={testsLoading}
+                onPayNow={() => setActiveTab("billing")}
+              />
+            </PageErrorBoundary>
           </TabsContent>
 
-
-          {/* Timeline Tab */}
           <TabsContent value="timeline">
-            <PatientHistoryTimeline 
-              tests={tests}
-              hasOutstandingDues={hasOutstandingDues}
-              outstandingAmount={outstandingAmount}
-              onPayNow={() => setActiveTab("billing")}
-            />
+            <PageErrorBoundary
+              title="Timeline could not be loaded"
+              description="The timeline view hit an unexpected error. You can retry or use the other portal sections."
+            >
+              <PatientHistoryTimeline
+                tests={tests}
+                hasOutstandingDues={hasOutstandingDues}
+                outstandingAmount={outstandingAmount}
+                onPayNow={() => setActiveTab("billing")}
+              />
+            </PageErrorBoundary>
           </TabsContent>
 
-          {/* Billing Tab */}
           <TabsContent value="billing">
-            <BillingPortal 
-              patientId={patient.id}
-              patientName={patient.full_name}
-              patientPhone={patient.phone}
-              onPaymentStatusChange={() => {
-                // Refresh outstanding amount when payment is made
-                const refreshDues = async () => {
-                  try {
-                    const { data: invoices, error } = await supabase
-                      .from("invoices")
-                      .select("final_amount, paid_amount, payment_status")
-                      .eq("patient_id", patient.id);
-
-                    if (error) throw error;
-
-                    const totalBilled = invoices?.reduce((sum, inv) => {
-                      const finalAmount = Number(inv.final_amount) || 0;
-                      return sum + finalAmount;
-                    }, 0) || 0;
-                    
-                    const totalPaid = invoices?.reduce((sum, inv) => {
-                      const paidAmount = Number(inv.paid_amount) || 0;
-                      return sum + paidAmount;
-                    }, 0) || 0;
-                    
-                    const outstanding = totalBilled - totalPaid;
-
-                    setHasOutstandingDues(outstanding > 0);
-                    setOutstandingAmount(Math.max(0, outstanding));
-                  } catch (error) {
-                    console.error("Error refreshing outstanding dues:", error);
-                  }
-                };
-                refreshDues();
-              }}
-            />
+            <PageErrorBoundary
+              title="Billing could not be loaded"
+              description="The billing view hit an unexpected error. You can retry without leaving the portal."
+            >
+              <BillingPortal
+                patientId={patient.id}
+                patientName={patient.full_name}
+                patientPhone={patient.phone}
+                onPaymentStatusChange={() => {
+                  setCheckingDues(true);
+                  void refreshDues();
+                }}
+              />
+            </PageErrorBoundary>
           </TabsContent>
 
-          {/* Profile Tab */}
           <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  My Profile
-                </CardTitle>
-                <CardDescription>Your personal information on file</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                      <User className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Full Name</p>
-                        <p className="font-medium text-foreground">{patient.full_name}</p>
+            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Personal information
+                  </CardTitle>
+                  <CardDescription>Your details currently stored in the patient record.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  {[
+                    { icon: User, label: "Full Name", value: patient.full_name, tone: "text-foreground" },
+                    { icon: Phone, label: "Phone Number", value: formatPhoneForDisplay(patient.phone), tone: "text-foreground" },
+                    { icon: Mail, label: "Email", value: patient.email || "Not provided", tone: "text-foreground" },
+                    { icon: Droplet, label: "Blood Group", value: patient.blood_group || "Not specified", tone: "text-primary" },
+                    { icon: User, label: "Gender", value: patient.gender || "Not specified", tone: "text-foreground" },
+                    { icon: CalendarClock, label: "Date of Birth", value: formatDate(patient.date_of_birth), tone: "text-foreground" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-border bg-muted/40 p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-white p-2 shadow-sm">
+                          <item.icon className={`h-5 w-5 ${item.tone}`} />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                          <p className="mt-1 font-medium text-foreground">{item.value}</p>
+                        </div>
                       </div>
                     </div>
+                  ))}
 
-                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                      <Phone className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Phone Number</p>
-                        <p className="font-medium text-foreground">{formatPhoneForDisplay(patient.phone)}</p>
+                  <div className="rounded-2xl border border-border bg-muted/40 p-4 md:col-span-2">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-xl bg-white p-2 shadow-sm">
+                        <MapPin className="h-5 w-5 text-foreground" />
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                      <Mail className="h-5 w-5 text-primary" />
                       <div>
-                        <p className="text-xs text-muted-foreground">Email</p>
-                        <p className="font-medium text-foreground">{patient.email || "Not provided"}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                      <Droplet className="h-5 w-5 text-red-500" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Blood Group</p>
-                        <p className="font-medium text-foreground">{patient.blood_group || "Not specified"}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                      <User className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Gender</p>
-                        <p className="font-medium text-foreground">{patient.gender || "Not specified"}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                      <MapPin className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Address</p>
-                        <p className="font-medium text-foreground">{patient.address || "Not provided"}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Address</p>
+                        <p className="mt-1 font-medium text-foreground">{patient.address || "Not provided"}</p>
                       </div>
                     </div>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-blue-900 dark:text-blue-100">Need to update your information?</h4>
-                      <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                        Please contact our clinic to update your personal details. We ensure your records are always accurate.
+              <div className="space-y-6">
+                <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                  <CardHeader>
+                    <CardTitle>Account care</CardTitle>
+                    <CardDescription>Use these actions to keep your portal access current and secure.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
+                      <p className="font-medium">Need to update your personal details?</p>
+                      <p className="mt-2 leading-6 text-primary/90">
+                        Contact our clinic team to update identity details such as address, phone number, or demographic information.
                       </p>
                     </div>
-                  </div>
-                </div>
+                    <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
+                      <p className="font-medium text-clinical-navy">Last password change</p>
+                      <p className="mt-1">{formatTimestamp(patient.last_password_change)}</p>
+                    </div>
+                    <Button variant="outline" className="w-full gap-2" onClick={() => setPasswordDialogOpen(true)}>
+                      <Lock className="h-4 w-4" />
+                      Change Password
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                <div className="mt-6 flex justify-end">
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => setPasswordDialogOpen(true)}
-                  >
-                    <Lock className="h-4 w-4" />
-                    Change Password
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                  <CardHeader>
+                    <CardTitle>Support</CardTitle>
+                    <CardDescription>Contact the laboratory for account or record corrections.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-foreground">
+                    <p>Phone: +91 9622635767</p>
+                    <p>Email: support@irmclinic.com</p>
+                    <p>Portal logins should only be used by the patient or an authorized caregiver.</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="security">
+            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-6">
+                <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5" />
+                      Security overview
+                    </CardTitle>
+                    <CardDescription>Key account controls and recent password status.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-2xl border border-border bg-muted/40 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Last password change</p>
+                      <p className="mt-2 font-medium text-clinical-navy">{formatTimestamp(patient.last_password_change)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
+                      <p className="font-medium">Password standard</p>
+                      <p className="mt-2 leading-6">Passwords must include uppercase, lowercase, numeric, and special characters with a minimum length of 10.</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
+                      <p className="font-medium">Recommended practice</p>
+                      <p className="mt-2 leading-6">Sign out sessions on shared devices and change your password immediately if you suspect someone else accessed your account.</p>
+                    </div>
+                    <Button className="w-full gap-2" onClick={() => setPasswordDialogOpen(true)}>
+                      <Lock className="h-4 w-4" />
+                      Change Password
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                  <CardHeader>
+                    <CardTitle>Account alerts</CardTitle>
+                    <CardDescription>Operational notes relevant to your patient account.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-foreground">
+                    <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
+                      <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                      <p>After a password change, other signed-in sessions are automatically revoked.</p>
+                    </div>
+                    <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
+                      <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                      <p>Password reset links are time-limited and only sent to the email address on file.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <PatientActiveSessions />
+            </div>
           </TabsContent>
         </Tabs>
       </main>
 
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
               Change Password
             </DialogTitle>
             <DialogDescription>
-              Update your password to keep your account secure.
+              Update your portal password. Saving this will sign out your other active sessions.
             </DialogDescription>
           </DialogHeader>
 
@@ -657,13 +723,10 @@ const PatientDashboard = () => {
               />
             </div>
 
+            <PasswordRequirements password={newPassword} />
+
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setPasswordDialogOpen(false)}
-                disabled={updatingPassword}
-              >
+              <Button type="button" variant="outline" onClick={() => setPasswordDialogOpen(false)} disabled={updatingPassword}>
                 Cancel
               </Button>
               <Button type="submit" disabled={updatingPassword}>
@@ -674,19 +737,15 @@ const PatientDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Footer */}
-      <footer className="mt-12 border-t border-border bg-muted/30">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="IRM Clinical" className="h-8 w-8" />
-              <span className="text-sm text-muted-foreground">
-                © {new Date().getFullYear()} IRM Clinical Laboratory
-              </span>
-            </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>Need help? Call us at +91 9622635767</span>
-            </div>
+      <footer className="mt-12 border-t border-border bg-card/70">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground sm:px-6 md:flex-row lg:px-8">
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="IRM Clinical" className="h-8 w-8 rounded-xl border border-border bg-card p-1" />
+            <span>© {new Date().getFullYear()} IRM Clinical Laboratory</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <span>Need help? Call +91 9622635767</span>
+            <span>Portal access is intended for patients and authorized caregivers only.</span>
           </div>
         </div>
       </footer>

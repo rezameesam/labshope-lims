@@ -28,7 +28,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.patient-set-password]
-verify_jwt = false
+verify_jwt = true
 
 [functions.patient-request-password-reset]
 verify_jwt = false
@@ -37,7 +37,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.patient-admin-reset-password]
-verify_jwt = false
+verify_jwt = true
 
 [functions.log-visitor]
 verify_jwt = false

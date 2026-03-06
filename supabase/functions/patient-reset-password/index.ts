@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildPatientAuthEmail,
+  getPatientPasswordError,
+  verifyTurnstile,
+} from "../_shared/patient-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,8 +18,6 @@ interface ResetPasswordRequest {
   turnstile_token?: string;
 }
 
-const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
-
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -24,25 +27,17 @@ serve(async (req: Request): Promise<Response> => {
     const { token, new_password, turnstile_token }: ResetPasswordRequest = await req.json();
 
     if (!token || !new_password) {
-      return new Response(
-        JSON.stringify({ error: "Token and new password are required." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return jsonResponse({ error: "Token and new password are required." }, 400);
     }
 
     const turnstileError = await verifyTurnstile(turnstile_token || "", req);
     if (turnstileError) {
-      return new Response(
-        JSON.stringify({ error: turnstileError }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return jsonResponse({ error: turnstileError }, 400);
     }
 
-    if (new_password.length < 6) {
-      return new Response(
-        JSON.stringify({ error: "New password must be at least 6 characters." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    const passwordError = getPatientPasswordError(new_password);
+    if (passwordError) {
+      return jsonResponse({ error: passwordError }, 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -60,10 +55,7 @@ serve(async (req: Request): Promise<Response> => {
       .limit(1);
 
     if (error || !resetRows || resetRows.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Reset link is invalid or expired." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return jsonResponse({ error: "Reset link is invalid or expired." }, 400);
     }
 
     const resetRow = resetRows[0];
@@ -109,69 +101,18 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    const { error: markError } = await supabase
+    await supabase
       .from("patient_password_resets")
       .update({ used_at: new Date().toISOString() })
-      .eq("id", resetRow.id);
+      .eq("patient_id", resetRow.patient_id)
+      .is("used_at", null);
 
-    if (markError) {
-      throw markError;
-    }
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ success: true }, 200);
   } catch (error: any) {
     console.error("Error in patient-reset-password:", error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ error: error.message || "Internal server error" }, 500);
   }
 });
-
-async function verifyTurnstile(token: string, req: Request): Promise<string | null> {
-  const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-  if (
-    origin.includes("localhost") ||
-    origin.includes("127.0.0.1") ||
-    origin.includes("0.0.0.0") ||
-    /https?:\/\/10\.\d+\.\d+\.\d+/.test(origin) ||
-    /https?:\/\/192\.168\.\d+\.\d+/.test(origin) ||
-    /https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+/.test(origin)
-  ) {
-    return null;
-  }
-  const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
-  if (!secret) return null;
-  if (!token) return "Security check failed. Please try again.";
-
-  const formData = new FormData();
-  formData.append("secret", secret);
-  formData.append("response", token);
-
-  const forwardedFor = req.headers.get("x-forwarded-for") || "";
-  if (forwardedFor) {
-    formData.append("remoteip", forwardedFor.split(",")[0].trim());
-  }
-
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!response.ok) {
-    return "Security check unavailable. Please try again.";
-  }
-
-  const result = await response.json();
-  if (!result.success) {
-    return "Security check failed. Please try again.";
-  }
-
-  return null;
-}
 
 async function hashToken(token: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -181,7 +122,9 @@ async function hashToken(token: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function buildPatientAuthEmail(patientId: string): string {
-  const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  return `patient-${normalizedId}@${PATIENT_AUTH_DOMAIN}`;
+function jsonResponse(payload: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
 }

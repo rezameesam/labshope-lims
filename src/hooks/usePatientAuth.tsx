@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
 
 interface Patient {
   id: string;
@@ -13,6 +15,7 @@ interface Patient {
   date_of_birth: string | null;
   is_active: boolean;
   password_reset_required?: boolean;
+  last_password_change?: string | null;
 }
 
 interface PatientAuthContextType {
@@ -20,9 +23,10 @@ interface PatientAuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   requiresPasswordReset: boolean;
+  currentSessionId: string | null;
   login: (identifier: string, password: string, turnstileToken: string) => Promise<{ error: Error | null; passwordResetRequired?: boolean }>;
   setPassword: (currentPassword: string, newPassword: string) => Promise<{ error: Error | null }>;
-  requestPasswordReset: (identifier: string, resetBaseUrl: string, turnstileToken: string) => Promise<{ error: Error | null }>;
+  requestPasswordReset: (identifier: string, turnstileToken: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -30,8 +34,10 @@ const PatientAuthContext = createContext<PatientAuthContextType | undefined>(und
 
 export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
   const [patient, setPatient] = useState<Patient | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [requiresPasswordReset, setRequiresPasswordReset] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -47,7 +53,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
       const { data, error } = await supabase
         .from("patients")
-        .select("*")
+        .select("id, patient_id, full_name, phone, email, gender, blood_group, address, date_of_birth, is_active, password_reset_required, last_password_change")
         .eq("user_id", userId)
         .eq("is_active", true)
         .maybeSingle();
@@ -55,45 +61,79 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       if (!isMounted) return;
 
       if (data && !error) {
-        const patientData = data as Patient;
+        const patientData = data as unknown as Patient;
         setPatient(patientData);
         setRequiresPasswordReset(!!patientData.password_reset_required);
       } else {
+        if (error) {
+          console.error("Failed to load patient record for session:", error);
+        }
         setPatient(null);
         setRequiresPasswordReset(false);
       }
     };
 
-    const checkSession = async () => {
+    const loadPatientForUserWithTimeout = async (userId: string | null) => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const userId = sessionData.session?.user?.id || null;
         await Promise.race([
           loadPatientForUser(userId),
           new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error("Patient load timeout")), 6000)
+            window.setTimeout(() => reject(new Error("Patient session bootstrap timed out")), 5000),
           ),
-        ]).catch((error) => {
-          console.warn("Patient load delayed:", error);
-        });
+        ]);
       } catch (error) {
-        console.error("Error checking patient session:", error);
+        console.warn("Patient bootstrap fallback triggered:", error);
+        if (isMounted) {
+          setPatient(null);
+          setRequiresPasswordReset(false);
+        }
+      }
+    };
+
+    const syncPatientState = (nextSession: Session | null) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setSession(nextSession);
+      setCurrentSessionId(extractSessionIdFromAccessToken(nextSession?.access_token || null));
+
+      if (!nextSession?.user?.id) {
         setPatient(null);
         setRequiresPasswordReset(false);
-      } finally {
+        setLoading(false);
+        return;
+      }
+
+      window.setTimeout(() => {
+        void loadPatientForUserWithTimeout(nextSession.user.id).finally(() => {
+          if (isMounted) {
+            setLoading(false);
+          }
+        });
+      }, 0);
+    };
+
+    const initialize = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        syncPatientState(sessionData.session ?? null);
+      } catch (error) {
+        console.error("Error checking patient session:", error);
         if (isMounted) {
+          setPatient(null);
+          setRequiresPasswordReset(false);
+          setSession(null);
+          setCurrentSessionId(null);
           setLoading(false);
         }
       }
     };
 
-    checkSession();
+    void initialize();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      loadPatientForUser(session?.user?.id || null);
-      if (isMounted) {
-        setLoading(false);
-      }
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      syncPatientState(nextSession ?? null);
     });
 
     return () => {
@@ -102,10 +142,83 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session?.access_token || !patient?.id || !currentSessionId) {
+      return;
+    }
+
+    const metadata = getClientSessionMetadata();
+    let trackingDisabled = false;
+    let isMounted = true;
+
+    const trackSession = async () => {
+      if (!isMounted || trackingDisabled) {
+        return;
+      }
+
+      const { error } = await (supabase as any).rpc("upsert_patient_session", {
+        _session_id: currentSessionId,
+        _device_name: metadata.deviceName,
+        _browser: metadata.browser,
+        _os: metadata.os,
+        _location: metadata.location,
+        _user_agent: metadata.userAgent,
+      });
+
+      if (error) {
+        if (error.code === "PGRST202") {
+          trackingDisabled = true;
+          return;
+        }
+
+        const message = String(error.message || "").toLowerCase();
+        const sessionInvalid = message.includes("session inactive") || message.includes("session revoked");
+
+        if (sessionInvalid) {
+          trackingDisabled = true;
+          await supabase.auth.signOut({ scope: "local" });
+          setPatient(null);
+          setRequiresPasswordReset(false);
+          setSession(null);
+          setCurrentSessionId(null);
+          return;
+        }
+
+        console.warn("Unable to upsert patient session:", error.message || error);
+      }
+    };
+
+    void trackSession();
+
+    const intervalId = window.setInterval(() => {
+      void trackSession();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void trackSession();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void trackSession();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [currentSessionId, patient?.id, session?.access_token]);
+
   const login = async (identifier: string, password: string, turnstileToken: string): Promise<{ error: Error | null; passwordResetRequired?: boolean }> => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      
+
       const response = await fetch(`${supabaseUrl}/functions/v1/patient-login`, {
         method: "POST",
         headers: {
@@ -141,7 +254,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
   const setPassword = async (currentPassword: string, newPassword: string): Promise<{ error: Error | null }> => {
     try {
-      if (!patient?.id) {
+      if (!session?.access_token || !patient?.id) {
         return { error: new Error("No active patient session") };
       }
 
@@ -150,9 +263,9 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          patient_id: patient.id,
           current_password: currentPassword,
           new_password: newPassword,
         }),
@@ -164,6 +277,22 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         return { error: new Error(result.error || "Failed to update password") };
       }
 
+      if (currentSessionId) {
+        await supabase.auth.signOut({ scope: "others" });
+        await (supabase as any).rpc("revoke_other_patient_sessions", {
+          _current_session_id: currentSessionId,
+        });
+      }
+
+      setPatient((prev) =>
+        prev
+          ? {
+              ...prev,
+              password_reset_required: false,
+              last_password_change: new Date().toISOString(),
+            }
+          : prev,
+      );
       setRequiresPasswordReset(false);
       return { error: null };
     } catch (error) {
@@ -171,7 +300,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const requestPasswordReset = async (identifier: string, resetBaseUrl: string, turnstileToken: string): Promise<{ error: Error | null }> => {
+  const requestPasswordReset = async (identifier: string, turnstileToken: string): Promise<{ error: Error | null }> => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/patient-request-password-reset`, {
@@ -181,7 +310,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         },
         body: JSON.stringify({
           identifier,
-          reset_base_url: resetBaseUrl,
           turnstile_token: turnstileToken,
         }),
       });
@@ -202,6 +330,8 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
     setPatient(null);
     setRequiresPasswordReset(false);
+    setSession(null);
+    setCurrentSessionId(null);
   };
 
   return (
@@ -211,6 +341,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         isAuthenticated: !!patient && !requiresPasswordReset,
         requiresPasswordReset,
+        currentSessionId,
         login,
         setPassword,
         requestPasswordReset,
