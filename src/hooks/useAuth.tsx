@@ -13,7 +13,8 @@ interface AuthContextType {
   roles: UserRole[];
   signIn: (
     email: string,
-    password: string
+    password: string,
+    turnstileToken: string
   ) => Promise<{
     error: Error | null;
     roles?: UserRole[];
@@ -90,41 +91,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      return { error: error as Error };
-    }
+  const signIn = async (email: string, password: string, turnstileToken: string) => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/employee-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          turnstile_token: turnstileToken,
+        }),
+      });
 
-    if (!error) {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const result = await response.json();
+      if (!response.ok) {
+        return { error: new Error(result.error || "Login failed") };
+      }
+
+      const accessToken = result.session?.access_token;
+      const refreshToken = result.session?.refresh_token;
+      if (!accessToken || !refreshToken) {
+        return { error: new Error("Authentication session was not returned.") };
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError) {
+        return { error: sessionError as Error };
+      }
+
       const nextSession = sessionData.session ?? null;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      if (nextSession?.user) {
-        const nextRoles = await fetchUserRoles(nextSession.user.id);
-        setRoles(nextRoles);
-        const nextIsStaff = nextRoles.some((role) =>
-          role === "admin" || role === "employee" || role === "collector"
-        );
-        const nextIsCollector =
+
+      if (!nextSession?.user) {
+        setRoles([]);
+        return { error: null };
+      }
+
+      const nextRoles = Array.isArray(result.roles)
+        ? (result.roles as UserRole[])
+        : await fetchUserRoles(nextSession.user.id);
+
+      setRoles(nextRoles);
+
+      return {
+        error: null,
+        roles: nextRoles,
+        isStaff: nextRoles.some((role) => role === "admin" || role === "employee" || role === "collector"),
+        isCollector:
           nextRoles.includes("collector") &&
           !nextRoles.includes("admin") &&
-          !nextRoles.includes("employee");
-        return {
-          error: null,
-          roles: nextRoles,
-          isStaff: nextIsStaff,
-          isCollector: nextIsCollector,
-        };
-      } else {
-        setRoles([]);
-      }
+          !nextRoles.includes("employee"),
+      };
+    } catch (error) {
+      return { error: error as Error };
     }
-    return { error: null };
   };
 
   const signUp = async (email: string, password: string) => {
