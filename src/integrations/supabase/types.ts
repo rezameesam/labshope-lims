@@ -267,6 +267,53 @@ export type Database = {
           },
         ]
       }
+      employee_private_details: {
+        Row: {
+          aadhaar_number: string | null
+          address: string | null
+          created_at: string
+          employee_id: string
+          pan_number: string | null
+          photo_content_type: string | null
+          photo_original_name: string | null
+          photo_path: string | null
+          photo_size_bytes: number | null
+          updated_at: string
+        }
+        Insert: {
+          aadhaar_number?: string | null
+          address?: string | null
+          created_at?: string
+          employee_id: string
+          pan_number?: string | null
+          photo_content_type?: string | null
+          photo_original_name?: string | null
+          photo_path?: string | null
+          photo_size_bytes?: number | null
+          updated_at?: string
+        }
+        Update: {
+          aadhaar_number?: string | null
+          address?: string | null
+          created_at?: string
+          employee_id?: string
+          pan_number?: string | null
+          photo_content_type?: string | null
+          photo_original_name?: string | null
+          photo_path?: string | null
+          photo_size_bytes?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_private_details_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment_maintenance: {
         Row: {
           completed_date: string | null

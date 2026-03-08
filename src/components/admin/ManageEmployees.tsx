@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical, KeyRound } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical, KeyRound, Camera, CreditCard, IdCard, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,6 +60,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLab } from "@/contexts/LabContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Employee {
   id: string;
@@ -74,8 +76,74 @@ interface Employee {
   role?: string;
 }
 
+interface EmployeeIdentityDraft {
+  photo_name: string;
+  photo_preview: string;
+  photo_path: string | null;
+  photo_content_type: string | null;
+  photo_size_bytes: number | null;
+  aadhaar_number: string;
+  pan_number: string;
+  address: string;
+}
+
+interface EmployeeFormState extends EmployeeIdentityDraft {
+  full_name: string;
+  email: string;
+  password: string;
+  phone: string;
+  designation: string;
+  department: string;
+  role: "admin" | "employee" | "collector";
+  photo_file: File | null;
+}
+
+interface EmployeeEditFormState extends EmployeeIdentityDraft {
+  full_name: string;
+  phone: string;
+  designation: string;
+  department: string;
+  photo_file: File | null;
+}
+
+const EMPLOYEE_PHOTO_BUCKET = "employee-photos";
+const MAX_EMPLOYEE_PHOTO_BYTES = 1024 * 1024;
+
+const createEmptyIdentityDraft = (): EmployeeIdentityDraft => ({
+  photo_name: "",
+  photo_preview: "",
+  photo_path: null,
+  photo_content_type: null,
+  photo_size_bytes: null,
+  aadhaar_number: "",
+  pan_number: "",
+  address: "",
+});
+
+const createEmptyFormData = (): EmployeeFormState => ({
+  full_name: "",
+  email: "",
+  password: "",
+  phone: "",
+  designation: "",
+  department: "",
+  role: "employee",
+  photo_file: null,
+  ...createEmptyIdentityDraft(),
+});
+
+const createEmptyEditFormData = (): EmployeeEditFormState => ({
+  full_name: "",
+  phone: "",
+  designation: "",
+  department: "",
+  photo_file: null,
+  ...createEmptyIdentityDraft(),
+});
+
 const ManageEmployees = () => {
   const { currentLab } = useLab();
+  const { user, hasRole } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -88,22 +156,10 @@ const ManageEmployees = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
-    password: "",
-    phone: "",
-    designation: "",
-    department: "",
-    role: "employee" as "admin" | "employee" | "collector",
-  });
-  const [editFormData, setEditFormData] = useState({
-    full_name: "",
-    phone: "",
-    designation: "",
-    department: "",
-  });
+  const [formData, setFormData] = useState<EmployeeFormState>(createEmptyFormData());
+  const [editFormData, setEditFormData] = useState<EmployeeEditFormState>(createEmptyEditFormData());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [employeeIdentityDrafts, setEmployeeIdentityDrafts] = useState<Record<string, EmployeeIdentityDraft>>({});
   const [customRoles, setCustomRoles] = useState<Array<{ id: string; name: string; description: string | null }>>([]);
   const [employeeCustomRoles, setEmployeeCustomRoles] = useState<Set<string>>(new Set());
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
@@ -130,6 +186,35 @@ const ManageEmployees = () => {
 
       if (rolesError) throw rolesError;
 
+      const employeeIds = employeesData?.map((employee) => employee.id) || [];
+      const { data: privateDetailsData, error: privateDetailsError } = employeeIds.length > 0
+        ? await supabase
+            .from("employee_private_details")
+            .select("employee_id, address, aadhaar_number, pan_number, photo_path, photo_original_name, photo_content_type, photo_size_bytes")
+            .in("employee_id", employeeIds)
+        : { data: [], error: null };
+
+      if (privateDetailsError) throw privateDetailsError;
+
+      const photoPaths = (privateDetailsData || [])
+        .map((detail) => detail.photo_path)
+        .filter((path): path is string => Boolean(path));
+
+      const signedPhotoUrlByPath = new Map<string, string>();
+      if (photoPaths.length > 0) {
+        const { data: signedUrls, error: signedUrlsError } = await supabase.storage
+          .from(EMPLOYEE_PHOTO_BUCKET)
+          .createSignedUrls(photoPaths, 60 * 60);
+
+        if (signedUrlsError) throw signedUrlsError;
+
+        (signedUrls || []).forEach((signedUrlEntry) => {
+          if (signedUrlEntry.path && signedUrlEntry.signedUrl) {
+            signedPhotoUrlByPath.set(signedUrlEntry.path, signedUrlEntry.signedUrl);
+          }
+        });
+      }
+
       // Combine employees with their roles
       const employeesWithRoles = employeesData?.map(emp => ({
         ...emp,
@@ -137,6 +222,32 @@ const ManageEmployees = () => {
       })) || [];
 
       setEmployees(employeesWithRoles);
+      setEmployeeIdentityDrafts((previousDrafts) => {
+        const nextDrafts = { ...previousDrafts };
+
+        employeesWithRoles.forEach((employee) => {
+          const persistedDetails = privateDetailsData?.find((detail) => detail.employee_id === employee.id);
+          if (persistedDetails) {
+            nextDrafts[employee.id] = {
+              photo_name: persistedDetails.photo_original_name || getPhotoNameFromPath(persistedDetails.photo_path),
+              photo_preview: persistedDetails.photo_path ? signedPhotoUrlByPath.get(persistedDetails.photo_path) || "" : "",
+              photo_path: persistedDetails.photo_path,
+              photo_content_type: persistedDetails.photo_content_type,
+              photo_size_bytes: persistedDetails.photo_size_bytes,
+              aadhaar_number: persistedDetails.aadhaar_number || "",
+              pan_number: persistedDetails.pan_number || "",
+              address: persistedDetails.address || "",
+            };
+            return;
+          }
+
+          if (!nextDrafts[employee.id]) {
+            nextDrafts[employee.id] = createEmptyIdentityDraft();
+          }
+        });
+
+        return nextDrafts;
+      });
     } catch (error) {
       console.error("Error fetching employees:", error);
       toast.error("Failed to fetch employees");
@@ -153,6 +264,13 @@ const ManageEmployees = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    let createdEmployee:
+      | {
+          id: string;
+          user_id: string;
+        }
+      | null = null;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -187,13 +305,29 @@ const ManageEmployees = () => {
         throw new Error(result.error || "Failed to create employee");
       }
 
+      if (result.employee_row_id && result.user_id) {
+        createdEmployee = {
+          id: result.employee_row_id,
+          user_id: result.user_id,
+        };
+
+        await saveEmployeeIdentity(createdEmployee, formData);
+      }
+
       toast.success(`Employee ${formData.full_name} added successfully`);
       setIsDialogOpen(false);
       resetForm();
-      fetchEmployees();
+      await fetchEmployees();
     } catch (error: any) {
       console.error("Error adding employee:", error);
-      toast.error(error.message || "Failed to add employee");
+      if (createdEmployee) {
+        toast.error(`Employee was created, but private details could not be saved: ${error.message || "Unknown error"}`);
+        setIsDialogOpen(false);
+        resetForm();
+        await fetchEmployees();
+      } else {
+        toast.error(error.message || "Failed to add employee");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -204,26 +338,46 @@ const ManageEmployees = () => {
     if (!selectedEmployee) return;
     setIsSubmitting(true);
 
+    let employeeUpdated = false;
+
     try {
+      const updatePayload = hasRole("admin")
+        ? {
+            full_name: editFormData.full_name,
+            phone: editFormData.phone || null,
+            designation: editFormData.designation || null,
+            department: editFormData.department || null,
+          }
+        : {
+            phone: editFormData.phone || null,
+          };
+
       const { error } = await supabase
         .from("employees")
-        .update({
-          full_name: editFormData.full_name,
-          phone: editFormData.phone || null,
-          designation: editFormData.designation || null,
-          department: editFormData.department || null,
-        })
+        .update(updatePayload)
         .eq("id", selectedEmployee.id);
 
       if (error) throw error;
+      employeeUpdated = true;
+
+      if (hasRole("admin") && canViewEmployeeIdentity(selectedEmployee)) {
+        await saveEmployeeIdentity(selectedEmployee, editFormData);
+      }
 
       toast.success("Employee updated successfully");
       setIsEditDialogOpen(false);
       setSelectedEmployee(null);
-      fetchEmployees();
+      await fetchEmployees();
     } catch (error: any) {
       console.error("Error updating employee:", error);
-      toast.error(error.message || "Failed to update employee");
+      if (employeeUpdated) {
+        toast.error(`Employee was updated, but private details could not be saved: ${error.message || "Unknown error"}`);
+        setIsEditDialogOpen(false);
+        setSelectedEmployee(null);
+        await fetchEmployees();
+      } else {
+        toast.error(error.message || "Failed to update employee");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -274,26 +428,294 @@ const ManageEmployees = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      full_name: "",
-      email: "",
-      password: "",
-      phone: "",
-      designation: "",
-      department: "",
-      role: "employee",
-    });
+    setFormData(createEmptyFormData());
   };
 
-  const openEditDialog = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setEditFormData({
-      full_name: employee.full_name,
-      phone: employee.phone || "",
-      designation: employee.designation || "",
-      department: employee.department || "",
+  const getEmployeeIdentityDraft = (employee: Employee | null) => {
+    if (!employee) return createEmptyIdentityDraft();
+
+    return employeeIdentityDrafts[employee.id] || createEmptyIdentityDraft();
+  };
+
+  const normalizeAadhaar = (value: string) => value.replace(/\D/g, "").slice(0, 12);
+
+  const normalizePan = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+
+  const formatAadhaar = (value: string) => {
+    const chunks = value.match(/.{1,4}/g);
+    return chunks?.join(" ") || value;
+  };
+
+  const maskDocumentNumber = (value: string, visibleDigits = 4) => {
+    if (!value) return "";
+    if (value.length <= visibleDigits) return value;
+    return `${"*".repeat(Math.max(0, value.length - visibleDigits))}${value.slice(-visibleDigits)}`;
+  };
+
+  const canViewEmployeeIdentity = (employee: Employee | null) => {
+    if (!employee) return false;
+    return hasRole("admin") || user?.id === employee.user_id;
+  };
+
+  const readImageFile = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+
+        reject(new Error("Unable to read image file"));
+      };
+      reader.onerror = () => reject(reader.error || new Error("Unable to read image file"));
+      reader.readAsDataURL(file);
     });
-    setIsEditDialogOpen(true);
+
+  const validateEmployeePhoto = (file: File) => {
+    if (file.size >= MAX_EMPLOYEE_PHOTO_BYTES) {
+      throw new Error("Employee picture must be smaller than 1 MB");
+    }
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      throw new Error("Employee picture must be a JPG, PNG, or WebP image");
+    }
+  };
+
+  const getFileExtension = (file: File) => {
+    const nameParts = file.name.split(".");
+    const explicitExtension = nameParts.length > 1 ? nameParts[nameParts.length - 1].toLowerCase() : "";
+    if (explicitExtension) return explicitExtension;
+
+    if (file.type === "image/png") return "png";
+    if (file.type === "image/webp") return "webp";
+    return "jpg";
+  };
+
+  const buildEmployeePhotoPath = (employeeUserId: string, file: File) =>
+    `${employeeUserId}/profile.${getFileExtension(file)}`;
+
+  const getPhotoNameFromPath = (photoPath: string | null) => {
+    if (!photoPath) return "";
+    const segments = photoPath.split("/");
+    return segments[segments.length - 1] || "";
+  };
+
+  const getSignedEmployeePhotoUrl = async (photoPath: string | null) => {
+    if (!photoPath) return "";
+
+    const { data, error } = await supabase.storage
+      .from(EMPLOYEE_PHOTO_BUCKET)
+      .createSignedUrl(photoPath, 60 * 60);
+
+    if (error) {
+      throw error;
+    }
+
+    return data.signedUrl;
+  };
+
+  const fetchEmployeeIdentity = async (employee: Employee) => {
+    if (!canViewEmployeeIdentity(employee)) {
+      const emptyDraft = createEmptyIdentityDraft();
+      setEmployeeIdentityDrafts((previousDrafts) => ({
+        ...previousDrafts,
+        [employee.id]: emptyDraft,
+      }));
+      return emptyDraft;
+    }
+
+    const { data, error } = await supabase
+      .from("employee_private_details")
+      .select("address, aadhaar_number, pan_number, photo_path, photo_original_name, photo_content_type, photo_size_bytes")
+      .eq("employee_id", employee.id)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    const draft: EmployeeIdentityDraft = {
+      photo_name: data?.photo_original_name || getPhotoNameFromPath(data?.photo_path ?? null),
+      photo_preview: data?.photo_path ? await getSignedEmployeePhotoUrl(data.photo_path) : "",
+      photo_path: data?.photo_path ?? null,
+      photo_content_type: data?.photo_content_type ?? null,
+      photo_size_bytes: data?.photo_size_bytes ?? null,
+      aadhaar_number: data?.aadhaar_number ?? "",
+      pan_number: data?.pan_number ?? "",
+      address: data?.address ?? "",
+    };
+
+    setEmployeeIdentityDrafts((previousDrafts) => ({
+      ...previousDrafts,
+      [employee.id]: draft,
+    }));
+
+    return draft;
+  };
+
+  const handlePhotoSelection = async (
+    file: File,
+    applyState: React.Dispatch<React.SetStateAction<EmployeeFormState>> | React.Dispatch<React.SetStateAction<EmployeeEditFormState>>,
+  ) => {
+    validateEmployeePhoto(file);
+    const preview = await readImageFile(file);
+
+    applyState((previous) => ({
+      ...previous,
+      photo_file: file,
+      photo_name: file.name,
+      photo_preview: preview,
+      photo_path: previous.photo_path,
+      photo_content_type: file.type,
+      photo_size_bytes: file.size,
+    }));
+  };
+
+  const clearPhotoSelection = (
+    applyState: React.Dispatch<React.SetStateAction<EmployeeFormState>> | React.Dispatch<React.SetStateAction<EmployeeEditFormState>>,
+  ) => {
+    applyState((previous) => ({
+      ...previous,
+      photo_file: null,
+      photo_name: "",
+      photo_preview: "",
+      photo_path: null,
+      photo_content_type: null,
+      photo_size_bytes: null,
+    }));
+  };
+
+  const saveEmployeeIdentity = async (
+    employee: Pick<Employee, "id" | "user_id">,
+    identity: EmployeeIdentityDraft & { photo_file: File | null },
+  ) => {
+    let nextPhotoPath = identity.photo_path;
+    let nextPhotoName = identity.photo_name;
+    let nextPhotoContentType = identity.photo_content_type;
+    let nextPhotoSizeBytes = identity.photo_size_bytes;
+
+    if (identity.photo_file) {
+      validateEmployeePhoto(identity.photo_file);
+      const uploadPath = buildEmployeePhotoPath(employee.user_id, identity.photo_file);
+
+      if (identity.photo_path && identity.photo_path !== uploadPath) {
+        const { error: removeError } = await supabase.storage
+          .from(EMPLOYEE_PHOTO_BUCKET)
+          .remove([identity.photo_path]);
+        if (removeError) throw removeError;
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from(EMPLOYEE_PHOTO_BUCKET)
+        .upload(uploadPath, identity.photo_file, {
+          upsert: true,
+          contentType: identity.photo_file.type,
+          cacheControl: "3600",
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      nextPhotoPath = uploadPath;
+      nextPhotoName = identity.photo_file.name;
+      nextPhotoContentType = identity.photo_file.type;
+      nextPhotoSizeBytes = identity.photo_file.size;
+    } else if (!identity.photo_preview && identity.photo_path) {
+      const { error: removeError } = await supabase.storage
+        .from(EMPLOYEE_PHOTO_BUCKET)
+        .remove([identity.photo_path]);
+      if (removeError) throw removeError;
+
+      nextPhotoPath = null;
+      nextPhotoName = "";
+      nextPhotoContentType = null;
+      nextPhotoSizeBytes = null;
+    }
+
+    const normalizedAddress = identity.address.trim();
+    const normalizedAadhaar = identity.aadhaar_number.trim();
+    const normalizedPan = identity.pan_number.trim();
+
+    const hasIdentityValues = Boolean(
+      normalizedAddress || normalizedAadhaar || normalizedPan || nextPhotoPath
+    );
+
+    if (!hasIdentityValues) {
+      const { error } = await supabase
+        .from("employee_private_details")
+        .delete()
+        .eq("employee_id", employee.id);
+
+      if (error) throw error;
+
+      const emptyDraft = createEmptyIdentityDraft();
+      setEmployeeIdentityDrafts((previousDrafts) => ({
+        ...previousDrafts,
+        [employee.id]: emptyDraft,
+      }));
+
+      return emptyDraft;
+    }
+
+    const { error } = await supabase
+      .from("employee_private_details")
+      .upsert(
+        {
+          employee_id: employee.id,
+          address: normalizedAddress || null,
+          aadhaar_number: normalizedAadhaar || null,
+          pan_number: normalizedPan || null,
+          photo_path: nextPhotoPath,
+          photo_original_name: nextPhotoName || null,
+          photo_content_type: nextPhotoContentType,
+          photo_size_bytes: nextPhotoSizeBytes,
+        },
+        { onConflict: "employee_id" }
+      );
+
+    if (error) throw error;
+
+    const savedDraft: EmployeeIdentityDraft = {
+      photo_name: nextPhotoName,
+      photo_preview: nextPhotoPath ? await getSignedEmployeePhotoUrl(nextPhotoPath) : "",
+      photo_path: nextPhotoPath,
+      photo_content_type: nextPhotoContentType,
+      photo_size_bytes: nextPhotoSizeBytes,
+      aadhaar_number: normalizedAadhaar,
+      pan_number: normalizedPan,
+      address: normalizedAddress,
+    };
+
+    setEmployeeIdentityDrafts((previousDrafts) => ({
+      ...previousDrafts,
+      [employee.id]: savedDraft,
+    }));
+
+    return savedDraft;
+  };
+
+  const openEditDialog = async (employee: Employee) => {
+    try {
+      const identityDraft = canViewEmployeeIdentity(employee)
+        ? await fetchEmployeeIdentity(employee)
+        : createEmptyIdentityDraft();
+      setSelectedEmployee(employee);
+      setEditFormData({
+        ...createEmptyEditFormData(),
+        full_name: employee.full_name,
+        phone: employee.phone || "",
+        designation: employee.designation || "",
+        department: employee.department || "",
+        ...identityDraft,
+        photo_file: null,
+      });
+      setIsEditDialogOpen(true);
+    } catch (error: any) {
+      console.error("Error loading employee identity:", error);
+      toast.error(error.message || "Failed to load employee details");
+    }
   };
 
   const handleAdminResetPassword = async (mode: "email" | "temp" | "set") => {
@@ -368,6 +790,10 @@ const ManageEmployees = () => {
     
     // Fetch custom roles and employee's assigned roles
     try {
+      if (canViewEmployeeIdentity(employee)) {
+        await fetchEmployeeIdentity(employee);
+      }
+
       // Fetch all custom roles
       await fetchCustomRoles();
 
@@ -382,6 +808,7 @@ const ManageEmployees = () => {
     } catch (error) {
       console.error("Error fetching employee roles:", error);
       setEmployeeCustomRoles(new Set());
+      toast.error("Failed to load employee details");
     }
   };
 
@@ -416,6 +843,10 @@ const ManageEmployees = () => {
   const adminCount = employees.filter(e => e.role === "admin").length;
   const collectorCount = employees.filter(e => e.role === "collector").length;
   const activeCount = employees.filter(e => e.is_active).length;
+  const selectedEmployeeIdentityDraft = getEmployeeIdentityDraft(selectedEmployee);
+  const canViewSelectedEmployeeIdentity = canViewEmployeeIdentity(selectedEmployee);
+  const canManageEmployeeRecords = hasRole("admin");
+  const canEditSelectedEmployeePhone = Boolean(selectedEmployee) && (canManageEmployeeRecords || user?.id === selectedEmployee.user_id);
 
   return (
     <div className="space-y-6">
@@ -514,7 +945,7 @@ const ManageEmployees = () => {
               Add Employee
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
               <DialogDescription>
@@ -623,6 +1054,132 @@ const ManageEmployees = () => {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-dashed bg-muted/30 p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-medium">Identity Details</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Optional private employee photo, address, Aadhaar, and PAN details.
+                    </p>
+                  </div>
+                  <Badge variant="secondary">Private</Badge>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                  <div className="space-y-3">
+                    <Label htmlFor="employee_photo">Employee Picture</Label>
+                    <div className="rounded-xl border bg-background p-4">
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="h-24 w-24 overflow-hidden rounded-full border bg-muted flex items-center justify-center">
+                          {formData.photo_preview ? (
+                            <img
+                              src={formData.photo_preview}
+                              alt="Employee preview"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Camera className="h-8 w-8 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="space-y-2 w-full">
+                          <Input
+                            id="employee_photo"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                await handlePhotoSelection(file, setFormData);
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to load employee picture");
+                              } finally {
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => document.getElementById("employee_photo")?.click()}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            {formData.photo_preview ? "Change Picture" : "Upload Picture"}
+                          </Button>
+                          {formData.photo_preview && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="w-full"
+                              onClick={() => clearPhotoSelection(setFormData)}
+                            >
+                              Remove Picture
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground break-all">
+                          {formData.photo_name || "No image selected"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          JPG, PNG, or WebP. Must be less than 1 MB.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="aadhaar_number">Aadhaar Number</Label>
+                      <Input
+                        id="aadhaar_number"
+                        inputMode="numeric"
+                        value={formatAadhaar(formData.aadhaar_number)}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          aadhaar_number: normalizeAadhaar(e.target.value),
+                        })}
+                        placeholder="1234 5678 9012"
+                      />
+                      <p className="text-xs text-muted-foreground">12 digits, optional.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pan_number">PAN Number</Label>
+                      <Input
+                        id="pan_number"
+                        value={formData.pan_number}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          pan_number: normalizePan(e.target.value),
+                        })}
+                        placeholder="ABCDE1234F"
+                      />
+                      <p className="text-xs text-muted-foreground">10 characters, optional.</p>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="employee_address">Address</Label>
+                      <Textarea
+                        id="employee_address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          address: e.target.value,
+                        })}
+                        placeholder="Enter employee address"
+                        rows={4}
+                      />
+                      <p className="text-xs text-muted-foreground">Optional. Stored privately in Supabase.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Stored in Supabase with restricted access. Only admins and the employee themselves should be able to view them.
+                </p>
+              </div>
+
               <Button
                 type="submit"
                 className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
@@ -665,12 +1222,23 @@ const ManageEmployees = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredEmployees.map((employee) => (
+              filteredEmployees.map((employee) => {
+                const employeeIdentityDraft = getEmployeeIdentityDraft(employee);
+
+                return (
                 <TableRow key={employee.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                        {employeeIdentityDraft.photo_preview ? (
+                          <img
+                            src={employeeIdentityDraft.photo_preview}
+                            alt={employee.full_name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-5 w-5 text-primary" />
+                        )}
                       </div>
                       <div>
                         <p className="font-medium">{employee.full_name}</p>
@@ -767,10 +1335,11 @@ const ManageEmployees = () => {
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
-                    </DropdownMenu>
+                      </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -778,7 +1347,7 @@ const ManageEmployees = () => {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
           </DialogHeader>
@@ -790,6 +1359,7 @@ const ManageEmployees = () => {
                 value={editFormData.full_name}
                 onChange={(e) => setEditFormData({ ...editFormData, full_name: e.target.value })}
                 required
+                disabled={!canManageEmployeeRecords}
               />
             </div>
             <div className="space-y-2">
@@ -799,6 +1369,7 @@ const ManageEmployees = () => {
                 type="tel"
                 value={editFormData.phone}
                 onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                disabled={!canEditSelectedEmployeePhone}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -808,6 +1379,7 @@ const ManageEmployees = () => {
                   id="edit_designation"
                   value={editFormData.designation}
                   onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
+                  disabled={!canManageEmployeeRecords}
                 />
               </div>
               <div className="space-y-2">
@@ -816,15 +1388,140 @@ const ManageEmployees = () => {
                   id="edit_department"
                   value={editFormData.department}
                   onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                  disabled={!canManageEmployeeRecords}
                 />
               </div>
             </div>
+
+            {canManageEmployeeRecords && canViewSelectedEmployeeIdentity && (
+              <div className="rounded-xl border border-dashed bg-muted/30 p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-medium">Identity Details</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Optional private photo, address, Aadhaar, and PAN details.
+                    </p>
+                  </div>
+                  <Badge variant="secondary">Private</Badge>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                  <div className="space-y-3">
+                    <Label htmlFor="edit_employee_photo">Employee Picture</Label>
+                    <div className="rounded-xl border bg-background p-4">
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="h-24 w-24 overflow-hidden rounded-full border bg-muted flex items-center justify-center">
+                          {editFormData.photo_preview ? (
+                            <img
+                              src={editFormData.photo_preview}
+                              alt="Employee preview"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Camera className="h-8 w-8 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="space-y-2 w-full">
+                          <Input
+                            id="edit_employee_photo"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                await handlePhotoSelection(file, setEditFormData);
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to load employee picture");
+                              } finally {
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => document.getElementById("edit_employee_photo")?.click()}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            {editFormData.photo_preview ? "Change Picture" : "Upload Picture"}
+                          </Button>
+                          {editFormData.photo_preview && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="w-full"
+                              onClick={() => clearPhotoSelection(setEditFormData)}
+                            >
+                              Remove Picture
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground break-all">
+                          {editFormData.photo_name || "No image selected"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          JPG, PNG, or WebP. Must be less than 1 MB.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_aadhaar_number">Aadhaar Number</Label>
+                      <Input
+                        id="edit_aadhaar_number"
+                        inputMode="numeric"
+                        value={formatAadhaar(editFormData.aadhaar_number)}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          aadhaar_number: normalizeAadhaar(e.target.value),
+                        })}
+                        placeholder="1234 5678 9012"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_pan_number">PAN Number</Label>
+                      <Input
+                        id="edit_pan_number"
+                        value={editFormData.pan_number}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          pan_number: normalizePan(e.target.value),
+                        })}
+                        placeholder="ABCDE1234F"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="edit_employee_address">Address</Label>
+                      <Textarea
+                        id="edit_employee_address"
+                        value={editFormData.address}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData,
+                          address: e.target.value,
+                        })}
+                        placeholder="Enter employee address"
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Stored in Supabase with restricted access. Only admins and the employee themselves should be able to view them.
+                </p>
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canEditSelectedEmployeePhone}
             >
-              {isSubmitting ? "Saving..." : "Save Changes"}
+              {isSubmitting ? "Saving..." : canManageEmployeeRecords ? "Save Changes" : "Save Phone Number"}
             </Button>
           </form>
         </DialogContent>
@@ -902,18 +1599,27 @@ const ManageEmployees = () => {
 
       {/* Employee Details Sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="w-full sm:max-w-md">
+        <SheetContent className="w-full sm:max-w-md flex flex-col">
           <SheetHeader>
             <SheetTitle>Employee Details</SheetTitle>
           </SheetHeader>
           
           {selectedEmployee && (
-            <div className="mt-6 space-y-6">
+            <ScrollArea className="mt-6 flex-1 pr-4">
+              <div className="space-y-6 pb-6">
               <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/5 to-transparent">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-4">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-8 w-8 text-primary" />
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                      {selectedEmployeeIdentityDraft.photo_preview ? (
+                        <img
+                          src={selectedEmployeeIdentityDraft.photo_preview}
+                          alt={selectedEmployee.full_name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <User className="h-8 w-8 text-primary" />
+                      )}
                     </div>
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold">{selectedEmployee.full_name}</h3>
@@ -970,6 +1676,73 @@ const ManageEmployees = () => {
                       <p className="text-xs text-muted-foreground">Designation</p>
                       <p className="font-medium">{selectedEmployee.designation}</p>
                     </div>
+                  </div>
+                )}
+
+                {canViewSelectedEmployeeIdentity && (
+                  <div className="space-y-3 rounded-xl border border-dashed p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">Identity Details</p>
+                        <p className="text-xs text-muted-foreground">
+                          Stored privately in Supabase. Restricted to admins and the employee themselves.
+                        </p>
+                      </div>
+                      <Badge variant="secondary">Private</Badge>
+                    </div>
+
+                    {selectedEmployeeIdentityDraft.photo_name && (
+                      <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+                        <Camera className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Picture</p>
+                          <p className="font-medium">{selectedEmployeeIdentityDraft.photo_name}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedEmployeeIdentityDraft.address && (
+                      <div className="flex items-start gap-3 rounded-lg bg-muted/50 p-3">
+                        <Building className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Address</p>
+                          <p className="font-medium whitespace-pre-wrap">{selectedEmployeeIdentityDraft.address}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedEmployeeIdentityDraft.aadhaar_number && (
+                      <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+                        <IdCard className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Aadhaar</p>
+                          <p className="font-medium">
+                            {maskDocumentNumber(formatAadhaar(selectedEmployeeIdentityDraft.aadhaar_number))}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedEmployeeIdentityDraft.pan_number && (
+                      <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">PAN</p>
+                          <p className="font-medium">
+                            {maskDocumentNumber(selectedEmployeeIdentityDraft.pan_number)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {!selectedEmployeeIdentityDraft.photo_name &&
+                      !selectedEmployeeIdentityDraft.address &&
+                      !selectedEmployeeIdentityDraft.aadhaar_number &&
+                      !selectedEmployeeIdentityDraft.pan_number && (
+                        <p className="text-sm text-muted-foreground">
+                          No private identity details saved yet.
+                        </p>
+                      )}
                   </div>
                 )}
 
@@ -1038,7 +1811,8 @@ const ManageEmployees = () => {
                   {selectedEmployee.is_active ? "Deactivate" : "Activate"}
                 </Button>
               </div>
-            </div>
+              </div>
+            </ScrollArea>
           )}
         </SheetContent>
       </Sheet>

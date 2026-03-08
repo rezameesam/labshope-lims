@@ -16,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -24,10 +29,20 @@ jobs:
       - name: Validate required secrets
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "Missing required GitHub secret: SUPABASE_DB_URL"
+            exit 1
+          fi
+          if [ -z "${SUPABASE_URL:-}" ]; then
+            echo "Missing required GitHub secret: SUPABASE_URL"
+            exit 1
+          fi
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "Missing required GitHub secret: SUPABASE_SERVICE_ROLE_KEY"
             exit 1
           fi
 
@@ -46,16 +61,28 @@ jobs:
           supabase db dump --db-url "${SUPABASE_DB_URL}" -f "${backup_dir}/schema.sql"
           supabase db dump --db-url "${SUPABASE_DB_URL}" -f "${backup_dir}/data.sql" --data-only --use-copy
 
-          tar -czf "backups/supabase-backup-${timestamp}.tar.gz" -C "${backup_dir}" .
-
           echo "timestamp=${timestamp}" >> "${GITHUB_OUTPUT}"
+
+      - name: Backup employee photo bucket
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: employee-photos
+        run: |
+          set -euo pipefail
+          node scripts/backup-employee-photos.mjs "backups/${{ steps.dump.outputs.timestamp }}/storage/employee-photos"
+
+      - name: Package backup archive
+        run: |
+          set -euo pipefail
+          tar -czf "backups/supabase-backup-${{ steps.dump.outputs.timestamp }}.tar.gz" -C "backups/${{ steps.dump.outputs.timestamp }}" .
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
         with:
           name: supabase-backup-${{ steps.dump.outputs.timestamp }}
           path: |
-            backups/${{ steps.dump.outputs.timestamp }}/*.sql
+            backups/${{ steps.dump.outputs.timestamp }}/**/*
             backups/supabase-backup-${{ steps.dump.outputs.timestamp }}.tar.gz
           if-no-files-found: error
           retention-days: 30

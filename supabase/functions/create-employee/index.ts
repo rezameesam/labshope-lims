@@ -211,16 +211,20 @@ serve(async (req: Request) => {
     const employeeId = `EMP${Math.floor(1000 + Math.random() * 9000)}`;
 
     // Create employee record
-    const { error: employeeError } = await supabaseAdmin.from("employees").insert({
-      user_id: userId,
-      employee_id: employeeId,
-      full_name,
-      email,
-      phone: phone || null,
-      designation: designation || null,
-      department: department || null,
-      lab_id: targetLabId,
-    });
+    const { data: employeeRecord, error: employeeError } = await supabaseAdmin
+      .from("employees")
+      .insert({
+        user_id: userId,
+        employee_id: employeeId,
+        full_name,
+        email,
+        phone: phone || null,
+        designation: designation || null,
+        department: department || null,
+        lab_id: targetLabId,
+      })
+      .select("id, user_id, employee_id")
+      .single();
 
     if (employeeError) {
       console.error("Error creating employee:", employeeError);
@@ -289,7 +293,9 @@ serve(async (req: Request) => {
       JSON.stringify({ 
         success: true, 
         message: "Employee created successfully",
-        employee_id: employeeId 
+        employee_id: employeeId,
+        employee_row_id: employeeRecord?.id,
+        user_id: employeeRecord?.user_id || userId,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
