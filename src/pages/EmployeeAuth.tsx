@@ -17,10 +17,11 @@ import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import Turnstile from "@/components/ui/turnstile";
 
 const EmployeeAuth = () => {
   const navigate = useNavigate();
-  const { signIn, user, loading: authLoading, isStaff, isCollector, hasRole } = useAuth();
+  const { signIn, user, loading: authLoading, isStaff, isCollector } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +29,8 @@ const EmployeeAuth = () => {
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
   useEffect(() => {
     if (!authLoading && user && isStaff) {
@@ -46,9 +49,18 @@ const EmployeeAuth = () => {
       toast.error("Please fill in all fields");
       return;
     }
-    
+
+    if (!captchaToken) {
+      toast.error("Please complete the security check");
+      return;
+    }
+
     setIsLoading(true);
-    const { error, isStaff: signedInStaff, isCollector: signedInCollector } = await signIn(email, password);
+    const { error, isStaff: signedInStaff, isCollector: signedInCollector } = await signIn(
+      email.trim(),
+      password,
+      captchaToken,
+    );
     setIsLoading(false);
 
     if (error) {
@@ -233,6 +245,15 @@ const EmployeeAuth = () => {
                   Forgot password?
                 </button>
               </div>
+
+              {turnstileSiteKey && (
+                <Turnstile
+                  siteKey={turnstileSiteKey}
+                  action="employee_login"
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken("")}
+                />
+              )}
 
               <Button
                 type="submit"
