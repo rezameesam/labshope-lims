@@ -120,7 +120,7 @@ const PatientResetPassword = () => {
                 </div>
                 <h2 className="font-heading text-3xl font-semibold text-clinical-navy">Reset password</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Create a new password that meets the current patient portal security standard.
+                  Create a new password with at least 6 characters.
                 </p>
               </div>
 

@@ -1,7 +1,7 @@
 import { createClient, type User } from "https://esm.sh/@supabase/supabase-js@2";
 
 export const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
-export const PATIENT_PASSWORD_MIN_LENGTH = 10;
+export const PATIENT_PASSWORD_MIN_LENGTH = 6;
 
 const LOCAL_ORIGIN_PATTERN = /^(https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?|https?:\/\/(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?)$/i;
 
@@ -15,22 +15,6 @@ export function getPatientPasswordError(password: string): string | null {
 
   if (value.length < PATIENT_PASSWORD_MIN_LENGTH) {
     return `Password must be at least ${PATIENT_PASSWORD_MIN_LENGTH} characters.`;
-  }
-
-  if (!/[a-z]/.test(value)) {
-    return "Password must include at least one lowercase letter.";
-  }
-
-  if (!/[A-Z]/.test(value)) {
-    return "Password must include at least one uppercase letter.";
-  }
-
-  if (!/\d/.test(value)) {
-    return "Password must include at least one number.";
-  }
-
-  if (!/[^A-Za-z0-9]/.test(value)) {
-    return "Password must include at least one special character.";
   }
 
   return null;

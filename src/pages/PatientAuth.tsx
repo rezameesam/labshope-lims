@@ -8,8 +8,7 @@ import {
   Loader2,
   LockKeyhole,
   Phone,
-  ShieldCheck,
-  Sparkles,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -159,21 +158,21 @@ const PatientAuth = () => {
     setResetCaptchaToken("");
   };
 
-  const highlights = [
+  const features = [
     {
       icon: FileText,
-      title: "Reports in one place",
-      description: "Access your test history, PDFs, and billing records from one verified account.",
+      title: "View Reports",
+      description: "Access your completed test reports and result history.",
     },
     {
       icon: HeartPulse,
-      title: "Health journey tracking",
-      description: "Review current tests, past history, and payment status without calling the front desk.",
+      title: "Track Progress",
+      description: "Review pending tests, past visits, and account activity.",
     },
     {
-      icon: ShieldCheck,
-      title: "Security controls",
-      description: "Protected sign-in, password reset verification, and session management for your account.",
+      icon: Shield,
+      title: "Secure Access",
+      description: "Protected sign-in, reset verification, and session security.",
     },
   ];
 
@@ -187,70 +186,63 @@ const PatientAuth = () => {
 
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
-      <section className="hidden lg:flex lg:w-[56%] bg-hero-gradient p-12 flex-col justify-between relative overflow-hidden">
+      <section className="hidden lg:flex lg:w-1/2 bg-hero-gradient p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
-        <div className="relative z-10 flex items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
-            <div>
-              <h1 className="text-lg font-heading font-bold text-primary-foreground">IRM Clinical</h1>
-              <p className="text-xs text-primary-foreground/70">Patient Portal</p>
-            </div>
-          </Link>
-          <div className="rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2 text-xs text-primary-foreground/90 flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            Verified portal access
+        <Link to="/" className="relative z-10 flex items-center gap-3">
+          <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+          <div>
+            <h1 className="text-lg font-heading font-bold text-primary-foreground">IRM Clinical</h1>
+            <p className="text-xs text-primary-foreground/70">Laboratory</p>
           </div>
-        </div>
+        </Link>
 
-        <div className="relative z-10 mt-12 space-y-8">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2 text-sm text-primary-foreground">
-              <Sparkles className="h-4 w-4" />
-              Professional patient access, billing, and security controls
-            </div>
-            <h1 className="max-w-2xl font-heading text-4xl font-bold tracking-tight text-primary-foreground sm:text-5xl">
-              A patient portal that feels clinical, clear, and trustworthy.
-            </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-primary-foreground/80 sm:text-lg">
-              Review reports, monitor pending tests, manage billing, and control your account security from one standard patient portal.
+        <div className="relative z-10">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+            <h2 className="mb-4 text-4xl font-heading font-bold text-primary-foreground">
+              Patient Portal
+            </h2>
+            <p className="mb-8 max-w-md text-lg text-primary-foreground/80">
+              Access reports, track your records, and manage your account from one secure portal.
             </p>
           </motion.div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {highlights.map((item, index) => (
+          <div className="space-y-4">
+            {features.map((item, index) => (
               <motion.div
                 key={item.title}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: 0.1 + index * 0.08 }}
-                className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/10 p-5 backdrop-blur"
+                initial={{ opacity: 0, x: -18 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.45, delay: 0.12 + index * 0.08 }}
+                className="flex items-center gap-4 rounded-xl bg-white/10 p-4 backdrop-blur-sm"
               >
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-foreground/15">
-                  <item.icon className="h-5 w-5 text-primary-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/20">
+                  <item.icon className="h-6 w-6 text-primary-foreground" />
                 </div>
-                <p className="font-medium text-primary-foreground">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-primary-foreground/75">{item.description}</p>
+                <div>
+                  <h3 className="font-medium text-primary-foreground">{item.title}</h3>
+                  <p className="text-sm text-primary-foreground/70">{item.description}</p>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-wrap gap-3 text-sm text-primary-foreground/80">
-          <div className="rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2">Secure reset verification</div>
-          <div className="rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2">Session visibility</div>
-          <div className="rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2">Standard password policy</div>
+        <div className="relative z-10 flex items-center gap-3">
+          <Shield className="h-5 w-5 text-primary-foreground/60" />
+          <p className="text-sm text-primary-foreground/60">
+            Your data is encrypted and secure
+          </p>
         </div>
       </section>
 
       <section className="flex-1 flex items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-lg">
+        <div className="w-full max-w-md">
           <div className="lg:hidden mb-8 text-center">
             <Link to="/" className="inline-flex items-center gap-3">
-              <img src={logo} alt="IRM Clinical Laboratory" className="h-14 w-14" />
-              <div className="text-left">
+              <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+              <div>
                 <h1 className="text-lg font-heading font-bold text-clinical-navy">IRM Clinical</h1>
                 <p className="text-xs text-muted-foreground">Patient Portal</p>
               </div>
@@ -260,11 +252,11 @@ const PatientAuth = () => {
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.25 }}
-              className="rounded-[28px] border border-border bg-card p-7 shadow-xl sm:p-8"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="rounded-2xl border border-border bg-card p-8 shadow-xl"
             >
               {step === "login" ? (
                 <>

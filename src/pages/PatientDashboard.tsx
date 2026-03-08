@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
@@ -118,7 +117,7 @@ const PatientDashboard = () => {
   const { patient, loading, isAuthenticated, signOut, setPassword } = usePatientAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [testsLoading, setTestsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState("results");
   const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [checkingDues, setCheckingDues] = useState(true);
@@ -358,56 +357,67 @@ const PatientDashboard = () => {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <div className="overflow-hidden rounded-[32px] border border-primary-foreground/10 bg-hero-gradient px-6 py-8 text-primary-foreground shadow-xl sm:px-8 lg:px-10">
-            <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+        <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <Card className="overflow-hidden rounded-[28px] border border-primary-foreground/10 bg-hero-gradient text-primary-foreground shadow-sm">
+            <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
               <div>
-                <div className="mb-6 flex items-center gap-4">
-                  <Avatar className="h-16 w-16 border border-white/10 bg-white/10">
-                    <AvatarFallback className="bg-primary-foreground text-lg font-semibold text-primary">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-14 w-14 border border-white/10 bg-white/10">
+                    <AvatarFallback className="bg-white/90 text-lg font-semibold text-primary">
                       {patient.full_name?.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="text-sm uppercase tracking-[0.22em] text-primary-foreground/80">Verified patient account</p>
-                    <h2 className="font-heading text-3xl font-bold">{patient.full_name}</h2>
-                    <p className="mt-1 text-primary-foreground/80">Patient ID: {patient.patient_id}</p>
+                    <h2 className="font-heading text-2xl font-semibold text-primary-foreground">{patient.full_name}</h2>
+                    <p className="mt-1 text-sm text-primary-foreground/80">
+                      Patient ID {patient.patient_id} • {formatPhoneForDisplay(patient.phone)}
+                    </p>
                   </div>
                 </div>
 
-                <p className="max-w-2xl text-sm leading-7 text-primary-foreground/80 sm:text-base">
-                  Review current investigations, download completed reports, track outstanding billing, and manage your account security from one portal.
-                </p>
-
-                <div className="mt-6 flex flex-wrap gap-3 text-sm text-primary-foreground/80">
-                  <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Secure password policy</div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Session management</div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Report access and billing</div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Reports ready</p>
+                    <p className="mt-2 text-2xl font-semibold text-primary-foreground">{completedTests.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-xs uppercase tracking-wide text-primary-foreground/70">In progress</p>
+                    <p className="mt-2 text-2xl font-semibold text-primary-foreground">{pendingTests.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Outstanding</p>
+                    <p className="mt-2 text-2xl font-semibold text-primary-foreground">
+                      {checkingDues ? "Checking..." : `Rs. ${outstandingAmount.toFixed(2)}`}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="flex items-center gap-3 text-primary-foreground">
-                    <ShieldCheck className="h-5 w-5" />
-                    <p className="font-medium">Account security</p>
-                  </div>
-                  <p className="mt-2 text-sm text-primary-foreground/70">Last password change</p>
-                  <p className="mt-1 text-sm font-medium text-primary-foreground">{formatTimestamp(patient.last_password_change)}</p>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="flex items-center gap-3 text-primary-foreground">
-                    <CalendarClock className="h-5 w-5" />
-                    <p className="font-medium">Billing overview</p>
-                  </div>
-                  <p className="mt-2 text-sm text-primary-foreground/70">Outstanding amount</p>
-                  <p className="mt-1 text-2xl font-semibold text-primary-foreground">
-                    {checkingDues ? "Checking..." : `Rs. ${outstandingAmount.toFixed(2)}`}
+              <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+                <div>
+                  <p className="text-sm font-medium text-primary-foreground">Quick actions</p>
+                  <p className="mt-1 text-sm text-primary-foreground/75">
+                    Start with reports, then use billing or account settings only when needed.
                   </p>
                 </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <Button className="w-full bg-white text-clinical-navy hover:bg-white/90" onClick={() => setActiveTab("results")}>
+                    View Results
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
+                    onClick={() => setActiveTab("account")}
+                  >
+                    Account Settings
+                  </Button>
+                </div>
+                <div className="text-xs text-primary-foreground/70">
+                  Last password change: {formatTimestamp(patient.last_password_change)}
+                </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </motion.section>
 
         <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -459,26 +469,34 @@ const PatientDashboard = () => {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-2 md:grid-cols-5">
-            <TabsTrigger value="results" className="gap-2 rounded-xl">
-              <FileText className="h-4 w-4" />
-              Results
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border bg-muted/30 p-2.5 md:grid-cols-4">
+            <TabsTrigger
+              value="results"
+              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+            >
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="leading-none">Results</span>
             </TabsTrigger>
-            <TabsTrigger value="timeline" className="gap-2 rounded-xl">
-              <GitBranch className="h-4 w-4" />
-              Timeline
+            <TabsTrigger
+              value="billing"
+              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+            >
+              <FlaskConical className="h-4 w-4 shrink-0" />
+              <span className="leading-none">Billing</span>
             </TabsTrigger>
-            <TabsTrigger value="billing" className="gap-2 rounded-xl">
-              <FlaskConical className="h-4 w-4" />
-              Billing
+            <TabsTrigger
+              value="timeline"
+              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+            >
+              <GitBranch className="h-4 w-4 shrink-0" />
+              <span className="leading-none">Timeline</span>
             </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-2 rounded-xl">
-              <User className="h-4 w-4" />
-              Profile
-            </TabsTrigger>
-            <TabsTrigger value="security" className="gap-2 rounded-xl">
-              <ShieldCheck className="h-4 w-4" />
-              Security
+            <TabsTrigger
+              value="account"
+              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+            >
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span className="leading-none">Account</span>
             </TabsTrigger>
           </TabsList>
 
@@ -534,8 +552,8 @@ const PatientDashboard = () => {
             </PageErrorBoundary>
           </TabsContent>
 
-          <TabsContent value="profile">
-            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <TabsContent value="account">
+            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
               <Card className="rounded-3xl border border-border bg-card shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -583,19 +601,32 @@ const PatientDashboard = () => {
               <div className="space-y-6">
                 <Card className="rounded-3xl border border-border bg-card shadow-sm">
                   <CardHeader>
-                    <CardTitle>Account care</CardTitle>
-                    <CardDescription>Use these actions to keep your portal access current and secure.</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5" />
+                      Security
+                    </CardTitle>
+                    <CardDescription>Key account controls and session protection.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
-                      <p className="font-medium">Need to update your personal details?</p>
-                      <p className="mt-2 leading-6 text-primary/90">
-                        Contact our clinic team to update identity details such as address, phone number, or demographic information.
-                      </p>
-                    </div>
                     <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
                       <p className="font-medium text-clinical-navy">Last password change</p>
                       <p className="mt-1">{formatTimestamp(patient.last_password_change)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
+                      <p className="font-medium">Password standard</p>
+                      <p className="mt-2 leading-6">
+                        Use any password you prefer, as long as it has at least 6 characters.
+                      </p>
+                    </div>
+                    <div className="space-y-3 text-sm text-foreground">
+                      <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
+                        <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                        <p>After a password change, your other signed-in sessions are revoked automatically.</p>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
+                        <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                        <p>Use the patient portal only for the patient or an authorized caregiver.</p>
+                      </div>
                     </div>
                     <Button variant="outline" className="w-full gap-2" onClick={() => setPasswordDialogOpen(true)}>
                       <Lock className="h-4 w-4" />
@@ -606,69 +637,23 @@ const PatientDashboard = () => {
 
                 <Card className="rounded-3xl border border-border bg-card shadow-sm">
                   <CardHeader>
-                    <CardTitle>Support</CardTitle>
-                    <CardDescription>Contact the laboratory for account or record corrections.</CardDescription>
+                    <CardTitle>Support and updates</CardTitle>
+                    <CardDescription>Contact the laboratory for record corrections or help with access.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm text-foreground">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-primary">
+                      <p className="font-medium">Need to update your personal details?</p>
+                      <p className="mt-2 leading-6 text-primary/90">
+                        Contact our clinic team to update address, phone number, email, or demographic information.
+                      </p>
+                    </div>
                     <p>Phone: +91 9622635767</p>
                     <p>Email: support@irmclinic.com</p>
-                    <p>Portal logins should only be used by the patient or an authorized caregiver.</p>
                   </CardContent>
                 </Card>
+
+                <PatientActiveSessions />
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="security">
-            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-              <div className="space-y-6">
-                <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5" />
-                      Security overview
-                    </CardTitle>
-                    <CardDescription>Key account controls and recent password status.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Last password change</p>
-                      <p className="mt-2 font-medium text-clinical-navy">{formatTimestamp(patient.last_password_change)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
-                      <p className="font-medium">Password standard</p>
-                      <p className="mt-2 leading-6">Passwords must include uppercase, lowercase, numeric, and special characters with a minimum length of 10.</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
-                      <p className="font-medium">Recommended practice</p>
-                      <p className="mt-2 leading-6">Sign out sessions on shared devices and change your password immediately if you suspect someone else accessed your account.</p>
-                    </div>
-                    <Button className="w-full gap-2" onClick={() => setPasswordDialogOpen(true)}>
-                      <Lock className="h-4 w-4" />
-                      Change Password
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Account alerts</CardTitle>
-                    <CardDescription>Operational notes relevant to your patient account.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-foreground">
-                    <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
-                      <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                      <p>After a password change, other signed-in sessions are automatically revoked.</p>
-                    </div>
-                    <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
-                      <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                      <p>Password reset links are time-limited and only sent to the email address on file.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <PatientActiveSessions />
             </div>
           </TabsContent>
         </Tabs>
