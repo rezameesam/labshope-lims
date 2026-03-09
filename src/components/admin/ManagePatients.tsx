@@ -346,7 +346,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
+  const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true, includeWatermark: true });
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
@@ -365,6 +365,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [existingPatientsWithPhone, setExistingPatientsWithPhone] = useState<Patient[]>([]);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [customResetPassword, setCustomResetPassword] = useState("");
 
   const fetchPatients = async () => {
     try {
@@ -842,8 +843,12 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
   };
 
-  const handleAdminResetPassword = async (mode: "email" | "temp") => {
+  const handleAdminResetPassword = async (mode: "email" | "temp" | "set") => {
     if (!selectedPatient) return;
+    if (mode === "set" && customResetPassword.length < 6) {
+      toast.error("Custom password must be at least 6 characters");
+      return;
+    }
 
     setResetLoading(true);
     try {
@@ -861,7 +866,9 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         },
         body: JSON.stringify({
           patient_id: selectedPatient.id,
+          reset_base_url: window.location.origin,
           mode,
+          ...(mode === "set" ? { custom_password: customResetPassword } : {}),
         }),
       });
 
@@ -872,11 +879,14 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       }
 
       if (mode === "temp") {
-        toast.success(`Temporary password set to ${result.temp_password || selectedPatient.patient_id}`);
+        toast.success(`Temporary password: ${result.temp_password}`);
+      } else if (mode === "set") {
+        toast.success("Custom password set successfully");
       } else {
         toast.success("Reset link sent to patient's email");
       }
 
+      setCustomResetPassword("");
       setResetDialogOpen(false);
     } catch (error: any) {
       toast.error(error.message || "Failed to reset password");
@@ -1442,7 +1452,10 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => setResetDialogOpen(true)}
+                  onClick={() => {
+                    setCustomResetPassword("");
+                    setResetDialogOpen(true);
+                  }}
                 >
                   <Lock className="h-4 w-4 mr-2" />
                   Reset Password
@@ -1482,7 +1495,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
               Reset Patient Password
             </DialogTitle>
             <DialogDescription>
-              Send a reset link or set a temporary password for the patient.
+              Send a reset link, set a temporary password, or apply a custom password for the patient.
             </DialogDescription>
           </DialogHeader>
           {selectedPatient && (
@@ -1509,8 +1522,29 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                   onClick={() => handleAdminResetPassword("temp")}
                   disabled={resetLoading}
                 >
-                  Set Temporary Password (Patient ID)
+                  Set Temporary Password
                 </Button>
+                <div className="space-y-2 rounded-md border p-3">
+                  <Label htmlFor="custom-reset-password">Set Custom Password</Label>
+                  <Input
+                    id="custom-reset-password"
+                    type="text"
+                    value={customResetPassword}
+                    onChange={(e) => setCustomResetPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 chars)"
+                  />
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => handleAdminResetPassword("set")}
+                    disabled={resetLoading || customResetPassword.length < 6}
+                  >
+                    Apply Custom Password
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Temporary password is shown once. Share it securely with the patient.
+                </p>
               </div>
             </div>
           )}
@@ -1570,6 +1604,22 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                   checked={printOptions.includeFooter}
                   onCheckedChange={(checked) => 
                     setPrintOptions(prev => ({ ...prev, includeFooter: checked }))
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="admin-include-watermark" className="flex flex-col gap-1">
+                  <span>Include Watermark</span>
+                  <span className="font-normal text-xs text-muted-foreground">
+                    Very light IRM logo across the report background
+                  </span>
+                </Label>
+                <Switch
+                  id="admin-include-watermark"
+                  checked={printOptions.includeWatermark}
+                  onCheckedChange={(checked) =>
+                    setPrintOptions(prev => ({ ...prev, includeWatermark: checked }))
                   }
                 />
               </div>

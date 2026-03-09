@@ -40,7 +40,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.patient-admin-reset-password]
-verify_jwt = true
+verify_jwt = false
 
 [functions.log-visitor]
 verify_jwt = false

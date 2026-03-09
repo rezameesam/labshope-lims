@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildPatientAuthEmail,
+  getPatientPasswordError,
   getAuthenticatedUserFromRequest,
   resolvePatientResetUrl,
 } from "../_shared/patient-auth.ts";
@@ -14,7 +15,9 @@ const corsHeaders = {
 
 interface AdminResetRequest {
   patient_id: string;
-  mode?: "email" | "temp";
+  reset_base_url?: string;
+  mode?: "email" | "temp" | "set";
+  custom_password?: string;
 }
 
 type PatientRecord = {
@@ -64,7 +67,7 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Only admins can reset patient passwords." }, 403);
     }
 
-    const { patient_id, mode }: AdminResetRequest = await req.json();
+    const { patient_id, reset_base_url, mode, custom_password }: AdminResetRequest = await req.json();
     const resolvedMode = mode || "email";
 
     if (!patient_id) {
@@ -86,22 +89,41 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Cannot reset password for an inactive patient." }, 400);
     }
 
-    if (resolvedMode === "temp") {
-      const tempPassword = generatePassword(12);
+    if (resolvedMode === "temp" || resolvedMode === "set") {
+      const nextPassword =
+        resolvedMode === "set" ? String(custom_password || "") : generatePassword(12);
+      const passwordError = getPatientPasswordError(nextPassword);
 
-      await supabaseAdmin.rpc("patient_reset_password", {
+      if (passwordError) {
+        return jsonResponse({ error: passwordError }, 400);
+      }
+
+      const { error: resetError } = await supabaseAdmin.rpc("patient_reset_password", {
         p_patient_id: patientRecord.id,
-        p_new_password: tempPassword,
+        p_new_password: nextPassword,
       });
 
-      await supabaseAdmin
+      if (resetError) {
+        throw resetError;
+      }
+
+      const { error: updateError } = await supabaseAdmin
         .from("patients")
-        .update({ password_reset_required: true })
+        .update({ password_reset_required: resolvedMode === "temp" })
         .eq("id", patientRecord.id);
 
-      await ensurePatientAuthUserPassword(supabaseAdmin, patientRecord, tempPassword);
+      if (updateError) {
+        throw updateError;
+      }
 
-      return jsonResponse({ success: true, temp_password: tempPassword }, 200);
+      await ensurePatientAuthUserPassword(supabaseAdmin, patientRecord, nextPassword);
+
+      return jsonResponse(
+        resolvedMode === "temp"
+          ? { success: true, temp_password: nextPassword }
+          : { success: true },
+        200,
+      );
     }
 
     if (!patientRecord.email) {
@@ -130,7 +152,7 @@ serve(async (req: Request): Promise<Response> => {
       throw insertError;
     }
 
-    const resetLink = `${resolvePatientResetUrl(req)}?token=${token}`;
+    const resetLink = `${resolvePatientResetUrl(req, reset_base_url)}?token=${token}`;
     const emailBody = buildResetEmail(patientRecord.full_name, resetLink);
 
     const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
@@ -144,6 +166,8 @@ serve(async (req: Request): Promise<Response> => {
     });
 
     if (!emailResponse.ok) {
+      const errorPayload = await emailResponse.text();
+      console.error("Failed to send patient reset email:", errorPayload);
       return jsonResponse({ error: "Failed to send reset email." }, 500);
     }
 

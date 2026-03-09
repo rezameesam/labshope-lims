@@ -245,6 +245,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [printOptions, setPrintOptions] = useState({
     includeHeader: true,
     includeFooter: true,
+    includeWatermark: true,
   });
   const [reportTemplates, setReportTemplates] = useState<ReportTemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("auto");
@@ -2531,6 +2532,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 id="include-footer"
                 checked={printOptions.includeFooter}
                 onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeFooter: checked }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="include-watermark" className="text-base font-medium">Include Watermark</Label>
+                <p className="text-sm text-muted-foreground">
+                  Very light IRM logo behind the report content
+                </p>
+              </div>
+              <Switch
+                id="include-watermark"
+                checked={printOptions.includeWatermark}
+                onCheckedChange={(checked) => setPrintOptions(prev => ({ ...prev, includeWatermark: checked }))}
               />
             </div>
             
