@@ -29,28 +29,36 @@ const Footer = () => {
             <h4 className="font-heading font-semibold text-lg mb-4">Quick Links</h4>
             <ul className="space-y-2">
               <li>
-                <button
-                  onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })}
+                <Link
+                  to="/#services"
                   className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
                 >
                   Our Services
-                </button>
+                </Link>
               </li>
               <li>
-                <button
-                  onClick={() => document.getElementById("about")?.scrollIntoView({ behavior: "smooth" })}
+                <Link
+                  to="/#about"
                   className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
                 >
                   About Us
-                </button>
+                </Link>
               </li>
               <li>
-                <button
-                  onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
+                <Link
+                  to="/#contact"
                   className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
                 >
                   Contact
-                </button>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/careers"
+                  className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                >
+                  Work With Us
+                </Link>
               </li>
               <li>
                 <Link

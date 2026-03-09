@@ -9,6 +9,7 @@ const navLinks = [
   { name: "Home", href: "/" },
   { name: "Services", href: "/#services" },
   { name: "About", href: "/#about" },
+  { name: "Work With Us", href: "/careers" },
   { name: "Contact", href: "/#contact" },
 ];
 
@@ -16,15 +17,16 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const handleNavClick = (href: string) => {
-    setIsOpen(false);
-    if (href.includes("#")) {
-      const sectionId = href.split("#")[1];
-      const element = document.getElementById(sectionId);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
-      }
+  const isActiveLink = (href: string) => {
+    if (href === "/") {
+      return location.pathname === "/" && !location.hash;
     }
+
+    if (href.startsWith("/#")) {
+      return location.pathname === "/" && location.hash === href.replace("/", "");
+    }
+
+    return location.pathname === href;
   };
 
   return (
@@ -45,13 +47,16 @@ const Navbar = () => {
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
-              <button
+              <Link
                 key={link.name}
-                onClick={() => handleNavClick(link.href)}
-                className="text-foreground/80 hover:text-primary font-medium transition-colors duration-200"
+                to={link.href}
+                onClick={() => setIsOpen(false)}
+                className={`font-medium transition-colors duration-200 ${
+                  isActiveLink(link.href) ? "text-primary" : "text-foreground/80 hover:text-primary"
+                }`}
               >
                 {link.name}
-              </button>
+              </Link>
             ))}
           </div>
 
@@ -97,13 +102,18 @@ const Navbar = () => {
             >
               <div className="py-4 space-y-3">
                 {navLinks.map((link) => (
-                  <button
+                  <Link
                     key={link.name}
-                    onClick={() => handleNavClick(link.href)}
-                    className="block w-full text-left px-4 py-2 text-foreground hover:bg-accent rounded-lg transition-colors"
+                    to={link.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`block rounded-lg px-4 py-2 transition-colors ${
+                      isActiveLink(link.href)
+                        ? "bg-secondary text-secondary-foreground"
+                        : "text-foreground hover:bg-accent"
+                    }`}
                   >
                     {link.name}
-                  </button>
+                  </Link>
                 ))}
                 <div className="pt-3 px-4 space-y-3 border-t border-border">
                   <a

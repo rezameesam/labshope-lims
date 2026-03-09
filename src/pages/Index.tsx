@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
+import { useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import ServicesSection from "@/components/ServicesSection";
@@ -7,6 +9,22 @@ import ContactSection from "@/components/ContactSection";
 import Footer from "@/components/Footer";
 
 const Index = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const sectionId = location.hash.replace("#", "");
+
+    if (!sectionId) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [location.hash]);
+
   return (
     <>
       <Helmet>

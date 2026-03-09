@@ -105,7 +105,7 @@ const ContactSection = () => {
   ];
 
   return (
-    <section id="contact" className="py-20 lg:py-28 bg-background">
+    <section id="contact" className="scroll-mt-24 bg-background py-20 lg:py-28">
       <div className="container mx-auto px-4 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
