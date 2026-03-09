@@ -40,6 +40,7 @@ interface PatientInfo {
 interface ReportOptions {
   includeHeader?: boolean;
   includeFooter?: boolean;
+  includeWatermark?: boolean;
 }
 
 interface ReportTemplate {
@@ -80,6 +81,8 @@ const LAB_INFO = {
   website: "https://irmclinic.com",
 };
 
+let watermarkImagePromise: Promise<string | null> | null = null;
+
 const stripHtml = (html: string) =>
   html
     .replace(/<br\s*\/?>/gi, "\n")
@@ -89,6 +92,74 @@ const stripHtml = (html: string) =>
 
 const hasWebsiteReference = (value: string) =>
   value.toLowerCase().includes("irmclinic.com");
+
+const loadImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to load watermark image."));
+    image.src = src;
+  });
+
+const getWatermarkImage = async () => {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  if (!watermarkImagePromise) {
+    watermarkImagePromise = (async () => {
+      const image = await loadImage(logoImageUrl);
+      const canvas = document.createElement("canvas");
+      const canvasSize = 900;
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+
+      const watermarkSize = canvasSize * 0.72;
+      const offset = (canvasSize - watermarkSize) / 2;
+
+      context.clearRect(0, 0, canvasSize, canvasSize);
+      context.filter = "grayscale(1)";
+      context.globalAlpha = 0.06;
+      context.drawImage(image, offset, offset, watermarkSize, watermarkSize);
+
+      return canvas.toDataURL("image/png");
+    })().catch((error) => {
+      console.warn("Could not prepare watermark image:", error);
+      return null;
+    });
+  }
+
+  return watermarkImagePromise;
+};
+
+const addReportWatermark = async (doc: jsPDF, options: ReportOptions) => {
+  if (options.includeWatermark === false) {
+    return;
+  }
+
+  const watermarkImage = await getWatermarkImage();
+  if (!watermarkImage) {
+    return;
+  }
+
+  const pageCount = doc.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const watermarkSize = Math.min(pageWidth, pageHeight) * 0.68;
+  const watermarkX = (pageWidth - watermarkSize) / 2;
+  const watermarkY = (pageHeight - watermarkSize) / 2;
+
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.addImage(watermarkImage, "PNG", watermarkX, watermarkY, watermarkSize, watermarkSize, undefined, "FAST");
+  }
+};
 
 const resolveReportTemplate = async (tests: TestResult[], templateId?: string) => {
   const { data: templates, error } = await supabase
@@ -143,11 +214,11 @@ const resolveReportTemplate = async (tests: TestResult[], templateId?: string) =
   return defaultTemplate || null;
 };
 
-export const generateTestReportPDF = (data: ReportData) => {
+export const generateTestReportPDF = async (data: ReportData) => {
   try {
     const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const options = data.options || { includeHeader: true, includeFooter: true };
+  const options = data.options || { includeHeader: true, includeFooter: true, includeWatermark: true };
   const template = data.template;
   const includeNormalRange = template?.include_normal_range ?? true;
   const includeAbnormalFlag = template?.include_abnormal_flag ?? true;
@@ -621,6 +692,8 @@ export const generateTestReportPDF = (data: ReportData) => {
   }
   // If not including footer, space is still reserved (empty) for pre-printed paper
 
+    await addReportWatermark(doc, options);
+
     // Save the PDF
     const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
     doc.save(fileName);
@@ -713,7 +786,7 @@ export const generateMultiTestReportPDF = async (
 
   const template = await resolveReportTemplate(testResults, templateId);
 
-  generateTestReportPDF({
+  await generateTestReportPDF({
     patient,
     test_date: completedTests[0].test_date,
     tests: testResults,

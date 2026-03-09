@@ -61,13 +61,14 @@ export async function verifyTurnstile(token: string, req: Request): Promise<stri
   return null;
 }
 
-export function resolvePatientResetUrl(req: Request): string {
-  const configured =
-    Deno.env.get("PATIENT_PORTAL_RESET_URL") ||
-    Deno.env.get("PATIENT_RESET_PASSWORD_URL") ||
-    Deno.env.get("PATIENT_PORTAL_URL") ||
-    Deno.env.get("SITE_URL") ||
-    "";
+export function resolvePatientResetUrl(req: Request, overrideBaseUrl?: string): string {
+  const configured = overrideBaseUrl?.trim()
+    ? overrideBaseUrl
+    : Deno.env.get("PATIENT_PORTAL_RESET_URL") ||
+      Deno.env.get("PATIENT_RESET_PASSWORD_URL") ||
+      Deno.env.get("PATIENT_PORTAL_URL") ||
+      Deno.env.get("SITE_URL") ||
+      "";
 
   if (configured.trim()) {
     return normalizeResetUrl(configured);
