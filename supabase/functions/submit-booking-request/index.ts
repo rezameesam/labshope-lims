@@ -11,6 +11,7 @@ const corsHeaders = {
 const MAX_ADDRESS_LENGTH = 250;
 const MAX_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 200;
+const BOOKING_ALERT_EMAIL = "irmclinic@gmail.com";
 
 interface SubmitBookingRequestBody {
   full_name: string;
@@ -85,7 +86,7 @@ serve(async (req: Request): Promise<Response> => {
       },
     });
 
-    const { error } = await supabaseAdmin.from("booking_requests").insert({
+    const insertPayload = {
       full_name: fullName,
       phone,
       email: email || null,
@@ -96,11 +97,57 @@ serve(async (req: Request): Promise<Response> => {
       collection_center_id: collectionCenterId || null,
       source: "website",
       status: "new",
-    });
+    };
+
+    const { error } = await supabaseAdmin.from("booking_requests").insert(insertPayload);
 
     if (error) {
       console.error("Error inserting booking request:", error);
       return jsonResponse({ error: "Failed to submit booking request." }, 500);
+    }
+
+    const alertEmail = Deno.env.get("BOOKING_ALERT_EMAIL")?.trim() || BOOKING_ALERT_EMAIL;
+    if (alertEmail) {
+      const emailSubject = `New booking request: ${fullName}`;
+      const emailHtml = buildBookingAlertEmail({
+        fullName,
+        phone,
+        email: email || null,
+        bookingType,
+        address: address || null,
+        preferredDate: preferredDate || null,
+        labId: labId || null,
+        collectionCenterId: collectionCenterId || null,
+      });
+
+      try {
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: alertEmail,
+            subject: emailSubject,
+            htmlContent: emailHtml,
+            textContent: buildBookingAlertText({
+              fullName,
+              phone,
+              email: email || null,
+              bookingType,
+              address: address || null,
+              preferredDate: preferredDate || null,
+              labId: labId || null,
+              collectionCenterId: collectionCenterId || null,
+            }),
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          const errorPayload = await emailResponse.text();
+          console.error("Booking alert email failed:", errorPayload);
+        }
+      } catch (emailError) {
+        console.error("Booking alert email error:", emailError);
+      }
     }
 
     return jsonResponse({ success: true }, 200);
@@ -118,4 +165,82 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
       ...corsHeaders,
     },
   });
+}
+
+type BookingAlertPayload = {
+  fullName: string;
+  phone: string;
+  email: string | null;
+  bookingType: "walk_in" | "home_collection";
+  address: string | null;
+  preferredDate: string | null;
+  labId: string | null;
+  collectionCenterId: string | null;
+};
+
+function buildBookingAlertEmail(payload: BookingAlertPayload): string {
+  const adminUrl = Deno.env.get("SITE_URL")?.trim()
+    ? `${Deno.env.get("SITE_URL")!.replace(/\/+$/, "")}/admin`
+    : null;
+
+  const rows = [
+    ["Patient Name", payload.fullName],
+    ["Phone", payload.phone],
+    ["Email", payload.email || "Not provided"],
+    ["Booking Type", payload.bookingType === "home_collection" ? "Home Collection" : "Walk-in Lab Visit"],
+    ["Address", payload.address || "Not provided"],
+    ["Preferred Date", payload.preferredDate || "Not provided"],
+    ["Lab ID", payload.labId || "Not selected"],
+    ["Collection Center ID", payload.collectionCenterId || "Not selected"],
+  ]
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:8px 12px;font-weight:600;border:1px solid #e2e8f0;background:#f8fafc;">${escapeHtml(label)}</td><td style="padding:8px 12px;border:1px solid #e2e8f0;">${escapeHtml(value)}</td></tr>`,
+    )
+    .join("");
+
+  return `
+    <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;">
+      <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="padding:20px 24px;background:#0f766e;color:#ffffff;">
+          <h1 style="margin:0;font-size:22px;">New Booking Request</h1>
+          <p style="margin:8px 0 0;font-size:14px;opacity:0.9;">A new lead was submitted from the website.</p>
+        </div>
+        <div style="padding:24px;">
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tbody>${rows}</tbody>
+          </table>
+          ${
+            adminUrl
+              ? `<p style="margin:20px 0 0;font-size:14px;">Review it in the admin dashboard: <a href="${escapeHtml(adminUrl)}">${escapeHtml(adminUrl)}</a></p>`
+              : `<p style="margin:20px 0 0;font-size:14px;">Review it in the admin dashboard booking requests queue.</p>`
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildBookingAlertText(payload: BookingAlertPayload): string {
+  return [
+    "New Booking Request",
+    `Patient Name: ${payload.fullName}`,
+    `Phone: ${payload.phone}`,
+    `Email: ${payload.email || "Not provided"}`,
+    `Booking Type: ${payload.bookingType === "home_collection" ? "Home Collection" : "Walk-in Lab Visit"}`,
+    `Address: ${payload.address || "Not provided"}`,
+    `Preferred Date: ${payload.preferredDate || "Not provided"}`,
+    `Lab ID: ${payload.labId || "Not selected"}`,
+    `Collection Center ID: ${payload.collectionCenterId || "Not selected"}`,
+    "Review it in the admin dashboard booking requests queue.",
+  ].join("\n");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
