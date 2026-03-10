@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPhoneForDisplay } from "@/lib/phone";
+import { renderReportTemplateText, type ReportTemplatePreviewContext } from "@/lib/reportTemplates";
 
 interface TestResult {
   test_id?: string | null;
@@ -82,13 +83,6 @@ const LAB_INFO = {
 };
 
 let watermarkImagePromise: Promise<string | null> | null = null;
-
-const stripHtml = (html: string) =>
-  html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .trim();
 
 const hasWebsiteReference = (value: string) =>
   value.toLowerCase().includes("irmclinic.com");
@@ -224,8 +218,24 @@ export const generateTestReportPDF = async (data: ReportData) => {
   const includeAbnormalFlag = template?.include_abnormal_flag ?? true;
   const includeNotes = template?.include_notes ?? false;
   const resultFormat = template?.result_format || "table";
-  const headerText = template?.header_template ? stripHtml(template.header_template) : "";
-  const footerText = template?.footer_template ? stripHtml(template.footer_template) : "";
+  const templateContext: ReportTemplatePreviewContext = {
+    patient_name: data.patient.full_name,
+    patient_id: data.patient.patient_id,
+    phone: formatPhoneForDisplay(data.patient.phone),
+    test_name: data.tests.length === 1 ? data.tests[0].test_name : "Multiple Tests",
+    test_date: format(new Date(data.test_date), "dd MMM yyyy"),
+    report_date: format(new Date(), "dd MMM yyyy"),
+    lab_name: data.lab_name || LAB_INFO.name,
+    lab_code: data.lab_code || "",
+    collection_center: data.collection_center_code || data.collection_center_name || "",
+    entered_by: data.entered_by || "IRM Clinical Laboratory",
+  };
+  const headerText = template?.header_template
+    ? renderReportTemplateText(template.header_template, templateContext)
+    : "";
+  const footerText = template?.footer_template
+    ? renderReportTemplateText(template.footer_template, templateContext)
+    : "";
   const reportHasWebsite = hasWebsiteReference(headerText) || hasWebsiteReference(footerText);
   const emailLine = reportHasWebsite
     ? `Email: ${LAB_INFO.email}`
