@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Package,
   Plus,
@@ -114,6 +114,7 @@ interface EquipmentMaintenance {
 
 const ManageInventory = () => {
   const { user } = useAuth();
+  const purchaseQuantityInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState("items");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
@@ -157,6 +158,14 @@ const ManageInventory = () => {
     invoice_number: "",
     purchase_date: format(new Date(), "yyyy-MM-dd"),
     notes: "",
+  });
+  const [purchaseBarcode, setPurchaseBarcode] = useState("");
+  const [purchaseBarcodeStatus, setPurchaseBarcodeStatus] = useState<{
+    type: "idle" | "matched" | "not_found";
+    message: string;
+  }>({
+    type: "idle",
+    message: "",
   });
 
   const [usageForm, setUsageForm] = useState({
@@ -263,6 +272,26 @@ const ManageInventory = () => {
     }
   }, [currentPage, safePage]);
 
+  useEffect(() => {
+    if (!purchaseForm.item_id) {
+      return;
+    }
+
+    const matchedItem = items.find((item) => item.id === purchaseForm.item_id);
+    if (!matchedItem) {
+      return;
+    }
+
+    if (matchedItem.sku) {
+      setPurchaseBarcode(matchedItem.sku);
+    }
+
+    setPurchaseBarcodeStatus({
+      type: "matched",
+      message: `${matchedItem.name}${matchedItem.supplier ? ` from ${matchedItem.supplier}` : ""} selected.`,
+    });
+  }, [items, purchaseForm.item_id]);
+
   const lowStockItems = useMemo(() => {
     return items.filter(item => item.current_stock <= item.min_stock_level && item.is_active);
   }, [items]);
@@ -270,6 +299,10 @@ const ManageInventory = () => {
   const equipmentItems = useMemo(() => {
     return items.filter(item => item.type === "equipment");
   }, [items]);
+
+  const selectedPurchaseItem = useMemo(() => {
+    return items.find((item) => item.id === purchaseForm.item_id) || null;
+  }, [items, purchaseForm.item_id]);
 
   // Stats
   const totalItems = items.length;
@@ -466,6 +499,8 @@ const ManageInventory = () => {
       purchase_date: format(new Date(), "yyyy-MM-dd"),
       notes: "",
     });
+    setPurchaseBarcode("");
+    setPurchaseBarcodeStatus({ type: "idle", message: "" });
   };
 
   const resetUsageForm = () => {
@@ -510,6 +545,64 @@ const ManageInventory = () => {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const normalizeBarcode = (value: string) => value.trim().toLowerCase();
+
+  const handlePurchaseBarcodeLookup = (rawCode: string) => {
+    const code = rawCode.trim();
+
+    if (!code) {
+      setPurchaseBarcodeStatus({ type: "idle", message: "" });
+      return;
+    }
+
+    const matchedItem = items.find((item) => normalizeBarcode(item.sku || "") === normalizeBarcode(code));
+
+    if (!matchedItem) {
+      setPurchaseForm((current) => ({ ...current, item_id: "" }));
+      setPurchaseBarcodeStatus({
+        type: "not_found",
+        message: "Barcode not registered. Add the item once, then future scans will auto-fill it.",
+      });
+      return;
+    }
+
+    setPurchaseForm((current) => ({
+      ...current,
+      item_id: matchedItem.id,
+      supplier: current.supplier || matchedItem.supplier || "",
+      unit_cost: current.unit_cost || matchedItem.unit_price || 0,
+    }));
+    setPurchaseBarcode(matchedItem.sku || code);
+    setPurchaseBarcodeStatus({
+      type: "matched",
+      message: `${matchedItem.name}${matchedItem.supplier ? ` from ${matchedItem.supplier}` : ""} selected.`,
+    });
+
+    window.setTimeout(() => {
+      purchaseQuantityInputRef.current?.focus();
+      purchaseQuantityInputRef.current?.select();
+    }, 0);
+  };
+
+  const openNewItemFromBarcode = () => {
+    const code = purchaseBarcode.trim();
+    setEditingItem(null);
+    setItemForm({
+      name: "",
+      description: "",
+      type: "supply",
+      sku: code,
+      unit: "pcs",
+      current_stock: 0,
+      min_stock_level: 0,
+      unit_price: 0,
+      supplier: "",
+      location: "",
+      category_id: "",
+    });
+    setIsItemDialogOpen(true);
   };
 
   if (loading) {
@@ -702,7 +795,7 @@ const ManageInventory = () => {
                       <TableCell>
                         <div>
                           <p className="font-medium">{item.name}</p>
-                          {item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}
+                          {item.sku && <p className="text-xs text-muted-foreground">Barcode: {item.sku}</p>}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -1114,11 +1207,11 @@ const ManageInventory = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>SKU</Label>
+                <Label>Barcode / SKU</Label>
                 <Input
                   value={itemForm.sku}
                   onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
-                  placeholder="SKU code"
+                  placeholder="Scan or enter barcode"
                 />
               </div>
               <div className="space-y-2">
@@ -1211,6 +1304,60 @@ const ManageInventory = () => {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
+              <Label>Scan Barcode / SKU</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={purchaseBarcode}
+                  onChange={(e) => {
+                    setPurchaseBarcode(e.target.value);
+                    setPurchaseBarcodeStatus({ type: "idle", message: "" });
+                    setPurchaseForm((current) => ({ ...current, item_id: "" }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handlePurchaseBarcodeLookup(purchaseBarcode);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (purchaseBarcode.trim()) {
+                      handlePurchaseBarcodeLookup(purchaseBarcode);
+                    }
+                  }}
+                  placeholder="Scan barcode here"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handlePurchaseBarcodeLookup(purchaseBarcode)}
+                >
+                  Find Item
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Most USB barcode scanners type into this field and press Enter automatically.
+              </p>
+              {purchaseBarcodeStatus.type !== "idle" && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    purchaseBarcodeStatus.type === "matched"
+                      ? "border-green-200 bg-green-50 text-green-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{purchaseBarcodeStatus.message}</span>
+                    {purchaseBarcodeStatus.type === "not_found" && purchaseBarcode.trim() && (
+                      <Button type="button" variant="outline" size="sm" onClick={openNewItemFromBarcode}>
+                        Add Item
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label>Item *</Label>
               <Select value={purchaseForm.item_id} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, item_id: v })}>
                 <SelectTrigger>
@@ -1223,10 +1370,29 @@ const ManageInventory = () => {
                 </SelectContent>
               </Select>
             </div>
+            {selectedPurchaseItem && (
+              <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="text-muted-foreground">Item</p>
+                  <p className="font-medium">{selectedPurchaseItem.name}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Supplier</p>
+                  <p className="font-medium">{selectedPurchaseItem.supplier || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Current Stock</p>
+                  <p className="font-medium">
+                    {selectedPurchaseItem.current_stock} {selectedPurchaseItem.unit}
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Quantity *</Label>
                 <Input
+                  ref={purchaseQuantityInputRef}
                   type="number"
                   value={purchaseForm.quantity}
                   onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: Number(e.target.value) })}
