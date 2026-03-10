@@ -10,6 +10,7 @@ import { PatientAuthProvider } from "@/hooks/usePatientAuth";
 import { LabProvider } from "@/contexts/LabContext";
 import CookieConsent from "@/components/privacy/CookieConsent";
 const Index = lazy(() => import("./pages/Index"));
+const BookTest = lazy(() => import("./pages/BookTest"));
 const PatientAuth = lazy(() => import("./pages/PatientAuth"));
 const PatientDashboard = lazy(() => import("./pages/PatientDashboard"));
 const PatientResetPassword = lazy(() => import("./pages/PatientResetPassword"));
@@ -44,6 +45,7 @@ const App = () => (
                 >
                   <Routes>
                     <Route path="/" element={<Index />} />
+                    <Route path="/book-test" element={<BookTest />} />
                     <Route path="/careers" element={<Careers />} />
                     <Route path="/work-with-us" element={<Careers />} />
                     <Route path="/privacy" element={<PrivacyPolicy />} />

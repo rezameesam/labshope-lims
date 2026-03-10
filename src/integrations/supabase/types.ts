@@ -64,6 +64,88 @@ export type Database = {
           },
         ]
       }
+      booking_requests: {
+        Row: {
+          address: string | null
+          booking_type: string
+          collection_center_id: string | null
+          converted_by: string | null
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          lab_id: string | null
+          notes: string | null
+          patient_id: string | null
+          phone: string
+          preferred_date: string | null
+          source: string
+          status: string
+          test_details: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          booking_type?: string
+          collection_center_id?: string | null
+          converted_by?: string | null
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          lab_id?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          phone: string
+          preferred_date?: string | null
+          source?: string
+          status?: string
+          test_details?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          booking_type?: string
+          collection_center_id?: string | null
+          converted_by?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          lab_id?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          phone?: string
+          preferred_date?: string | null
+          source?: string
+          status?: string
+          test_details?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_requests_collection_center_id_fkey"
+            columns: ["collection_center_id"]
+            isOneToOne: false
+            referencedRelation: "collection_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_requests_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "labs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_requests_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_roles: {
         Row: {
           created_at: string

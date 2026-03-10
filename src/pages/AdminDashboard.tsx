@@ -22,7 +22,8 @@ import {
   MapPin,
   Shield,
   Laptop,
-  Globe
+  Globe,
+  PhoneCall
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,8 +50,9 @@ import SystemSettings from "@/components/admin/SystemSettings";
 import NoticeBoard from "@/components/admin/NoticeBoard";
 import ActiveSessions from "@/components/account/ActiveSessions";
 import ManageVisitorLogs from "@/components/admin/ManageVisitorLogs";
+import ManageBookingRequests from "@/components/admin/ManageBookingRequests";
 
-type TabType = "overview" | "notice-board" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
+type TabType = "overview" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
 
 type PatientSummary = {
   id: string;
@@ -112,6 +114,7 @@ const AdminDashboard = () => {
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: Home },
     { id: "notice-board" as TabType, label: "Notice Board", icon: Bell },
+    { id: "booking-requests" as TabType, label: "Booking Requests", icon: PhoneCall },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
@@ -247,6 +250,7 @@ const AdminDashboard = () => {
           >
             {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setActiveTab(tab as TabType)} />}
             {activeTab === "notice-board" && <NoticeBoard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
+            {activeTab === "booking-requests" && <ManageBookingRequests />}
             {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
             {activeTab === "patients" && (
               <ManagePatients
