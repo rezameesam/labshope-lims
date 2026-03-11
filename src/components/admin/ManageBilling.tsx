@@ -66,6 +66,8 @@ interface Invoice {
   patient_id: string;
   total_amount: number;
   discount_amount: number;
+  discount_entered_by?: string | null;
+  discount_entered_by_name?: string | null;
   tax_amount: number;
   final_amount: number;
   paid_amount: number;
@@ -74,6 +76,7 @@ interface Invoice {
   notes: string | null;
   created_at: string;
   paid_at: string | null;
+  updated_by?: string | null;
   lab_id?: string | null;
   collection_center_id?: string | null;
   patient?: {
@@ -134,6 +137,20 @@ interface Payment {
   received_by_name?: string | null;
 }
 
+interface BillingAuditLog {
+  id: string;
+  invoice_id: string;
+  payment_id: string | null;
+  entity_type: string;
+  action: string;
+  changed_by: string | null;
+  changed_by_name?: string | null;
+  changed_at: string;
+  old_values: Record<string, any> | null;
+  new_values: Record<string, any> | null;
+  notes: string | null;
+}
+
 interface Test {
   id: string;
   name: string;
@@ -191,6 +208,62 @@ const ManageBilling = () => {
   const [testsDb, setTestsDb] = useState<Test[]>([]);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [billingAuditLogs, setBillingAuditLogs] = useState<BillingAuditLog[]>([]);
+
+  const resolveUserDisplayNames = useCallback(async (userIds: string[]) => {
+    const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+    const nameMap = new Map<string, string>();
+
+    if (uniqueIds.length === 0) {
+      return nameMap;
+    }
+
+    const { data: employeesData, error: employeesError } = await supabase
+      .from("employees")
+      .select("user_id, full_name")
+      .in("user_id", uniqueIds);
+
+    if (employeesError) throw employeesError;
+
+    (employeesData || []).forEach((employee) => {
+      if (employee.user_id) {
+        nameMap.set(employee.user_id, employee.full_name);
+      }
+    });
+
+    const missingIds = uniqueIds.filter((userId) => !nameMap.has(userId));
+    if (missingIds.length > 0) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", missingIds);
+
+      if (profilesError) throw profilesError;
+
+      (profilesData || []).forEach((profile) => {
+        if (profile.user_id) {
+          nameMap.set(profile.user_id, profile.full_name);
+        }
+      });
+    }
+
+    return nameMap;
+  }, []);
+
+  const enrichInvoiceDiscountAudit = useCallback(
+    async (invoice: Invoice) => {
+      if (!invoice.discount_entered_by) {
+        return { ...invoice, discount_entered_by_name: null };
+      }
+
+      const nameMap = await resolveUserDisplayNames([invoice.discount_entered_by]);
+      return {
+        ...invoice,
+        discount_entered_by_name: nameMap.get(invoice.discount_entered_by) || "Unknown staff",
+      };
+    },
+    [resolveUserDisplayNames],
+  );
 
   const fetchInvoices = async () => {
     try {
@@ -338,36 +411,7 @@ const ManageBilling = () => {
         return;
       }
 
-      const nameMap = new Map<string, string>();
-
-      const { data: employeesData, error: employeesError } = await supabase
-        .from("employees")
-        .select("user_id, full_name")
-        .in("user_id", receivedByIds);
-
-      if (employeesError) throw employeesError;
-
-      (employeesData || []).forEach((employee) => {
-        if (employee.user_id) {
-          nameMap.set(employee.user_id, employee.full_name);
-        }
-      });
-
-      const missingIds = receivedByIds.filter((userId) => !nameMap.has(userId));
-      if (missingIds.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("user_id, full_name")
-          .in("user_id", missingIds);
-
-        if (profilesError) throw profilesError;
-
-        (profilesData || []).forEach((profile) => {
-          if (profile.user_id) {
-            nameMap.set(profile.user_id, profile.full_name);
-          }
-        });
-      }
+      const nameMap = await resolveUserDisplayNames(receivedByIds);
 
       setPayments(
         paymentsData.map((payment) => ({
@@ -377,6 +421,38 @@ const ManageBilling = () => {
       );
     } catch (error) {
       console.error("Error fetching payments:", error);
+    }
+  };
+
+  const fetchBillingAudit = async (invoiceId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("billing_audit")
+        .select("*")
+        .eq("invoice_id", invoiceId)
+        .order("changed_at", { ascending: false });
+
+      if (error) throw error;
+
+      const auditData = (data || []) as BillingAuditLog[];
+      const changedByIds = Array.from(
+        new Set(auditData.map((log) => log.changed_by).filter(Boolean) as string[]),
+      );
+
+      if (changedByIds.length === 0) {
+        setBillingAuditLogs(auditData);
+        return;
+      }
+
+      const nameMap = await resolveUserDisplayNames(changedByIds);
+      setBillingAuditLogs(
+        auditData.map((log) => ({
+          ...log,
+          changed_by_name: log.changed_by ? nameMap.get(log.changed_by) || "Unknown staff" : null,
+        })),
+      );
+    } catch (error) {
+      console.error("Error fetching billing audit logs:", error);
     }
   };
 
@@ -568,6 +644,7 @@ const ManageBilling = () => {
           collection_center_id: selectedPatient?.collection_center_id || null,
           total_amount: totalAmount,
           discount_amount: appliedDiscount,
+          discount_entered_by: appliedDiscount > 0 ? userData.user?.id || null : null,
           final_amount: finalAmount,
           notes,
           created_by: userData.user?.id,
@@ -734,6 +811,7 @@ const ManageBilling = () => {
 
     setIsSubmitting(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
       const newTotal = calculateEditableTotal();
       const appliedDiscount = clampDiscount(editableDiscount, newTotal);
       const newFinal = newTotal - appliedDiscount;
@@ -765,7 +843,9 @@ const ManageBilling = () => {
         .update({
           total_amount: newTotal,
           discount_amount: appliedDiscount,
+          discount_entered_by: appliedDiscount > 0 ? userData.user?.id || null : null,
           final_amount: newFinal,
+          updated_by: userData.user?.id || null,
           payment_status: newStatus,
           paid_at: newPaidAt,
         })
@@ -805,7 +885,8 @@ const ManageBilling = () => {
             if (invoiceData.collection_centers && typeof invoiceData.collection_centers === 'object' && 'error' in invoiceData.collection_centers) {
               invoiceData.collection_centers = null;
             }
-            setSelectedInvoice(invoiceData as Invoice);
+            setSelectedInvoice(await enrichInvoiceDiscountAudit(invoiceData as Invoice));
+            await fetchBillingAudit(selectedInvoice.id);
           } else if (result.error && (result.error.code === "PGRST116" || result.error.code === "42P01" || result.error.message?.includes("Could not find") || result.error.code === "400")) {
             // Fallback to basic query
             const basicResult = await supabase
@@ -818,7 +899,8 @@ const ManageBilling = () => {
               .single();
             
             if (!basicResult.error && basicResult.data) {
-              setSelectedInvoice(basicResult.data as Invoice);
+              setSelectedInvoice(await enrichInvoiceDiscountAudit(basicResult.data as Invoice));
+              await fetchBillingAudit(selectedInvoice.id);
             }
           }
         } catch (err) {
@@ -856,6 +938,47 @@ const ManageBilling = () => {
       case "bank_transfer": return "Bank Transfer";
       case "online": return "Online";
       default: return method;
+    }
+  };
+
+  const getBillingActionLabel = (action: string) => {
+    switch (action) {
+      case "invoice_created":
+        return "Invoice Created";
+      case "invoice_updated":
+        return "Invoice Updated";
+      case "discount_updated":
+        return "Discount Updated";
+      case "payment_recorded":
+        return "Payment Recorded";
+      case "payment_updated":
+        return "Payment Updated";
+      case "payment_deleted":
+        return "Payment Deleted";
+      default:
+        return action.replace(/_/g, " ");
+    }
+  };
+
+  const renderBillingAuditSummary = (log: BillingAuditLog) => {
+    const oldValues = log.old_values || {};
+    const newValues = log.new_values || {};
+
+    switch (log.action) {
+      case "payment_recorded":
+        return `₹${Number(newValues.amount || 0).toLocaleString()} via ${getPaymentMethodLabel(String(newValues.payment_method || ""))}`;
+      case "payment_updated":
+        return `Payment changed from ₹${Number(oldValues.amount || 0).toLocaleString()} to ₹${Number(newValues.amount || 0).toLocaleString()}`;
+      case "payment_deleted":
+        return `Deleted payment of ₹${Number(oldValues.amount || 0).toLocaleString()}`;
+      case "discount_updated":
+        return `Discount changed from ₹${Number(oldValues.discount_amount || 0).toLocaleString()} to ₹${Number(newValues.discount_amount || 0).toLocaleString()}`;
+      case "invoice_updated":
+        return `Final amount changed from ₹${Number(oldValues.final_amount || 0).toLocaleString()} to ₹${Number(newValues.final_amount || 0).toLocaleString()}`;
+      case "invoice_created":
+        return `Invoice created for ₹${Number(newValues.final_amount || 0).toLocaleString()}`;
+      default:
+        return null;
     }
   };
 
@@ -1215,10 +1338,12 @@ const ManageBilling = () => {
                           variant="outline" 
                           size="sm"
                           onClick={async () => {
-                            setSelectedInvoice(invoice);
+                            setSelectedInvoice(await enrichInvoiceDiscountAudit(invoice));
                             setPayments([]);
+                            setBillingAuditLogs([]);
                             await fetchInvoiceItems(invoice.id);
                             await fetchPayments(invoice.id);
+                            await fetchBillingAudit(invoice.id);
                             setIsDetailsOpen(true);
                           }}
                           title="View Details"
@@ -1751,6 +1876,12 @@ const ManageBilling = () => {
                     <span>-₹{selectedInvoice.discount_amount.toLocaleString()}</span>
                   </div>
                 )}
+                {selectedInvoice.discount_amount > 0 && selectedInvoice.discount_entered_by_name && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Discount entered by</span>
+                    <span>{selectedInvoice.discount_entered_by_name}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-semibold text-lg border-t pt-2">
                   <span>Total</span>
                   <span>₹{selectedInvoice.final_amount.toLocaleString()}</span>
@@ -1789,6 +1920,30 @@ const ManageBilling = () => {
                             <div>Txn: {payment.transaction_id}</div>
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {billingAuditLogs.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Billing Activity</p>
+                  <div className="border rounded-lg divide-y">
+                    {billingAuditLogs.map((log) => (
+                      <div key={log.id} className="p-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <Badge variant="secondary">{getBillingActionLabel(log.action)}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(log.changed_at), "dd MMM yyyy, HH:mm")}
+                          </span>
+                        </div>
+                        {renderBillingAuditSummary(log) && (
+                          <p className="text-sm">{renderBillingAuditSummary(log)}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {log.changed_by_name ? `By ${log.changed_by_name}` : "By system"}
+                        </p>
                       </div>
                     ))}
                   </div>

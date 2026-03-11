@@ -146,6 +146,60 @@ export type Database = {
           },
         ]
       }
+      billing_audit: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          entity_type: string
+          id: string
+          invoice_id: string
+          new_values: Json | null
+          notes: string | null
+          old_values: Json | null
+          payment_id: string | null
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          entity_type: string
+          id?: string
+          invoice_id: string
+          new_values?: Json | null
+          notes?: string | null
+          old_values?: Json | null
+          payment_id?: string | null
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          entity_type?: string
+          id?: string
+          invoice_id?: string
+          new_values?: Json | null
+          notes?: string | null
+          old_values?: Json | null
+          payment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_audit_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_audit_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_roles: {
         Row: {
           created_at: string
@@ -702,6 +756,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           discount_amount: number | null
+          discount_entered_by: string | null
           final_amount: number
           id: string
           invoice_number: string
@@ -714,12 +769,14 @@ export type Database = {
           payment_status: string
           tax_amount: number | null
           total_amount: number
+          updated_by: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           discount_amount?: number | null
+          discount_entered_by?: string | null
           final_amount?: number
           id?: string
           invoice_number: string
@@ -732,12 +789,14 @@ export type Database = {
           payment_status?: string
           tax_amount?: number | null
           total_amount?: number
+          updated_by?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
           discount_amount?: number | null
+          discount_entered_by?: string | null
           final_amount?: number
           id?: string
           invoice_number?: string
@@ -750,6 +809,7 @@ export type Database = {
           payment_status?: string
           tax_amount?: number | null
           total_amount?: number
+          updated_by?: string | null
           updated_at?: string
         }
         Relationships: [

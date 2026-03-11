@@ -99,6 +99,7 @@ interface AuditLog {
   id: string;
   action: string;
   changed_by: string | null;
+  changed_by_name?: string | null;
   changed_at: string;
   old_values: any;
   new_values: any;
@@ -241,6 +242,46 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     result_items: [],
     registry_serial: "",
   });
+
+  const resolveUserDisplayNames = async (userIds: string[]) => {
+    const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+    const nameMap = new Map<string, string>();
+
+    if (uniqueIds.length === 0) {
+      return nameMap;
+    }
+
+    const { data: employeesData, error: employeesError } = await supabase
+      .from("employees")
+      .select("user_id, full_name")
+      .in("user_id", uniqueIds);
+
+    if (employeesError) throw employeesError;
+
+    (employeesData || []).forEach((employee) => {
+      if (employee.user_id) {
+        nameMap.set(employee.user_id, employee.full_name);
+      }
+    });
+
+    const missingIds = uniqueIds.filter((userId) => !nameMap.has(userId));
+    if (missingIds.length > 0) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", missingIds);
+
+      if (profilesError) throw profilesError;
+
+      (profilesData || []).forEach((profile) => {
+        if (profile.user_id) {
+          nameMap.set(profile.user_id, profile.full_name);
+        }
+      });
+    }
+
+    return nameMap;
+  };
   const [usePanelResults, setUsePanelResults] = useState(false);
   const [printOptions, setPrintOptions] = useState({
     includeHeader: true,
@@ -1064,7 +1105,23 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .order("changed_at", { ascending: false });
 
       if (error) throw error;
-      setAuditLogs(data || []);
+
+      const auditData = (data || []) as AuditLog[];
+      const changedByIds = Array.from(
+        new Set(auditData.map((log) => log.changed_by).filter(Boolean) as string[]),
+      );
+
+      if (changedByIds.length === 0) {
+        setAuditLogs(auditData);
+      } else {
+        const nameMap = await resolveUserDisplayNames(changedByIds);
+        setAuditLogs(
+          auditData.map((log) => ({
+            ...log,
+            changed_by_name: log.changed_by ? nameMap.get(log.changed_by) || "Unknown staff" : null,
+          })),
+        );
+      }
     } catch (error) {
       console.error("Error fetching audit logs:", error);
       toast.error("Failed to fetch audit history");
@@ -2441,6 +2498,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       {format(new Date(log.changed_at), "dd MMM yyyy, HH:mm")}
                     </span>
                   </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {log.changed_by_name ? `By ${log.changed_by_name}` : "By system"}
+                  </p>
                   
                   {log.old_values && log.new_values && (
                     <div className="text-xs space-y-1">
