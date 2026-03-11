@@ -130,6 +130,8 @@ interface Payment {
   payment_date: string;
   transaction_id: string | null;
   notes: string | null;
+  received_by: string | null;
+  received_by_name?: string | null;
 }
 
 interface Test {
@@ -320,12 +322,59 @@ const ManageBilling = () => {
     try {
       const { data, error } = await supabase
         .from("payments")
-        .select("id, amount, payment_method, payment_date, transaction_id, notes")
+        .select("id, amount, payment_method, payment_date, transaction_id, notes, received_by")
         .eq("invoice_id", invoiceId)
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
-      setPayments((data || []) as Payment[]);
+
+      const paymentsData = (data || []) as Payment[];
+      const receivedByIds = Array.from(
+        new Set(paymentsData.map((payment) => payment.received_by).filter(Boolean) as string[]),
+      );
+
+      if (receivedByIds.length === 0) {
+        setPayments(paymentsData);
+        return;
+      }
+
+      const nameMap = new Map<string, string>();
+
+      const { data: employeesData, error: employeesError } = await supabase
+        .from("employees")
+        .select("user_id, full_name")
+        .in("user_id", receivedByIds);
+
+      if (employeesError) throw employeesError;
+
+      (employeesData || []).forEach((employee) => {
+        if (employee.user_id) {
+          nameMap.set(employee.user_id, employee.full_name);
+        }
+      });
+
+      const missingIds = receivedByIds.filter((userId) => !nameMap.has(userId));
+      if (missingIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", missingIds);
+
+        if (profilesError) throw profilesError;
+
+        (profilesData || []).forEach((profile) => {
+          if (profile.user_id) {
+            nameMap.set(profile.user_id, profile.full_name);
+          }
+        });
+      }
+
+      setPayments(
+        paymentsData.map((payment) => ({
+          ...payment,
+          received_by_name: payment.received_by ? nameMap.get(payment.received_by) || "Unknown staff" : null,
+        })),
+      );
     } catch (error) {
       console.error("Error fetching payments:", error);
     }
@@ -688,6 +737,14 @@ const ManageBilling = () => {
       const newTotal = calculateEditableTotal();
       const appliedDiscount = clampDiscount(editableDiscount, newTotal);
       const newFinal = newTotal - appliedDiscount;
+      const currentPaidAmount = Number(selectedInvoice.paid_amount) || 0;
+      const newStatus =
+        currentPaidAmount >= newFinal
+          ? "paid"
+          : currentPaidAmount > 0
+            ? "partial"
+            : "pending";
+      const newPaidAt = newStatus === "paid" ? selectedInvoice.paid_at || new Date().toISOString() : null;
 
       // Update invoice items
       for (const item of editableItems) {
@@ -709,6 +766,8 @@ const ManageBilling = () => {
           total_amount: newTotal,
           discount_amount: appliedDiscount,
           final_amount: newFinal,
+          payment_status: newStatus,
+          paid_at: newPaidAt,
         })
         .eq("id", selectedInvoice.id);
 
@@ -1719,6 +1778,11 @@ const ManageBilling = () => {
                           <p className="text-xs text-muted-foreground">
                             {getPaymentMethodLabel(payment.payment_method)} • {format(new Date(payment.payment_date), "dd MMM yyyy")}
                           </p>
+                          {payment.received_by_name && (
+                            <p className="text-xs text-muted-foreground">
+                              Entered by {payment.received_by_name}
+                            </p>
+                          )}
                         </div>
                         {payment.transaction_id && (
                           <div className="text-right text-xs font-mono text-muted-foreground">

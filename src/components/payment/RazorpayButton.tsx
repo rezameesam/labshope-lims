@@ -36,6 +36,30 @@ export const RazorpayButton = ({
 }: RazorpayButtonProps) => {
   const [processing, setProcessing] = useState(false);
 
+  const extractOrderErrorMessage = async (error: unknown, fallback?: string) => {
+    if (fallback) return fallback;
+
+    if (error && typeof error === "object" && "context" in error) {
+      const context = (error as { context?: Response }).context;
+      if (context) {
+        try {
+          const errorBody = await context.clone().json();
+          if (errorBody && typeof errorBody.error === "string") {
+            return errorBody.error;
+          }
+        } catch {
+          // Ignore parse failures and fall through to generic handling.
+        }
+      }
+    }
+
+    if (error && typeof error === "object" && "message" in error && typeof (error as { message?: string }).message === "string") {
+      return (error as { message: string }).message;
+    }
+
+    return "Failed to create payment order";
+  };
+
   const handlePayment = async () => {
     if (amount <= 0) {
       toast.error("Invalid payment amount");
@@ -92,14 +116,21 @@ export const RazorpayButton = ({
         }
       );
 
-      if (orderError || !orderData?.order_id) {
-        throw new Error(orderData?.error || "Failed to create payment order");
+      if (orderError || !orderData?.order_id || !orderData?.key_id) {
+        const message = await extractOrderErrorMessage(orderError, orderData?.error);
+        throw new Error(message);
       }
+
+      const orderAmountInRupees =
+        typeof orderData.amount === "number" && Number.isFinite(orderData.amount)
+          ? orderData.amount / 100
+          : amount;
 
       // Initiate Razorpay payment
       await initiateRazorpayPayment(
+        orderData.key_id,
         orderData.order_id,
-        amount,
+        orderAmountInRupees,
         resolvedInvoiceNumber,
         patientName,
         patientEmail,
@@ -133,7 +164,7 @@ export const RazorpayButton = ({
                       entity: {
                         id: response.razorpay_payment_id,
                         order_id: response.razorpay_order_id,
-                        amount: Math.round(amount * 100), // In paise
+                        amount: Math.round(orderAmountInRupees * 100), // In paise
                         status: "captured",
                         notes: paymentNotes,
                       },

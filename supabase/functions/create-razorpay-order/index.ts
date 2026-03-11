@@ -157,13 +157,6 @@ serve(async (req: Request) => {
       }
 
       const totalOutstanding = invoicePayments.reduce((sum, inv) => sum + inv.amount, 0);
-      if (Math.abs(totalOutstanding - amount) > 0.01) {
-        return new Response(
-          JSON.stringify({ error: `Amount must equal total outstanding of ₹${totalOutstanding}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
       orderAmount = Math.round(totalOutstanding * 100);
       orderData = {
         amount: orderAmount,
@@ -214,25 +207,17 @@ serve(async (req: Request) => {
         }
       }
 
-      // Check if invoice is already paid
-      if (invoice.payment_status === "paid") {
-        return new Response(
-          JSON.stringify({ error: "Invoice is already paid" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
       // Calculate outstanding amount
       const outstandingAmount = Number(invoice.final_amount) - Number(invoice.paid_amount || 0);
-      if (amount > outstandingAmount) {
+      if (outstandingAmount <= 0) {
         return new Response(
-          JSON.stringify({ error: `Amount exceeds outstanding amount of ₹${outstandingAmount}` }),
+          JSON.stringify({ error: "Invoice is already settled" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       // Create Razorpay order
-      orderAmount = Math.round(amount * 100); // Convert to paise
+      orderAmount = Math.round(outstandingAmount * 100); // Convert to paise
       orderData = {
         amount: orderAmount,
         currency: "INR",

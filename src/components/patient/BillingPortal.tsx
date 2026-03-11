@@ -97,6 +97,17 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
 
   const fetchInvoiceDetails = async (invoiceId: string) => {
     try {
+      const { data: invoiceData, error: invoiceError } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("id", invoiceId)
+        .single();
+
+      if (invoiceError) throw invoiceError;
+      if (invoiceData) {
+        setSelectedInvoice(invoiceData);
+      }
+
       // Fetch items
       const { data: items, error: itemsError } = await supabase
         .from("invoice_items")
@@ -148,6 +159,18 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
 
   const clearSelection = () => {
     setSelectedInvoiceIds(new Set());
+  };
+
+  const getOutstandingAmount = (invoice: Invoice) =>
+    Math.max(0, (Number(invoice.final_amount) || 0) - (Number(invoice.paid_amount) || 0));
+
+  const getDisplayPaymentStatus = (invoice: Invoice) => {
+    const outstandingAmount = getOutstandingAmount(invoice);
+    const paidAmount = Number(invoice.paid_amount) || 0;
+
+    if (outstandingAmount <= 0) return "paid";
+    if (paidAmount > 0) return "partial";
+    return "pending";
   };
 
   const generateInvoicePDF = async (invoicesToDownload: Invoice[]) => {
@@ -203,7 +226,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 140, yOffset);
         
         yOffset += 8;
-        doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 20, yOffset);
+        doc.text(`Status: ${getDisplayPaymentStatus(invoice).toUpperCase()}`, 20, yOffset);
         
         // Items table
         yOffset += 10;
@@ -434,10 +457,10 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                 )}
                 {(() => {
                   const unpaidInvoices = invoices.filter(
-                    inv => inv.payment_status !== "paid" && (inv.final_amount - inv.paid_amount) > 0
+                    (inv) => getOutstandingAmount(inv) > 0
                   );
                   const totalOutstanding = unpaidInvoices.reduce(
-                    (sum, inv) => sum + (inv.final_amount - inv.paid_amount),
+                    (sum, inv) => sum + getOutstandingAmount(inv),
                     0
                   );
 
@@ -448,7 +471,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                         invoices={unpaidInvoices.map((inv) => ({
                           id: inv.id,
                           invoice_number: inv.invoice_number,
-                          amount: inv.final_amount - inv.paid_amount,
+                          amount: getOutstandingAmount(inv),
                         }))}
                         patientName={patientName}
                         patientPhone={patientPhone}
@@ -524,18 +547,18 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     <TableCell className="font-mono font-medium">{invoice.invoice_number}</TableCell>
                     <TableCell className="text-right font-medium">₹{invoice.final_amount.toLocaleString()}</TableCell>
                     <TableCell className="text-right">₹{invoice.paid_amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-center">{getStatusBadge(invoice.payment_status)}</TableCell>
+                    <TableCell className="text-center">{getStatusBadge(getDisplayPaymentStatus(invoice))}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {format(new Date(invoice.created_at), "dd MMM yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {invoice.payment_status !== "paid" && (invoice.final_amount - invoice.paid_amount) > 0 && (
+                        {getOutstandingAmount(invoice) > 0 && (
                           <>
                             <RazorpayButton
                               invoiceId={invoice.id}
                               invoiceNumber={invoice.invoice_number}
-                              amount={invoice.final_amount - invoice.paid_amount}
+                              amount={getOutstandingAmount(invoice)}
                               patientName={patientName}
                               patientPhone={patientPhone}
                               onPaymentSuccess={() => {
@@ -592,7 +615,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                 <p className="text-sm text-muted-foreground">
                   {format(new Date(selectedInvoice.created_at), "dd MMMM yyyy")}
                 </p>
-                {getStatusBadge(selectedInvoice.payment_status)}
+                {getStatusBadge(getDisplayPaymentStatus(selectedInvoice))}
               </div>
 
               {/* Items */}
@@ -628,10 +651,10 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                   <span>Paid</span>
                   <span>₹{selectedInvoice.paid_amount.toLocaleString()}</span>
                 </div>
-                {selectedInvoice.final_amount - selectedInvoice.paid_amount > 0 && (
+                {getOutstandingAmount(selectedInvoice) > 0 && (
                   <div className="flex justify-between text-amber-600 font-medium border-t pt-2">
                     <span>Outstanding</span>
-                    <span>₹{(selectedInvoice.final_amount - selectedInvoice.paid_amount).toLocaleString()}</span>
+                    <span>₹{getOutstandingAmount(selectedInvoice).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -670,7 +693,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
               </Button>
 
               {/* Outstanding Payment Notice */}
-              {selectedInvoice.payment_status !== "paid" && (
+              {getOutstandingAmount(selectedInvoice) > 0 && (
                 <div className="space-y-4">
                   <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                     <div className="flex items-start gap-3">
@@ -688,7 +711,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                   <RazorpayButton
                     invoiceId={selectedInvoice.id}
                     invoiceNumber={selectedInvoice.invoice_number}
-                    amount={selectedInvoice.final_amount - selectedInvoice.paid_amount}
+                    amount={getOutstandingAmount(selectedInvoice)}
                     patientName={patientName}
                     patientPhone={patientPhone}
                     onPaymentSuccess={() => {

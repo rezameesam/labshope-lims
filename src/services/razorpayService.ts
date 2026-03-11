@@ -57,6 +57,7 @@ declare global {
  * Initialize Razorpay payment
  */
 export const initiateRazorpayPayment = async (
+  keyId: string,
   orderId: string,
   amount: number,
   invoiceNumber: string,
@@ -77,13 +78,12 @@ export const initiateRazorpayPayment = async (
       throw new Error('Razorpay is not available');
     }
 
-    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-    if (!razorpayKey) {
+    if (!keyId) {
       throw new Error('Razorpay key is not configured');
     }
 
     const options: RazorpayOptions = {
-      key: razorpayKey,
+      key: keyId,
       amount: Math.round(amount * 100), // Convert to paise
       currency: 'INR',
       name: 'IRM Clinical Laboratory',
