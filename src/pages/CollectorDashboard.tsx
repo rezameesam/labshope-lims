@@ -30,14 +30,14 @@ const CollectorDashboard = () => {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth/staff");
+      navigate("/auth/staff", { replace: true });
     }
   }, [user, loading, navigate]);
 
   useEffect(() => {
     if (!loading && user && !isCollector && !hasRole("admin") && !hasRole("employee")) {
       toast.error("Access denied. Collector access only.");
-      navigate("/");
+      navigate("/", { replace: true });
     }
   }, [user, loading, isCollector, hasRole, navigate]);
 

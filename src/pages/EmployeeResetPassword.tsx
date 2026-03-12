@@ -68,7 +68,7 @@ const EmployeeResetPassword = () => {
 
       await supabase.auth.signOut();
       toast.success("Password updated successfully. Please sign in.");
-      navigate("/auth/staff");
+      navigate("/auth/staff", { replace: true });
     } catch (error: any) {
       toast.error(error?.message || "Failed to update password.");
     } finally {
@@ -100,6 +100,7 @@ const EmployeeResetPassword = () => {
             <Label htmlFor="new_password">New Password</Label>
             <Input
               id="new_password"
+              name="new_password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -112,6 +113,7 @@ const EmployeeResetPassword = () => {
             <Label htmlFor="confirm_password">Confirm Password</Label>
             <Input
               id="confirm_password"
+              name="confirm_password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

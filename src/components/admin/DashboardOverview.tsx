@@ -18,6 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatAppDate } from "@/lib/date";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -607,7 +608,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
                     <div className="text-right">
                       {getStatusBadge(test.status)}
                       <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(test.test_date), "dd MMM")}
+                        {formatAppDate(test.test_date)}
                       </p>
                     </div>
                   </div>

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import {
   AreaChart,
   Area,
@@ -179,7 +180,7 @@ const FinancialReports = () => {
         const pending = billed - paid;
 
         dailyData.push({
-          date: format(date, period === "today" ? "HH:mm" : "dd MMM"),
+          date: period === "today" ? format(date, "HH:mm") : formatAppDate(date),
           billed,
           paid,
           pending,
@@ -216,7 +217,7 @@ const FinancialReports = () => {
     doc.text("Financial Report", 14, 20);
     doc.setFontSize(12);
     doc.text(`Period: ${period.charAt(0).toUpperCase() + period.slice(1)}`, 14, 30);
-    doc.text(`Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`, 14, 36);
+    doc.text(`Generated: ${formatAppDateTime(new Date())}`, 14, 36);
 
     // Summary Table
     autoTable(doc, {
@@ -485,7 +486,7 @@ const FinancialReports = () => {
                       </TableCell>
                       <TableCell>{getStatusBadge(inv.status)}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {format(new Date(inv.created_at), "dd MMM yyyy")}
+                        {formatAppDate(inv.created_at)}
                       </TableCell>
                     </TableRow>
                   ))
@@ -500,4 +501,3 @@ const FinancialReports = () => {
 };
 
 export default FinancialReports;
-

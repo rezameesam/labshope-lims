@@ -339,12 +339,18 @@ const ManageCollectionCenters = () => {
       {/* Search */}
       <div className="flex gap-2">
         <div className="relative flex-1">
+          <Label htmlFor="collection-center-search" className="sr-only">
+            Search collection centers
+          </Label>
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            id="collection-center-search"
+            name="collection_center_search"
             placeholder="Search collection centers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
+            autoComplete="off"
           />
         </div>
       </div>
@@ -476,10 +482,11 @@ const ManageCollectionCenters = () => {
               <div>
                 <Label htmlFor="lab_id">Lab *</Label>
                 <Select
+                  name="lab_id"
                   value={centerForm.lab_id}
                   onValueChange={(value) => setCenterForm({ ...centerForm, lab_id: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="lab_id">
                     <SelectValue placeholder="Select lab" />
                   </SelectTrigger>
                   <SelectContent>
@@ -498,19 +505,23 @@ const ManageCollectionCenters = () => {
                 <Label htmlFor="code">Center Code *</Label>
                 <Input
                   id="code"
+                  name="code"
                   value={centerForm.code}
                   onChange={(e) => setCenterForm({ ...centerForm, code: e.target.value })}
                   placeholder="CC001"
                   disabled={!!editingCenter}
+                  autoComplete="off"
                 />
               </div>
               <div>
                 <Label htmlFor="name">Center Name *</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={centerForm.name}
                   onChange={(e) => setCenterForm({ ...centerForm, name: e.target.value })}
                   placeholder="Collection Center Name"
+                  autoComplete="organization"
                 />
               </div>
             </div>
@@ -519,10 +530,12 @@ const ManageCollectionCenters = () => {
               <Label htmlFor="address">Address</Label>
               <Textarea
                 id="address"
+                name="address"
                 value={centerForm.address}
                 onChange={(e) => setCenterForm({ ...centerForm, address: e.target.value })}
                 placeholder="Full address..."
                 rows={2}
+                autoComplete="street-address"
               />
             </div>
 
@@ -530,9 +543,11 @@ const ManageCollectionCenters = () => {
               <Label htmlFor="contact_person">Contact Person</Label>
               <Input
                 id="contact_person"
+                name="contact_person"
                 value={centerForm.contact_person}
                 onChange={(e) => setCenterForm({ ...centerForm, contact_person: e.target.value })}
                 placeholder="Contact person name"
+                autoComplete="name"
               />
             </div>
 
@@ -541,19 +556,23 @@ const ManageCollectionCenters = () => {
                 <Label htmlFor="phone">Phone</Label>
                 <Input
                   id="phone"
+                  name="phone"
                   value={centerForm.phone}
                   onChange={(e) => setCenterForm({ ...centerForm, phone: e.target.value })}
                   placeholder="+91-1234567890"
+                  autoComplete="tel"
                 />
               </div>
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   value={centerForm.email}
                   onChange={(e) => setCenterForm({ ...centerForm, email: e.target.value })}
                   placeholder="center@example.com"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -605,4 +624,3 @@ const ManageCollectionCenters = () => {
 };
 
 export default ManageCollectionCenters;
-

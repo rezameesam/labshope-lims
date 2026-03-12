@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday, addDays, differenceInDays } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { formatAppDate } from "@/lib/date";
 
 interface NoticeItem {
   id: string;
@@ -178,7 +179,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
               type: "reminder",
               priority: isOverdue ? "high" : "medium",
               title: reminder.title,
-              description: `Patient: ${(reminder.patients as any)?.full_name} • ${format(reminderDate, "dd MMM yyyy")}`,
+              description: `Patient: ${(reminder.patients as any)?.full_name} • ${formatAppDate(reminderDate)}`,
               dueDate: reminder.reminder_date,
               link: "/admin?tab=reminders",
               linkText: "View Reminder",
@@ -451,7 +452,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {format(new Date(notice.dueDate), "dd MMM yyyy")}
+                                {formatAppDate(notice.dueDate)}
                               </div>
                               {daysUntil !== null && (
                                 <div className={`flex items-center gap-1 ${

@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { formatAppDate } from "@/lib/date";
 
 const TermsOfService = () => {
   return (
@@ -10,9 +11,7 @@ const TermsOfService = () => {
         <h1 className="text-2xl font-heading font-bold text-foreground mb-2">
           Terms of Service
         </h1>
-        <p className="text-sm text-muted-foreground mb-6">
-          Last updated: {new Date().toLocaleDateString()}
-        </p>
+        <p className="text-sm text-muted-foreground mb-6">Last updated: {formatAppDate(new Date())}</p>
 
         <div className="space-y-6 text-sm text-foreground">
           <section className="space-y-2">

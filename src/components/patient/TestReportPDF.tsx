@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import { formatPhoneForDisplay } from "@/lib/phone";
 import { renderReportTemplateText, type ReportTemplatePreviewContext } from "@/lib/reportTemplates";
 
@@ -223,8 +224,8 @@ export const generateTestReportPDF = async (data: ReportData) => {
     patient_id: data.patient.patient_id,
     phone: formatPhoneForDisplay(data.patient.phone),
     test_name: data.tests.length === 1 ? data.tests[0].test_name : "Multiple Tests",
-    test_date: format(new Date(data.test_date), "dd MMM yyyy"),
-    report_date: format(new Date(), "dd MMM yyyy"),
+    test_date: formatAppDate(data.test_date),
+    report_date: formatAppDate(new Date()),
     lab_name: data.lab_name || LAB_INFO.name,
     lab_code: data.lab_code || "",
     collection_center: data.collection_center_code || data.collection_center_name || "",
@@ -340,7 +341,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
   doc.setFont("helvetica", "bold");
   doc.text("Report Date:", col2X, patientInfoY + 14);
   doc.setFont("helvetica", "normal");
-  doc.text(format(new Date(data.test_date), "dd MMM yyyy"), col2X + 28, patientInfoY + 14);
+  doc.text(formatAppDate(data.test_date), col2X + 28, patientInfoY + 14);
   
   // Registry and collection center info (if available)
   let infoY = patientInfoY + 28; // start after the lab row
@@ -688,7 +689,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
     doc.text("This is a computer-generated report.", 14, footerY);
-    doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 14, footerY + 5);
+    doc.text(`Generated on: ${formatAppDateTime(new Date())}`, 14, footerY + 5);
     
     doc.setDrawColor(200, 200, 200);
     doc.line(14, footerY + 12, pageWidth - 14, footerY + 12);

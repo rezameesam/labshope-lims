@@ -400,12 +400,18 @@ const ManageRoles = () => {
 
       {/* Search */}
       <div className="relative max-w-sm">
+        <Label htmlFor="role-search" className="sr-only">
+          Search roles
+        </Label>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
+          id="role-search"
+          name="role_search"
           placeholder="Search roles..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10"
+          autoComplete="off"
         />
       </div>
 
@@ -519,10 +525,12 @@ const ManageRoles = () => {
                 <Label htmlFor="name">Role Name *</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={roleForm.name}
                   onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
                   placeholder="e.g., Lab Technician, Billing Staff, Receptionist"
                   disabled={selectedRole?.is_system_role}
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -546,16 +554,18 @@ const ManageRoles = () => {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
+                name="description"
                 value={roleForm.description}
                 onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
                 placeholder="e.g., Handles patient registration, test scheduling, and front desk operations"
                 rows={3}
+                autoComplete="off"
               />
             </div>
 
             <div className="space-y-2 flex-1 overflow-hidden flex flex-col min-h-0">
               <div className="flex items-center justify-between">
-                <Label>Permissions *</Label>
+                <p className="text-sm font-medium leading-none">Permissions *</p>
                 <Badge variant="secondary">
                   {selectedPermissions.size} selected
                 </Badge>
@@ -642,5 +652,3 @@ const ManageRoles = () => {
 };
 
 export default ManageRoles;
-
-

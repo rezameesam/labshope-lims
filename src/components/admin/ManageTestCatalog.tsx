@@ -710,12 +710,18 @@ const ManageTestCatalog = () => {
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
+              <Label htmlFor="test-catalog-search" className="sr-only">
+                Search test catalog
+              </Label>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                id="test-catalog-search"
+                name="test_catalog_search"
                 placeholder="Search by test ID, name, description, or category..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
+                autoComplete="off"
               />
             </div>
             <Select value={filterCategory} onValueChange={setFilterCategory}>
@@ -936,6 +942,7 @@ const ManageTestCatalog = () => {
                 <Label htmlFor="name">Test Name *</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={testForm.name}
                   onChange={(e) => {
                     const newName = e.target.value;
@@ -952,6 +959,7 @@ const ManageTestCatalog = () => {
                     });
                   }}
                   placeholder="e.g., Complete Blood Count (CBC)"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -1072,7 +1080,7 @@ const ManageTestCatalog = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Panel Items (optional)</Label>
+                  <p className="text-sm font-medium leading-none">Panel Items (optional)</p>
                   <p className="text-xs text-muted-foreground">
                     Define default result rows for multi-item tests like CBC.
                   </p>

@@ -17,6 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +49,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatAppDate } from "@/lib/date";
 import { useAuth } from "@/hooks/useAuth";
 
 interface InventoryCategory {
@@ -756,12 +758,18 @@ const ManageInventory = () => {
             <CardHeader>
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
+                  <Label htmlFor="inventory-search" className="sr-only">
+                    Search inventory items
+                  </Label>
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
+                    id="inventory-search"
+                    name="inventory_search"
                     placeholder="Search items..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9"
+                    autoComplete="off"
                   />
                 </div>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -904,7 +912,7 @@ const ManageInventory = () => {
                 <TableBody>
                   {purchases.map((purchase) => (
                     <TableRow key={purchase.id}>
-                      <TableCell>{format(new Date(purchase.purchase_date), "dd MMM yyyy")}</TableCell>
+                      <TableCell>{formatAppDate(purchase.purchase_date)}</TableCell>
                       <TableCell className="font-medium">{purchase.item?.name || "-"}</TableCell>
                       <TableCell className="text-center">{purchase.quantity}</TableCell>
                       <TableCell className="text-right">₹{purchase.unit_cost.toLocaleString()}</TableCell>
@@ -948,7 +956,7 @@ const ManageInventory = () => {
                 <TableBody>
                   {usages.map((usage) => (
                     <TableRow key={usage.id}>
-                      <TableCell>{format(new Date(usage.usage_date), "dd MMM yyyy")}</TableCell>
+                      <TableCell>{formatAppDate(usage.usage_date)}</TableCell>
                       <TableCell className="font-medium">{usage.item?.name || "-"}</TableCell>
                       <TableCell className="text-center">{usage.quantity}</TableCell>
                       <TableCell className="text-right">₹{(usage.unit_cost || 0).toLocaleString()}</TableCell>
@@ -994,8 +1002,8 @@ const ManageInventory = () => {
                     <TableRow key={maintenance.id}>
                       <TableCell className="font-medium">{maintenance.item?.name || "-"}</TableCell>
                       <TableCell>{maintenance.maintenance_type}</TableCell>
-                      <TableCell>{maintenance.scheduled_date ? format(new Date(maintenance.scheduled_date), "dd MMM yyyy") : "-"}</TableCell>
-                      <TableCell>{maintenance.completed_date ? format(new Date(maintenance.completed_date), "dd MMM yyyy") : "-"}</TableCell>
+                      <TableCell>{maintenance.scheduled_date ? formatAppDate(maintenance.scheduled_date) : "-"}</TableCell>
+                      <TableCell>{maintenance.completed_date ? formatAppDate(maintenance.completed_date) : "-"}</TableCell>
                       <TableCell className="text-center">{getStatusBadge(maintenance.status)}</TableCell>
                       <TableCell className="text-right">{maintenance.cost ? `₹${maintenance.cost.toLocaleString()}` : "-"}</TableCell>
                       <TableCell className="text-muted-foreground">{maintenance.vendor || "-"}</TableCell>
@@ -1185,17 +1193,20 @@ const ManageInventory = () => {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Name *</Label>
+                <Label htmlFor="inventory-item-name">Name *</Label>
                 <Input
+                  id="inventory-item-name"
+                  name="name"
                   value={itemForm.name}
                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
                   placeholder="Item name"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Type *</Label>
-                <Select value={itemForm.type} onValueChange={(v) => setItemForm({ ...itemForm, type: v })}>
-                  <SelectTrigger>
+                <Label htmlFor="inventory-item-type">Type *</Label>
+                <Select name="type" value={itemForm.type} onValueChange={(v) => setItemForm({ ...itemForm, type: v })}>
+                  <SelectTrigger id="inventory-item-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1207,17 +1218,20 @@ const ManageInventory = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Barcode / SKU</Label>
+                <Label htmlFor="inventory-item-sku">Barcode / SKU</Label>
                 <Input
+                  id="inventory-item-sku"
+                  name="sku"
                   value={itemForm.sku}
                   onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
                   placeholder="Scan or enter barcode"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={itemForm.category_id} onValueChange={(v) => setItemForm({ ...itemForm, category_id: v })}>
-                  <SelectTrigger>
+                <Label htmlFor="inventory-item-category">Category</Label>
+                <Select name="category_id" value={itemForm.category_id} onValueChange={(v) => setItemForm({ ...itemForm, category_id: v })}>
+                  <SelectTrigger id="inventory-item-category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1230,24 +1244,31 @@ const ManageInventory = () => {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Unit</Label>
+                <Label htmlFor="inventory-item-unit">Unit</Label>
                 <Input
+                  id="inventory-item-unit"
+                  name="unit"
                   value={itemForm.unit}
                   onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
                   placeholder="pcs, ml, etc"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Current Stock</Label>
+                <Label htmlFor="inventory-item-current-stock">Current Stock</Label>
                 <Input
+                  id="inventory-item-current-stock"
+                  name="current_stock"
                   type="number"
                   value={itemForm.current_stock}
                   onChange={(e) => setItemForm({ ...itemForm, current_stock: Number(e.target.value) })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Min Stock Level</Label>
+                <Label htmlFor="inventory-item-min-stock-level">Min Stock Level</Label>
                 <Input
+                  id="inventory-item-min-stock-level"
+                  name="min_stock_level"
                   type="number"
                   value={itemForm.min_stock_level}
                   onChange={(e) => setItemForm({ ...itemForm, min_stock_level: Number(e.target.value) })}
@@ -1256,36 +1277,47 @@ const ManageInventory = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Unit Price (₹)</Label>
+                <Label htmlFor="inventory-item-unit-price">Unit Price (₹)</Label>
                 <Input
+                  id="inventory-item-unit-price"
+                  name="unit_price"
                   type="number"
                   value={itemForm.unit_price}
                   onChange={(e) => setItemForm({ ...itemForm, unit_price: Number(e.target.value) })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Supplier</Label>
+                <Label htmlFor="inventory-item-supplier">Supplier</Label>
                 <Input
+                  id="inventory-item-supplier"
+                  name="supplier"
                   value={itemForm.supplier}
                   onChange={(e) => setItemForm({ ...itemForm, supplier: e.target.value })}
                   placeholder="Supplier name"
+                  autoComplete="organization"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Location</Label>
+              <Label htmlFor="inventory-item-location">Location</Label>
               <Input
+                id="inventory-item-location"
+                name="location"
                 value={itemForm.location}
                 onChange={(e) => setItemForm({ ...itemForm, location: e.target.value })}
                 placeholder="Storage location"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label htmlFor="inventory-item-description">Description</Label>
               <Textarea
+                id="inventory-item-description"
+                name="description"
                 value={itemForm.description}
                 onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
                 placeholder="Item description"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -1425,10 +1457,9 @@ const ManageInventory = () => {
             </div>
             <div className="space-y-2">
               <Label>Purchase Date *</Label>
-              <Input
-                type="date"
+              <DateInput
                 value={purchaseForm.purchase_date}
-                onChange={(e) => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
+                onChange={(value) => setPurchaseForm({ ...purchaseForm, purchase_date: value })}
               />
             </div>
             <div className="space-y-2">
@@ -1485,10 +1516,9 @@ const ManageInventory = () => {
               </div>
               <div className="space-y-2">
                 <Label>Usage Date *</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={usageForm.usage_date}
-                  onChange={(e) => setUsageForm({ ...usageForm, usage_date: e.target.value })}
+                  onChange={(value) => setUsageForm({ ...usageForm, usage_date: value })}
                 />
               </div>
             </div>
@@ -1539,10 +1569,9 @@ const ManageInventory = () => {
               </div>
               <div className="space-y-2">
                 <Label>Scheduled Date *</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={maintenanceForm.scheduled_date}
-                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, scheduled_date: e.target.value })}
+                  onChange={(value) => setMaintenanceForm({ ...maintenanceForm, scheduled_date: value })}
                 />
               </div>
             </div>

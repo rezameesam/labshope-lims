@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
@@ -29,6 +30,7 @@ import { generateMultiTestReportPDF } from "./TestReportPDF";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatAppDate } from "@/lib/date";
 
 interface TestResult {
   id: string;
@@ -244,7 +246,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
         case "package":
           if (test.test_package_group_id) {
             key = `pkg-${test.test_package_group_id}`;
-            label = `${test.test_package_name || "Package"} • ${format(new Date(test.test_date), "dd MMM yyyy")}`;
+            label = `${test.test_package_name || "Package"} • ${formatAppDate(test.test_date)}`;
           } else {
             key = `test-${test.id}`;
             label = test.test_name;
@@ -633,7 +635,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
       <div>
         <span className="text-muted-foreground">Test Date:</span>
         <p className="font-medium">
-          {format(new Date(test.test_date), "MMMM dd, yyyy")}
+          {formatAppDate(test.test_date)}
           {test.created_at && (
             <span className="ml-2 text-sm text-muted-foreground">
               {format(new Date(test.created_at), "HH:mm")}
@@ -776,19 +778,17 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
           <div className="mb-4 grid gap-3 sm:flex sm:flex-wrap sm:items-end">
             <div className="space-y-1">
               <Label className="text-xs">From Date</Label>
-              <Input
-                type="date"
+              <DateInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={setStartDate}
                 className="w-full sm:w-40"
               />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">To Date</Label>
-              <Input
-                type="date"
+              <DateInput
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={setEndDate}
                 className="w-full sm:w-40"
               />
             </div>
@@ -861,7 +861,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                           <div className="flex items-center justify-between gap-3">
                             <span>Date</span>
                             <span className="text-right">
-                              {format(new Date(firstTest.test_date), "dd MMM yyyy")}
+                              {formatAppDate(firstTest.test_date)}
                               {firstTest.created_at && (
                                 <span className="ml-1 text-xs">
                                   {format(new Date(firstTest.created_at), "HH:mm")}
@@ -916,7 +916,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                                     <div className="min-w-0">
                                       <p className="font-medium text-foreground">{test.test_name}</p>
                                       <p className="text-sm text-muted-foreground">
-                                        {format(new Date(test.test_date), "dd MMM yyyy")}
+                                        {formatAppDate(test.test_date)}
                                       </p>
                                     </div>
                                   </div>
@@ -993,7 +993,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                           <div className="min-w-0">
                             <p className="font-semibold text-foreground">{test.test_name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {format(new Date(test.test_date), "dd MMM yyyy")}
+                              {formatAppDate(test.test_date)}
                               {test.created_at && (
                                 <span className="ml-1 text-xs">
                                   {format(new Date(test.created_at), "HH:mm")}
@@ -1114,7 +1114,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               <div className="flex flex-col gap-0.5">
-                                <span>{format(new Date(firstTest.test_date), "dd MMM yyyy")}</span>
+                                <span>{formatAppDate(firstTest.test_date)}</span>
                                 {firstTest.created_at && (
                                   <span className="text-xs">
                                     {format(new Date(firstTest.created_at), "HH:mm")}
@@ -1183,7 +1183,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                                   </TableCell>
                                   <TableCell className="text-muted-foreground">
                                     <div className="flex flex-col gap-0.5">
-                                      <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                                      <span>{formatAppDate(test.test_date)}</span>
                                       {test.created_at && (
                                         <span className="text-xs">
                                           {format(new Date(test.created_at), "HH:mm")}
@@ -1262,7 +1262,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             <div className="flex flex-col gap-0.5">
-                              <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                              <span>{formatAppDate(test.test_date)}</span>
                               {test.created_at && (
                                 <span className="text-xs">
                                   {format(new Date(test.created_at), "HH:mm")}
@@ -1328,7 +1328,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                         <div>
                           <p className="font-semibold text-foreground">{test.test_name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(test.test_date), "dd MMM yyyy")}
+                            {formatAppDate(test.test_date)}
                             {test.created_at && (
                               <span className="ml-1 text-xs">
                                 {format(new Date(test.created_at), "HH:mm")}
@@ -1362,7 +1362,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                       <TableCell className="text-center">{getStatusBadge(test.status)}</TableCell>
                       <TableCell className="text-muted-foreground">
                         <div className="flex flex-col gap-0.5">
-                          <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                          <span>{formatAppDate(test.test_date)}</span>
                           {test.created_at && (
                             <span className="text-xs">
                               {format(new Date(test.created_at), "HH:mm")}
@@ -1397,19 +1397,17 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             <div className="grid gap-3 border-b pb-4 sm:flex sm:flex-wrap sm:items-end">
               <div className="space-y-1">
                 <Label className="text-xs">From Date</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={setStartDate}
                   className="w-full sm:w-40"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">To Date</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={setEndDate}
                   className="w-full sm:w-40"
                 />
               </div>
@@ -1498,7 +1496,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
                               )}
                             </div>
                             <span className="text-xs text-muted-foreground">
-                              {format(new Date(test.test_date), "dd MMM yyyy")}
+                              {formatAppDate(test.test_date)}
                               {test.created_at && (
                                 <span className="ml-1">
                                   {format(new Date(test.created_at), "HH:mm")}

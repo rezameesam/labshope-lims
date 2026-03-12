@@ -36,9 +36,9 @@ const EmployeeAuth = () => {
     if (!authLoading && user && isStaff) {
       // Redirect collectors to collector dashboard, others to admin dashboard
       if (isCollector) {
-        navigate("/collector");
+        navigate("/collector", { replace: true });
       } else {
-        navigate("/admin");
+        navigate("/admin", { replace: true });
       }
     }
   }, [user, authLoading, isStaff, isCollector, navigate]);
@@ -191,6 +191,7 @@ const EmployeeAuth = () => {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
+                    name="email"
                     type="email"
                     placeholder="Enter your email"
                     value={email}
@@ -298,6 +299,7 @@ const EmployeeAuth = () => {
             <Label htmlFor="forgot-email">Email Address</Label>
             <Input
               id="forgot-email"
+              name="forgot_email"
               type="email"
               value={forgotEmail}
               onChange={(e) => setForgotEmail(e.target.value)}

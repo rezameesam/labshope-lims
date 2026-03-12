@@ -48,6 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatAppDate } from "@/lib/date";
 
 interface Doctor {
   id: string;
@@ -364,12 +365,18 @@ const ManageDoctors = () => {
           {/* Search */}
           <div className="flex gap-2">
             <div className="relative flex-1">
+              <Label htmlFor="doctor-search" className="sr-only">
+                Search doctors
+              </Label>
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                id="doctor-search"
+                name="doctor_search"
                 placeholder="Search doctors..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -500,7 +507,7 @@ const ManageDoctors = () => {
                     {referrals.map((referral) => (
                       <TableRow key={referral.id}>
                         <TableCell>
-                          {format(new Date(referral.referral_date), "dd MMM yyyy")}
+                          {formatAppDate(referral.referral_date)}
                         </TableCell>
                         <TableCell className="font-medium">
                           {referral.doctor?.name || "Unknown"}
@@ -577,18 +584,22 @@ const ManageDoctors = () => {
                 <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={doctorForm.name}
                   onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })}
                   placeholder="Dr. John Doe"
+                  autoComplete="name"
                 />
               </div>
               <div>
                 <Label htmlFor="specialization">Specialization</Label>
                 <Input
                   id="specialization"
+                  name="specialization"
                   value={doctorForm.specialization}
                   onChange={(e) => setDoctorForm({ ...doctorForm, specialization: e.target.value })}
                   placeholder="Cardiologist"
+                  autoComplete="organization-title"
                 />
               </div>
             </div>
@@ -598,19 +609,23 @@ const ManageDoctors = () => {
                 <Label htmlFor="phone">Phone</Label>
                 <Input
                   id="phone"
+                  name="phone"
                   value={doctorForm.phone}
                   onChange={(e) => setDoctorForm({ ...doctorForm, phone: e.target.value })}
                   placeholder="+91-1234567890"
+                  autoComplete="tel"
                 />
               </div>
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   value={doctorForm.email}
                   onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
                   placeholder="doctor@example.com"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -619,10 +634,12 @@ const ManageDoctors = () => {
               <Label htmlFor="address">Address</Label>
               <Textarea
                 id="address"
+                name="address"
                 value={doctorForm.address}
                 onChange={(e) => setDoctorForm({ ...doctorForm, address: e.target.value })}
                 placeholder="Clinic address..."
                 rows={2}
+                autoComplete="street-address"
               />
             </div>
 
@@ -656,10 +673,12 @@ const ManageDoctors = () => {
               <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"
+                name="notes"
                 value={doctorForm.notes}
                 onChange={(e) => setDoctorForm({ ...doctorForm, notes: e.target.value })}
                 placeholder="Additional notes..."
                 rows={3}
+                autoComplete="off"
               />
             </div>
           </div>
@@ -697,4 +716,3 @@ const ManageDoctors = () => {
 };
 
 export default ManageDoctors;
-

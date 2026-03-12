@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Link2, RefreshCcw, Search, UserPlus } from "lucide-react";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
@@ -502,16 +503,25 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
           </div>
           <div className="grid gap-4 pt-2 md:grid-cols-[1fr_220px]">
             <div className="relative">
+              <Label htmlFor="booking-request-search" className="sr-only">
+                Search booking requests
+              </Label>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                id="booking-request-search"
+                name="booking_request_search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name, phone, notes, or linked patient"
                 className="pl-9"
+                autoComplete="off"
               />
             </div>
+            <Label htmlFor="booking-request-status-filter" className="sr-only">
+              Filter booking requests by status
+            </Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
+              <SelectTrigger id="booking-request-status-filter">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -532,6 +542,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
               <TableHeader>
                 <TableRow className="bg-muted/40">
                   <TableHead>Requested By</TableHead>
+                  <TableHead>Submitted On</TableHead>
                   <TableHead>Booking</TableHead>
                   <TableHead>Preferred Date</TableHead>
                   <TableHead>Preferred Location</TableHead>
@@ -550,6 +561,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                         {request.email && <p className="text-xs text-muted-foreground">{request.email}</p>}
                       </div>
                     </TableCell>
+                    <TableCell>{formatAppDate(request.created_at)}</TableCell>
                     <TableCell>
                       <div>
                         <Badge variant="outline" className="capitalize">
@@ -562,7 +574,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                     </TableCell>
                     <TableCell>
                       {request.preferred_date
-                        ? format(new Date(request.preferred_date), "dd MMM yyyy")
+                        ? formatAppDate(request.preferred_date)
                         : <span className="text-muted-foreground">Not set</span>}
                     </TableCell>
                     <TableCell>
@@ -595,7 +607,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                 ))}
                 {filteredRequests.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                       No booking requests found.
                     </TableCell>
                   </TableRow>
@@ -611,9 +623,11 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Rows</span>
+                  <Label htmlFor="booking-request-page-size" className="text-sm text-muted-foreground">
+                    Rows
+                  </Label>
                   <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                    <SelectTrigger className="h-8 w-[90px]">
+                    <SelectTrigger id="booking-request-page-size" className="h-8 w-[90px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -685,6 +699,10 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                       <p className="font-medium">{selectedRequest.address || "Not provided"}</p>
                     </div>
                     <div>
+                      <p className="text-muted-foreground">Submitted on</p>
+                      <p className="font-medium">{formatAppDateTime(selectedRequest.created_at)}</p>
+                    </div>
+                    <div>
                       <p className="text-muted-foreground">Request</p>
                       <p className="font-medium capitalize">{selectedRequest.booking_type.replace("_", " ")}</p>
                     </div>
@@ -703,9 +721,9 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label htmlFor="booking-request-review-status">Status</Label>
                       <Select value={reviewStatus} onValueChange={setReviewStatus}>
-                        <SelectTrigger>
+                        <SelectTrigger id="booking-request-review-status">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -781,10 +799,16 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex gap-2">
+                      <Label htmlFor="booking-request-manual-search" className="sr-only">
+                        Search for an existing patient
+                      </Label>
                       <Input
+                        id="booking-request-manual-search"
+                        name="booking_request_manual_search"
                         value={manualSearch}
                         onChange={(e) => setManualSearch(e.target.value)}
                         placeholder="Search by patient ID, name, or phone"
+                        autoComplete="off"
                       />
                       <Button type="button" variant="outline" onClick={() => void handleManualSearch()} disabled={searchingPatients}>
                         Search

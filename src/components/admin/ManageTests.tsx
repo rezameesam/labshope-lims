@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { useLab } from "@/contexts/LabContext";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 
 interface PatientTest {
   id: string;
@@ -1619,6 +1621,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                           <div className="space-y-2">
                             <Label htmlFor="lab_id">Lab</Label>
                             <Select
+                              name="lab_id"
                               value={formData.lab_id || "none"}
                               onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
                             >
@@ -1638,6 +1641,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                           <div className="space-y-2">
                             <Label htmlFor="collection_center_id">Collection Center</Label>
                             <Select
+                              name="collection_center_id"
                               value={formData.collection_center_id || "none"}
                               onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
                               disabled={!formData.lab_id}
@@ -1674,19 +1678,24 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-2">
-                        <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select package (optional)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No Package</SelectItem>
-                            {testPackages.map((pkg) => (
-                              <SelectItem key={pkg.id} value={pkg.id}>
-                                {pkg.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="space-y-2">
+                          <Label htmlFor="test_package_id" className="sr-only">
+                            Test package
+                          </Label>
+                          <Select name="test_package_id" value={selectedPackageId} onValueChange={setSelectedPackageId}>
+                            <SelectTrigger id="test_package_id">
+                              <SelectValue placeholder="Select package (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No Package</SelectItem>
+                              {testPackages.map((pkg) => (
+                                <SelectItem key={pkg.id} value={pkg.id}>
+                                  {pkg.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Button
                           type="button"
                           variant="outline"
@@ -1713,20 +1722,29 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                             className="pl-10"
                           />
                         </div>
-                        <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Filter by category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Categories</SelectItem>
-                            {categories.map((category) => (
-                              <SelectItem key={category.id} value={category.name}>
-                                {category.name}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="Other Tests">Other Tests</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="space-y-2">
+                          <Label htmlFor="test_category_filter" className="sr-only">
+                            Test category filter
+                          </Label>
+                          <Select
+                            name="test_category_filter"
+                            value={selectedCategoryFilter}
+                            onValueChange={setSelectedCategoryFilter}
+                          >
+                            <SelectTrigger id="test_category_filter">
+                              <SelectValue placeholder="Filter by category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Categories</SelectItem>
+                              {categories.map((category) => (
+                                <SelectItem key={category.id} value={category.name}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="Other Tests">Other Tests</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
 
@@ -1883,6 +1901,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     <div className="space-y-2">
                       <Label htmlFor="referred_by">Referred By</Label>
                       <Select 
+                        name="referred_by"
                         value={formData.referred_by} 
                         onValueChange={(value) => setFormData({ ...formData, referred_by: value, custom_doctor_name: "" })}
                       >
@@ -1915,11 +1934,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="test_date">Test Date *</Label>
-                        <Input
+                        <DateInput
                           id="test_date"
-                          type="date"
                           value={formData.test_date}
-                          onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
+                          onChange={(value) => setFormData({ ...formData, test_date: value })}
                           required
                         />
                       </div>
@@ -2049,7 +2067,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     </p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {selectedTest && format(new Date(selectedTest.test_date), "dd MMM yyyy")}
+                    {selectedTest && formatAppDate(selectedTest.test_date)}
                   </p>
                 </div>
               </CardContent>
@@ -2495,7 +2513,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                   <div className="flex items-center justify-between mb-2">
                     <Badge variant="secondary">{getActionLabel(log.action)}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(log.changed_at), "dd MMM yyyy, HH:mm")}
+                      {formatAppDateTime(log.changed_at)}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">
@@ -2744,7 +2762,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                           <div className="flex flex-col gap-0.5">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-sm">{format(new Date(firstTest.test_date), "dd MMM yyyy")}</span>
+                              <span className="text-sm">{formatAppDate(firstTest.test_date)}</span>
                             </div>
                             {firstTest.created_at && (
                               <span className="text-xs text-muted-foreground ml-5">
@@ -2827,7 +2845,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-1.5">
                                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <span className="text-sm">{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                                  <span className="text-sm">{formatAppDate(test.test_date)}</span>
                                 </div>
                                 {test.created_at && (
                                   <span className="text-xs text-muted-foreground ml-5">
@@ -2939,7 +2957,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-sm">{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                          <span className="text-sm">{formatAppDate(test.test_date)}</span>
                         </div>
                         {test.created_at && (
                           <span className="text-xs text-muted-foreground ml-5">

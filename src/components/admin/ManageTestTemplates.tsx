@@ -552,12 +552,18 @@ const ManageTestTemplates = () => {
       <Card>
         <CardContent className="pt-6">
           <div className="relative">
+            <Label htmlFor="test-template-search" className="sr-only">
+              Search test templates
+            </Label>
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="test-template-search"
+              name="test_template_search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by template, category, or test name"
               className="pl-10"
+              autoComplete="off"
             />
           </div>
         </CardContent>

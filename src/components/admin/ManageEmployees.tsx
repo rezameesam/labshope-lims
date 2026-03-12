@@ -61,6 +61,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import { formatAppDate } from "@/lib/date";
 
 interface Employee {
   id: string;
@@ -910,12 +911,18 @@ const ManageEmployees = () => {
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         <div className="flex flex-col sm:flex-row gap-4 flex-1">
           <div className="relative max-w-sm">
+            <Label htmlFor="employee-search" className="sr-only">
+              Search employees
+            </Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="employee-search"
+              name="employee_search"
               placeholder="Search by name, email, or ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 w-full sm:w-80"
+              autoComplete="off"
             />
           </div>
           <Tabs value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)} className="w-auto">
@@ -958,10 +965,12 @@ const ManageEmployees = () => {
                   <Label htmlFor="full_name">Full Name *</Label>
                   <Input
                     id="full_name"
+                    name="full_name"
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     required
                     placeholder="Enter full name"
+                    autoComplete="name"
                   />
                 </div>
 
@@ -969,11 +978,13 @@ const ManageEmployees = () => {
                   <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
+                    name="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
                     placeholder="employee@irmclinic.com"
+                    autoComplete="email"
                   />
                 </div>
 
@@ -982,12 +993,14 @@ const ManageEmployees = () => {
                   <div className="relative">
                     <Input
                       id="password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       required
                       minLength={6}
                       placeholder="Minimum 6 characters"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -1007,22 +1020,25 @@ const ManageEmployees = () => {
                   <Label htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
+                    name="phone"
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="Phone number"
+                    autoComplete="tel"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
                   <Select
+                    name="role"
                     value={formData.role}
                     onValueChange={(value: "admin" | "employee" | "collector") =>
                       setFormData({ ...formData, role: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1037,9 +1053,11 @@ const ManageEmployees = () => {
                   <Label htmlFor="designation">Designation</Label>
                   <Input
                     id="designation"
+                    name="designation"
                     value={formData.designation}
                     onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
                     placeholder="e.g. Lab Technician"
+                    autoComplete="organization-title"
                   />
                 </div>
 
@@ -1047,9 +1065,11 @@ const ManageEmployees = () => {
                   <Label htmlFor="department">Department</Label>
                   <Input
                     id="department"
+                    name="department"
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     placeholder="e.g. Pathology"
+                    autoComplete="organization"
                   />
                 </div>
               </div>
@@ -1747,7 +1767,7 @@ const ManageEmployees = () => {
                 )}
 
                 <div className="text-xs text-muted-foreground pt-4 border-t">
-                  Joined: {format(new Date(selectedEmployee.created_at), "dd MMM yyyy")}
+                  Joined: {formatAppDate(selectedEmployee.created_at)}
                 </div>
               </div>
 

@@ -317,12 +317,18 @@ const ManageTestPackages = () => {
       {/* Search */}
       <div className="flex gap-2">
         <div className="relative flex-1">
+          <Label htmlFor="test-package-search" className="sr-only">
+            Search test packages
+          </Label>
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            id="test-package-search"
+            name="test_package_search"
             placeholder="Search packages..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
+            autoComplete="off"
           />
         </div>
       </div>
@@ -449,9 +455,11 @@ const ManageTestPackages = () => {
                 <Label htmlFor="name">Package Name *</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={packageForm.name}
                   onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })}
                   placeholder="e.g., Complete Health Package"
+                  autoComplete="off"
                 />
               </div>
 
@@ -479,7 +487,7 @@ const ManageTestPackages = () => {
                   />
                 </div>
                 <div>
-                  <Label>Package Price</Label>
+                  <p className="text-sm font-medium leading-none">Package Price</p>
                   <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
                     <IndianRupee className="h-4 w-4 text-muted-foreground" />
                     <span className="font-semibold">{calculatePackagePrice().toLocaleString()}</span>
@@ -488,7 +496,7 @@ const ManageTestPackages = () => {
               </div>
 
               <div>
-                <Label>Select Tests *</Label>
+                <p className="text-sm font-medium leading-none">Select Tests *</p>
                 <div className="border rounded-md p-4 max-h-64 overflow-y-auto">
                   {filteredTests.length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">No tests available</div>
@@ -523,7 +531,7 @@ const ManageTestPackages = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Selected Tests</Label>
+                <p className="text-sm font-medium leading-none">Selected Tests</p>
                 {(() => {
                   const selectedTestsData = tests.filter((t) => packageForm.selectedTests.includes(t.id));
                   if (selectedTestsData.length === 0) {

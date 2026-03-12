@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import ManageEmployees from "@/components/admin/ManageEmployees";
@@ -77,18 +78,18 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth/staff");
+      navigate("/auth/staff", { replace: true });
     }
   }, [user, loading, navigate]);
 
   useEffect(() => {
     if (!loading && user && !isStaff) {
       toast.error("Access denied. Staff only.");
-      navigate("/");
+      navigate("/", { replace: true });
     }
     // Redirect collectors to collector dashboard
     if (!loading && user && isCollector) {
-      navigate("/collector");
+      navigate("/collector", { replace: true });
     }
   }, [user, loading, isStaff, isCollector, navigate]);
 

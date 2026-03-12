@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, Building2, Lock, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ import { format } from "date-fns";
 import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import { formatAppDate } from "@/lib/date";
 import {
   DEFAULT_COUNTRY_CODE,
   PHONE_COUNTRY_OPTIONS,
@@ -162,21 +164,27 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
         <Label htmlFor="full_name">Full Name *</Label>
         <Input
           id="full_name"
+          name="full_name"
           value={formData.full_name}
           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
           required
           placeholder="Enter full name"
+          autoComplete="name"
         />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="phone">Phone Number *</Label>
         <div className="flex gap-2">
+          <Label htmlFor="country_code" className="sr-only">
+            Country code
+          </Label>
           <Select
+            name="country_code"
             value={formData.country_code}
             onValueChange={(value) => setFormData({ ...formData, country_code: value })}
           >
-            <SelectTrigger className="w-[170px]">
+            <SelectTrigger id="country_code" className="w-[170px]">
               <SelectValue placeholder="Country code" />
             </SelectTrigger>
             <SelectContent>
@@ -189,6 +197,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
           </Select>
           <Input
             id="phone"
+            name="phone"
             type="tel"
             value={formData.phone}
             onChange={(e) =>
@@ -200,6 +209,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
             required
             maxLength={15}
             placeholder="Mobile number"
+            autoComplete="tel"
           />
         </div>
         <p className="text-xs text-muted-foreground">
@@ -211,30 +221,34 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
+          name="email"
           type="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           placeholder="patient@email.com"
+          autoComplete="email"
         />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="date_of_birth">Date of Birth</Label>
-        <Input
+        <DateInput
           id="date_of_birth"
-          type="date"
+          name="date_of_birth"
           value={formData.date_of_birth}
-          onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+          onChange={(value) => setFormData({ ...formData, date_of_birth: value })}
+          autoComplete="off"
         />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="gender">Gender</Label>
         <Select
+          name="gender"
           value={formData.gender}
           onValueChange={(value) => setFormData({ ...formData, gender: value })}
         >
-          <SelectTrigger>
+          <SelectTrigger id="gender">
             <SelectValue placeholder="Select gender" />
           </SelectTrigger>
           <SelectContent>
@@ -248,10 +262,11 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
       <div className="space-y-2">
         <Label htmlFor="blood_group">Blood Group</Label>
         <Select
+          name="blood_group"
           value={formData.blood_group}
           onValueChange={(value) => setFormData({ ...formData, blood_group: value })}
         >
-          <SelectTrigger>
+          <SelectTrigger id="blood_group">
             <SelectValue placeholder="Select blood group" />
           </SelectTrigger>
           <SelectContent>
@@ -266,19 +281,22 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
         <Label htmlFor="address">Address</Label>
         <Input
           id="address"
+          name="address"
           value={formData.address}
           onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           placeholder="Full address"
+          autoComplete="street-address"
         />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="lab_id">Lab</Label>
         <Select
+          name="lab_id"
           value={formData.lab_id || "none"}
           onValueChange={(value) => setFormData({ ...formData, lab_id: value === "none" ? "" : value, collection_center_id: "" })}
         >
-          <SelectTrigger>
+          <SelectTrigger id="lab_id">
             <SelectValue placeholder="Select lab (optional)" />
           </SelectTrigger>
           <SelectContent>
@@ -295,11 +313,12 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
       <div className="space-y-2">
         <Label htmlFor="collection_center_id">Collection Center</Label>
         <Select
+          name="collection_center_id"
           value={formData.collection_center_id || "none"}
           onValueChange={(value) => setFormData({ ...formData, collection_center_id: value === "none" ? "" : value })}
           disabled={!formData.lab_id || formData.lab_id === "none"}
         >
-          <SelectTrigger>
+          <SelectTrigger id="collection_center_id">
             <SelectValue placeholder={formData.lab_id ? "Select collection center (optional)" : "Select lab first"} />
           </SelectTrigger>
           <SelectContent>
@@ -950,12 +969,18 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         <div className="flex flex-col sm:flex-row gap-4 flex-1">
           <div className="relative max-w-sm">
+            <Label htmlFor="patient-search" className="sr-only">
+              Search patients
+            </Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="patient-search"
+              name="patient_search"
               placeholder="Search by name, phone, or ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 w-full sm:w-80"
+              autoComplete="off"
             />
           </div>
           <Tabs value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)} className="w-auto">
@@ -1094,7 +1119,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                     <div className="font-medium">{patient.full_name}</div>
                     {patient.date_of_birth && (
                       <div className="text-xs text-muted-foreground">
-                        DOB: {format(new Date(patient.date_of_birth), "dd MMM yyyy")}
+                        DOB: {formatAppDate(patient.date_of_birth)}
                       </div>
                     )}
                   </TableCell>
@@ -1283,7 +1308,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" /> Date of Birth
                     </p>
-                    <p className="font-medium">{format(new Date(selectedPatient.date_of_birth), "dd MMM yyyy")}</p>
+                    <p className="font-medium">{formatAppDate(selectedPatient.date_of_birth)}</p>
                   </div>
                 )}
                 {selectedPatient.gender && (
@@ -1384,7 +1409,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                         <div className="flex-1">
                           <p className="font-medium">{test.test_name}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{format(new Date(test.test_date), "dd MMM yyyy")}</span>
+                            <span>{formatAppDate(test.test_date)}</span>
                             {(test.result_value !== null && test.result_value !== undefined) || test.result ? (
                               <span className={`font-medium ${test.is_abnormal ? "text-red-600" : "text-green-600"}`}>
                                 • {test.result_value !== null && test.result_value !== undefined 

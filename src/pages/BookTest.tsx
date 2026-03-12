@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -253,9 +254,11 @@ const BookTest = () => {
                         <Label htmlFor="full_name">Full Name *</Label>
                         <Input
                           id="full_name"
+                          name="full_name"
                           value={formData.full_name}
                           onChange={(e) => setFormData((current) => ({ ...current, full_name: e.target.value }))}
                           placeholder="Patient full name"
+                          autoComplete="name"
                           required
                         />
                       </div>
@@ -263,11 +266,14 @@ const BookTest = () => {
                       <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number *</Label>
                         <div className="flex gap-2">
+                          <Label htmlFor="country_code" className="sr-only">
+                            Country code
+                          </Label>
                           <Select
                             value={formData.country_code}
                             onValueChange={(value) => setFormData((current) => ({ ...current, country_code: value }))}
                           >
-                            <SelectTrigger className="w-[170px]">
+                            <SelectTrigger id="country_code" className="w-[170px]">
                               <SelectValue placeholder="Country code" />
                             </SelectTrigger>
                             <SelectContent>
@@ -280,6 +286,7 @@ const BookTest = () => {
                           </Select>
                           <Input
                             id="phone"
+                            name="phone"
                             type="tel"
                             inputMode="numeric"
                             value={formData.phone}
@@ -291,6 +298,7 @@ const BookTest = () => {
                             }
                             maxLength={15}
                             placeholder="Mobile number"
+                            autoComplete="tel"
                             required
                           />
                         </div>
@@ -300,16 +308,18 @@ const BookTest = () => {
                         <Label htmlFor="email">Email</Label>
                         <Input
                           id="email"
+                          name="email"
                           type="email"
                           value={formData.email}
                           onChange={(e) => setFormData((current) => ({ ...current, email: e.target.value }))}
                           placeholder="patient@email.com"
+                          autoComplete="email"
                         />
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>Visit Type *</Label>
+                          <Label htmlFor="booking_type">Visit Type *</Label>
                           <Select
                             value={formData.booking_type}
                             onValueChange={(value) =>
@@ -319,7 +329,7 @@ const BookTest = () => {
                               }))
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="booking_type">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -330,21 +340,22 @@ const BookTest = () => {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="preferred_date">Preferred Date</Label>
-                          <Input
+                          <DateInput
                             id="preferred_date"
-                            type="date"
+                            name="preferred_date"
                             min={today}
                             value={formData.preferred_date}
-                            onChange={(e) =>
-                              setFormData((current) => ({ ...current, preferred_date: e.target.value }))
+                            onChange={(value) =>
+                              setFormData((current) => ({ ...current, preferred_date: value }))
                             }
+                            autoComplete="off"
                           />
                         </div>
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>Preferred Lab</Label>
+                          <Label htmlFor="lab_id">Preferred Lab</Label>
                           <Select
                             value={formData.lab_id || "none"}
                             onValueChange={(value) =>
@@ -355,7 +366,7 @@ const BookTest = () => {
                               }))
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="lab_id">
                               <SelectValue placeholder="Choose lab" />
                             </SelectTrigger>
                             <SelectContent>
@@ -369,7 +380,7 @@ const BookTest = () => {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Collection Center</Label>
+                          <Label htmlFor="collection_center_id">Collection Center</Label>
                           <Select
                             value={formData.collection_center_id || "none"}
                             onValueChange={(value) =>
@@ -380,7 +391,7 @@ const BookTest = () => {
                             }
                             disabled={!formData.lab_id}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="collection_center_id">
                               <SelectValue placeholder={formData.lab_id ? "Choose collection center" : "Select lab first"} />
                             </SelectTrigger>
                             <SelectContent>
@@ -401,6 +412,7 @@ const BookTest = () => {
                         </Label>
                         <Textarea
                           id="address"
+                          name="address"
                           value={formData.address}
                           onChange={(e) =>
                             setFormData((current) => ({
@@ -411,6 +423,7 @@ const BookTest = () => {
                           placeholder="Full address for patient visit or home sample collection"
                           rows={3}
                           maxLength={MAX_ADDRESS_LENGTH}
+                          autoComplete="street-address"
                         />
                         <p className="text-xs text-muted-foreground">
                           {formData.address.length}/{MAX_ADDRESS_LENGTH} characters

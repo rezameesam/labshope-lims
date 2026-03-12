@@ -442,12 +442,18 @@ const ManageLabs = () => {
 
           {/* Search */}
           <div className="relative w-full sm:w-64">
+            <Label htmlFor="lab-search" className="sr-only">
+              Search labs
+            </Label>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="lab-search"
+              name="lab_search"
               placeholder="Search labs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
+              autoComplete="off"
             />
           </div>
         </div>
@@ -572,19 +578,23 @@ const ManageLabs = () => {
                 <Label htmlFor="lab_code">Lab Code *</Label>
                 <Input
                   id="lab_code"
+                  name="lab_code"
                   value={labForm.lab_code}
                   onChange={(e) => setLabForm({ ...labForm, lab_code: e.target.value })}
                   placeholder="LAB001"
                   disabled={!!editingLab}
+                  autoComplete="off"
                 />
               </div>
               <div>
                 <Label htmlFor="name">Lab Name *</Label>
                 <Input
                   id="name"
+                  name="name"
                   value={labForm.name}
                   onChange={(e) => setLabForm({ ...labForm, name: e.target.value })}
                   placeholder="Main Laboratory"
+                  autoComplete="organization"
                 />
               </div>
             </div>
@@ -593,10 +603,11 @@ const ManageLabs = () => {
               <div>
                 <Label htmlFor="type">Type *</Label>
                 <Select
+                  name="type"
                   value={labForm.type}
                   onValueChange={(value) => setLabForm({ ...labForm, type: value as any })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -610,10 +621,11 @@ const ManageLabs = () => {
                 <div>
                   <Label htmlFor="parent_lab">Parent Lab</Label>
                   <Select
+                    name="parent_lab"
                     value={labForm.parent_lab_id}
                     onValueChange={(value) => setLabForm({ ...labForm, parent_lab_id: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="parent_lab">
                       <SelectValue placeholder="Select parent lab" />
                     </SelectTrigger>
                     <SelectContent>
@@ -632,10 +644,12 @@ const ManageLabs = () => {
               <Label htmlFor="address">Address</Label>
               <Textarea
                 id="address"
+                name="address"
                 value={labForm.address}
                 onChange={(e) => setLabForm({ ...labForm, address: e.target.value })}
                 placeholder="Full address..."
                 rows={2}
+                autoComplete="street-address"
               />
             </div>
 
@@ -644,27 +658,33 @@ const ManageLabs = () => {
                 <Label htmlFor="city">City</Label>
                 <Input
                   id="city"
+                  name="city"
                   value={labForm.city}
                   onChange={(e) => setLabForm({ ...labForm, city: e.target.value })}
                   placeholder="City"
+                  autoComplete="address-level2"
                 />
               </div>
               <div>
                 <Label htmlFor="state">State</Label>
                 <Input
                   id="state"
+                  name="state"
                   value={labForm.state}
                   onChange={(e) => setLabForm({ ...labForm, state: e.target.value })}
                   placeholder="State"
+                  autoComplete="address-level1"
                 />
               </div>
               <div>
                 <Label htmlFor="pincode">Pincode</Label>
                 <Input
                   id="pincode"
+                  name="pincode"
                   value={labForm.pincode}
                   onChange={(e) => setLabForm({ ...labForm, pincode: e.target.value })}
                   placeholder="Pincode"
+                  autoComplete="postal-code"
                 />
               </div>
             </div>
@@ -674,19 +694,23 @@ const ManageLabs = () => {
                 <Label htmlFor="phone">Phone</Label>
                 <Input
                   id="phone"
+                  name="phone"
                   value={labForm.phone}
                   onChange={(e) => setLabForm({ ...labForm, phone: e.target.value })}
                   placeholder="+91-1234567890"
+                  autoComplete="tel"
                 />
               </div>
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   value={labForm.email}
                   onChange={(e) => setLabForm({ ...labForm, email: e.target.value })}
                   placeholder="lab@example.com"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -736,4 +760,3 @@ const ManageLabs = () => {
 };
 
 export default ManageLabs;
-

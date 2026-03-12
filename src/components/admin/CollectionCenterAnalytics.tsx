@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 
 interface CollectionCenterAnalyticsProps {
   centerId: string;
@@ -364,10 +365,10 @@ const CollectionCenterAnalytics = ({
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.test_date), "dd MMM yyyy")}
+                          {formatAppDate(test.test_date)}
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.created_at), "dd MMM yyyy, HH:mm")}
+                          {formatAppDateTime(test.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -428,10 +429,10 @@ const CollectionCenterAnalytics = ({
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.test_date), "dd MMM yyyy")}
+                          {formatAppDate(test.test_date)}
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.created_at), "dd MMM yyyy, HH:mm")}
+                          {formatAppDateTime(test.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -447,4 +448,3 @@ const CollectionCenterAnalytics = ({
 };
 
 export default CollectionCenterAnalytics;
-

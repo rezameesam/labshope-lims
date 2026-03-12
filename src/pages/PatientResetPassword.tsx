@@ -65,7 +65,7 @@ const PatientResetPassword = () => {
       }
 
       toast.success("Password reset successfully. Please sign in.");
-      navigate("/auth/patient");
+      navigate("/auth/patient", { replace: true });
     } catch (error: any) {
       toast.error(error.message || "Failed to reset password");
     } finally {
@@ -129,6 +129,7 @@ const PatientResetPassword = () => {
                   <Label htmlFor="newPassword">New Password</Label>
                   <Input
                     id="newPassword"
+                    name="new_password"
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -141,6 +142,7 @@ const PatientResetPassword = () => {
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
+                    name="confirm_password"
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

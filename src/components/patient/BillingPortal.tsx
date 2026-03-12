@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { sendPaymentSuccessNotification } from "@/services/notificationService";
+import { formatAppDate } from "@/lib/date";
 
 interface Invoice {
   id: string;
@@ -247,7 +248,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         yOffset += 15;
         doc.setFontSize(10);
         doc.text(`Invoice No: ${invoice.invoice_number}`, 20, yOffset);
-        doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 140, yOffset);
+        doc.text(`Date: ${formatAppDate(invoice.created_at)}`, 140, yOffset);
         
         yOffset += 8;
         doc.text(`Status: ${getDisplayPaymentStatus(invoice).toUpperCase()}`, 20, yOffset);
@@ -329,7 +330,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
 
           paymentsForInvoice.forEach((payment) => {
             const method = getPaymentMethodLabel(payment.payment_method);
-            const dateText = format(new Date(payment.payment_date), "dd MMM yyyy");
+            const dateText = formatAppDate(payment.payment_date);
             const txnId = payment.transaction_id;
             const lines = [
               `₹${Number(payment.amount).toLocaleString()}`,
@@ -578,7 +579,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     <TableCell className="text-right">₹{invoice.paid_amount.toLocaleString()}</TableCell>
                     <TableCell className="text-center">{getStatusBadge(getDisplayPaymentStatus(invoice))}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {format(new Date(invoice.created_at), "dd MMM yyyy")}
+                      {formatAppDate(invoice.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -643,7 +644,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(selectedInvoice.created_at), "dd MMMM yyyy")}
+                  {formatAppDate(selectedInvoice.created_at)}
                 </p>
                 {getStatusBadge(getDisplayPaymentStatus(selectedInvoice))}
               </div>
@@ -699,7 +700,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                         <div>
                           <p className="font-medium">₹{payment.amount.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">
-                            {getPaymentMethodLabel(payment.payment_method)} • {format(new Date(payment.payment_date), "dd MMM yyyy")}
+                            {getPaymentMethodLabel(payment.payment_method)} • {formatAppDate(payment.payment_date)}
                           </p>
                         </div>
                         {payment.transaction_id && (

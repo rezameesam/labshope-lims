@@ -86,7 +86,7 @@ const NotificationSettings = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>SMTP Configuration</Label>
+            <p className="text-sm font-medium leading-none">SMTP Configuration</p>
             <div className="mt-1 p-3 bg-muted rounded text-sm">
               <p className="font-semibold mb-1">✅ Configured via Supabase Edge Function Secrets</p>
               <p className="text-muted-foreground">
@@ -105,11 +105,17 @@ const NotificationSettings = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Label htmlFor="notification-test-email" className="sr-only">
+              Test email address
+            </Label>
             <Input
+              id="notification-test-email"
+              name="test_email"
               placeholder="test@example.com"
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
               className="flex-1"
+              autoComplete="email"
             />
             <Button
               onClick={handleTestEmail}

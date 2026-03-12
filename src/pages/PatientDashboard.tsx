@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { formatAppDate, formatAppDateTimeWithMeridiem } from "@/lib/date";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import TestResultsTable from "@/components/patient/TestResultsTable";
@@ -98,7 +99,7 @@ const formatTimestamp = (value?: string | null) => {
     return "Not available";
   }
 
-  return `${format(parsed, "dd MMM yyyy, hh:mm a")} (${formatDistanceToNow(parsed, { addSuffix: true })})`;
+  return `${formatAppDateTimeWithMeridiem(parsed)} (${formatDistanceToNow(parsed, { addSuffix: true })})`;
 };
 
 const formatDate = (value?: string | null) => {
@@ -111,7 +112,7 @@ const formatDate = (value?: string | null) => {
     return "Not provided";
   }
 
-  return format(parsed, "dd MMM yyyy");
+  return formatAppDate(parsed);
 };
 
 const MAX_PATIENT_ADDRESS_LENGTH = 250;
@@ -752,6 +753,7 @@ const PatientDashboard = () => {
               <Label htmlFor="currentPassword">Current Password</Label>
               <Input
                 id="currentPassword"
+                name="current_password"
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -764,6 +766,7 @@ const PatientDashboard = () => {
               <Label htmlFor="newPassword">New Password</Label>
               <Input
                 id="newPassword"
+                name="new_password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -776,6 +779,7 @@ const PatientDashboard = () => {
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
                 id="confirmPassword"
+                name="confirm_password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -815,10 +819,12 @@ const PatientDashboard = () => {
               <Label htmlFor="patient-address">Address</Label>
               <textarea
                 id="patient-address"
+                name="patient_address"
                 value={addressInput}
                 onChange={(e) => setAddressInput(e.target.value.slice(0, MAX_PATIENT_ADDRESS_LENGTH))}
                 rows={4}
                 className="flex min-h-[112px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                autoComplete="street-address"
                 required
               />
               <p className="text-xs text-muted-foreground">

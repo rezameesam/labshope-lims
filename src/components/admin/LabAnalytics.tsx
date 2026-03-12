@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 
 interface LabAnalyticsProps {
   labId: string;
@@ -389,10 +390,10 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.test_date), "dd MMM yyyy")}
+                          {formatAppDate(test.test_date)}
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.created_at), "dd MMM yyyy, HH:mm")}
+                          {formatAppDateTime(test.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -453,10 +454,10 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.test_date), "dd MMM yyyy")}
+                          {formatAppDate(test.test_date)}
                         </TableCell>
                         <TableCell>
-                          {format(new Date(test.created_at), "dd MMM yyyy, HH:mm")}
+                          {formatAppDateTime(test.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -472,4 +473,3 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
 };
 
 export default LabAnalytics;
-

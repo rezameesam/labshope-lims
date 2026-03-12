@@ -4,7 +4,9 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
+import { formatAppDateTimeWithSeconds } from "@/lib/date";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -260,14 +262,14 @@ const ManageVisitorLogs = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Event Type</Label>
+              <Label htmlFor="visitor-event-type">Event Type</Label>
               <Select
                 value={filters.eventType}
                 onValueChange={(value) =>
                   setFilters((prev) => ({ ...prev, eventType: value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="visitor-event-type">
                   <SelectValue placeholder="Select event type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -282,24 +284,22 @@ const ManageVisitorLogs = () => {
 
             <div className="space-y-2">
               <Label htmlFor="visitor-date-from">From Date</Label>
-              <Input
+              <DateInput
                 id="visitor-date-from"
-                type="date"
                 value={filters.dateFrom}
-                onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, dateFrom: event.target.value }))
+                onChange={(value) =>
+                  setFilters((prev) => ({ ...prev, dateFrom: value }))
                 }
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="visitor-date-to">To Date</Label>
-              <Input
+              <DateInput
                 id="visitor-date-to"
-                type="date"
                 value={filters.dateTo}
-                onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, dateTo: event.target.value }))
+                onChange={(value) =>
+                  setFilters((prev) => ({ ...prev, dateTo: value }))
                 }
               />
             </div>
@@ -366,7 +366,7 @@ const ManageVisitorLogs = () => {
                   logs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell>
-                        {format(new Date(log.created_at), "dd MMM yyyy, HH:mm:ss")}
+                        {formatAppDateTimeWithSeconds(log.created_at)}
                       </TableCell>
                       <TableCell>{log.event_type || "-"}</TableCell>
                       <TableCell className="whitespace-pre-wrap break-words">

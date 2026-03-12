@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { formatAppDateTimeWithMeridiem } from "@/lib/date";
 
 type EmployeeSessionRow = {
   session_id: string;
@@ -30,7 +31,7 @@ const formatTimestamp = (value: string | null | undefined) => {
     return "Unknown";
   }
 
-  return `${format(parsed, "dd MMM yyyy, hh:mm a")} (${formatDistanceToNow(parsed, { addSuffix: true })})`;
+  return `${formatAppDateTimeWithMeridiem(parsed)} (${formatDistanceToNow(parsed, { addSuffix: true })})`;
 };
 
 const ActiveSessions = () => {

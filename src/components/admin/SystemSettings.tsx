@@ -201,7 +201,7 @@ const SystemSettings = () => {
                         setFormData((prev) => ({ ...prev, [setting.setting_key]: value }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id={setting.setting_key}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

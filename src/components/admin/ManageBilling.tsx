@@ -58,6 +58,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Invoice {
@@ -1026,7 +1027,7 @@ const ManageBilling = () => {
     // Invoice details
     doc.setFontSize(11);
     doc.text(`Invoice #: ${invoice.invoice_number}`, 14, 50);
-    doc.text(`Date: ${format(new Date(invoice.created_at), "dd MMM yyyy")}`, 14, 57);
+    doc.text(`Date: ${formatAppDate(invoice.created_at)}`, 14, 57);
     doc.text(`Status: ${invoice.payment_status.toUpperCase()}`, 14, 64);
     
     // Patient details
@@ -1129,7 +1130,7 @@ const ManageBilling = () => {
 
       paymentsForInvoice.forEach((payment) => {
         const method = getPaymentMethodLabel(payment.payment_method);
-        const dateText = format(new Date(payment.payment_date), "dd MMM yyyy");
+        const dateText = formatAppDate(payment.payment_date);
         const txnId = payment.transaction_id;
         const detailParts = [
           `${method} • ${dateText}`,
@@ -1251,12 +1252,18 @@ const ManageBilling = () => {
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         <div className="flex flex-col sm:flex-row gap-4 flex-1">
           <div className="relative max-w-sm">
+            <Label htmlFor="billing-search" className="sr-only">
+              Search invoices
+            </Label>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="billing-search"
+              name="billing_search"
               placeholder="Search invoices..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 w-full sm:w-80"
+              autoComplete="off"
             />
           </div>
           <Tabs value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)} className="w-auto">
@@ -1315,7 +1322,7 @@ const ManageBilling = () => {
                     <TableCell className="text-right">₹{invoice.paid_amount.toLocaleString()}</TableCell>
                     <TableCell className="text-center">{getStatusBadge(invoice.payment_status)}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {format(new Date(invoice.created_at), "dd MMM yyyy")}
+                      {formatAppDate(invoice.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -1422,10 +1429,11 @@ const ManageBilling = () => {
           
           <div className="space-y-4 flex-1 overflow-y-auto">
             <div className="space-y-2">
-              <Label>Select Patient</Label>
+              <Label htmlFor="invoice-patient-select">Select Patient</Label>
               <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
+                    id="invoice-patient-select"
                     variant="outline"
                     role="combobox"
                     aria-expanded={patientSearchOpen}
@@ -1439,10 +1447,16 @@ const ManageBilling = () => {
                 </PopoverTrigger>
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                   <Command>
+                    <Label htmlFor="invoice-patient-search" className="sr-only">
+                      Search patient
+                    </Label>
                     <CommandInput 
+                      id="invoice-patient-search"
+                      name="invoice_patient_search"
                       placeholder="Search by name, ID, or phone..." 
                       value={patientSearchQuery}
                       onValueChange={setPatientSearchQuery}
+                      autoComplete="off"
                     />
                     <CommandList>
                       <CommandEmpty>No patient found.</CommandEmpty>
@@ -1476,7 +1490,7 @@ const ManageBilling = () => {
             {selectedPatientId && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Select Tests to Invoice</Label>
+                  <p className="text-sm font-medium leading-none">Select Tests to Invoice</p>
                   {patientTests.length > 0 && (
                     <div className="text-xs text-muted-foreground">
                       {patientTests.filter(t => t.invoice_status !== "paid").length} available • {" "}
@@ -1532,12 +1546,17 @@ const ManageBilling = () => {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(test.test_date), "dd MMM yyyy")}
+                              {formatAppDate(test.test_date)}
                             </p>
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-muted-foreground">₹</span>
+                            <Label htmlFor={`invoice-test-price-${test.id}`} className="sr-only">
+                              Price for {test.test_name}
+                            </Label>
                             <Input
+                              id={`invoice-test-price-${test.id}`}
+                              name={`invoice_test_price_${test.id}`}
                               type="number"
                               value={getTestPrice(test.id)}
                               onChange={(e) => updateTestPrice(test.id, Number(e.target.value))}
@@ -1556,12 +1575,14 @@ const ManageBilling = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Subtotal</Label>
-                <Input value={`₹${calculateTotal().toLocaleString()}`} disabled />
+                <Label htmlFor="invoice-subtotal">Subtotal</Label>
+                <Input id="invoice-subtotal" name="invoice_subtotal" value={`₹${calculateTotal().toLocaleString()}`} disabled />
               </div>
               <div className="space-y-2">
-                <Label>Discount</Label>
+                <Label htmlFor="invoice-discount">Discount</Label>
                 <Input 
+                  id="invoice-discount"
+                  name="invoice_discount"
                   type="number" 
                   value={discount} 
                   onChange={(e) => setDiscount(Number(e.target.value) || 0)}
@@ -1582,11 +1603,14 @@ const ManageBilling = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Notes (optional)</Label>
+              <Label htmlFor="invoice-notes">Notes (optional)</Label>
               <Textarea 
+                id="invoice-notes"
+                name="invoice_notes"
                 value={notes} 
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Any additional notes..."
+                autoComplete="off"
               />
             </div>
           </div>
@@ -1629,8 +1653,10 @@ const ManageBilling = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Payment Amount</Label>
+                <Label htmlFor="payment-amount">Payment Amount</Label>
                 <Input 
+                  id="payment-amount"
+                  name="payment_amount"
                   type="number" 
                   value={paymentAmount} 
                   onChange={(e) => setPaymentAmount(Number(e.target.value))}
@@ -1638,9 +1664,9 @@ const ManageBilling = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
+                <Label htmlFor="payment-method">Payment Method</Label>
+                <Select name="payment_method" value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger id="payment-method">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1666,21 +1692,27 @@ const ManageBilling = () => {
 
               {paymentMethod !== "cash" && (
                 <div className="space-y-2">
-                  <Label>Transaction ID</Label>
+                  <Label htmlFor="transaction-id">Transaction ID</Label>
                   <Input 
+                    id="transaction-id"
+                    name="transaction_id"
                     value={transactionId} 
                     onChange={(e) => setTransactionId(e.target.value)}
                     placeholder="Enter transaction reference"
+                    autoComplete="off"
                   />
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label>Notes (optional)</Label>
+                <Label htmlFor="payment-notes">Notes (optional)</Label>
                 <Textarea 
+                  id="payment-notes"
+                  name="payment_notes"
                   value={paymentNotes} 
                   onChange={(e) => setPaymentNotes(e.target.value)}
                   placeholder="Any payment notes..."
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -1715,7 +1747,7 @@ const ManageBilling = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Invoice Items</Label>
+                <p className="text-sm font-medium leading-none">Invoice Items</p>
                 <div className="border rounded-lg">
                   {editableItems.length === 0 ? (
                     <p className="text-sm text-muted-foreground p-4 text-center">No items found</p>
@@ -1733,7 +1765,7 @@ const ManageBilling = () => {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label className="text-sm text-muted-foreground">Price:</Label>
+                            <span className="text-sm text-muted-foreground">Price:</span>
                             <div className="flex items-center gap-1">
                               <span className="text-muted-foreground">₹</span>
                               <Input
@@ -1759,15 +1791,19 @@ const ManageBilling = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Subtotal</Label>
+                  <Label htmlFor="edit-invoice-subtotal">Subtotal</Label>
                   <Input 
+                    id="edit-invoice-subtotal"
+                    name="edit_invoice_subtotal"
                     value={`₹${calculateEditableTotal().toLocaleString()}`} 
                     disabled 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Discount</Label>
+                  <Label htmlFor="edit-invoice-discount">Discount</Label>
                   <Input 
+                    id="edit-invoice-discount"
+                    name="edit_invoice_discount"
                     type="number" 
                     value={editableDiscount} 
                     onChange={(e) => setEditableDiscount(Number(e.target.value) || 0)}
@@ -1838,7 +1874,7 @@ const ManageBilling = () => {
                 <div>
                   <p className="text-2xl font-mono font-bold">{selectedInvoice.invoice_number}</p>
                   <p className="text-sm text-muted-foreground">
-                    Created {format(new Date(selectedInvoice.created_at), "dd MMM yyyy, HH:mm")}
+                    Created {formatAppDateTime(selectedInvoice.created_at)}
                   </p>
                 </div>
                 {getStatusBadge(selectedInvoice.payment_status)}
@@ -1912,7 +1948,7 @@ const ManageBilling = () => {
                         <div>
                           <p className="font-medium">₹{payment.amount.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">
-                            {getPaymentMethodLabel(payment.payment_method)} • {format(new Date(payment.payment_date), "dd MMM yyyy")}
+                            {getPaymentMethodLabel(payment.payment_method)} • {formatAppDate(payment.payment_date)}
                           </p>
                           {payment.received_by_name && (
                             <p className="text-xs text-muted-foreground">
@@ -1940,7 +1976,7 @@ const ManageBilling = () => {
                         <div className="flex items-center justify-between gap-3">
                           <Badge variant="secondary">{getBillingActionLabel(log.action)}</Badge>
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(log.changed_at), "dd MMM yyyy, HH:mm")}
+                            {formatAppDateTime(log.changed_at)}
                           </span>
                         </div>
                         {renderBillingAuditSummary(log) && (

@@ -16,6 +16,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +60,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addDays, isPast, isToday, isFuture } from "date-fns";
+import { formatAppDate } from "@/lib/date";
 
 interface Reminder {
   id: string;
@@ -465,12 +467,18 @@ const ManageReminders = () => {
 
           {/* Search */}
           <div className="relative w-full sm:w-64">
+            <Label htmlFor="reminder-search" className="sr-only">
+              Search reminders
+            </Label>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="reminder-search"
+              name="reminder_search"
               placeholder="Search reminders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
+              autoComplete="off"
             />
           </div>
         </div>
@@ -507,10 +515,10 @@ const ManageReminders = () => {
                       <TableRow key={reminder.id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{format(new Date(reminder.reminder_date), "dd MMM yyyy")}</p>
+                            <p className="font-medium">{formatAppDate(reminder.reminder_date)}</p>
                             {reminder.due_date && (
                               <p className="text-xs text-muted-foreground">
-                                Due: {format(new Date(reminder.due_date), "dd MMM")}
+                                Due: {formatAppDate(reminder.due_date)}
                               </p>
                             )}
                           </div>
@@ -614,15 +622,16 @@ const ManageReminders = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="patient">Patient *</Label>
+              <Label htmlFor="reminder-patient-id">Patient *</Label>
               <Select
+                name="patient_id"
                 value={reminderForm.patient_id}
                 onValueChange={(value) => setReminderForm({ ...reminderForm, patient_id: value })}
                 onOpenChange={(open) => {
                   if (open) setPatientSearch("");
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="reminder-patient-id">
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
                 <SelectContent className="p-0">
@@ -631,6 +640,7 @@ const ManageReminders = () => {
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         id="patient-search"
+                        name="patient_search"
                         value={patientSearch}
                         onChange={(e) => setPatientSearch(e.target.value)}
                         onKeyDown={(e) => e.stopPropagation()}
@@ -638,6 +648,7 @@ const ManageReminders = () => {
                         placeholder="Search by name, ID, or phone..."
                         className="pl-10 h-9"
                         aria-label="Search patients"
+                        autoComplete="off"
                       />
                     </div>
                   </div>
@@ -654,12 +665,13 @@ const ManageReminders = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="type">Reminder Type *</Label>
+                <Label htmlFor="reminder-type">Reminder Type *</Label>
                 <Select
+                  name="reminder_type"
                   value={reminderForm.reminder_type}
                   onValueChange={(value) => setReminderForm({ ...reminderForm, reminder_type: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="reminder-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -672,12 +684,13 @@ const ManageReminders = () => {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="notification">Notification Method</Label>
+                <Label htmlFor="reminder-notification-method">Notification Method</Label>
                 <Select
+                  name="notification_method"
                   value={reminderForm.notification_method}
                   onValueChange={(value) => setReminderForm({ ...reminderForm, notification_method: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="reminder-notification-method">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -716,20 +729,18 @@ const ManageReminders = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="reminder_date">Reminder Date *</Label>
-                <Input
+                <DateInput
                   id="reminder_date"
-                  type="date"
                   value={reminderForm.reminder_date}
-                  onChange={(e) => setReminderForm({ ...reminderForm, reminder_date: e.target.value })}
+                  onChange={(value) => setReminderForm({ ...reminderForm, reminder_date: value })}
                 />
               </div>
               <div>
                 <Label htmlFor="due_date">Due Date (Optional)</Label>
-                <Input
+                <DateInput
                   id="due_date"
-                  type="date"
                   value={reminderForm.due_date}
-                  onChange={(e) => setReminderForm({ ...reminderForm, due_date: e.target.value })}
+                  onChange={(value) => setReminderForm({ ...reminderForm, due_date: value })}
                 />
               </div>
             </div>

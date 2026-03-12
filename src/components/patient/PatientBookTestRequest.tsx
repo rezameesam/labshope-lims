@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, ClipboardList, Home, PhoneCall } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -319,12 +320,11 @@ const PatientBookTestRequest = ({ patient }: PatientBookTestRequestProps) => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="preferred_date">Preferred Date</Label>
-                  <Input
+                  <DateInput
                     id="preferred_date"
-                    type="date"
                     min={today}
                     value={formData.preferred_date}
-                    onChange={(e) => setFormData((current) => ({ ...current, preferred_date: e.target.value }))}
+                    onChange={(value) => setFormData((current) => ({ ...current, preferred_date: value }))}
                   />
                 </div>
 
