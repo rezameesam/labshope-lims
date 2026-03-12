@@ -56,9 +56,10 @@ interface NoticeStats {
 
 interface NoticeBoardProps {
   onNavigate?: (tab: string) => void;
+  onStatsChange?: (count: number) => void;
 }
 
-const NoticeBoard = ({ onNavigate }: NoticeBoardProps) => {
+const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
   const { user, isCollector } = useAuth();
   const [loading, setLoading] = useState(true);
   const [notices, setNotices] = useState<NoticeItem[]>([]);
@@ -250,6 +251,7 @@ const NoticeBoard = ({ onNavigate }: NoticeBoardProps) => {
       statsData.totalActionItems = noticesList.length;
       setNotices(noticesList);
       setStats(statsData);
+      onStatsChange?.(statsData.totalActionItems);
     } catch (error: any) {
       console.error("Error fetching notices:", error);
       toast.error("Failed to load notice board");
@@ -538,4 +540,3 @@ const NoticeBoard = ({ onNavigate }: NoticeBoardProps) => {
 };
 
 export default NoticeBoard;
-

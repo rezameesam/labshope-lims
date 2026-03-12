@@ -102,7 +102,11 @@ const getStatusBadge = (status: string) => (
   </Badge>
 );
 
-const ManageBookingRequests = () => {
+interface ManageBookingRequestsProps {
+  onCountChange?: (count: number) => void;
+}
+
+const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) => {
   const { user } = useAuth();
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +154,9 @@ const ManageBookingRequests = () => {
         throw error;
       }
 
-      setRequests((data || []) as BookingRequest[]);
+      const nextRequests = (data || []) as BookingRequest[];
+      setRequests(nextRequests);
+      onCountChange?.(nextRequests.filter((request) => request.status === "new").length);
     } catch (error: any) {
       console.error("Error fetching booking requests:", error);
       toast.error(error.message || "Failed to fetch booking requests");
@@ -296,9 +302,13 @@ const ManageBookingRequests = () => {
   };
 
   const refreshSelectedRequest = (requestId: string, updates: Partial<BookingRequest>) => {
-    setRequests((current) =>
-      current.map((request) => (request.id === requestId ? { ...request, ...updates } : request))
-    );
+    setRequests((current) => {
+      const nextRequests = current.map((request) =>
+        request.id === requestId ? { ...request, ...updates } : request,
+      );
+      onCountChange?.(nextRequests.filter((request) => request.status === "new").length);
+      return nextRequests;
+    });
     setSelectedRequest((current) =>
       current && current.id === requestId ? { ...current, ...updates } : current
     );
