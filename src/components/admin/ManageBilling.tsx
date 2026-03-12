@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -1425,6 +1426,9 @@ const ManageBilling = () => {
               <Receipt className="h-5 w-5" />
               Create New Invoice
             </DialogTitle>
+            <DialogDescription>
+              Select a patient, choose billable tests, adjust pricing if needed, and create a new invoice.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 flex-1 overflow-y-auto">
@@ -1637,6 +1641,9 @@ const ManageBilling = () => {
               <CreditCard className="h-5 w-5" />
               Record Payment
             </DialogTitle>
+            <DialogDescription>
+              Record a payment against the selected invoice and capture the payment method and reference details.
+            </DialogDescription>
           </DialogHeader>
           
           {selectedInvoice && (
@@ -1737,6 +1744,9 @@ const ManageBilling = () => {
               <Edit2 className="h-5 w-5" />
               Edit Invoice
             </DialogTitle>
+            <DialogDescription>
+              Update invoice item pricing and discounts, then save the revised invoice totals.
+            </DialogDescription>
           </DialogHeader>
           
           {selectedInvoice && (

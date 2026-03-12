@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment, startTransition } from "react";
 import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -211,6 +211,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isAuditDialogOpen, setIsAuditDialogOpen] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [isDialogContentReady, setIsDialogContentReady] = useState(false);
   const [selectedTest, setSelectedTest] = useState<PatientTest | null>(null);
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -332,6 +333,21 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       collection_center_id: patientCollectionCenterId,
     }));
   }, [preselectedPatient, currentLab, collectionCenters]);
+
+  useEffect(() => {
+    if (!isDialogOpen) {
+      setIsDialogContentReady(false);
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      startTransition(() => {
+        setIsDialogContentReady(true);
+      });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [isDialogOpen]);
 
   // Group tests by category
   const testsByCategory = useMemo(() => {
@@ -1514,9 +1530,14 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             </DialogDescription>
           </DialogHeader>
             <form onSubmit={(e) => e.preventDefault()} className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <ScrollArea className="h-full">
-                  <div className="p-4 space-y-4">
+              {!isDialogContentReady ? (
+                <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+                  Loading test form...
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {/* Patient Search Section */}
                       <div className="space-y-2">
@@ -1952,9 +1973,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                       </div>
                     </div>
 
-                  </div>
-                </ScrollArea>
-              </div>
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
 
               <div className="border-t px-4 py-3 flex items-center justify-between shrink-0">
                 <Button

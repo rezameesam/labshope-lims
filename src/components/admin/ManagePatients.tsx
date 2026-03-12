@@ -1002,6 +1002,9 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Patient</DialogTitle>
+              <DialogDescription>
+                Enter patient details, contact information, and lab assignment to create a new patient record.
+              </DialogDescription>
             </DialogHeader>
             <PatientForm 
               formData={formData}
@@ -1242,6 +1245,9 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Patient</DialogTitle>
+            <DialogDescription>
+              Update patient details, contact information, and lab assignment for the selected patient.
+            </DialogDescription>
           </DialogHeader>
           <PatientForm 
             formData={formData}
