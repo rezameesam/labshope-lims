@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
+import {
   Users, 
   UserPlus, 
   Stethoscope, 
@@ -26,6 +26,7 @@ import {
   PhoneCall
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
@@ -69,6 +70,10 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPatientForTests, setSelectedPatientForTests] = useState<PatientSummary | null>(null);
+  const [sidebarCounts, setSidebarCounts] = useState({
+    bookingRequests: 0,
+    noticeBoard: 0,
+  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -92,6 +97,72 @@ const AdminDashboard = () => {
       setSelectedPatientForTests(null);
     }
   }, [activeTab, selectedPatientForTests]);
+
+  useEffect(() => {
+    if (!user || !isStaff) {
+      return;
+    }
+
+    const fetchSidebarCounts = async () => {
+      try {
+        let testsQuery = supabase
+          .from("patient_tests")
+          .select("id", { count: "exact", head: true })
+          .in("status", ["pending", "in_progress"]);
+
+        if (isCollector) {
+          testsQuery = testsQuery.eq("collected_by", user.id);
+        }
+
+        const [
+          bookingRequestsResult,
+          pendingTestsResult,
+          remindersResult,
+          invoicesResult,
+        ] = await Promise.all([
+          supabase
+            .from("booking_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "new"),
+          testsQuery,
+          supabase
+            .from("patient_reminders")
+            .select("id, reminder_date, due_date, is_completed")
+            .eq("is_completed", false)
+            .limit(100),
+          supabase
+            .from("invoices")
+            .select("id", { count: "exact", head: true })
+            .neq("payment_status", "paid"),
+        ]);
+
+        const today = new Date();
+        const reminderCount = (remindersResult.data || []).filter((reminder) => {
+          const reminderDate = new Date(reminder.reminder_date);
+          const dueDate = reminder.due_date ? new Date(reminder.due_date) : null;
+          const isOverdue = reminderDate < today;
+          const isUpcoming = reminderDate.toDateString() === today.toDateString() || (dueDate ? dueDate < today : false);
+          return isOverdue || isUpcoming;
+        }).length;
+
+        setSidebarCounts({
+          bookingRequests: bookingRequestsResult.count || 0,
+          noticeBoard: (pendingTestsResult.count || 0) + reminderCount + (invoicesResult.count || 0),
+        });
+      } catch (error) {
+        console.error("Error fetching admin sidebar counts:", error);
+      }
+    };
+
+    void fetchSidebarCounts();
+    const intervalId = window.setInterval(() => {
+      void fetchSidebarCounts();
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [user, isStaff, isCollector]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -136,6 +207,7 @@ const AdminDashboard = () => {
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
+  const formatSidebarCount = (count: number) => (count > 99 ? "99+" : String(count));
 
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
@@ -174,7 +246,17 @@ const AdminDashboard = () => {
                   }`}
                 >
                   <tab.icon className="h-5 w-5" />
-                  <span>{tab.label}</span>
+                  <span className="flex-1 text-left">{tab.label}</span>
+                  {tab.id === "booking-requests" && sidebarCounts.bookingRequests > 0 && (
+                    <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+                      {formatSidebarCount(sidebarCounts.bookingRequests)}
+                    </Badge>
+                  )}
+                  {tab.id === "notice-board" && sidebarCounts.noticeBoard > 0 && (
+                    <Badge className="bg-rose-500 text-white hover:bg-rose-500">
+                      {formatSidebarCount(sidebarCounts.noticeBoard)}
+                    </Badge>
+                  )}
                 </button>
               ))}
             </nav>
@@ -249,8 +331,21 @@ const AdminDashboard = () => {
             transition={{ duration: 0.2 }}
           >
             {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setActiveTab(tab as TabType)} />}
-            {activeTab === "notice-board" && <NoticeBoard onNavigate={(tab) => setActiveTab(tab as TabType)} />}
-            {activeTab === "booking-requests" && <ManageBookingRequests />}
+            {activeTab === "notice-board" && (
+              <NoticeBoard
+                onNavigate={(tab) => setActiveTab(tab as TabType)}
+                onStatsChange={(count) =>
+                  setSidebarCounts((current) => ({ ...current, noticeBoard: count }))
+                }
+              />
+            )}
+            {activeTab === "booking-requests" && (
+              <ManageBookingRequests
+                onCountChange={(count) =>
+                  setSidebarCounts((current) => ({ ...current, bookingRequests: count }))
+                }
+              />
+            )}
             {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
             {activeTab === "patients" && (
               <ManagePatients
