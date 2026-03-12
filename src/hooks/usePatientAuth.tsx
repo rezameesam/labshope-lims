@@ -22,10 +22,10 @@ interface PatientAuthContextType {
   patient: Patient | null;
   loading: boolean;
   isAuthenticated: boolean;
-  requiresPasswordReset: boolean;
   currentSessionId: string | null;
-  login: (identifier: string, password: string, turnstileToken: string) => Promise<{ error: Error | null; passwordResetRequired?: boolean }>;
+  login: (identifier: string, password: string, turnstileToken: string) => Promise<{ error: Error | null }>;
   setPassword: (currentPassword: string, newPassword: string) => Promise<{ error: Error | null }>;
+  updateAddress: (address: string) => Promise<{ error: Error | null }>;
   requestPasswordReset: (identifier: string, turnstileToken: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -36,7 +36,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [requiresPasswordReset, setRequiresPasswordReset] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,7 +45,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       if (!userId) {
         if (isMounted) {
           setPatient(null);
-          setRequiresPasswordReset(false);
         }
         return;
       }
@@ -63,13 +61,11 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       if (data && !error) {
         const patientData = data as unknown as Patient;
         setPatient(patientData);
-        setRequiresPasswordReset(!!patientData.password_reset_required);
       } else {
         if (error) {
           console.error("Failed to load patient record for session:", error);
         }
         setPatient(null);
-        setRequiresPasswordReset(false);
       }
     };
 
@@ -85,7 +81,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         console.warn("Patient bootstrap fallback triggered:", error);
         if (isMounted) {
           setPatient(null);
-          setRequiresPasswordReset(false);
         }
       }
     };
@@ -100,7 +95,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!nextSession?.user?.id) {
         setPatient(null);
-        setRequiresPasswordReset(false);
         setLoading(false);
         return;
       }
@@ -122,7 +116,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error checking patient session:", error);
         if (isMounted) {
           setPatient(null);
-          setRequiresPasswordReset(false);
           setSession(null);
           setCurrentSessionId(null);
           setLoading(false);
@@ -178,7 +171,6 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
           trackingDisabled = true;
           await supabase.auth.signOut({ scope: "local" });
           setPatient(null);
-          setRequiresPasswordReset(false);
           setSession(null);
           setCurrentSessionId(null);
           return;
@@ -215,7 +207,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [currentSessionId, patient?.id, session?.access_token]);
 
-  const login = async (identifier: string, password: string, turnstileToken: string): Promise<{ error: Error | null; passwordResetRequired?: boolean }> => {
+  const login = async (identifier: string, password: string, turnstileToken: string): Promise<{ error: Error | null }> => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
@@ -246,7 +238,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         return { error: authError };
       }
 
-      return { error: null, passwordResetRequired: !!result.password_reset_required };
+      return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
@@ -290,10 +282,9 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
               ...prev,
               password_reset_required: false,
               last_password_change: new Date().toISOString(),
-            }
+          }
           : prev,
       );
-      setRequiresPasswordReset(false);
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -326,10 +317,48 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateAddress = async (address: string): Promise<{ error: Error | null }> => {
+    try {
+      if (!session?.access_token || !patient?.id) {
+        return { error: new Error("No active patient session") };
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/patient-update-address`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          address,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to update address") };
+      }
+
+      setPatient((prev) =>
+        prev
+          ? {
+              ...prev,
+              address: typeof result.address === "string" ? result.address : address,
+            }
+          : prev,
+      );
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setPatient(null);
-    setRequiresPasswordReset(false);
     setSession(null);
     setCurrentSessionId(null);
   };
@@ -339,11 +368,11 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         patient,
         loading,
-        isAuthenticated: !!patient && !requiresPasswordReset,
-        requiresPasswordReset,
+        isAuthenticated: !!patient,
         currentSessionId,
         login,
         setPassword,
+        updateAddress,
         requestPasswordReset,
         signOut,
       }}

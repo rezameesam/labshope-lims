@@ -33,6 +33,9 @@ verify_jwt = false
 [functions.patient-set-password]
 verify_jwt = true
 
+[functions.patient-update-address]
+verify_jwt = true
+
 [functions.patient-request-password-reset]
 verify_jwt = false
 

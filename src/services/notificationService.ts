@@ -21,6 +21,8 @@ import { formatPhoneForDisplay } from "@/lib/phone";
 // Types
 export interface NotificationOptions {
   to: string; // email or phone number
+  emailTo?: string;
+  phoneTo?: string;
   subject?: string; // for email
   message: string;
   type: 'email' | 'sms' | 'whatsapp' | 'both' | 'email_whatsapp' | 'all';
@@ -36,7 +38,8 @@ export interface NotificationResult {
 }
 
 interface PatientWelcomePayload {
-  email: string;
+  email?: string | null;
+  phone?: string | null;
   fullName: string;
   patientId: string;
   portalUrl: string;
@@ -409,8 +412,8 @@ export async function sendNotification(
 
   const explicitTo = (options.to || "").trim();
   const explicitIsEmail = explicitTo.includes("@");
-  const explicitEmail = explicitIsEmail ? explicitTo : null;
-  const explicitPhone = explicitTo && !explicitIsEmail ? explicitTo : null;
+  const explicitEmail = options.emailTo?.trim() || (explicitIsEmail ? explicitTo : null);
+  const explicitPhone = options.phoneTo?.trim() || (explicitTo && !explicitIsEmail ? explicitTo : null);
 
   const sendEmailChannel = options.type === "email" || options.type === "both" || options.type === "email_whatsapp" || options.type === "all";
   const sendSmsChannel = options.type === "sms" || options.type === "both" || options.type === "all";
@@ -488,21 +491,16 @@ export async function sendTestResultNotification(
   const portalUrl = `${window.location.origin}/auth/patient`;
   const message = `Dear ${patient.full_name},\n\nYour test results for "${testName}" are now ready.\nReport Reference: ${testId}\n\nPlease log in to your patient portal to view and download your report:\n${portalUrl}\n\nThank you!`;
 
-  if (!patient.email && !patient.phone) {
-    return [{ success: false, error: "Patient has no email or phone number" }];
+  if (!patient.email) {
+    return [{ success: false, error: "Patient has no email address" }];
   }
 
-  const notificationType = patient.email && patient.phone
-    ? "email_whatsapp"
-    : patient.email
-      ? "email"
-      : "whatsapp";
-
   return sendNotification({
-    to: patient.email || patient.phone || "",
+    to: patient.email,
+    emailTo: patient.email,
     subject: `Test Results Ready: ${testName}`,
     message: message,
-    type: notificationType,
+    type: "email",
     patientId: patientId,
   });
 }
@@ -528,21 +526,16 @@ export async function sendAllTestsReadyNotification(
   const portalUrl = `${window.location.origin}/auth/patient`;
   const message = `Dear ${patient.full_name},\n\nAll your test results are now ready. Tests: ${list}.\n\nPlease log in to your patient portal to view and download your report:\n${portalUrl}\n\nThank you!`;
 
-  if (!patient.email && !patient.phone) {
-    return [{ success: false, error: "Patient has no email or phone number" }];
+  if (!patient.email) {
+    return [{ success: false, error: "Patient has no email address" }];
   }
 
-  const notificationType = patient.email && patient.phone
-    ? "email_whatsapp"
-    : patient.email
-      ? "email"
-      : "whatsapp";
-
   return sendNotification({
-    to: patient.email || patient.phone || "",
+    to: patient.email,
+    emailTo: patient.email,
     subject: `All Test Results Ready (${testNames.length || 1})`,
     message: message,
-    type: notificationType,
+    type: "email",
     patientId: patientId,
   });
 }
@@ -620,13 +613,21 @@ export async function sendPromotionalMessage(
 export async function sendPatientWelcomeEmail(
   payload: PatientWelcomePayload
 ): Promise<NotificationResult[]> {
-  const message = `Dear ${payload.fullName},\n\nYour patient portal access has been created.\n\nUser ID: ${payload.patientId}\nTemporary Password: ${payload.patientId}\n\nPortal: ${payload.portalUrl}\n\nPlease log in and change your password on your first visit.\n\nThank you!`;
+  const message = `Dear ${payload.fullName},\n\nYour patient portal access has been created.\n\nUser ID: ${payload.patientId}\nPassword: ${payload.patientId}\n\nPortal: ${payload.portalUrl}\n\nYou can change your password anytime from Account Settings after signing in.\n\nThank you!`;
+  const hasEmail = !!payload.email?.trim();
+  const hasPhone = !!payload.phone?.trim();
+
+  if (!hasEmail && !hasPhone) {
+    return [{ success: false, error: "Patient has no email or phone number" }];
+  }
 
   return sendNotification({
-    to: payload.email,
+    to: payload.email?.trim() || payload.phone?.trim() || "",
+    emailTo: payload.email?.trim() || undefined,
+    phoneTo: payload.phone?.trim() || undefined,
     subject: "Your Patient Portal Access",
     message,
-    type: "email",
+    type: hasEmail && hasPhone ? "email_whatsapp" : hasEmail ? "email" : "whatsapp",
   });
 }
 
@@ -667,5 +668,42 @@ export async function sendPaymentReminder(
     message: message,
     type: notificationType,
     patientId: patientId,
+  });
+}
+
+/**
+ * Send payment confirmation with portal access details after an invoice is fully paid.
+ */
+export async function sendPaymentSuccessNotification(
+  patientId: string,
+  amount: number,
+  invoiceNumber?: string,
+): Promise<NotificationResult[]> {
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("full_name, email, phone")
+    .eq("id", patientId)
+    .single();
+
+  if (!patient) {
+    return [{ success: false, error: "Patient not found" }];
+  }
+
+  if (!patient.email && !patient.phone) {
+    return [{ success: false, error: "Patient has no email or phone number" }];
+  }
+
+  const portalUrl = "https://irmclinic.com/auth/patient";
+  const invoiceText = invoiceNumber ? ` for invoice ${invoiceNumber}` : "";
+  const message = `Dear ${patient.full_name},\n\nWe have received your payment of ₹${amount.toFixed(2)}${invoiceText}.\n\nYou can now view and download your test reports from IRM Clinic:\n${portalUrl}\n\nThank you!`;
+
+  return sendNotification({
+    to: patient.email || patient.phone || "",
+    emailTo: patient.email || undefined,
+    phoneTo: patient.phone || undefined,
+    subject: "Payment Received - View Your Reports",
+    message,
+    type: patient.email && patient.phone ? "email_whatsapp" : patient.email ? "email" : "whatsapp",
+    patientId,
   });
 }

@@ -724,6 +724,11 @@ const ManageBilling = () => {
 
       if (updateError) throw updateError;
 
+      if (newStatus === "paid") {
+        const { sendPaymentSuccessNotification } = await import("@/services/notificationService");
+        await sendPaymentSuccessNotification(selectedInvoice.patient_id, paymentAmount, selectedInvoice.invoice_number);
+      }
+
       toast.success("Payment recorded successfully");
       setIsPaymentDialogOpen(false);
       resetPaymentForm();

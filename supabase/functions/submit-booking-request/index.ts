@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTurnstile } from "../_shared/patient-auth.ts";
+import { getAuthenticatedUserFromRequest, verifyTurnstile } from "../_shared/patient-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +19,8 @@ interface SubmitBookingRequestBody {
   email?: string | null;
   booking_type?: "walk_in" | "home_collection";
   address?: string | null;
+  test_details?: string | null;
+  notes?: string | null;
   preferred_date?: string | null;
   lab_id?: string | null;
   collection_center_id?: string | null;
@@ -31,19 +33,68 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const turnstileBody = await req.clone().json().catch(() => null);
-    const turnstileError = await verifyTurnstile(turnstileBody?.turnstile_token || "", req);
-    if (turnstileError) {
-      return jsonResponse({ error: turnstileError }, 400);
+    const body: SubmitBookingRequestBody = await req.clone().json().catch(() => ({} as SubmitBookingRequestBody));
+
+    let portalPatient:
+      | {
+          id: string;
+          full_name: string;
+          phone: string;
+          email: string | null;
+          address: string | null;
+        }
+      | null = null;
+
+    const authenticated = await getAuthenticatedUserFromRequest(req).catch((error) => {
+      if (error instanceof Response && error.status === 401) {
+        return null;
+      }
+      throw error;
+    });
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse({ error: "Server configuration missing." }, 500);
     }
 
-    const body: SubmitBookingRequestBody = turnstileBody || {};
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
-    const fullName = (body.full_name || "").trim();
-    const phone = (body.phone || "").trim();
-    const email = (body.email || "").trim().toLowerCase();
+    if (authenticated?.user?.id) {
+      const { data: patientRecord, error: patientError } = await supabaseAdmin
+        .from("patients")
+        .select("id, full_name, phone, email, address")
+        .eq("user_id", authenticated.user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (patientError) {
+        console.error("Error loading authenticated patient for booking request:", patientError);
+      } else if (patientRecord) {
+        portalPatient = patientRecord;
+      }
+    }
+
+    if (!portalPatient) {
+      const turnstileError = await verifyTurnstile(body?.turnstile_token || "", req);
+      if (turnstileError) {
+        return jsonResponse({ error: turnstileError }, 400);
+      }
+    }
+
+    const fullName = portalPatient?.full_name || (body.full_name || "").trim();
+    const phone = portalPatient?.phone || (body.phone || "").trim();
+    const email = (portalPatient?.email || body.email || "").trim().toLowerCase();
     const bookingType = body.booking_type === "home_collection" ? "home_collection" : "walk_in";
-    const address = (body.address || "").trim();
+    const address = (body.address || portalPatient?.address || "").trim();
+    const testDetails = (body.test_details || "").trim();
+    const notes = (body.notes || "").trim();
     const preferredDate = (body.preferred_date || "").trim();
     const labId = (body.lab_id || "").trim();
     const collectionCenterId = (body.collection_center_id || "").trim();
@@ -72,30 +123,19 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Address is required for home collection." }, 400);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse({ error: "Server configuration missing." }, 500);
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
     const insertPayload = {
       full_name: fullName,
       phone,
       email: email || null,
       booking_type: bookingType,
       address: address || null,
+      test_details: testDetails || null,
+      notes: notes || null,
       preferred_date: preferredDate || null,
       lab_id: labId || null,
       collection_center_id: collectionCenterId || null,
-      source: "website",
+      patient_id: portalPatient?.id || null,
+      source: portalPatient ? "patient_portal" : "website",
       status: "new",
     };
 
@@ -115,9 +155,13 @@ serve(async (req: Request): Promise<Response> => {
         email: email || null,
         bookingType,
         address: address || null,
+        testDetails: testDetails || null,
+        notes: notes || null,
         preferredDate: preferredDate || null,
         labId: labId || null,
         collectionCenterId: collectionCenterId || null,
+        source: portalPatient ? "patient_portal" : "website",
+        patientRecordId: portalPatient?.id || null,
       });
 
       try {
@@ -134,9 +178,13 @@ serve(async (req: Request): Promise<Response> => {
               email: email || null,
               bookingType,
               address: address || null,
+              testDetails: testDetails || null,
+              notes: notes || null,
               preferredDate: preferredDate || null,
               labId: labId || null,
               collectionCenterId: collectionCenterId || null,
+              source: portalPatient ? "patient_portal" : "website",
+              patientRecordId: portalPatient?.id || null,
             }),
           }),
         });
@@ -173,9 +221,13 @@ type BookingAlertPayload = {
   email: string | null;
   bookingType: "walk_in" | "home_collection";
   address: string | null;
+  testDetails: string | null;
+  notes: string | null;
   preferredDate: string | null;
   labId: string | null;
   collectionCenterId: string | null;
+  source: string;
+  patientRecordId: string | null;
 };
 
 function buildBookingAlertEmail(payload: BookingAlertPayload): string {
@@ -187,9 +239,13 @@ function buildBookingAlertEmail(payload: BookingAlertPayload): string {
     ["Patient Name", payload.fullName],
     ["Phone", payload.phone],
     ["Email", payload.email || "Not provided"],
+    ["Source", payload.source === "patient_portal" ? "Patient Portal" : "Website"],
+    ["Linked Patient ID", payload.patientRecordId || "Not linked"],
     ["Booking Type", payload.bookingType === "home_collection" ? "Home Collection" : "Walk-in Lab Visit"],
+    ["Requested Tests", payload.testDetails || "Not provided"],
     ["Address", payload.address || "Not provided"],
     ["Preferred Date", payload.preferredDate || "Not provided"],
+    ["Notes", payload.notes || "Not provided"],
     ["Lab ID", payload.labId || "Not selected"],
     ["Collection Center ID", payload.collectionCenterId || "Not selected"],
   ]
@@ -227,9 +283,13 @@ function buildBookingAlertText(payload: BookingAlertPayload): string {
     `Patient Name: ${payload.fullName}`,
     `Phone: ${payload.phone}`,
     `Email: ${payload.email || "Not provided"}`,
+    `Source: ${payload.source === "patient_portal" ? "Patient Portal" : "Website"}`,
+    `Linked Patient ID: ${payload.patientRecordId || "Not linked"}`,
     `Booking Type: ${payload.bookingType === "home_collection" ? "Home Collection" : "Walk-in Lab Visit"}`,
+    `Requested Tests: ${payload.testDetails || "Not provided"}`,
     `Address: ${payload.address || "Not provided"}`,
     `Preferred Date: ${payload.preferredDate || "Not provided"}`,
+    `Notes: ${payload.notes || "Not provided"}`,
     `Lab ID: ${payload.labId || "Not selected"}`,
     `Collection Center ID: ${payload.collectionCenterId || "Not selected"}`,
     "Review it in the admin dashboard booking requests queue.",

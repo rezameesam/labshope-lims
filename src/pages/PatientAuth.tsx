@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -6,7 +6,6 @@ import {
   FileText,
   HeartPulse,
   Loader2,
-  LockKeyhole,
   Phone,
   Shield,
 } from "lucide-react";
@@ -25,19 +24,12 @@ import { usePatientAuth } from "@/hooks/usePatientAuth";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import Turnstile from "@/components/ui/turnstile";
-import PasswordRequirements from "@/components/patient/PasswordRequirements";
-import { validatePatientPassword } from "@/lib/patientSecurity";
 
 const PatientAuth = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, loading, login, setPassword, requiresPasswordReset, requestPasswordReset } = usePatientAuth();
-  const [step, setStep] = useState<"login" | "reset">("login");
+  const { isAuthenticated, loading, login, requestPasswordReset } = usePatientAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPasswordInput] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [lastLoginPassword, setLastLoginPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetIdentifier, setResetIdentifier] = useState("");
@@ -51,14 +43,6 @@ const PatientAuth = () => {
       navigate("/patient/dashboard");
     }
   }, [loading, isAuthenticated, navigate]);
-
-  useEffect(() => {
-    if (requiresPasswordReset) {
-      setStep("reset");
-    }
-  }, [requiresPasswordReset]);
-
-  const passwordValidationMessage = useMemo(() => validatePatientPassword(newPassword), [newPassword]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,56 +58,14 @@ const PatientAuth = () => {
 
     setIsLoading(true);
     try {
-      const { error, passwordResetRequired } = await login(identifier.trim(), password, loginCaptchaToken);
+      const { error } = await login(identifier.trim(), password, loginCaptchaToken);
 
       if (error) {
         toast.error(error.message);
-        return;
-      }
-
-      if (passwordResetRequired) {
-        setLastLoginPassword(password);
-        setStep("reset");
-        toast.success("Please set a new password to continue");
         return;
       }
 
       toast.success("Welcome back");
-      navigate("/patient/dashboard");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const current = lastLoginPassword || currentPassword;
-    if (!current) {
-      toast.error("Please enter your current password");
-      return;
-    }
-
-    if (passwordValidationMessage) {
-      toast.error(passwordValidationMessage);
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { error } = await setPassword(current, newPassword);
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success("Password updated successfully");
       navigate("/patient/dashboard");
     } finally {
       setIsLoading(false);
@@ -251,153 +193,84 @@ const PatientAuth = () => {
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={step}
+              key="login"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
               className="rounded-2xl border border-border bg-card p-8 shadow-xl"
             >
-              {step === "login" ? (
-                <>
-                  <div className="mb-8">
-                    <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <Phone className="h-6 w-6" />
-                    </div>
-                    <h2 className="font-heading text-3xl font-semibold text-clinical-navy">Patient sign in</h2>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Use your patient ID, phone number, email, or username to access the portal.
-                    </p>
-                  </div>
+              <div className="mb-8">
+                <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <Phone className="h-6 w-6" />
+                </div>
+                <h2 className="font-heading text-3xl font-semibold text-clinical-navy">Patient sign in</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Use your patient ID, phone number, email, or username to access the portal.
+                </p>
+              </div>
 
-                  <form onSubmit={handleLogin} className="space-y-5">
-                    <div className="space-y-2">
-                      <Label htmlFor="identifier">Login ID</Label>
-                      <Input
-                        id="identifier"
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder="Patient ID, phone, email, or username"
-                        autoComplete="username"
-                        required
-                      />
-                    </div>
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="identifier">Login ID</Label>
+                  <Input
+                    id="identifier"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Patient ID, phone, email, or username"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPasswordInput(e.target.value)}
-                        autoComplete="current-password"
-                        required
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
 
-                    {turnstileSiteKey && (
-                      <Turnstile
-                        siteKey={turnstileSiteKey}
-                        action="patient_login"
-                        onVerify={setLoginCaptchaToken}
-                        onExpire={() => setLoginCaptchaToken("")}
-                      />
-                    )}
+                {turnstileSiteKey && (
+                  <Turnstile
+                    siteKey={turnstileSiteKey}
+                    action="patient_login"
+                    onVerify={setLoginCaptchaToken}
+                    onExpire={() => setLoginCaptchaToken("")}
+                  />
+                )}
 
-                    <Button type="submit" className="h-12 w-full" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Signing in...
-                        </>
-                      ) : (
-                        <>
-                          Access Portal
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
+                <Button type="submit" className="h-12 w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Access Portal
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </form>
 
-                  <div className="mt-6 flex flex-col gap-3 border-t border-border pt-6 text-sm text-muted-foreground">
-                    <button
-                      type="button"
-                      className="text-left text-primary transition hover:underline"
-                      onClick={() => setResetDialogOpen(true)}
-                    >
-                      Forgot your password?
-                    </button>
-                    <p>
-                      Need help accessing your account? Contact the laboratory front desk for identity verification.
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="mb-8">
-                    <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <LockKeyhole className="h-6 w-6" />
-                    </div>
-                    <h2 className="font-heading text-3xl font-semibold text-clinical-navy">Set a stronger password</h2>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      This account needs a new password before portal access continues.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleResetPassword} className="space-y-5">
-                    {!lastLoginPassword && (
-                      <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password</Label>
-                        <Input
-                          id="currentPassword"
-                          type="password"
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          autoComplete="current-password"
-                          required
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="newPassword">New Password</Label>
-                      <Input
-                        id="newPassword"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        autoComplete="new-password"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        autoComplete="new-password"
-                        required
-                      />
-                    </div>
-
-                    <PasswordRequirements password={newPassword} />
-
-                    <Button type="submit" className="h-12 w-full" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating password...
-                        </>
-                      ) : (
-                        "Save and continue"
-                      )}
-                    </Button>
-                  </form>
-                </>
-              )}
+              <div className="mt-6 flex flex-col gap-3 border-t border-border pt-6 text-sm text-muted-foreground">
+                <button
+                  type="button"
+                  className="text-left text-primary transition hover:underline"
+                  onClick={() => setResetDialogOpen(true)}
+                >
+                  Forgot your password?
+                </button>
+                <p>
+                  Need help accessing your account? Contact the laboratory front desk for identity verification.
+                </p>
+              </div>
             </motion.div>
           </AnimatePresence>
         </div>

@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { sendPaymentSuccessNotification } from "@/services/notificationService";
 
 interface Invoice {
   id: string;
@@ -171,6 +172,29 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
     if (outstandingAmount <= 0) return "paid";
     if (paidAmount > 0) return "partial";
     return "pending";
+  };
+
+  const handlePaymentNotification = async (invoice: Invoice) => {
+    const amountPaid = getOutstandingAmount(invoice);
+    if (amountPaid <= 0) {
+      return;
+    }
+
+    const results = await sendPaymentSuccessNotification(patientId, amountPaid, invoice.invoice_number);
+    if (!results.some((result) => result.success)) {
+      console.warn("Payment confirmation notification failed:", results);
+    }
+  };
+
+  const handleBulkPaymentNotification = async (amountPaid: number) => {
+    if (amountPaid <= 0) {
+      return;
+    }
+
+    const results = await sendPaymentSuccessNotification(patientId, amountPaid);
+    if (!results.some((result) => result.success)) {
+      console.warn("Bulk payment confirmation notification failed:", results);
+    }
   };
 
   const generateInvoicePDF = async (invoicesToDownload: Invoice[]) => {
@@ -475,6 +499,11 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                         }))}
                         patientName={patientName}
                         patientPhone={patientPhone}
+                        onPaymentSuccess={async () => {
+                          fetchInvoices();
+                          onPaymentStatusChange?.();
+                          await handleBulkPaymentNotification(totalOutstanding);
+                        }}
                         label={`Pay All Outstanding (₹${totalOutstanding.toLocaleString()})`}
                         size="sm"
                         className="gap-2 bg-emerald-600 hover:bg-emerald-700"
@@ -561,9 +590,10 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                               amount={getOutstandingAmount(invoice)}
                               patientName={patientName}
                               patientPhone={patientPhone}
-                              onPaymentSuccess={() => {
+                              onPaymentSuccess={async () => {
                                 fetchInvoices();
                                 onPaymentStatusChange?.();
+                                await handlePaymentNotification(invoice);
                               }}
                               variant="default"
                               size="sm"
@@ -714,10 +744,11 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
                     amount={getOutstandingAmount(selectedInvoice)}
                     patientName={patientName}
                     patientPhone={patientPhone}
-                    onPaymentSuccess={() => {
+                    onPaymentSuccess={async () => {
                       fetchInvoices();
                       fetchInvoiceDetails(selectedInvoice.id);
                       onPaymentStatusChange?.();
+                      await handlePaymentNotification(selectedInvoice);
                     }}
                     className="w-full"
                     variant="default"

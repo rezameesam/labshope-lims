@@ -7,6 +7,7 @@ import {
   AlertCircle,
   CalendarClock,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Droplet,
   FileText,
@@ -42,6 +43,7 @@ import TestResultsTable from "@/components/patient/TestResultsTable";
 import BillingPortal from "@/components/patient/BillingPortal";
 import PatientHistoryTimeline from "@/components/patient/PatientHistoryTimeline";
 import PatientActiveSessions from "@/components/patient/PatientActiveSessions";
+import PatientBookTestRequest from "@/components/patient/PatientBookTestRequest";
 import PasswordRequirements from "@/components/patient/PasswordRequirements";
 import PageErrorBoundary from "@/components/PageErrorBoundary";
 import { formatPhoneForDisplay } from "@/lib/phone";
@@ -112,9 +114,13 @@ const formatDate = (value?: string | null) => {
   return format(parsed, "dd MMM yyyy");
 };
 
+const MAX_PATIENT_ADDRESS_LENGTH = 250;
+const patientTabTriggerClassName =
+  "h-14 w-full cursor-pointer flex-row items-center justify-center gap-2.5 rounded-2xl border border-border/70 bg-background/85 px-4 text-center text-sm font-semibold leading-none text-clinical-navy/75 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-clinical-navy/20 hover:bg-background hover:text-clinical-navy hover:shadow-md data-[state=active]:border-clinical-navy data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg md:h-16 md:text-base";
+
 const PatientDashboard = () => {
   const navigate = useNavigate();
-  const { patient, loading, isAuthenticated, signOut, setPassword } = usePatientAuth();
+  const { patient, loading, isAuthenticated, signOut, setPassword, updateAddress } = usePatientAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
   const [testsLoading, setTestsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("results");
@@ -122,16 +128,23 @@ const PatientDashboard = () => {
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [checkingDues, setCheckingDues] = useState(true);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [addressInput, setAddressInput] = useState("");
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [updatingAddress, setUpdatingAddress] = useState(false);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate("/auth/patient");
     }
   }, [loading, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    setAddressInput(patient?.address || "");
+  }, [patient?.address]);
 
   const refreshDues = useCallback(async () => {
     if (!patient?.id) {
@@ -291,6 +304,33 @@ const PatientDashboard = () => {
     navigate("/auth/patient");
   };
 
+  const handleAddressUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const trimmedAddress = addressInput.trim();
+    if (!trimmedAddress) {
+      toast.error("Please enter your address");
+      return;
+    }
+
+    if (trimmedAddress.length > MAX_PATIENT_ADDRESS_LENGTH) {
+      toast.error(`Address must be ${MAX_PATIENT_ADDRESS_LENGTH} characters or fewer`);
+      return;
+    }
+
+    setUpdatingAddress(true);
+    const { error } = await updateAddress(trimmedAddress);
+    setUpdatingAddress(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Address updated successfully");
+    setAddressDialogOpen(false);
+  };
+
   const pendingTests = useMemo(
     () => tests.filter((test) => test.status === "pending" || test.status === "processing"),
     [tests],
@@ -411,6 +451,13 @@ const PatientDashboard = () => {
                   >
                     Account Settings
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
+                    onClick={() => setActiveTab("book")}
+                  >
+                    Book Test
+                  </Button>
                 </div>
                 <div className="text-xs text-primary-foreground/70">
                   Last password change: {formatTimestamp(patient.last_password_change)}
@@ -469,31 +516,38 @@ const PatientDashboard = () => {
         </section>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border bg-muted/30 p-2.5 md:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-[24px] border border-border bg-muted/40 p-3 shadow-sm md:grid-cols-5">
             <TabsTrigger
               value="results"
-              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+              className={patientTabTriggerClassName}
             >
               <FileText className="h-4 w-4 shrink-0" />
               <span className="leading-none">Results</span>
             </TabsTrigger>
             <TabsTrigger
               value="billing"
-              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+              className={patientTabTriggerClassName}
             >
               <FlaskConical className="h-4 w-4 shrink-0" />
               <span className="leading-none">Billing</span>
             </TabsTrigger>
             <TabsTrigger
+              value="book"
+              className={patientTabTriggerClassName}
+            >
+              <ClipboardList className="h-4 w-4 shrink-0" />
+              <span className="leading-none">Book Test</span>
+            </TabsTrigger>
+            <TabsTrigger
               value="timeline"
-              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+              className={patientTabTriggerClassName}
             >
               <GitBranch className="h-4 w-4 shrink-0" />
               <span className="leading-none">Timeline</span>
             </TabsTrigger>
             <TabsTrigger
               value="account"
-              className="h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent px-4 text-center text-sm font-medium leading-none text-muted-foreground data-[state=active]:border-clinical-navy/15 data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-md md:h-14 md:text-base"
+              className={patientTabTriggerClassName}
             >
               <ShieldCheck className="h-4 w-4 shrink-0" />
               <span className="leading-none">Account</span>
@@ -585,14 +639,19 @@ const PatientDashboard = () => {
                   ))}
 
                   <div className="rounded-2xl border border-border bg-muted/40 p-4 md:col-span-2">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-xl bg-white p-2 shadow-sm">
-                        <MapPin className="h-5 w-5 text-foreground" />
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-xl bg-white p-2 shadow-sm">
+                          <MapPin className="h-5 w-5 text-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Address</p>
+                          <p className="mt-1 font-medium text-foreground">{patient.address || "Not provided"}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Address</p>
-                        <p className="mt-1 font-medium text-foreground">{patient.address || "Not provided"}</p>
-                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setAddressDialogOpen(true)}>
+                        Edit Address
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -644,7 +703,7 @@ const PatientDashboard = () => {
                     <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-primary">
                       <p className="font-medium">Need to update your personal details?</p>
                       <p className="mt-2 leading-6 text-primary/90">
-                        Contact our clinic team to update address, phone number, email, or demographic information.
+                        You can update your address here. Contact our clinic team for phone number, email, or demographic changes.
                       </p>
                     </div>
                     <p>Phone: +91 9622635767</p>
@@ -655,6 +714,23 @@ const PatientDashboard = () => {
                 <PatientActiveSessions />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="book">
+            <PageErrorBoundary
+              title="Booking form could not be loaded"
+              description="The booking request form hit an unexpected error. You can retry without leaving the portal."
+            >
+              <PatientBookTestRequest
+                patient={{
+                  id: patient.id,
+                  full_name: patient.full_name,
+                  phone: patient.phone,
+                  email: patient.email,
+                  address: patient.address,
+                }}
+              />
+            </PageErrorBoundary>
           </TabsContent>
         </Tabs>
       </main>
@@ -716,6 +792,46 @@ const PatientDashboard = () => {
               </Button>
               <Button type="submit" disabled={updatingPassword}>
                 {updatingPassword ? "Updating..." : "Update Password"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addressDialogOpen} onOpenChange={setAddressDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Update Address
+            </DialogTitle>
+            <DialogDescription>
+              Keep your address up to date for home collection requests and patient record accuracy.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddressUpdate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="patient-address">Address</Label>
+              <textarea
+                id="patient-address"
+                value={addressInput}
+                onChange={(e) => setAddressInput(e.target.value.slice(0, MAX_PATIENT_ADDRESS_LENGTH))}
+                rows={4}
+                className="flex min-h-[112px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                {addressInput.length}/{MAX_PATIENT_ADDRESS_LENGTH} characters
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddressDialogOpen(false)} disabled={updatingAddress}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updatingAddress}>
+                {updatingAddress ? "Saving..." : "Save Address"}
               </Button>
             </DialogFooter>
           </form>

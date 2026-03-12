@@ -616,6 +616,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         date_of_birth: formData.date_of_birth || null,
         gender: formData.gender || null,
         blood_group: formData.blood_group || null,
+        password_reset_required: false,
         lab_id: formData.lab_id || null,
         collection_center_id: formData.collection_center_id || null,
         created_by: authUser?.id || null,
@@ -624,22 +625,23 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       if (error) throw error;
 
       toast.success(`Patient ${formData.full_name} added successfully`);
-      if (formData.email?.trim()) {
+      if (formData.email?.trim() || normalizedPhone) {
         try {
           const portalUrl = `${window.location.origin}/auth/patient`;
           const { sendPatientWelcomeEmail } = await import("@/services/notificationService");
           const results = await sendPatientWelcomeEmail({
-            email: formData.email.trim(),
+            email: formData.email?.trim() || null,
+            phone: normalizedPhone,
             fullName: formData.full_name,
             patientId,
             portalUrl,
           });
           if (!results.some((result) => result.success)) {
-            toast.error("Patient created, but failed to send portal credentials email.");
+            toast.error("Patient created, but failed to send portal credentials notification.");
           }
         } catch (emailError) {
           console.error("Failed to send patient welcome email:", emailError);
-          toast.error("Patient created, but failed to send portal credentials email.");
+          toast.error("Patient created, but failed to send portal credentials notification.");
         }
       }
       setIsDialogOpen(false);
