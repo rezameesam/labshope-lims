@@ -79,6 +79,34 @@ interface Reminder {
   created_at: string;
 }
 
+const REMINDER_COPY: Record<string, { title: string; message: (patientName: string) => string }> = {
+  follow_up: {
+    title: "Follow-up appointment reminder",
+    message: (patientName) =>
+      `Dear ${patientName},\n\nThis is a reminder for your follow-up with IRM Clinical Laboratory. Please contact us if you need to confirm or reschedule your visit.\n\nThank you!`,
+  },
+  checkup: {
+    title: "Routine checkup reminder",
+    message: (patientName) =>
+      `Dear ${patientName},\n\nThis is a reminder for your upcoming health checkup. Please contact us if you need preparation details or want to reschedule.\n\nThank you!`,
+  },
+  payment: {
+    title: "Payment reminder",
+    message: (patientName) =>
+      `Dear ${patientName},\n\nThis is a reminder regarding your pending payment with IRM Clinical Laboratory. Please complete it at your earliest convenience or contact us if you need help.\n\nThank you!`,
+  },
+  test_result: {
+    title: "Test result ready",
+    message: (patientName) =>
+      `Dear ${patientName},\n\nYour test results are ready. Please contact the lab or log in to the patient portal to review and download your report.\n\nThank you!`,
+  },
+  custom: {
+    title: "Custom reminder",
+    message: (patientName) =>
+      `Dear ${patientName},\n\nThis is a reminder from IRM Clinical Laboratory.\n\nThank you!`,
+  },
+};
+
 const ManageReminders = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [patients, setPatients] = useState<Array<{ id: string; full_name: string; patient_id: string; phone: string }>>([]);
@@ -90,16 +118,36 @@ const ManageReminders = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [lastPrefill, setLastPrefill] = useState<{ title: string; message: string } | null>(null);
 
-  const [reminderForm, setReminderForm] = useState({
-    patient_id: "",
-    reminder_type: "follow_up",
-    title: "",
-    message: "",
-    reminder_date: format(addDays(new Date(), 1), "yyyy-MM-dd"),
-    due_date: "",
-    notification_method: "both",
-  });
+  const getPatientNameForReminder = (patientId: string) =>
+    patients.find((patient) => patient.id === patientId)?.full_name.trim() || "Patient";
+
+  const getReminderPrefill = (reminderType: string, patientId: string) => {
+    const template = REMINDER_COPY[reminderType] || REMINDER_COPY.custom;
+    const patientName = getPatientNameForReminder(patientId);
+
+    return {
+      title: template.title,
+      message: template.message(patientName),
+    };
+  };
+
+  const buildDefaultReminderForm = (patientId = "", reminderType = "follow_up") => {
+    const prefill = getReminderPrefill(reminderType, patientId);
+
+    return {
+      patient_id: patientId,
+      reminder_type: reminderType,
+      title: prefill.title,
+      message: prefill.message,
+      reminder_date: format(addDays(new Date(), 1), "yyyy-MM-dd"),
+      due_date: "",
+      notification_method: "both",
+    };
+  };
+
+  const [reminderForm, setReminderForm] = useState(buildDefaultReminderForm);
 
   useEffect(() => {
     fetchData();
@@ -160,14 +208,11 @@ const ManageReminders = () => {
   };
 
   const resetForm = () => {
-    setReminderForm({
-      patient_id: "",
-      reminder_type: "follow_up",
-      title: "",
-      message: "",
-      reminder_date: format(addDays(new Date(), 1), "yyyy-MM-dd"),
-      due_date: "",
-      notification_method: "both",
+    const defaultForm = buildDefaultReminderForm();
+    setReminderForm(defaultForm);
+    setLastPrefill({
+      title: defaultForm.title,
+      message: defaultForm.message,
     });
     setPatientSearch("");
     setEditingReminder(null);
@@ -185,7 +230,24 @@ const ManageReminders = () => {
       due_date: reminder.due_date || "",
       notification_method: reminder.notification_method,
     });
+    setLastPrefill(null);
     setIsDialogOpen(true);
+  };
+
+  const shouldReplacePrefillField = (currentValue: string, previousPrefillValue?: string) =>
+    !currentValue.trim() || (!!previousPrefillValue && currentValue === previousPrefillValue);
+
+  const updateReminderFormWithPrefill = (nextReminderType: string, nextPatientId: string) => {
+    const nextPrefill = getReminderPrefill(nextReminderType, nextPatientId);
+
+    setReminderForm((current) => ({
+      ...current,
+      patient_id: nextPatientId,
+      reminder_type: nextReminderType,
+      title: shouldReplacePrefillField(current.title, lastPrefill?.title) ? nextPrefill.title : current.title,
+      message: shouldReplacePrefillField(current.message, lastPrefill?.message) ? nextPrefill.message : current.message,
+    }));
+    setLastPrefill(nextPrefill);
   };
 
   const handleSaveReminder = async () => {
@@ -626,7 +688,7 @@ const ManageReminders = () => {
               <Select
                 name="patient_id"
                 value={reminderForm.patient_id}
-                onValueChange={(value) => setReminderForm({ ...reminderForm, patient_id: value })}
+                onValueChange={(value) => updateReminderFormWithPrefill(reminderForm.reminder_type, value)}
                 onOpenChange={(open) => {
                   if (open) setPatientSearch("");
                 }}
@@ -669,7 +731,7 @@ const ManageReminders = () => {
                 <Select
                   name="reminder_type"
                   value={reminderForm.reminder_type}
-                  onValueChange={(value) => setReminderForm({ ...reminderForm, reminder_type: value })}
+                  onValueChange={(value) => updateReminderFormWithPrefill(value, reminderForm.patient_id)}
                 >
                   <SelectTrigger id="reminder-type">
                     <SelectValue />
@@ -682,6 +744,9 @@ const ManageReminders = () => {
                     <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Selecting a type prefills the title and message, and you can edit both before saving.
+                </p>
               </div>
               <div>
                 <Label htmlFor="reminder-notification-method">Notification Method</Label>
