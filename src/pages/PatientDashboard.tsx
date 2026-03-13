@@ -567,6 +567,7 @@ const PatientDashboard = () => {
                   patient_id: patient.patient_id,
                   phone: patient.phone,
                   gender: patient.gender,
+                  date_of_birth: patient.date_of_birth,
                   blood_group: patient.blood_group,
                 }}
                 patientDbId={patient.id}

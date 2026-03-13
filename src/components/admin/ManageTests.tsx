@@ -84,6 +84,9 @@ interface PatientTest {
     patient_id: string;
     full_name: string;
     phone: string;
+    gender?: string | null;
+    date_of_birth?: string | null;
+    blood_group?: string | null;
   };
   labs?: {
     id: string;
@@ -438,6 +441,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             patient_id,
             full_name,
             phone,
+            gender,
+            date_of_birth,
+            blood_group,
             created_by
           ),
           labs (
@@ -1313,6 +1319,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         category: test.test_id ? categoryByTestId.get(test.test_id) || null : null,
         test_name: test.test_name,
         test_date: test.test_date,
+        created_at: test.created_at,
         status: test.status,
         result: test.result,
         result_value: test.result_value,
@@ -1339,6 +1346,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             full_name: patientData.patient.full_name,
             patient_id: patientData.patient.patient_id,
             phone: patientData.patient.phone,
+            gender: patientData.patient.gender || undefined,
+            date_of_birth: patientData.patient.date_of_birth || undefined,
+            blood_group: patientData.patient.blood_group || undefined,
           },
           patientData.tests,
           undefined,

@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { format } from "date-fns";
+import { differenceInMonths, differenceInYears, format, isValid, parseISO } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
@@ -62,6 +62,7 @@ interface ReportTemplate {
 interface ReportData {
   patient: PatientInfo;
   test_date: string;
+  sample_collection_date?: string;
   tests: TestResult[];
   lab_name?: string;
   lab_code?: string;
@@ -131,6 +132,56 @@ const getWatermarkImage = async () => {
   }
 
   return watermarkImagePromise;
+};
+
+const getPatientAgeLabel = (dateOfBirth?: string) => {
+  if (!dateOfBirth) {
+    return null;
+  }
+
+  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)
+    ? parseISO(`${dateOfBirth}T00:00:00`)
+    : parseISO(dateOfBirth);
+
+  if (!isValid(parsedDate)) {
+    return null;
+  }
+
+  const today = new Date();
+  const ageInYears = differenceInYears(today, parsedDate);
+
+  if (ageInYears >= 1) {
+    return `${ageInYears} year${ageInYears === 1 ? "" : "s"}`;
+  }
+
+  const ageInMonths = differenceInMonths(today, parsedDate);
+  if (ageInMonths >= 0) {
+    return `${ageInMonths} month${ageInMonths === 1 ? "" : "s"}`;
+  }
+
+  return null;
+};
+
+const getSampleCollectionDate = (
+  tests: Array<{ created_at?: string | null; test_date: string }>
+) => {
+  const datedTests = tests
+    .map((test) => {
+      if (!test.created_at) {
+        return null;
+      }
+
+      const parsedDate = parseISO(test.created_at);
+      return isValid(parsedDate) ? { createdAt: test.created_at, parsedDate } : null;
+    })
+    .filter(Boolean) as Array<{ createdAt: string; parsedDate: Date }>;
+
+  if (datedTests.length === 0) {
+    return tests[0]?.test_date;
+  }
+
+  datedTests.sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime());
+  return datedTests[0].createdAt;
 };
 
 const addReportWatermark = async (doc: jsPDF, options: ReportOptions) => {
@@ -248,7 +299,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
   
   // Header with lab branding (only if includeHeader is true)
   if (options.includeHeader !== false) {
-    doc.setFillColor(30, 58, 138); // Navy blue
+    doc.setFillColor(30, 58, 138);
     doc.rect(0, 0, pageWidth, 45, "F");
     
     // Add logo on the left side
@@ -299,6 +350,8 @@ export const generateTestReportPDF = async (data: ReportData) => {
   const patientInfoY = contentStartY + 10;
   const col1X = 14;
   const col2X = pageWidth / 2 + 10;
+  const rightColumnValueX = col2X + 25;
+  const patientAge = getPatientAgeLabel(data.patient.date_of_birth);
   
   // Left column
   doc.setFont("helvetica", "bold");
@@ -315,36 +368,35 @@ export const generateTestReportPDF = async (data: ReportData) => {
   doc.text("Phone:", col1X, patientInfoY + 14);
   doc.setFont("helvetica", "normal");
   doc.text(formatPhoneForDisplay(data.patient.phone), col1X + 25, patientInfoY + 14);
-  
-  // Lab info row (shows the specific lab and code)
+
   doc.setFont("helvetica", "bold");
-  doc.text("Lab:", col1X, patientInfoY + 21);
+  doc.text("Sample Collection Date:", col1X, patientInfoY + 21);
   doc.setFont("helvetica", "normal");
-  const labDisplay = data.lab_name
-    ? `${data.lab_name}${data.lab_code ? ` (${data.lab_code})` : ""}`
-    : data.lab_code
-      ? `Lab Code: ${data.lab_code}`
-      : "Not specified";
-  doc.text(labDisplay, col1X + 25, patientInfoY + 21);
+  doc.text(formatAppDate(data.sample_collection_date), col1X + 41, patientInfoY + 21);
   
   // Right column
   doc.setFont("helvetica", "bold");
   doc.text("Gender:", col2X, patientInfoY);
   doc.setFont("helvetica", "normal");
-  doc.text(data.patient.gender || "N/A", col2X + 25, patientInfoY);
+  doc.text(data.patient.gender || "N/A", rightColumnValueX, patientInfoY);
   
   doc.setFont("helvetica", "bold");
   doc.text("Blood Group:", col2X, patientInfoY + 7);
   doc.setFont("helvetica", "normal");
-  doc.text(data.patient.blood_group || "N/A", col2X + 25, patientInfoY + 7);
+  doc.text(data.patient.blood_group || "N/A", rightColumnValueX, patientInfoY + 7);
   
   doc.setFont("helvetica", "bold");
-  doc.text("Report Date:", col2X, patientInfoY + 14);
+  doc.text("Age:", col2X, patientInfoY + 14);
   doc.setFont("helvetica", "normal");
-  doc.text(formatAppDate(data.test_date), col2X + 28, patientInfoY + 14);
+  doc.text(patientAge || "N/A", rightColumnValueX, patientInfoY + 14);
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Report Date:", col2X, patientInfoY + 21);
+  doc.setFont("helvetica", "normal");
+  doc.text(formatAppDate(data.test_date), rightColumnValueX, patientInfoY + 21);
   
   // Registry and collection center info (if available)
-  let infoY = patientInfoY + 28; // start after the lab row
+  let infoY = patientInfoY + 35; // start after the report date row
   if (data.registry_serial) {
     doc.setFont("helvetica", "bold");
     doc.text("Registry No:", col1X, infoY);
@@ -362,10 +414,10 @@ export const generateTestReportPDF = async (data: ReportData) => {
     infoY += 7;
   }
 
-  // Test Results Section - calculate start Y position based on whether lab info was added
+  // Test Results Section - calculate start Y position based on optional patient metadata rows
   let testResultsStartY = (data.collection_center_name || data.registry_serial)
     ? infoY + 5
-    : patientInfoY + 33;
+    : patientInfoY + 40;
 
   if (headerText) {
     doc.setFontSize(9);
@@ -722,6 +774,7 @@ export const generateMultiTestReportPDF = async (
     category?: string | null;
     test_name: string;
     test_date: string;
+    created_at?: string | null;
     status: string;
     result: string | null;
     result_value?: number | null;
@@ -776,6 +829,7 @@ export const generateMultiTestReportPDF = async (
   const firstTest = completedTests[0];
   let labName = firstTest.lab_name;
   let labCode = firstTest.lab_code;
+  const sampleCollectionDate = getSampleCollectionDate(completedTests);
 
   // If lab details weren't populated in the caller, try to resolve them from Supabase
   if ((!labName || !labCode) && firstTest.lab_id) {
@@ -800,6 +854,7 @@ export const generateMultiTestReportPDF = async (
   await generateTestReportPDF({
     patient,
     test_date: completedTests[0].test_date,
+    sample_collection_date: sampleCollectionDate,
     tests: testResults,
     lab_name: labName || "IRM Clinical Laboratory",
     lab_code: labCode,

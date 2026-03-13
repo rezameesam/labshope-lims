@@ -357,6 +357,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             patient_id: patient.patient_id,
             phone: patient.phone,
             gender: patient.gender || undefined,
+            date_of_birth: patient.date_of_birth || undefined,
             blood_group: patient.blood_group || undefined,
           },
           dateFilteredTests.map(t => ({
@@ -365,6 +366,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             category: t.category || null,
             test_name: t.test_name,
             test_date: t.test_date,
+            created_at: t.created_at,
             status: t.status,
             result: t.result,
             result_value: t.result_value,
@@ -425,6 +427,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             patient_id: patient.patient_id,
             phone: patient.phone,
             gender: patient.gender || undefined,
+            date_of_birth: patient.date_of_birth || undefined,
             blood_group: patient.blood_group || undefined,
           },
           selectedTests.map(t => ({
@@ -434,6 +437,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             category: t.category || null,
             test_name: t.test_name,
             test_date: t.test_date,
+            created_at: t.created_at,
             status: t.status,
             result: t.result,
             result_value: t.result_value,
@@ -494,6 +498,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             patient_id: patient.patient_id,
             phone: patient.phone,
             gender: patient.gender || undefined,
+            date_of_birth: patient.date_of_birth || undefined,
             blood_group: patient.blood_group || undefined,
           },
           [{
@@ -503,6 +508,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             category: test.category || null,
             test_name: test.test_name,
             test_date: test.test_date,
+            created_at: test.created_at,
             status: test.status,
             result: test.result,
             result_value: test.result_value,
