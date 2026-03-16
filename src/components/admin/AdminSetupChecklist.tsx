@@ -90,12 +90,9 @@ const buildLaunchBaseUrl = (slug: string | null | undefined, websiteUrl: string 
     return null;
   }
 
-  const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
-  const host = configuredBaseDomain && configuredBaseDomain !== "localhost"
-    ? `${slug}.${configuredBaseDomain}`
-    : `${slug}.localhost:8080`;
-  const protocol = host.includes("localhost") ? "http" : "https";
-  return `${protocol}://${host}`;
+  const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase() || "labshope.com";
+  const host = `${slug}.${configuredBaseDomain}`;
+  return `https://${host}`;
 };
 
 const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {

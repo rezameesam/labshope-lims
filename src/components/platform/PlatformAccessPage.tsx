@@ -19,7 +19,7 @@ interface PlatformAccessPageProps {
 
 const portalPattern = import.meta.env.VITE_PUBLIC_BASE_DOMAIN
   ? `your-lab.${import.meta.env.VITE_PUBLIC_BASE_DOMAIN}`
-  : "your-lab.localhost";
+  : "your-lab.labshope.com";
 
 const PlatformAccessPage = ({
   eyebrow,

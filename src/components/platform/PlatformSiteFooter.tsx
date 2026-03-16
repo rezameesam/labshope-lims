@@ -7,8 +7,9 @@ const PlatformSiteFooter = () => {
     <footer className="border-t border-border bg-card">
       <div className="container mx-auto flex flex-col gap-6 px-4 py-10 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div>
-          <p className="font-heading text-lg font-semibold text-clinical-navy">{platformBranding.productName}</p>
+          <img src="/labshope-logo.jpg" alt="LabShope LIMS" className="h-8 w-auto object-contain mb-2" />
           <p className="mt-1">{platformBranding.tagline}</p>
+          <p className="mt-1 text-xs">© {new Date().getFullYear()} LabShope Technologies. All rights reserved.</p>
         </div>
         <div className="flex flex-wrap gap-5">
           <Link to="/" className="transition hover:text-primary">Home</Link>

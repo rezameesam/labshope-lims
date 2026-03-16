@@ -266,11 +266,9 @@ const AdminQuickSetup = () => {
           : {};
       const domains = ((domainsData as OrganizationDomainRecord[] | null) || []);
       setDomainRecords(domains);
-      const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
+      const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase() || "labshope.com";
       const expectedFallbackDomain = organization.slug
-        ? configuredBaseDomain && configuredBaseDomain !== "localhost"
-          ? `${organization.slug}.${configuredBaseDomain}`
-          : `${organization.slug}.localhost`
+        ? `${organization.slug}.${configuredBaseDomain}`
         : "";
       const existingCustomDomain =
         domains.find((domain) => domain.is_primary && domain.domain !== expectedFallbackDomain)?.domain ||
@@ -340,11 +338,7 @@ const AdminQuickSetup = () => {
       return "";
     }
 
-    if (configuredBaseDomain && configuredBaseDomain !== "localhost") {
-      return `${organization.slug}.${configuredBaseDomain}`;
-    }
-
-    return `${organization.slug}.localhost`;
+    return `${organization.slug}.${configuredBaseDomain || "labshope.com"}`;
   }, [configuredBaseDomain, organization?.slug]);
   const normalizedCustomDomain = normalizeDomain(formData.customDomain);
   const fallbackDomainRecord = useMemo(

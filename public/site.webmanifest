@@ -1,6 +1,6 @@
 {
-  "name": "IRM Clinical Laboratory",
-  "short_name": "IRM Lab",
+  "name": "LabShope LIMS",
+  "short_name": "LabShope",
   "icons": [
     {
       "src": "/favicon-192.png",
@@ -13,7 +13,7 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#0a4f91",
+  "theme_color": "#0e6080",
   "background_color": "#ffffff",
   "display": "standalone"
 }

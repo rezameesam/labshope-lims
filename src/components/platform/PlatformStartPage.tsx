@@ -298,7 +298,7 @@ const PlatformStartPage = () => {
       return "";
     }
 
-    return baseDomain === "localhost" ? `${normalized}.localhost:8080` : `${normalized}.${baseDomain}`;
+    return `${normalized}.${baseDomain === "localhost" ? "labshope.com" : baseDomain}`;
   }, [baseDomain, organizationName, preferredSubdomain]);
 
   const effectiveSubdomain = useMemo(() => {
@@ -326,7 +326,7 @@ const PlatformStartPage = () => {
     }
   }, [customDomain]);
   const customDomainDnsGuide = useMemo(
-    () => getDnsGuide(normalizedCustomDomain, effectiveSubdomain ? (baseDomain === "localhost" ? `${effectiveSubdomain}.localhost` : `${effectiveSubdomain}.${baseDomain}`) : ""),
+    () => getDnsGuide(normalizedCustomDomain, effectiveSubdomain ? `${effectiveSubdomain}.${baseDomain === "localhost" ? "labshope.com" : baseDomain}` : ""),
     [baseDomain, effectiveSubdomain, normalizedCustomDomain]
   );
 
@@ -375,7 +375,7 @@ const PlatformStartPage = () => {
       ...current,
       status: "checking",
       candidateSlug,
-      candidateUrl: subdomainPreview ? `http${subdomainPreview.includes("localhost") ? "" : "s"}://${subdomainPreview}` : "",
+      candidateUrl: subdomainPreview ? `https://${subdomainPreview}` : "",
       message: "Checking subdomain availability...",
     }));
 
@@ -1080,7 +1080,7 @@ const PlatformStartPage = () => {
                     <div className="rounded-2xl border border-border bg-background px-4 py-4 text-sm">
                       <p className="text-muted-foreground">{launchUrlTitle}</p>
                       <p className="mt-2 font-medium text-foreground">
-                        {subdomainCheck.suggestionUrl || (subdomainPreview ? `http${subdomainPreview.includes("localhost") ? "" : "s"}://${subdomainPreview}` : "Add a preferred subdomain to preview the tenant URL")}
+                        {subdomainCheck.suggestionUrl || (subdomainPreview ? `https://${subdomainPreview}` : "Add a preferred subdomain to preview the tenant URL")}
                       </p>
                       <p className="text-muted-foreground">{launchUrlDescription}</p>
                       {effectiveSubdomain ? (
