@@ -409,39 +409,29 @@ async function notifyOwnerProvisioned(
     bookingUrl: string;
   },
 ) {
-  const hasSeparateFallback = payload.accessDomain && payload.primaryDomain && payload.accessDomain !== payload.primaryDomain;
-  const dnsGuide = hasSeparateFallback ? getDnsGuide(payload.primaryDomain, payload.accessDomain) : null;
+  const dnsGuide = getDnsGuide(payload.primaryDomain, payload.accessDomain);
   const htmlContent = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:720px;">
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;">
       <h2 style="margin:0 0 12px;">Your lab workspace is ready</h2>
-      <p style="margin:0 0 16px;">Hi ${escapeHtml(payload.ownerFullName)}, ${escapeHtml(payload.organizationName)} has been provisioned on the platform.</p>
-
-      <div style="margin:0 0 20px;padding:16px;border:1px solid #d1fae5;border-radius:12px;background:#f0fdf4;">
-        <p style="margin:0 0 8px;font-weight:600;color:#065f46;">Your login details</p>
-        <p style="margin:0 0 4px;">Email: <strong>${escapeHtml(payload.ownerEmail)}</strong></p>
-        <p style="margin:0 0 4px;">Temporary password: <strong style="font-family:monospace;">${escapeHtml(payload.temporaryPassword)}</strong></p>
-        <p style="margin:0;font-size:13px;color:#6b7280;">Change your password after your first sign-in.</p>
-      </div>
-
-      <div style="margin:0 0 20px;padding:16px;border:1px solid #dbeafe;border-radius:12px;background:#eff6ff;">
-        <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">Access your workspace</p>
-        <p style="margin:0 0 6px;">Staff login: <a href="${escapeHtml(payload.staffLoginUrl)}" style="color:#1d4ed8;">${escapeHtml(payload.staffLoginUrl)}</a></p>
-        <p style="margin:0 0 6px;">Patient portal: <a href="${escapeHtml(payload.patientLoginUrl)}" style="color:#1d4ed8;">${escapeHtml(payload.patientLoginUrl)}</a></p>
-        <p style="margin:0;">Booking page: <a href="${escapeHtml(payload.bookingUrl)}" style="color:#1d4ed8;">${escapeHtml(payload.bookingUrl)}</a></p>
-      </div>
-
-      ${dnsGuide ? `<div style="margin:0 0 20px;padding:16px;border:1px solid #fcd34d;border-radius:12px;background:#fffbeb;">
-        <p style="margin:0 0 8px;font-weight:600;">Connect your custom domain (${escapeHtml(payload.primaryDomain)})</p>
-        <p style="margin:0 0 8px;">Use your workspace URL above while DNS is being set up. To connect your custom domain, add the following DNS record with your domain provider:</p>
-        <table style="border-collapse:collapse;font-family:monospace;font-size:13px;margin:8px 0;">
-          <tr><td style="padding:4px 16px 4px 0;font-weight:600;">Type</td><td style="padding:4px 0;">${escapeHtml(dnsGuide.recordType)}</td></tr>
-          <tr><td style="padding:4px 16px 4px 0;font-weight:600;">Name / Host</td><td style="padding:4px 0;">${escapeHtml(dnsGuide.hostLabel)}</td></tr>
-          <tr><td style="padding:4px 16px 4px 0;font-weight:600;">Target / Value</td><td style="padding:4px 0;">${escapeHtml(dnsGuide.target)}</td></tr>
-        </table>
-        ${dnsGuide.isApexDomain ? `<p style="margin:0;font-size:13px;color:#92400e;">Note: For root domains, some providers use ALIAS or ANAME instead of CNAME. Check your DNS provider's documentation.</p>` : ""}
+      <p style="margin:0 0 16px;">${escapeHtml(payload.organizationName)} has been provisioned on the platform.</p>
+      <table style="border-collapse:collapse;width:100%;max-width:720px;">
+        <tr><td style="padding:8px 0;font-weight:600;">Owner email</td><td style="padding:8px 0;">${escapeHtml(payload.ownerEmail)}</td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Temporary password</td><td style="padding:8px 0;">${escapeHtml(payload.temporaryPassword)}</td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Primary public domain</td><td style="padding:8px 0;">${escapeHtml(payload.primaryDomain || "-")}</td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Fallback launch domain</td><td style="padding:8px 0;">${escapeHtml(payload.accessDomain || "-")}</td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Workspace URL</td><td style="padding:8px 0;"><a href="${escapeHtml(payload.launchUrl)}">${escapeHtml(payload.launchUrl)}</a></td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Staff login</td><td style="padding:8px 0;"><a href="${escapeHtml(payload.staffLoginUrl)}">${escapeHtml(payload.staffLoginUrl)}</a></td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Patient login</td><td style="padding:8px 0;"><a href="${escapeHtml(payload.patientLoginUrl)}">${escapeHtml(payload.patientLoginUrl)}</a></td></tr>
+        <tr><td style="padding:8px 0;font-weight:600;">Booking page</td><td style="padding:8px 0;"><a href="${escapeHtml(payload.bookingUrl)}">${escapeHtml(payload.bookingUrl)}</a></td></tr>
+      </table>
+      ${dnsGuide ? `<div style="margin-top:16px;padding:12px;border:1px solid #fcd34d;border-radius:12px;background:#fffbeb;">
+        <p style="margin:0 0 8px;font-weight:600;">Custom domain DNS step</p>
+        <p style="margin:0 0 8px;">Keep using the fallback launch domain until DNS is ready.</p>
+        <p style="margin:0 0 8px;">Add: ${escapeHtml(dnsGuide.recordType)} · ${escapeHtml(dnsGuide.hostLabel)} -> ${escapeHtml(dnsGuide.target)}</p>
+        ${dnsGuide.isApexDomain ? `<p style="margin:0;">Root domains may need provider-specific ALIAS or ANAME support.</p>` : ""}
       </div>` : ""}
-
-      <p style="margin:0 0 8px;">Need help? Contact us at <a href="mailto:${escapeHtml(PLATFORM_CONTACT_EMAIL)}">${escapeHtml(PLATFORM_CONTACT_EMAIL)}</a></p>
+      <p style="margin-top:16px;">Use the temporary password for your first sign-in, then rotate it from the admin side after onboarding.</p>
+      <p style="margin-top:16px;">If you need help, reply to ${escapeHtml(PLATFORM_CONTACT_EMAIL)}.</p>
     </div>
   `;
 
@@ -449,24 +439,16 @@ async function notifyOwnerProvisioned(
     `Hello ${payload.ownerFullName},`,
     "",
     `${payload.organizationName} is ready on the platform.`,
-    "",
-    "YOUR LOGIN DETAILS",
-    `Email: ${payload.ownerEmail}`,
+    `Owner email: ${payload.ownerEmail}`,
     `Temporary password: ${payload.temporaryPassword}`,
-    "Change your password after your first sign-in.",
-    "",
-    "ACCESS YOUR WORKSPACE",
+    `Primary public domain: ${payload.primaryDomain || "-"}`,
+    `Fallback launch domain: ${payload.accessDomain || "-"}`,
+    `Workspace URL: ${payload.launchUrl}`,
     `Staff login: ${payload.staffLoginUrl}`,
-    `Patient portal: ${payload.patientLoginUrl}`,
+    `Patient login: ${payload.patientLoginUrl}`,
     `Booking page: ${payload.bookingUrl}`,
-    ...(dnsGuide ? [
-      "",
-      `CONNECT YOUR CUSTOM DOMAIN (${payload.primaryDomain})`,
-      `Add a DNS record: Type=${dnsGuide.recordType}, Name=${dnsGuide.hostLabel}, Target=${dnsGuide.target}`,
-      "Use your workspace URL above while DNS propagates.",
-    ] : []),
     "",
-    `Need help? Contact us at ${PLATFORM_CONTACT_EMAIL}`,
+    `If you need help, reply to ${PLATFORM_CONTACT_EMAIL}.`,
   ].join("\n");
 
   const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
