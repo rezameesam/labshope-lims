@@ -39,5 +39,10 @@ export const isPlatformHostname = (hostname: string | null) => {
     return true;
   }
 
+  const platformHostname = import.meta.env.VITE_PLATFORM_HOSTNAME?.trim().toLowerCase();
+  if (platformHostname && hostname === platformHostname) {
+    return true;
+  }
+
   return getPublicSlugCandidate(hostname) === null;
 };
