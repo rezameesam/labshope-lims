@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, Lock } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -7,13 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import PlatformResetPage from "@/components/platform/PlatformResetPage";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 const EmployeeResetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { branding } = useOrganization();
+  const { loading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecoverySessionReady, setIsRecoverySessionReady] = useState(false);
+  const isFirstLogin = searchParams.get("first_login") === "1";
+  const nextPath = searchParams.get("next") || "/admin";
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +50,30 @@ const EmployeeResetPassword = () => {
     };
   }, []);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-subtle-gradient flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode) {
+    return (
+      <PlatformResetPage
+        eyebrow="Staff Password Reset"
+        title="Staff password reset must use the organization’s own workspace domain."
+        description="Staff reset links are tied to a specific tenant. Open the link from your lab’s staff portal domain so role and organization checks remain valid."
+        loginLabel="Staff Access Guidance"
+        loginTo="/auth/staff"
+      />
+    );
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -61,14 +94,23 @@ const EmployeeResetPassword = () => {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { data: sessionData } = await supabase.auth.getSession();
+      const existingMetadata = sessionData.session?.user?.user_metadata || {};
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+        data: {
+          ...existingMetadata,
+          must_change_password: false,
+          first_login_flow: null,
+        },
+      });
       if (error) {
         throw error;
       }
 
       await supabase.auth.signOut();
       toast.success("Password updated successfully. Please sign in.");
-      navigate("/auth/staff", { replace: true });
+      navigate(`/auth/staff?next=${encodeURIComponent(nextPath)}`, { replace: true });
     } catch (error: any) {
       toast.error(error?.message || "Failed to update password.");
     } finally {
@@ -80,10 +122,10 @@ const EmployeeResetPassword = () => {
     <div className="min-h-screen bg-subtle-gradient flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-card rounded-2xl p-8 shadow-xl border border-border">
         <div className="flex items-center gap-3 mb-6">
-          <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+          <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
           <div>
-            <h1 className="text-lg font-heading font-bold text-foreground">IRM Clinical</h1>
-            <p className="text-xs text-muted-foreground">Laboratory</p>
+            <h1 className="text-lg font-heading font-bold text-foreground">{branding.shortName}</h1>
+            <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>
           </div>
         </div>
 
@@ -92,8 +134,18 @@ const EmployeeResetPassword = () => {
             <Lock className="h-6 w-6 text-primary" />
           </div>
           <h2 className="text-2xl font-heading font-bold text-foreground mb-2">Staff Password Reset</h2>
-          <p className="text-muted-foreground">Create a new password for your staff account.</p>
+          <p className="text-muted-foreground">
+            {isFirstLogin
+              ? "Create a new password before using the workspace."
+              : "Create a new password for your staff account."}
+          </p>
         </div>
+
+        {isFirstLogin ? (
+          <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4 text-sm text-muted-foreground">
+            Your account was created with a temporary launch password. Set a permanent password now before continuing.
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

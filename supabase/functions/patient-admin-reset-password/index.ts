@@ -6,6 +6,10 @@ import {
   getAuthenticatedUserFromRequest,
   resolvePatientResetUrl,
 } from "../_shared/patient-auth.ts";
+import {
+  fetchOrganizationBranding,
+  fetchScopedSettings,
+} from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +31,7 @@ type PatientRecord = {
   email: string | null;
   is_active: boolean;
   user_id: string | null;
+  organization_id: string | null;
 };
 
 serve(async (req: Request): Promise<Response> => {
@@ -76,7 +81,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const { data: patient, error: patientError } = await supabaseAdmin
       .from("patients")
-      .select("id, patient_id, full_name, email, is_active, user_id")
+      .select("id, patient_id, full_name, email, is_active, user_id, organization_id")
       .eq("id", patient_id)
       .single();
 
@@ -87,6 +92,21 @@ serve(async (req: Request): Promise<Response> => {
     const patientRecord = patient as PatientRecord;
     if (!patientRecord.is_active) {
       return jsonResponse({ error: "Cannot reset password for an inactive patient." }, 400);
+    }
+    if (!patientRecord.organization_id) {
+      return jsonResponse({ error: "Patient is not linked to an organization." }, 400);
+    }
+
+    const { data: organizationAccess } = await supabaseAdmin
+      .from("organization_users")
+      .select("organization_id")
+      .eq("user_id", authenticated.user.id)
+      .eq("organization_id", patientRecord.organization_id)
+      .eq("is_active", true)
+      .limit(1);
+
+    if (!organizationAccess || organizationAccess.length === 0) {
+      return jsonResponse({ error: "You do not have access to this patient." }, 403);
     }
 
     if (resolvedMode === "temp" || resolvedMode === "set") {
@@ -153,15 +173,32 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const resetLink = `${resolvePatientResetUrl(req, reset_base_url)}?token=${token}`;
-    const emailBody = buildResetEmail(patientRecord.full_name, resetLink);
+    const [settingsMap, organizationBranding] = await Promise.all([
+      fetchScopedSettings(
+        supabaseUrl,
+        serviceRoleKey,
+        ["patient_portal_name"],
+        patientRecord.organization_id,
+      ),
+      fetchOrganizationBranding(supabaseUrl, serviceRoleKey, patientRecord.organization_id),
+    ]);
+    const businessName =
+      organizationBranding?.displayName?.trim() ||
+      settingsMap.get("patient_portal_name")?.trim() ||
+      "Diagnostic Laboratory";
+    const emailBody = buildResetEmail(patientRecord.full_name, resetLink, businessName);
 
     const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-service-key": serviceRoleKey,
+      },
       body: JSON.stringify({
         to: patientRecord.email,
-        subject: "Reset your IRM Patient Portal password",
+        subject: `Reset your ${businessName} patient portal password`,
         htmlContent: emailBody,
+        organizationId: patientRecord.organization_id,
       }),
     });
 
@@ -246,12 +283,12 @@ async function hashToken(token: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function buildResetEmail(name: string, link: string): string {
+function buildResetEmail(name: string, link: string, businessName: string): string {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #0f172a;">
       <h2 style="color:#0f172a;">Reset your password</h2>
       <p>Hello ${name || "there"},</p>
-      <p>An administrator requested a password reset for your IRM Patient Portal account.</p>
+      <p>An administrator requested a password reset for your ${escapeHtml(businessName)} patient portal account.</p>
       <p>
         <a href="${link}" style="display:inline-block;padding:12px 18px;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;">
           Reset Password
@@ -260,6 +297,15 @@ function buildResetEmail(name: string, link: string): string {
       <p style="font-size:12px;color:#64748b;">This link expires in 1 hour.</p>
     </div>
   `;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function jsonResponse(payload: Record<string, unknown>, status: number): Response {

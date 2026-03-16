@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolvePatientResetUrl, verifyTurnstile } from "../_shared/patient-auth.ts";
+import {
+  fetchOrganizationBranding,
+  fetchScopedSettings,
+} from "../_shared/organization-settings.ts";
+import { resolvePublicOrganizationId } from "../_shared/public-organization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +16,8 @@ const corsHeaders = {
 interface ResetRequest {
   identifier: string;
   turnstile_token?: string;
+  organization_id?: string | null;
+  hostname?: string | null;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -19,7 +26,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { identifier, turnstile_token }: ResetRequest = await req.json();
+    const { identifier, turnstile_token, organization_id, hostname }: ResetRequest = await req.json();
     const trimmedIdentifier = identifier?.trim();
 
     if (!trimmedIdentifier) {
@@ -34,24 +41,46 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const resolvedOrganizationId = await resolvePublicOrganizationId(
+      supabase,
+      req,
+      organization_id || null,
+      hostname || null,
+    );
 
-    const { data: patients, error } = await supabase
-      .from("patients")
-      .select("id, full_name, email")
-      .eq("is_active", true)
-      .or(
-        `username.eq.${trimmedIdentifier},email.eq.${trimmedIdentifier},phone.eq.${trimmedIdentifier},patient_id.eq.${trimmedIdentifier}`
-      )
-      .limit(1);
+    const { data: patients, error } = await supabase.rpc("find_patient_candidates", {
+      p_identifier: trimmedIdentifier,
+      p_organization_id: resolvedOrganizationId,
+    });
 
     if (error || !patients || patients.length === 0) {
       return jsonResponse({ success: true }, 200);
     }
+    const limitedPatients = patients.slice(0, resolvedOrganizationId ? 1 : 2);
+    if (!resolvedOrganizationId && limitedPatients.length !== 1) {
+      return jsonResponse({ success: true }, 200);
+    }
 
-    const patient = patients[0];
+    const patient = limitedPatients[0];
     if (!patient.email) {
       return jsonResponse({ success: true }, 200);
     }
+
+    const organizationId =
+      (patient as { organization_id?: string | null }).organization_id || null;
+    const [settingsMap, organizationBranding] = await Promise.all([
+      fetchScopedSettings(
+        supabaseUrl,
+        supabaseServiceKey,
+        ["patient_portal_name"],
+        organizationId,
+      ),
+      fetchOrganizationBranding(supabaseUrl, supabaseServiceKey, organizationId),
+    ]);
+    const businessName =
+      organizationBranding?.displayName?.trim() ||
+      settingsMap.get("patient_portal_name")?.trim() ||
+      "Diagnostic Laboratory";
 
     const token = generateToken();
     const tokenHash = await hashToken(token);
@@ -76,15 +105,19 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const resetLink = `${resolvePatientResetUrl(req)}?token=${token}`;
-    const emailBody = buildResetEmail(patient.full_name, resetLink);
+    const emailBody = buildResetEmail(patient.full_name, resetLink, businessName);
 
     await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-service-key": supabaseServiceKey,
+      },
       body: JSON.stringify({
         to: patient.email,
-        subject: "Reset your IRM Patient Portal password",
+        subject: `Reset your ${businessName} patient portal password`,
         htmlContent: emailBody,
+        organizationId,
       }),
     });
 
@@ -114,12 +147,12 @@ async function hashToken(token: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function buildResetEmail(name: string, link: string): string {
+function buildResetEmail(name: string, link: string, businessName: string): string {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #0f172a;">
       <h2 style="color:#0f172a;">Reset your password</h2>
       <p>Hello ${name || "there"},</p>
-      <p>We received a request to reset your IRM Patient Portal password.</p>
+      <p>We received a request to reset your ${escapeHtml(businessName)} patient portal password.</p>
       <p>
         <a href="${link}" style="display:inline-block;padding:12px 18px;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;">
           Reset Password
@@ -129,6 +162,15 @@ function buildResetEmail(name: string, link: string): string {
       <p style="font-size:12px;color:#64748b;">This link expires in 1 hour.</p>
     </div>
   `;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function jsonResponse(payload: Record<string, unknown>, status: number): Response {

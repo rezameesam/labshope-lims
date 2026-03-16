@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
-import { 
+import { useCallback, useEffect, useState } from "react";
+import {
   Plus, Search, Edit2, Trash2, X, Save, FlaskConical,
-  DollarSign, Tag, FileText, AlertCircle
+  DollarSign, Tag, FileText, AlertCircle, FileSpreadsheet
 } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +47,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Test {
   id: string;
@@ -88,6 +91,8 @@ interface PanelItemInput {
 
 const ManageTestCatalog = () => {
   const { hasRole } = useAuth();
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const isAdmin = hasRole("admin");
   const [tests, setTests] = useState<Test[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
@@ -125,12 +130,6 @@ const ManageTestCatalog = () => {
     description: "",
   });
 
-  useEffect(() => {
-    fetchTests();
-    fetchCategories();
-    checkTestIdColumn();
-  }, []);
-
   const checkTestIdColumn = async () => {
     try {
       // Try to select test_id column - if it fails, column doesn't exist
@@ -149,16 +148,25 @@ const ManageTestCatalog = () => {
     }
   };
 
-  const fetchTests = async () => {
+  const fetchTests = useCallback(async () => {
     try {
+      if (!organizationId) {
+        setTests([]);
+        setLoading(false);
+        return;
+      }
+
       // Use * to select all columns (handles case where test_id might not exist yet)
-      const { data, error } = await supabase
+      const query = supabase
         .from("tests")
         .select(`
           *,
           category:test_categories(name)
         `)
+        .eq("organization_id", organizationId)
         .order("name");
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Fetch error:", error);
@@ -174,14 +182,22 @@ const ManageTestCatalog = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      if (!organizationId) {
+        setCategories([]);
+        return;
+      }
+
+      const query = supabase
         .from("test_categories")
         .select("*")
+        .eq("organization_id", organizationId)
         .order("name");
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setCategories((data || []) as TestCategory[]);
@@ -189,7 +205,24 @@ const ManageTestCatalog = () => {
       console.error("Error fetching categories:", error);
       toast.error("Failed to load categories");
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setTests([]);
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchTests();
+    void fetchCategories();
+    void checkTestIdColumn();
+  }, [fetchCategories, fetchTests, organizationId, organizationLoading]);
 
   const resetTestForm = () => {
     setTestForm({
@@ -338,6 +371,11 @@ const ManageTestCatalog = () => {
   };
 
   const handleGenerateMissingIds = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating tests");
+      return;
+    }
+
     const testsWithoutId = tests.filter(t => !t.test_id);
     
     if (testsWithoutId.length === 0) {
@@ -391,10 +429,13 @@ const ManageTestCatalog = () => {
 
       // Update all tests
       for (const update of finalUpdates) {
-        const { error } = await supabase
+        let updateQuery = supabase
           .from("tests")
           .update({ test_id: update.test_id })
-          .eq("id", update.id);
+          .eq("id", update.id)
+          .eq("organization_id", organizationId);
+
+        const { error } = await updateQuery;
 
         if (error) {
           console.error(`Error updating test ${update.id}:`, error);
@@ -418,6 +459,11 @@ const ManageTestCatalog = () => {
   };
 
   const handleSaveTest = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before managing tests");
+      return;
+    }
+
     if (!testForm.name.trim()) {
       toast.error("Test name is required");
       return;
@@ -450,6 +496,7 @@ const ManageTestCatalog = () => {
         description: testForm.description.trim() || null,
         price: testForm.price ? parseFloat(testForm.price) : null,
         category_id: testForm.category_id && testForm.category_id !== "none" ? testForm.category_id : null,
+        organization_id: organizationId,
         unit: testForm.unit.trim() || null,
         normal_range_min: testForm.normal_range_min ? parseFloat(testForm.normal_range_min) : null,
         normal_range_max: testForm.normal_range_max ? parseFloat(testForm.normal_range_max) : null,
@@ -465,10 +512,13 @@ const ManageTestCatalog = () => {
 
       if (selectedTest) {
         // Update existing test
-        const { error } = await supabase
+        let updateQuery = supabase
           .from("tests")
           .update(testData)
-          .eq("id", selectedTest.id);
+          .eq("id", selectedTest.id)
+          .eq("organization_id", organizationId);
+
+        const { error } = await updateQuery;
 
         if (error) {
           console.error("Update error:", error);
@@ -501,6 +551,11 @@ const ManageTestCatalog = () => {
   };
 
   const handleSaveCategory = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before managing categories");
+      return;
+    }
+
     if (!categoryForm.name.trim()) {
       toast.error("Category name is required");
       return;
@@ -513,6 +568,7 @@ const ManageTestCatalog = () => {
         .insert({
           name: categoryForm.name.trim(),
           description: categoryForm.description.trim() || null,
+          organization_id: organizationId,
         });
 
       if (error) throw error;
@@ -529,14 +585,17 @@ const ManageTestCatalog = () => {
   };
 
   const handleDeleteTest = async () => {
-    if (!testToDelete) return;
+    if (!testToDelete || !organizationId) return;
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      let deleteQuery = supabase
         .from("tests")
         .delete()
-        .eq("id", testToDelete.id);
+        .eq("id", testToDelete.id)
+        .eq("organization_id", organizationId);
+
+      const { error } = await deleteQuery;
 
       if (error) throw error;
       toast.success("Test deleted successfully");
@@ -612,8 +671,29 @@ const ManageTestCatalog = () => {
           <p className="text-muted-foreground">Manage test names, rates, and categories</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              exportToExcel("test_catalog", [
+                { key: "test_id", label: "Test ID" },
+                { key: "name", label: "Test Name" },
+                { key: "category_name", label: "Category" },
+                { key: "price", label: "Price (₹)" },
+                { key: "sample_type", label: "Sample Type" },
+                { key: "unit", label: "Unit" },
+                { key: "normal_range_text", label: "Normal Range" },
+              ], filteredTests.map(t => ({
+                ...t,
+                category_name: t.category?.name ?? "",
+              })))
+            }
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
             onClick={openCategoryDialog}
             className="gap-2"
           >
@@ -744,6 +824,7 @@ const ManageTestCatalog = () => {
       {/* Tests Table */}
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -842,51 +923,14 @@ const ManageTestCatalog = () => {
               )}
             </TableBody>
           </Table>
-          {filteredTests.length > 0 && (
-            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredTests.length)} of{" "}
-                {filteredTests.length}
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Rows</span>
-                  <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                    <SelectTrigger className="h-8 w-[90px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={safePage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={safePage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
+          <DataPagination
+            total={filteredTests.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </CardContent>
       </Card>
 

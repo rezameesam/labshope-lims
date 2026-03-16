@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Bell,
   Plus,
@@ -61,6 +61,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addDays, isPast, isToday, isFuture } from "date-fns";
 import { formatAppDate } from "@/lib/date";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { renderNotificationTemplate } from "@/lib/notificationTemplates";
 
 interface Reminder {
   id: string;
@@ -79,11 +81,11 @@ interface Reminder {
   created_at: string;
 }
 
-const REMINDER_COPY: Record<string, { title: string; message: (patientName: string) => string }> = {
+const REMINDER_COPY: Record<string, { title: string; message: (patientName: string, businessName: string) => string }> = {
   follow_up: {
     title: "Follow-up appointment reminder",
-    message: (patientName) =>
-      `Dear ${patientName},\n\nThis is a reminder for your follow-up with IRM Clinical Laboratory. Please contact us if you need to confirm or reschedule your visit.\n\nThank you!`,
+    message: (patientName, businessName) =>
+      `Dear ${patientName},\n\nThis is a reminder for your follow-up with ${businessName}. Please contact us if you need to confirm or reschedule your visit.\n\nThank you!`,
   },
   checkup: {
     title: "Routine checkup reminder",
@@ -92,8 +94,8 @@ const REMINDER_COPY: Record<string, { title: string; message: (patientName: stri
   },
   payment: {
     title: "Payment reminder",
-    message: (patientName) =>
-      `Dear ${patientName},\n\nThis is a reminder regarding your pending payment with IRM Clinical Laboratory. Please complete it at your earliest convenience or contact us if you need help.\n\nThank you!`,
+    message: (patientName, businessName) =>
+      `Dear ${patientName},\n\nThis is a reminder regarding your pending payment with ${businessName}. Please complete it at your earliest convenience or contact us if you need help.\n\nThank you!`,
   },
   test_result: {
     title: "Test result ready",
@@ -102,12 +104,14 @@ const REMINDER_COPY: Record<string, { title: string; message: (patientName: stri
   },
   custom: {
     title: "Custom reminder",
-    message: (patientName) =>
-      `Dear ${patientName},\n\nThis is a reminder from IRM Clinical Laboratory.\n\nThank you!`,
+    message: (patientName, businessName) =>
+      `Dear ${patientName},\n\nThis is a reminder from ${businessName}.\n\nThank you!`,
   },
 };
 
 const ManageReminders = () => {
+  const { organization, branding, settings, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [patients, setPatients] = useState<Array<{ id: string; full_name: string; patient_id: string; phone: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -126,10 +130,21 @@ const ManageReminders = () => {
   const getReminderPrefill = (reminderType: string, patientId: string) => {
     const template = REMINDER_COPY[reminderType] || REMINDER_COPY.custom;
     const patientName = getPatientNameForReminder(patientId);
+    const context = {
+      patient_name: patientName,
+      business_name: branding.displayName,
+    };
+
+    const configuredTitle = settings[`notification_${reminderType}_title`];
+    const configuredMessage = settings[`notification_${reminderType}_message`];
 
     return {
-      title: template.title,
-      message: template.message(patientName),
+      title: configuredTitle
+        ? renderNotificationTemplate(configuredTitle, context)
+        : template.title,
+      message: configuredMessage
+        ? renderNotificationTemplate(configuredMessage, context)
+        : template.message(patientName, branding.displayName),
     };
   };
 
@@ -149,18 +164,25 @@ const ManageReminders = () => {
 
   const [reminderForm, setReminderForm] = useState(buildDefaultReminderForm);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const fetchData = useCallback(async () => {
+    if (!organizationId) {
+      setReminders([]);
+      setPatients([]);
+      setLoading(false);
+      return;
+    }
 
-  const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch reminders
-      const { data: remindersData, error: remindersError } = await supabase
+      let remindersQuery = supabase
         .from("patient_reminders")
         .select("*")
         .order("reminder_date", { ascending: true });
+
+      remindersQuery = remindersQuery.eq("organization_id" as any, organizationId);
+
+      // Fetch reminders
+      const { data: remindersData, error: remindersError } = await remindersQuery;
 
       if (remindersError) throw remindersError;
 
@@ -168,11 +190,14 @@ const ManageReminders = () => {
       const remindersWithPatients = await Promise.all(
         (remindersData || []).map(async (rem) => {
           if (rem.patient_id) {
-            const { data: patientData } = await supabase
+            let patientQuery = supabase
               .from("patients")
               .select("full_name, patient_id, phone")
-              .eq("id", rem.patient_id)
-              .single();
+              .eq("id", rem.patient_id);
+
+            patientQuery = patientQuery.eq("organization_id" as any, organizationId);
+
+            const { data: patientData } = await patientQuery.single();
 
             return {
               ...rem,
@@ -191,11 +216,15 @@ const ManageReminders = () => {
       setReminders(remindersWithPatients);
 
       // Fetch all patients for dropdown
-      const { data: patientsData, error: patientsError } = await supabase
+      let patientsQuery = supabase
         .from("patients")
         .select("id, full_name, patient_id, phone")
         .eq("is_active", true)
         .order("full_name");
+
+      patientsQuery = patientsQuery.eq("organization_id" as any, organizationId);
+
+      const { data: patientsData, error: patientsError } = await patientsQuery;
 
       if (patientsError) throw patientsError;
       setPatients(patientsData || []);
@@ -205,7 +234,22 @@ const ManageReminders = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setReminders([]);
+      setPatients([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+  }, [fetchData, organizationId, organizationLoading]);
 
   const resetForm = () => {
     const defaultForm = buildDefaultReminderForm();
@@ -251,6 +295,11 @@ const ManageReminders = () => {
   };
 
   const handleSaveReminder = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before saving reminders");
+      return;
+    }
+
     if (!reminderForm.patient_id) {
       toast.error("Please select a patient");
       return;
@@ -264,6 +313,7 @@ const ManageReminders = () => {
     try {
       const reminderData = {
         patient_id: reminderForm.patient_id,
+        organization_id: organizationId,
         reminder_type: reminderForm.reminder_type,
         title: reminderForm.title.trim(),
         message: reminderForm.message.trim() || null,
@@ -278,7 +328,8 @@ const ManageReminders = () => {
         const { error } = await supabase
           .from("patient_reminders")
           .update(reminderData)
-          .eq("id", editingReminder.id);
+          .eq("id", editingReminder.id)
+          .eq("organization_id" as any, organizationId);
 
         if (error) throw error;
         toast.success("Reminder updated successfully");
@@ -302,12 +353,17 @@ const ManageReminders = () => {
 
   const handleDeleteReminder = async () => {
     if (!reminderToDelete) return;
+    if (!organizationId) {
+      toast.error("Organization context is required before deleting reminders");
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from("patient_reminders")
         .delete()
-        .eq("id", reminderToDelete);
+        .eq("id", reminderToDelete)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -370,6 +426,11 @@ const ManageReminders = () => {
   };
 
   const handleMarkCompleted = async (reminderId: string) => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating reminders");
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("patient_reminders")
@@ -377,7 +438,8 @@ const ManageReminders = () => {
           is_completed: true,
           completed_at: new Date().toISOString(),
         })
-        .eq("id", reminderId);
+        .eq("id", reminderId)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
       toast.success("Reminder marked as completed");

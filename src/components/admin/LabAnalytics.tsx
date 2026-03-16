@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   CheckCircle2,
@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface LabAnalyticsProps {
   labId: string;
@@ -57,6 +58,7 @@ interface RecentTest {
 }
 
 const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
+  const { organization, loading: organizationLoading } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<TestStats>({
     total: 0,
@@ -70,11 +72,22 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
   const [pendingTests, setPendingTests] = useState<RecentTest[]>([]);
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "all">("30d");
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [labId, dateRange]);
+  const fetchAnalytics = useCallback(async () => {
+    if (!organization?.id) {
+      setStats({
+        total: 0,
+        completed: 0,
+        pending: 0,
+        in_progress: 0,
+        cancelled: 0,
+      });
+      setTestBreakdown([]);
+      setRecentTests([]);
+      setPendingTests([]);
+      setLoading(false);
+      return;
+    }
 
-  const fetchAnalytics = async () => {
     setLoading(true);
     try {
       // Build date filter
@@ -94,6 +107,8 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
         .from("patient_tests")
         .select("id, status, test_name, created_at, patients!inner(full_name, patient_id)")
         .eq("lab_id", labId);
+
+      query = query.eq("organization_id" as any, organization.id);
 
       if (dateRange !== "all") {
         const dateThreshold = dateRange === "7d" 
@@ -172,7 +187,15 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, labId, organization?.id]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    void fetchAnalytics();
+  }, [fetchAnalytics, organizationLoading]);
 
   const completionRate = stats.total > 0 ? ((stats.completed / stats.total) * 100).toFixed(1) : "0";
 

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCcw, Search } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,8 @@ const escapeCsv = (value: unknown): string => {
 };
 
 const ManageVisitorLogs = () => {
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [logs, setLogs] = useState<VisitorLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -120,12 +123,20 @@ const ManageVisitorLogs = () => {
     return query;
   };
 
-  const fetchLogs = async (targetPage: number) => {
+  const fetchLogs = useCallback(async (targetPage: number) => {
+    if (!organizationId) {
+      setLogs([]);
+      setTotalRows(0);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       let query = supabase
         .from("visitor_logs" as any)
         .select("*", { count: "exact" })
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
 
       query = applyQueryFilters(query, appliedFilters);
@@ -146,7 +157,7 @@ const ManageVisitorLogs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [appliedFilters, organizationId]);
 
   const handleApplyFilters = () => {
     setPage(1);
@@ -166,11 +177,17 @@ const ManageVisitorLogs = () => {
   };
 
   const handleExportCsv = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required to export visitor logs");
+      return;
+    }
+
     setExporting(true);
     try {
       let query = supabase
         .from("visitor_logs" as any)
         .select("*")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(10000);
 
@@ -226,8 +243,19 @@ const ManageVisitorLogs = () => {
   };
 
   useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setLogs([]);
+      setTotalRows(0);
+      setLoading(false);
+      return;
+    }
+
     void fetchLogs(page);
-  }, [page, appliedFilters]);
+  }, [fetchLogs, organizationId, organizationLoading, page]);
 
   return (
     <div className="space-y-6">

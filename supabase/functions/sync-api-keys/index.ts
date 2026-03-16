@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchScopedSettings } from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,9 +15,9 @@ serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify admin access
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -25,24 +26,74 @@ serve(async (req: Request) => {
       );
     }
 
+    const supabaseClient = createClient(supabaseUrl, anonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    
-    // Get settings from database
-    const { data: settings, error } = await supabaseAdmin
-      .from("system_settings")
-      .select("setting_key, setting_value")
-      .in("setting_key", ["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"]);
 
-    if (error) throw error;
+    const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !authData.user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const settingsMap = new Map(
-      (settings || []).map((s) => [s.setting_key, s.setting_value])
+    const { data: roleRows, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", authData.user.id);
+
+    if (roleError) {
+      throw roleError;
+    }
+
+    const isAdmin = (roleRows || []).some((row) => row.role === "admin");
+    if (!isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: memberships, error: membershipError } = await supabaseAdmin
+      .from("organization_users")
+      .select("organization_id, is_primary")
+      .eq("user_id", authData.user.id)
+      .eq("is_active", true)
+      .order("is_primary", { ascending: false })
+      .limit(1);
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    const organizationId =
+      (memberships || [])[0]?.organization_id || null;
+
+    if (!organizationId) {
+      return new Response(
+        JSON.stringify({ error: "Admin is not linked to an active organization" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const settingsMap = await fetchScopedSettings(
+      supabaseUrl,
+      serviceRoleKey,
+      ["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"],
+      organizationId,
     );
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Settings retrieved. Update Supabase secrets manually via CLI or Dashboard.",
+        organization_id: organizationId,
+        message: "Organization payment settings retrieved. Update deployed Edge Function secrets manually via CLI or Dashboard when needed.",
         settings: {
           razorpay_key_id: settingsMap.get("razorpay_key_id") || "",
           razorpay_key_secret: settingsMap.get("razorpay_key_secret") ? "***" : "",
@@ -63,4 +114,3 @@ serve(async (req: Request) => {
     );
   }
 });
-

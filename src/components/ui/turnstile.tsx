@@ -35,6 +35,7 @@ const Turnstile = ({ siteKey, onVerify, onExpire, action }: TurnstileProps) => {
   }, [onExpire]);
 
   useEffect(() => {
+    const container = containerRef.current;
     const hostname = window.location.hostname;
     const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
     const isPrivateIp = /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
@@ -65,25 +66,25 @@ const Turnstile = ({ siteKey, onVerify, onExpire, action }: TurnstileProps) => {
     };
 
     const renderWidget = async () => {
-      if (!containerRef.current) return;
+      if (!container) return;
       if (widgetIdRef.current || renderLockRef.current) return;
-      if (containerRef.current.dataset.turnstileRendered === "true") return;
-      if (activeContainer && activeContainer !== containerRef.current) return;
+      if (container.dataset.turnstileRendered === "true") return;
+      if (activeContainer && activeContainer !== container) return;
       renderLockRef.current = true;
       try {
         await ensureScript();
-        if (!window.turnstile || !containerRef.current) return;
+        if (!window.turnstile) return;
 
-        const id = window.turnstile.render(containerRef.current, {
+        const id = window.turnstile.render(container, {
           sitekey: siteKey,
           action,
           callback: (token: string) => onVerifyRef.current(token),
           "expired-callback": () => onExpireRef.current?.(),
         });
         widgetIdRef.current = id;
-        containerRef.current.dataset.turnstileRendered = "true";
+        container.dataset.turnstileRendered = "true";
         activeWidgetId = id;
-        activeContainer = containerRef.current;
+        activeContainer = container;
       } finally {
         renderLockRef.current = false;
       }
@@ -99,9 +100,9 @@ const Turnstile = ({ siteKey, onVerify, onExpire, action }: TurnstileProps) => {
           activeContainer = null;
         }
       }
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
-        delete containerRef.current.dataset.turnstileRendered;
+      if (container) {
+        container.innerHTML = "";
+        delete container.dataset.turnstileRendered;
       }
       widgetIdRef.current = null;
       renderLockRef.current = false;

@@ -22,6 +22,8 @@ import { formatAppDate } from "@/lib/date";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import AdminSetupChecklist from "@/components/admin/AdminSetupChecklist";
 import {
   AreaChart,
   Area,
@@ -89,6 +91,7 @@ type DashboardOverviewProps = {
 
 const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
   const { user, isCollector } = useAuth();
+  const { organization, loading: organizationLoading } = useOrganization();
   const [stats, setStats] = useState<Stats>({
     employees: 0,
     patients: 0,
@@ -113,11 +116,105 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (organizationLoading) {
+        return;
+      }
+
+      if (!organization?.id) {
+        setStats({
+          employees: 0,
+          patients: 0,
+          tests: 0,
+          pendingTests: 0,
+          completedToday: 0,
+          newPatientsThisWeek: 0,
+          totalRevenue: 0,
+          revenueToday: 0,
+          revenueThisWeek: 0,
+          revenueThisMonth: 0,
+          outstandingDues: 0,
+          paidInvoices: 0,
+          pendingInvoices: 0,
+        });
+        setRecentTests([]);
+        setTestTrends([]);
+        setRevenueTrends([]);
+        setTopTests([]);
+        setStatusDistribution([]);
+        setLoading(false);
+        return;
+      }
+
       try {
         const today = new Date();
         const weekAgo = subDays(today, 7);
 
         const monthAgo = subDays(today, 30);
+        let employeesQuery = supabase.from("employees").select("id", { count: "exact", head: true });
+        let patientsQuery = supabase.from("patients").select("id", { count: "exact", head: true });
+        let testsQuery = supabase.from("patient_tests").select("id", { count: "exact", head: true });
+        let pendingTestsQuery = supabase
+          .from("patient_tests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending");
+        let completedTodayQuery = supabase
+          .from("patient_tests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "completed")
+          .gte("updated_at", startOfDay(today).toISOString())
+          .lte("updated_at", endOfDay(today).toISOString());
+        let newPatientsQuery = supabase
+          .from("patients")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", weekAgo.toISOString());
+        let recentTestsQuery = supabase
+          .from("patient_tests")
+          .select(`
+            id,
+            test_name,
+            status,
+            test_date,
+            patients (
+              full_name,
+              patient_id
+            )
+          `)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        let inProgressQuery = supabase
+          .from("patient_tests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "in_progress");
+        let allInvoicesQuery = supabase
+          .from("invoices")
+          .select("id, final_amount, paid_amount, payment_status, created_at");
+        let invoicesTodayQuery = supabase
+          .from("invoices")
+          .select("id, final_amount, paid_amount")
+          .gte("created_at", startOfDay(today).toISOString())
+          .lte("created_at", endOfDay(today).toISOString());
+        let invoicesWeekQuery = supabase
+          .from("invoices")
+          .select("id, final_amount, paid_amount")
+          .gte("created_at", weekAgo.toISOString());
+        let invoicesMonthQuery = supabase
+          .from("invoices")
+          .select("id, final_amount, paid_amount")
+          .gte("created_at", monthAgo.toISOString());
+
+        employeesQuery = employeesQuery.eq("organization_id" as any, organization.id);
+        patientsQuery = patientsQuery.eq("organization_id" as any, organization.id);
+        testsQuery = testsQuery.eq("organization_id" as any, organization.id);
+        pendingTestsQuery = pendingTestsQuery.eq("organization_id" as any, organization.id);
+        completedTodayQuery = completedTodayQuery.eq("organization_id" as any, organization.id);
+        newPatientsQuery = newPatientsQuery.eq("organization_id" as any, organization.id);
+        recentTestsQuery = recentTestsQuery.eq("organization_id" as any, organization.id);
+        inProgressQuery = inProgressQuery.eq("organization_id" as any, organization.id);
+        allInvoicesQuery = allInvoicesQuery.eq("organization_id" as any, organization.id);
+        invoicesTodayQuery = invoicesTodayQuery.eq("organization_id" as any, organization.id);
+        invoicesWeekQuery = invoicesWeekQuery.eq("organization_id" as any, organization.id);
+        invoicesMonthQuery = invoicesMonthQuery.eq("organization_id" as any, organization.id);
+
         const [
           employeesRes, 
           patientsRes, 
@@ -132,41 +229,18 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           invoicesWeekRes,
           invoicesMonthRes,
         ] = await Promise.all([
-          supabase.from("employees").select("id", { count: "exact", head: true }),
-          supabase.from("patients").select("id", { count: "exact", head: true }),
-          supabase.from("patient_tests").select("id", { count: "exact", head: true }),
-          supabase.from("patient_tests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-          supabase.from("patient_tests").select("id", { count: "exact", head: true })
-            .eq("status", "completed")
-            .gte("updated_at", startOfDay(today).toISOString())
-            .lte("updated_at", endOfDay(today).toISOString()),
-          supabase.from("patients").select("id", { count: "exact", head: true })
-            .gte("created_at", weekAgo.toISOString()),
-          supabase.from("patient_tests")
-            .select(`
-              id,
-              test_name,
-              status,
-              test_date,
-              patients (
-                full_name,
-                patient_id
-              )
-            `)
-            .order("created_at", { ascending: false })
-            .limit(5),
-          supabase.from("patient_tests").select("id", { count: "exact", head: true }).eq("status", "in_progress"),
-          supabase.from("invoices").select("final_amount, paid_amount, payment_status, created_at"),
-          supabase.from("invoices")
-            .select("final_amount, paid_amount")
-            .gte("created_at", startOfDay(today).toISOString())
-            .lte("created_at", endOfDay(today).toISOString()),
-          supabase.from("invoices")
-            .select("final_amount, paid_amount")
-            .gte("created_at", weekAgo.toISOString()),
-          supabase.from("invoices")
-            .select("final_amount, paid_amount")
-            .gte("created_at", monthAgo.toISOString()),
+          employeesQuery,
+          patientsQuery,
+          testsQuery,
+          pendingTestsQuery,
+          completedTodayQuery,
+          newPatientsQuery,
+          recentTestsQuery,
+          inProgressQuery,
+          allInvoicesQuery,
+          invoicesTodayQuery,
+          invoicesWeekQuery,
+          invoicesMonthQuery,
         ]);
 
         // Calculate financial stats
@@ -197,9 +271,25 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         }).length;
 
         // Get top tests by revenue
-        const { data: invoiceItemsRes } = await supabase
-          .from("invoice_items")
-          .select("test_name, amount");
+        const invoiceIds = allInvoices
+          .map((invoice) => invoice.id)
+          .filter((invoiceId): invoiceId is string => Boolean(invoiceId));
+
+        let invoiceItemsRes:
+          | {
+              test_name: string;
+              amount: number | null;
+            }[]
+          | null = [];
+
+        if (invoiceIds.length > 0) {
+          const { data } = await supabase
+            .from("invoice_items")
+            .select("test_name, amount")
+            .in("invoice_id", invoiceIds)
+            .eq("organization_id", organization.id);
+          invoiceItemsRes = data;
+        }
 
         const testRevenueMap = new Map<string, { count: number; revenue: number }>();
         invoiceItemsRes?.forEach(item => {
@@ -227,11 +317,17 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         const revenueTrendsData: RevenueTrend[] = [];
         for (let i = 6; i >= 0; i--) {
           const date = subDays(today, i);
-          const { data: dayInvoices } = await supabase
+          let dayInvoicesQuery = supabase
             .from("invoices")
             .select("final_amount, paid_amount")
             .gte("created_at", startOfDay(date).toISOString())
             .lte("created_at", endOfDay(date).toISOString());
+
+          if (organization?.id) {
+            dayInvoicesQuery = dayInvoicesQuery.eq("organization_id" as any, organization.id);
+          }
+
+          const { data: dayInvoices } = await dayInvoicesQuery;
 
           const dayRevenue = (dayInvoices || []).reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
           const dayPaid = (dayInvoices || []).reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
@@ -267,7 +363,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         // Calculate status distribution
         const pending = pendingRes.count || 0;
         const inProgress = inProgressRes.count || 0;
-        const completed = (testsRes.count || 0) - pending - inProgress;
+        const completed = Math.max(0, (testsRes.count || 0) - pending - inProgress);
         
         setStatusDistribution([
           { name: "Completed", value: completed, color: "#10B981" },
@@ -279,11 +375,17 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         const trends: TestTrend[] = [];
         for (let i = 6; i >= 0; i--) {
           const date = subDays(today, i);
-          const { count } = await supabase
+          let dayTestsQuery = supabase
             .from("patient_tests")
             .select("id", { count: "exact", head: true })
             .gte("test_date", startOfDay(date).toISOString().split('T')[0])
             .lte("test_date", endOfDay(date).toISOString().split('T')[0]);
+
+          if (organization?.id) {
+            dayTestsQuery = dayTestsQuery.eq("organization_id" as any, organization.id);
+          }
+
+          const { count } = await dayTestsQuery;
           
           trends.push({
             date: format(date, "EEE"),
@@ -299,7 +401,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
     };
 
     fetchStats();
-  }, []);
+  }, [organization?.id, organizationLoading]);
 
   const statCards = [
     {
@@ -361,6 +463,8 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
   return (
     <div className="space-y-6">
+      <AdminSetupChecklist onNavigate={onNavigate} />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card) => (

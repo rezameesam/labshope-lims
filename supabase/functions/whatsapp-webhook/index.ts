@@ -31,6 +31,168 @@ const verifySignature = async (rawBody: string, appSecret: string, signatureHead
   return actual === expected;
 };
 
+const extractPhoneNumberIds = (payload: any): string[] => {
+  const ids = new Set<string>();
+  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const phoneNumberId = change?.value?.metadata?.phone_number_id;
+      if (typeof phoneNumberId === "string" && phoneNumberId.trim()) {
+        ids.add(phoneNumberId.trim());
+      }
+    }
+  }
+  return Array.from(ids);
+};
+
+const normalizeDigits = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const digits = value.replace(/[^\d]/g, "");
+  return digits || null;
+};
+
+const resolveOrganizationIdFromPhoneNumberId = async (
+  supabase: ReturnType<typeof createClient>,
+  phoneNumberId: string | null,
+): Promise<string | null> => {
+  if (!phoneNumberId) {
+    return null;
+  }
+
+  const { data: rows } = await supabase
+    .from("organization_settings")
+    .select("organization_id")
+    .eq("setting_key", "whatsapp_phone_number_id")
+    .eq("setting_value", phoneNumberId)
+    .limit(2);
+
+  const organizationIds = Array.from(
+    new Set(
+      (rows || [])
+        .map((row: any) => row.organization_id || null)
+        .filter((organizationId: string | null): organizationId is string => Boolean(organizationId)),
+    ),
+  );
+
+  return organizationIds.length === 1 ? organizationIds[0] : null;
+};
+
+const resolveEventOrganizationId = async (
+  supabase: ReturnType<typeof createClient>,
+  messageId: string | null,
+  waId: string | null,
+  phoneNumberId: string | null,
+): Promise<string | null> => {
+  if (messageId) {
+    const { data: priorEvent } = await supabase
+      .from("whatsapp_webhook_events")
+      .select("organization_id")
+      .eq("message_id", messageId)
+      .not("organization_id", "is", null)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const priorOrganizationId =
+      (priorEvent as { organization_id?: string | null } | null)?.organization_id ?? null;
+
+    if (priorOrganizationId) {
+      return priorOrganizationId;
+    }
+  }
+
+  const organizationFromPhoneNumberId = await resolveOrganizationIdFromPhoneNumberId(
+    supabase,
+    phoneNumberId,
+  );
+  if (organizationFromPhoneNumberId) {
+    return organizationFromPhoneNumberId;
+  }
+
+  const normalizedWaId = normalizeDigits(waId);
+  if (!normalizedWaId) {
+    return null;
+  }
+
+  const { data: matches } = await supabase
+    .from("patients")
+    .select("organization_id, phone")
+    .eq("is_active", true);
+
+  const matchingOrganizations = new Set(
+    (matches || [])
+      .filter((patient: any) => {
+        const patientDigits = normalizeDigits(patient.phone);
+        return patientDigits === normalizedWaId || patientDigits?.endsWith(normalizedWaId) || normalizedWaId.endsWith(patientDigits || "");
+      })
+      .map((patient: any) => patient.organization_id || null)
+      .filter((organizationId: string | null): organizationId is string => Boolean(organizationId)),
+  );
+
+  return matchingOrganizations.size === 1 ? Array.from(matchingOrganizations)[0] : null;
+};
+
+const resolveVerifyToken = async (
+  supabaseUrl: string | null,
+  serviceRoleKey: string | null,
+  providedToken: string | null,
+): Promise<boolean> => {
+  if (!providedToken) {
+    return false;
+  }
+
+  const envToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+  if (envToken && providedToken === envToken) {
+    return true;
+  }
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return false;
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const { data: row } = await supabase
+    .from("organization_settings")
+    .select("organization_id")
+    .eq("setting_key", "whatsapp_verify_token")
+    .eq("setting_value", providedToken)
+    .limit(1)
+    .maybeSingle();
+
+  return Boolean((row as { organization_id?: string | null } | null)?.organization_id);
+};
+
+const resolveAppSecret = async (
+  supabase: ReturnType<typeof createClient>,
+  phoneNumberIds: string[],
+): Promise<string> => {
+  for (const phoneNumberId of phoneNumberIds) {
+    const organizationId = await resolveOrganizationIdFromPhoneNumberId(supabase, phoneNumberId);
+    if (!organizationId) {
+      continue;
+    }
+
+    const { data: row } = await supabase
+      .from("organization_settings")
+      .select("setting_value")
+      .eq("organization_id", organizationId)
+      .eq("setting_key", "whatsapp_app_secret")
+      .limit(1)
+      .maybeSingle();
+
+    const scopedSecret = (row as { setting_value?: string | null } | null)?.setting_value?.trim() || "";
+    if (scopedSecret) {
+      return scopedSecret;
+    }
+  }
+
+  return Deno.env.get("WHATSAPP_APP_SECRET") || "";
+};
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -41,9 +203,11 @@ serve(async (req: Request): Promise<Response> => {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
-    const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || null;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || null;
+    const verifyTokenMatched = await resolveVerifyToken(supabaseUrl, serviceRoleKey, token);
 
-    if (mode === "subscribe" && token && verifyToken && token === verifyToken) {
+    if (mode === "subscribe" && verifyTokenMatched) {
       return new Response(challenge || "", {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "text/plain" },
@@ -65,8 +229,16 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const rawBody = await req.text();
-    const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
     const signatureHeader = req.headers.get("x-hub-signature-256");
+    const payload = rawBody ? JSON.parse(rawBody) : {};
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabase = supabaseUrl && serviceRoleKey
+      ? createClient(supabaseUrl, serviceRoleKey)
+      : null;
+    const appSecret = supabase
+      ? await resolveAppSecret(supabase, extractPhoneNumberIds(payload))
+      : (Deno.env.get("WHATSAPP_APP_SECRET") || "");
 
     if (appSecret) {
       if (!signatureHeader) {
@@ -85,7 +257,6 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    const payload = rawBody ? JSON.parse(rawBody) : {};
     const rows: Array<Record<string, unknown>> = [];
 
     const entries = Array.isArray(payload?.entry) ? payload.entry : [];
@@ -136,11 +307,19 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (supabaseUrl && serviceRoleKey && rows.length > 0) {
-      const supabase = createClient(supabaseUrl, serviceRoleKey);
-      const { error } = await supabase.from("whatsapp_webhook_events").insert(rows);
+    if (supabase && rows.length > 0) {
+      const rowsWithOrganization = await Promise.all(
+        rows.map(async (row) => ({
+          ...row,
+          organization_id: await resolveEventOrganizationId(
+            supabase,
+            typeof row.message_id === "string" ? row.message_id : null,
+            typeof row.wa_id === "string" ? row.wa_id : null,
+            typeof row.phone_number_id === "string" ? row.phone_number_id : null,
+          ),
+        })),
+      );
+      const { error } = await supabase.from("whatsapp_webhook_events").insert(rowsWithOrganization);
       if (error) {
         console.error("Failed to insert WhatsApp webhook events:", error);
       }

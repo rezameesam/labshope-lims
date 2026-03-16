@@ -1,32 +1,49 @@
-import { useState, useEffect } from "react";
-import { Mail, Settings, CheckCircle2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Mail, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { getWebsiteHostname } from "@/lib/branding";
+
+const EMAIL_PROVIDER_KEYS = [
+  { key: "mailjet_api_key", label: "Mailjet" },
+  { key: "resend_api_key", label: "Resend" },
+  { key: "mailgun_api_key", label: "Mailgun" },
+  { key: "sendgrid_api_key", label: "SendGrid" },
+] as const;
 
 const NotificationSettings = () => {
-  const [emailConfigured, setEmailConfigured] = useState(false);
+  const { branding, settings } = useOrganization();
   const [testEmail, setTestEmail] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
+  const fromEmailExample = `no-reply@${getWebsiteHostname(branding.website)}`;
+  const edgeFunctionAvailable = Boolean(import.meta.env.VITE_SUPABASE_URL);
+  const senderName = settings.email_from_name?.trim() || branding.displayName;
+  const senderEmail = settings.email_from_email?.trim() || branding.email || fromEmailExample;
+  const replyToEmail = settings.email_reply_to?.trim() || "";
 
-  useEffect(() => {
-    // Check which email service is configured
-    // Note: SMTP credentials are in Supabase Edge Function secrets, not client-side env vars
-    // So we assume SMTP is configured if Supabase URL is available (Edge Function exists)
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    
-    // SMTP is configured via Edge Function secrets, so if Supabase is configured, assume SMTP is available
-    if (supabaseUrl) {
-      setEmailConfigured(true);
-    } else {
-      setEmailConfigured(false);
-    }
-  }, []);
+  const orgProviderStatuses = useMemo(
+    () =>
+      EMAIL_PROVIDER_KEYS.map(({ key, label }) => ({
+        label,
+        configured: Boolean(settings[key]?.trim()),
+      })),
+    [settings]
+  );
+
+  const hasOrgProviderOverride = orgProviderStatuses.some((provider) => provider.configured);
+  const hasOrgSenderOverride = Boolean(
+    settings.email_from_name?.trim() || settings.email_from_email?.trim() || settings.email_reply_to?.trim()
+  );
+  const emailStatus = !edgeFunctionAvailable
+    ? { label: "Unavailable", variant: "destructive" as const }
+    : hasOrgProviderOverride || hasOrgSenderOverride
+      ? { label: "Org Overrides Active", variant: "default" as const }
+      : { label: "Using Platform Fallback", variant: "secondary" as const };
 
   const handleTestEmail = async () => {
     if (!testEmail) {
@@ -62,11 +79,10 @@ const NotificationSettings = () => {
       <div>
         <h2 className="text-2xl font-bold text-clinical-navy">Email Notification Settings</h2>
         <p className="text-muted-foreground mt-1">
-          Configure Resend email service for patient notifications
+          Review tenant-specific sender identity and verify email delivery for this organization
         </p>
       </div>
 
-      {/* Email Configuration */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -76,34 +92,40 @@ const NotificationSettings = () => {
                 Email Notifications
               </CardTitle>
               <CardDescription>
-                Email notifications via Supabase Edge Function (Yandex SMTP)
+                Email sending is handled by the `send-email` edge function with organization overrides first and
+                platform-level fallback second
               </CardDescription>
             </div>
-            <Badge variant={emailConfigured ? "default" : "destructive"}>
-              {emailConfigured ? "Configured" : "Not Configured"}
+            <Badge variant={emailStatus.variant}>
+              {emailStatus.label}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm font-medium leading-none">SMTP Configuration</p>
-            <div className="mt-1 p-3 bg-muted rounded text-sm">
-              <p className="font-semibold mb-1">✅ Configured via Supabase Edge Function Secrets</p>
-              <p className="text-muted-foreground">
-                SMTP credentials are stored securely in Supabase Edge Function secrets:
-              </p>
-              <ul className="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
-                <li>SMTP_HOST: smtp.yandex.com</li>
-                <li>SMTP_PORT: 465</li>
-                <li>SMTP_USER: no-reply@irmclinic.com</li>
-                <li>SMTP_FROM: no-reply@irmclinic.com</li>
-                <li>SMTP_SECURE: true</li>
-              </ul>
-              <p className="text-xs text-muted-foreground mt-2">
-                To update: Go to Supabase Dashboard → Settings → Edge Functions → Secrets
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded border bg-muted/30 p-4 text-sm">
+              <p className="font-medium">Resolved sender identity</p>
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                <p>Name: {senderName}</p>
+                <p>Email: {senderEmail}</p>
+                <p>Reply-to: {replyToEmail || "Not set"}</p>
+              </div>
+            </div>
+            <div className="rounded border bg-muted/30 p-4 text-sm">
+              <p className="font-medium">Organization provider overrides</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {orgProviderStatuses.map((provider) => (
+                  <Badge key={provider.label} variant={provider.configured ? "default" : "outline"}>
+                    {provider.label}: {provider.configured ? "Configured" : "Fallback"}
+                  </Badge>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                If all providers show fallback, this organization is still using platform-level edge-function secrets.
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <Label htmlFor="notification-test-email" className="sr-only">
               Test email address
@@ -119,7 +141,7 @@ const NotificationSettings = () => {
             />
             <Button
               onClick={handleTestEmail}
-              disabled={sendingTest || !emailConfigured}
+              disabled={sendingTest || !edgeFunctionAvailable}
             >
               {sendingTest ? "Sending..." : "Send Test Email"}
             </Button>
@@ -127,8 +149,6 @@ const NotificationSettings = () => {
         </CardContent>
       </Card>
 
-
-      {/* Setup Instructions */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -138,43 +158,31 @@ const NotificationSettings = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h4 className="font-semibold mb-2">Option 1: Yandex SMTP (Your Current Setup - Recommended):</h4>
+            <h4 className="font-semibold mb-2">Option 1: Organization-Specific Provider Credentials (Recommended)</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground mb-4">
-              <li>Use your existing Yandex email: <code className="bg-muted px-1 rounded">no-reply@irmclinic.com</code></li>
-              <li>Get your Yandex email password (or create an app password)</li>
-              <li>Add these as Supabase Edge Function secrets:
-                <div className="bg-muted p-2 rounded mt-2 font-mono text-xs">
-                  SMTP_HOST=smtp.yandex.com<br/>
-                  SMTP_PORT=465<br/>
-                  SMTP_USER=no-reply@irmclinic.com<br/>
-                  SMTP_PASSWORD=your_yandex_password<br/>
-                  SMTP_FROM=no-reply@irmclinic.com<br/>
-                  SMTP_SECURE=true
-                </div>
-              </li>
-              <li>Deploy/update the Edge Function after adding secrets</li>
+              <li>Open `System Settings` and use the `Email Delivery` section for this organization.</li>
+              <li>Set sender identity fields such as `email_from_name`, `email_from_email`, and `email_reply_to`.</li>
+              <li>Add provider credentials for Mailjet, Resend, Mailgun, or SendGrid at the organization level.</li>
+              <li>Use the test email action on this screen after saving the settings.</li>
             </ol>
             <p className="text-xs text-muted-foreground italic">
-              ✅ Uses your own domain - professional and free!
+              This is the preferred sellable-app model because each lab can bring its own sender identity and provider account.
             </p>
           </div>
           <div>
-            <h4 className="font-semibold mb-2">Option 2: Resend (Alternative - Free 3,000/month):</h4>
+            <h4 className="font-semibold mb-2">Option 2: Platform Fallback Secrets</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground mb-4">
-              <li>Sign up at <a href="https://resend.com" target="_blank" className="text-primary underline">resend.com</a></li>
-              <li>Get your API key from the dashboard</li>
-              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">RESEND_API_KEY=re_...</code></li>
-              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">RESEND_FROM_EMAIL=no-reply@irmclinic.com</code></li>
+              <li>Keep shared provider credentials in Supabase Edge Function secrets if you are not ready to let each lab bring its own account yet.</li>
+              <li>The `send-email` function still supports Mailjet, Resend, Mailgun, SendGrid, and SMTP-style fallbacks through platform secrets.</li>
+              <li>This path is useful for IRM and early staging, but it is less white-label than organization-owned credentials.</li>
             </ol>
           </div>
           <div>
-            <h4 className="font-semibold mb-2">Option 3: Gmail SMTP (Fallback):</h4>
+            <h4 className="font-semibold mb-2">Option 3: SMTP-Style Provider Secrets</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground mb-4">
-              <li>Go to your Google Account → Security</li>
-              <li>Enable 2-Step Verification</li>
-              <li>Create an App Password</li>
-              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">SMTP_USER=your@gmail.com</code></li>
-              <li>Add to Edge Function secrets: <code className="bg-muted px-1 rounded">SMTP_PASSWORD=your_app_password</code></li>
+              <li>Examples include Yandex SMTP or Gmail SMTP with an app password.</li>
+              <li>Recommended sender domain example: <code className="bg-muted px-1 rounded">{fromEmailExample}</code></li>
+              <li>Configure these only at the platform level unless you plan to extend the mailer for full per-organization SMTP credentials.</li>
             </ol>
           </div>
         </CardContent>

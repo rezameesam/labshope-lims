@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical, KeyRound, Camera, CreditCard, IdCard, Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Plus, Search, Edit2, Trash2, Eye, EyeOff, User, Mail, Phone, Building, Shield, MoreHorizontal, UserX, UserCheck, FlaskConical, KeyRound, Camera, CreditCard, IdCard, Upload, FileSpreadsheet } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +62,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { getWebsiteHostname } from "@/lib/branding";
 import { formatAppDate } from "@/lib/date";
 
 interface Employee {
@@ -143,6 +146,9 @@ const createEmptyEditFormData = (): EmployeeEditFormState => ({
 });
 
 const ManageEmployees = () => {
+  const { branding, organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
+  const employeeEmailPlaceholder = `employee@${getWebsiteHostname(branding.website)}`;
   const { currentLab } = useLab();
   const { user, hasRole } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -168,13 +174,43 @@ const ManageEmployees = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [customResetPassword, setCustomResetPassword] = useState("");
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
-      // Fetch employees with their roles
-      const { data: employeesData, error: employeesError } = await supabase
+      if (!organizationId) {
+        setEmployees([]);
+        setEmployeeIdentityDrafts({});
+        setLoading(false);
+        return;
+      }
+
+      // Exclude platform admins from the employee list
+      const { data: platformAdminsData } = await (supabase as any)
+        .from("platform_admins")
+        .select("user_id");
+      const platformAdminUserIds: string[] = (platformAdminsData || []).map(
+        (row: { user_id: string }) => row.user_id
+      );
+
+      // Fetch employees with their roles — scoped to the currently selected lab
+      let employeesQuery = supabase
         .from("employees")
         .select("*")
+        .eq("organization_id" as any, organizationId)
         .order("created_at", { ascending: false });
+
+      if (currentLab?.id) {
+        employeesQuery = (employeesQuery as any).eq("lab_id", currentLab.id);
+      }
+
+      if (platformAdminUserIds.length > 0) {
+        employeesQuery = (employeesQuery as any).not(
+          "user_id",
+          "in",
+          `(${platformAdminUserIds.join(",")})`
+        );
+      }
+
+      const { data: employeesData, error: employeesError } = await employeesQuery;
 
       if (employeesError) throw employeesError;
 
@@ -255,15 +291,16 @@ const ManageEmployees = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchEmployees();
-    fetchCustomRoles(); // Fetch custom roles on component mount
-  }, []);
+  }, [organizationId, currentLab?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!organizationId) {
+      toast.error("Organization context is required before managing employees");
+      return;
+    }
+
     setIsSubmitting(true);
 
     let createdEmployee:
@@ -336,7 +373,7 @@ const ManageEmployees = () => {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmployee) return;
+    if (!selectedEmployee || !organizationId) return;
     setIsSubmitting(true);
 
     let employeeUpdated = false;
@@ -356,7 +393,8 @@ const ManageEmployees = () => {
       const { error } = await supabase
         .from("employees")
         .update(updatePayload)
-        .eq("id", selectedEmployee.id);
+        .eq("id", selectedEmployee.id)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
       employeeUpdated = true;
@@ -385,7 +423,7 @@ const ManageEmployees = () => {
   };
 
   const handleDelete = async () => {
-    if (!selectedEmployee) return;
+    if (!selectedEmployee || !organizationId) return;
     setIsSubmitting(true);
 
     try {
@@ -393,7 +431,8 @@ const ManageEmployees = () => {
       const { error } = await supabase
         .from("employees")
         .update({ is_active: false })
-        .eq("id", selectedEmployee.id);
+        .eq("id", selectedEmployee.id)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -410,11 +449,17 @@ const ManageEmployees = () => {
   };
 
   const toggleEmployeeStatus = async (employee: Employee) => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating employee status");
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("employees")
         .update({ is_active: !employee.is_active })
-        .eq("id", employee.id);
+        .eq("id", employee.id)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
       
@@ -769,21 +814,48 @@ const ManageEmployees = () => {
     }
   };
 
-  const fetchCustomRoles = async () => {
+  const fetchCustomRoles = useCallback(async () => {
     try {
-      const { data: rolesData, error: rolesError } = await supabase
+      if (!organizationId) {
+        setCustomRoles([]);
+        return [];
+      }
+
+      const rolesQuery = supabase
         .from("custom_roles")
         .select("id, name, description")
         .eq("is_active", true)
+        .eq("organization_id", organizationId)
         .order("name");
+
+      const { data: rolesData, error: rolesError } = await rolesQuery;
 
       if (rolesError) throw rolesError;
       setCustomRoles(rolesData || []);
+      return rolesData || [];
     } catch (error) {
       console.error("Error fetching custom roles:", error);
       setCustomRoles([]);
+      return [];
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setEmployees([]);
+      setCustomRoles([]);
+      setEmployeeIdentityDrafts({});
+      setLoading(false);
+      return;
+    }
+
+    void fetchEmployees();
+    void fetchCustomRoles();
+  }, [fetchCustomRoles, fetchEmployees, organizationId, organizationLoading]);
 
   const openEmployeeDetails = async (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -796,7 +868,8 @@ const ManageEmployees = () => {
       }
 
       // Fetch all custom roles
-      await fetchCustomRoles();
+      const visibleRoles = await fetchCustomRoles();
+      const visibleRoleIds = new Set((visibleRoles || []).map((role) => role.id));
 
       // Fetch employee's assigned custom roles
       const { data: userRolesData, error: userRolesError } = await supabase
@@ -805,7 +878,9 @@ const ManageEmployees = () => {
         .eq("user_id", employee.user_id);
 
       if (userRolesError) throw userRolesError;
-      setEmployeeCustomRoles(new Set((userRolesData || []).map(r => r.role_id)));
+      setEmployeeCustomRoles(
+        new Set((userRolesData || []).map((r) => r.role_id).filter((roleId) => visibleRoleIds.has(roleId)))
+      );
     } catch (error) {
       console.error("Error fetching employee roles:", error);
       setEmployeeCustomRoles(new Set());
@@ -945,7 +1020,27 @@ const ManageEmployees = () => {
           </Select>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              exportToExcel("employees", [
+                { key: "employee_id", label: "Employee ID" },
+                { key: "full_name", label: "Name" },
+                { key: "email", label: "Email" },
+                { key: "phone", label: "Phone" },
+                { key: "role", label: "Role" },
+                { key: "designation", label: "Designation" },
+                { key: "department", label: "Department" },
+                { key: "is_active", label: "Active" },
+              ], filteredEmployees.map(e => ({ ...e, is_active: e.is_active ? "Yes" : "No" })))
+            }
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-clinical-navy hover:bg-clinical-navy/90">
               <Plus className="h-4 w-4 mr-2" />
@@ -983,7 +1078,7 @@ const ManageEmployees = () => {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    placeholder="employee@irmclinic.com"
+                    placeholder={employeeEmailPlaceholder}
                     autoComplete="email"
                   />
                 </div>
@@ -1210,10 +1305,12 @@ const ManageEmployees = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Employees Table */}
       <Card className="border-0 shadow-md">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -1363,6 +1460,7 @@ const ManageEmployees = () => {
             )}
           </TableBody>
         </Table>
+        </div>
       </Card>
 
       {/* Edit Dialog */}
@@ -1842,17 +1940,21 @@ const ManageEmployees = () => {
         setIsRoleDialogOpen(open);
         if (open && selectedEmployee) {
           // Refresh roles when dialog opens
-          fetchCustomRoles();
-          // Refresh employee's current roles
-          supabase
-            .from("user_custom_roles")
-            .select("role_id")
-            .eq("user_id", selectedEmployee.user_id)
-            .then(({ data, error }) => {
-              if (!error && data) {
-                setEmployeeCustomRoles(new Set(data.map(r => r.role_id)));
-              }
-            });
+          fetchCustomRoles().then((rolesData) => {
+            const visibleRoleIds = new Set((rolesData || []).map((role) => role.id));
+            // Refresh employee's current roles
+            supabase
+              .from("user_custom_roles")
+              .select("role_id")
+              .eq("user_id", selectedEmployee.user_id)
+              .then(({ data, error }) => {
+                if (!error && data) {
+                  setEmployeeCustomRoles(
+                    new Set(data.map((r) => r.role_id).filter((roleId) => visibleRoleIds.has(roleId)))
+                  );
+                }
+              });
+          });
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
@@ -1916,13 +2018,18 @@ const ManageEmployees = () => {
                 if (!selectedEmployee) return;
                 setIsAssigningRoles(true);
                 try {
+                  const visibleRoleIds = new Set(customRoles.map((role) => role.id));
                   // Get current roles from database
                   const { data: currentRoles } = await supabase
                     .from("user_custom_roles")
                     .select("role_id")
                     .eq("user_id", selectedEmployee.user_id);
 
-                  const currentRoleIds = new Set((currentRoles || []).map(r => r.role_id));
+                  const currentRoleIds = new Set(
+                    (currentRoles || [])
+                      .map((r) => r.role_id)
+                      .filter((roleId) => visibleRoleIds.has(roleId))
+                  );
                   const newRoleIds = employeeCustomRoles;
 
                   // Find roles to add
@@ -1962,7 +2069,13 @@ const ManageEmployees = () => {
                     .from("user_custom_roles")
                     .select("role_id")
                     .eq("user_id", selectedEmployee.user_id);
-                  setEmployeeCustomRoles(new Set((updatedRoles || []).map(r => r.role_id)));
+                  setEmployeeCustomRoles(
+                    new Set(
+                      (updatedRoles || [])
+                        .map((r) => r.role_id)
+                        .filter((roleId) => visibleRoleIds.has(roleId))
+                    )
+                  );
                   
                   setIsRoleDialogOpen(false);
                 } catch (error: any) {

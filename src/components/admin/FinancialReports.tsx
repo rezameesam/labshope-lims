@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { 
   DollarSign, 
   TrendingUp, 
@@ -44,6 +44,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface FinancialStats {
   totalRevenue: number;
@@ -73,6 +74,7 @@ interface InvoiceSummary {
 }
 
 const FinancialReports = () => {
+  const { organization, loading: organizationLoading } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"today" | "week" | "month" | "all">("month");
   const [stats, setStats] = useState<FinancialStats>({
@@ -87,11 +89,23 @@ const FinancialReports = () => {
   const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
   const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary[]>([]);
 
-  useEffect(() => {
-    fetchFinancialData();
-  }, [period]);
+  const fetchFinancialData = useCallback(async () => {
+    if (!organization?.id) {
+      setStats({
+        totalRevenue: 0,
+        totalPaid: 0,
+        outstandingDues: 0,
+        totalInvoices: 0,
+        paidInvoices: 0,
+        pendingInvoices: 0,
+        partialInvoices: 0,
+      });
+      setDailyRevenue([]);
+      setInvoiceSummary([]);
+      setLoading(false);
+      return;
+    }
 
-  const fetchFinancialData = async () => {
     setLoading(true);
     try {
       const today = new Date();
@@ -114,7 +128,7 @@ const FinancialReports = () => {
       const endDate = period === "all" ? new Date() : endOfDay(today);
 
       // Fetch invoices
-      const { data: invoices, error } = await supabase
+      let invoicesQuery = supabase
         .from("invoices")
         .select(`
           id,
@@ -128,6 +142,10 @@ const FinancialReports = () => {
         .gte("created_at", startDate.toISOString())
         .lte("created_at", endDate.toISOString())
         .order("created_at", { ascending: false });
+
+      invoicesQuery = invoicesQuery.eq("organization_id" as any, organization.id);
+
+      const { data: invoices, error } = await invoicesQuery;
 
       if (error) throw error;
 
@@ -207,7 +225,15 @@ const FinancialReports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organization?.id, period]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    void fetchFinancialData();
+  }, [fetchFinancialData, organizationLoading]);
 
   const handleExportPDF = () => {
     const doc = new jsPDF();

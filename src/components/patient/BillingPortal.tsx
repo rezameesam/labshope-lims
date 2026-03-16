@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { 
   Receipt, IndianRupee, CheckCircle, Clock, XCircle, 
   Calendar, FileText, Download
@@ -31,6 +31,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { sendPaymentSuccessNotification } from "@/services/notificationService";
 import { formatAppDate } from "@/lib/date";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Invoice {
   id: string;
@@ -65,12 +66,14 @@ interface Payment {
 
 interface BillingPortalProps {
   patientId: string;
+  organizationId?: string | null;
   patientName?: string;
   patientPhone?: string;
   onPaymentStatusChange?: () => void;
 }
 
-const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusChange }: BillingPortalProps) => {
+const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, onPaymentStatusChange }: BillingPortalProps) => {
+  const { branding } = useOrganization();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -79,13 +82,22 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
+    if (!organizationId) {
+      setInvoices([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from("invoices")
         .select("*")
         .eq("patient_id", patientId)
+        .eq("organization_id" as any, organizationId)
         .order("created_at", { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setInvoices(data || []);
@@ -95,15 +107,24 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId, patientId]);
 
   const fetchInvoiceDetails = async (invoiceId: string) => {
+    if (!organizationId) {
+      setSelectedInvoice(null);
+      setInvoiceItems([]);
+      setPayments([]);
+      return;
+    }
+
     try {
-      const { data: invoiceData, error: invoiceError } = await supabase
+      const invoiceQuery = supabase
         .from("invoices")
         .select("*")
         .eq("id", invoiceId)
-        .single();
+        .eq("organization_id" as any, organizationId);
+
+      const { data: invoiceData, error: invoiceError } = await invoiceQuery.single();
 
       if (invoiceError) throw invoiceError;
       if (invoiceData) {
@@ -114,7 +135,8 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
       const { data: items, error: itemsError } = await supabase
         .from("invoice_items")
         .select("*")
-        .eq("invoice_id", invoiceId);
+        .eq("invoice_id", invoiceId)
+        .eq("organization_id", organizationId);
 
       if (itemsError) throw itemsError;
       setInvoiceItems(items || []);
@@ -124,6 +146,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         .from("payments")
         .select("*")
         .eq("invoice_id", invoiceId)
+        .eq("organization_id", organizationId)
         .order("payment_date", { ascending: false });
 
       if (paymentsError) throw paymentsError;
@@ -134,10 +157,13 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
   };
 
   useEffect(() => {
-    if (patientId) {
-      fetchInvoices();
+    if (patientId && organizationId) {
+      void fetchInvoices();
+    } else {
+      setInvoices([]);
+      setLoading(false);
     }
-  }, [patientId]);
+  }, [fetchInvoices, organizationId, patientId]);
 
   const openInvoiceDetails = async (invoice: Invoice) => {
     setSelectedInvoice(invoice);
@@ -181,7 +207,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
       return;
     }
 
-    const results = await sendPaymentSuccessNotification(patientId, amountPaid, invoice.invoice_number);
+    const results = await sendPaymentSuccessNotification(patientId, amountPaid, invoice.invoice_number, branding.displayName, `${window.location.origin}/auth/patient`);
     if (!results.some((result) => result.success)) {
       console.warn("Payment confirmation notification failed:", results);
     }
@@ -192,7 +218,7 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
       return;
     }
 
-    const results = await sendPaymentSuccessNotification(patientId, amountPaid);
+    const results = await sendPaymentSuccessNotification(patientId, amountPaid, undefined, branding.displayName, `${window.location.origin}/auth/patient`);
     if (!results.some((result) => result.success)) {
       console.warn("Bulk payment confirmation notification failed:", results);
     }
@@ -221,23 +247,25 @@ const BillingPortal = ({ patientId, patientName, patientPhone, onPaymentStatusCh
         const { data: items } = await supabase
           .from("invoice_items")
           .select("*")
-          .eq("invoice_id", invoice.id);
+          .eq("invoice_id", invoice.id)
+          .eq("organization_id", organizationId);
         
         const { data: paymentData } = await supabase
           .from("payments")
           .select("amount, payment_method, payment_date, transaction_id")
           .eq("invoice_id", invoice.id)
+          .eq("organization_id", organizationId)
           .order("payment_date", { ascending: false });
 
         // Header
         doc.setFontSize(20);
         doc.setTextColor(26, 54, 93);
-        doc.text("IRM Clinical Laboratory", 105, yOffset, { align: "center" });
+        doc.text(branding.displayName, 105, yOffset, { align: "center" });
         
         yOffset += 8;
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text("Zabarpora Budgam, J&K | Phone: 9419034607", 105, yOffset, { align: "center" });
+        doc.text(`${branding.addressLines.join(", ")} | Phone: ${branding.primaryPhone}`, 105, yOffset, { align: "center" });
         
         yOffset += 15;
         doc.setFontSize(16);

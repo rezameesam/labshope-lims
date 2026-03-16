@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Package,
   Plus,
@@ -43,6 +43,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 
 interface Test {
@@ -63,6 +64,8 @@ interface TestPackage {
 }
 
 const ManageTestPackages = () => {
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [packages, setPackages] = useState<TestPackage[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,34 +84,43 @@ const ManageTestPackages = () => {
     selectedTests: [] as string[],
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      if (!organizationId) {
+        setPackages([]);
+        setTests([]);
+        setLoading(false);
+        return;
+      }
+
       // Fetch test packages
-      const { data: packagesData, error: packagesError } = await supabase
+      const packagesQuery = supabase
         .from("test_packages")
         .select("*")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
+
+      const { data: packagesData, error: packagesError } = await packagesQuery;
 
       if (packagesError) throw packagesError;
 
       // Fetch package tests
       const packageTestsMap = new Map<string, string[]>();
       if (packagesData && packagesData.length > 0) {
+        const packageIds = packagesData.map((pkg) => pkg.id);
         const { data: packageTestsData, error: packageTestsError } = await supabase
           .from("test_package_tests")
           .select("package_id, test_id");
 
         if (packageTestsError) throw packageTestsError;
 
-        packageTestsData?.forEach((pt) => {
+        packageTestsData
+          ?.filter((pt) => packageIds.includes(pt.package_id))
+          .forEach((pt) => {
           const existing = packageTestsMap.get(pt.package_id) || [];
           packageTestsMap.set(pt.package_id, [...existing, pt.test_id]);
-        });
+          });
       }
 
       const packagesWithTests: TestPackage[] = (packagesData || []).map((pkg) => ({
@@ -119,9 +131,10 @@ const ManageTestPackages = () => {
       setPackages(packagesWithTests);
 
       // Fetch all tests
-      const { data: testsData, error: testsError } = await supabase
+      const testsQuery = supabase
         .from("tests")
         .select("id, name, price, test_id");
+      const { data: testsData, error: testsError } = await testsQuery.eq("organization_id", organizationId);
 
       if (testsError) throw testsError;
       setTests(testsData || []);
@@ -131,7 +144,22 @@ const ManageTestPackages = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setPackages([]);
+      setTests([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+  }, [fetchData, organizationId, organizationLoading]);
 
   const resetForm = () => {
     setPackageForm({
@@ -166,6 +194,11 @@ const ManageTestPackages = () => {
   };
 
   const handleSavePackage = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before managing test packages");
+      return;
+    }
+
     if (!packageForm.name.trim()) {
       toast.error("Package name is required");
       return;
@@ -183,14 +216,18 @@ const ManageTestPackages = () => {
         price: calculatePackagePrice(),
         discount_percentage: packageForm.discount_percentage,
         is_active: packageForm.is_active,
+        organization_id: organizationId,
       };
 
       if (editingPackage) {
         // Update existing package
-        const { error: updateError } = await supabase
+        let updateQuery = supabase
           .from("test_packages")
           .update(packageData)
-          .eq("id", editingPackage.id);
+          .eq("id", editingPackage.id)
+          .eq("organization_id", organizationId);
+
+        const { error: updateError } = await updateQuery;
 
         if (updateError) throw updateError;
 
@@ -254,7 +291,7 @@ const ManageTestPackages = () => {
   };
 
   const handleDeletePackage = async () => {
-    if (!packageToDelete) return;
+    if (!packageToDelete || !organizationId) return;
 
     try {
       // Delete package tests first
@@ -266,10 +303,13 @@ const ManageTestPackages = () => {
       if (deleteTestsError) throw deleteTestsError;
 
       // Delete package
-      const { error: deleteError } = await supabase
+      let deleteQuery = supabase
         .from("test_packages")
         .delete()
-        .eq("id", packageToDelete);
+        .eq("id", packageToDelete)
+        .eq("organization_id", organizationId);
+
+      const { error: deleteError } = await deleteQuery;
 
       if (deleteError) throw deleteError;
 

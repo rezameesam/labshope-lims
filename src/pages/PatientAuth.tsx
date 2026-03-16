@@ -24,10 +24,16 @@ import { usePatientAuth } from "@/hooks/usePatientAuth";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import Turnstile from "@/components/ui/turnstile";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import PlatformAccessPage from "@/components/platform/PlatformAccessPage";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 const PatientAuth = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading, login, requestPasswordReset } = usePatientAuth();
+  const { organization, branding } = useOrganization();
+  const { loading: publicModeLoading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
   const [identifier, setIdentifier] = useState("");
   const [password, setPasswordInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -58,7 +64,7 @@ const PatientAuth = () => {
 
     setIsLoading(true);
     try {
-      const { error } = await login(identifier.trim(), password, loginCaptchaToken);
+      const { error } = await login(identifier.trim(), password, loginCaptchaToken, organization?.id || null);
 
       if (error) {
         toast.error(error.message);
@@ -86,7 +92,7 @@ const PatientAuth = () => {
     }
 
     setResetLoading(true);
-    const { error } = await requestPasswordReset(resetIdentifier.trim(), resetCaptchaToken);
+    const { error } = await requestPasswordReset(resetIdentifier.trim(), resetCaptchaToken, organization?.id || null);
     setResetLoading(false);
 
     if (error) {
@@ -126,6 +132,34 @@ const PatientAuth = () => {
     );
   }
 
+  if (publicModeLoading) {
+    return (
+      <div className="min-h-screen bg-subtle-gradient flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode) {
+    return (
+      <PlatformAccessPage
+        eyebrow="Patient Portal Access"
+        title="Patient sign-in happens on your laboratory’s own portal."
+        description="This root site is for the software platform. Patients should open the branded lab website or portal link shared by their diagnostic lab to view reports, billing, and account details."
+        primaryCtaLabel="Book Demo"
+        primaryCtaTo="/book-test"
+        secondaryCtaLabel="Staff Login"
+        secondaryCtaTo="/auth/staff"
+        helperTitle="Looking for your report portal?"
+        helperBody="Use the exact lab website or subdomain provided by your laboratory. Patient login, password reset, and report access are tenant-specific and are not served from the platform homepage."
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
       <section className="hidden lg:flex lg:w-1/2 bg-hero-gradient p-12 flex-col justify-between relative overflow-hidden">
@@ -133,10 +167,10 @@ const PatientAuth = () => {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
         <Link to="/" className="relative z-10 flex items-center gap-3">
-          <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+          <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
           <div>
-            <h1 className="text-lg font-heading font-bold text-primary-foreground">IRM Clinical</h1>
-            <p className="text-xs text-primary-foreground/70">Laboratory</p>
+            <h1 className="text-lg font-heading font-bold text-primary-foreground">{branding.shortName}</h1>
+            <p className="text-xs text-primary-foreground/70">{branding.secondaryLabel}</p>
           </div>
         </Link>
 
@@ -183,9 +217,9 @@ const PatientAuth = () => {
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8 text-center">
             <Link to="/" className="inline-flex items-center gap-3">
-              <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+              <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
               <div>
-                <h1 className="text-lg font-heading font-bold text-clinical-navy">IRM Clinical</h1>
+                <h1 className="text-lg font-heading font-bold text-clinical-navy">{branding.shortName}</h1>
                 <p className="text-xs text-muted-foreground">Patient Portal</p>
               </div>
             </Link>

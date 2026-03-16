@@ -61,6 +61,7 @@ export const initiateRazorpayPayment = async (
   orderId: string,
   amount: number,
   invoiceNumber: string,
+  businessName?: string,
   patientName?: string,
   patientEmail?: string,
   patientPhone?: string,
@@ -86,7 +87,7 @@ export const initiateRazorpayPayment = async (
       key: keyId,
       amount: Math.round(amount * 100), // Convert to paise
       currency: 'INR',
-      name: 'IRM Clinical Laboratory',
+      name: businessName || 'Diagnostic Laboratory',
       description: `Payment for Invoice ${invoiceNumber}`,
       order_id: orderId,
       prefill: {

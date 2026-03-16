@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 type LabOption = {
   id: string;
@@ -35,6 +36,7 @@ type PatientBookingProfile = {
   phone: string;
   email?: string | null;
   address?: string | null;
+  organization_id?: string | null;
 };
 
 type PatientBookTestRequestProps = {
@@ -45,10 +47,12 @@ const today = new Date().toISOString().split("T")[0];
 const MAX_ADDRESS_LENGTH = 250;
 
 const PatientBookTestRequest = ({ patient }: PatientBookTestRequestProps) => {
+  const { organization, primaryLab, loading: organizationLoading } = useOrganization();
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [labs, setLabs] = useState<LabOption[]>([]);
   const [collectionCenters, setCollectionCenters] = useState<CollectionCenterOption[]>([]);
+  const resolvedOrganizationId = patient.organization_id || organization?.id || primaryLab?.organization_id || null;
   const [formData, setFormData] = useState({
     booking_type: "walk_in",
     test_details: "",
@@ -68,14 +72,27 @@ const PatientBookTestRequest = ({ patient }: PatientBookTestRequestProps) => {
 
   useEffect(() => {
     const fetchMeta = async () => {
-      const [labsRes, centersRes] = await Promise.all([
-        supabase.from("labs").select("id, name, lab_code").eq("is_active", true).order("name"),
-        supabase
-          .from("collection_centers")
-          .select("id, name, code, lab_id")
-          .eq("is_active", true)
-          .order("name"),
-      ]);
+      if (!resolvedOrganizationId) {
+        setLabs([]);
+        setCollectionCenters([]);
+        return;
+      }
+
+      const labsQuery = supabase
+        .from("labs")
+        .select("id, name, lab_code")
+        .eq("is_active", true)
+        .eq("organization_id" as any, resolvedOrganizationId)
+        .order("name");
+
+      const centersQuery = supabase
+        .from("collection_centers")
+        .select("id, name, code, lab_id")
+        .eq("is_active", true)
+        .eq("organization_id" as any, resolvedOrganizationId)
+        .order("name");
+
+      const [labsRes, centersRes] = await Promise.all([labsQuery, centersQuery]);
 
       if (labsRes.error) {
         console.error("Error fetching labs:", labsRes.error);
@@ -90,8 +107,10 @@ const PatientBookTestRequest = ({ patient }: PatientBookTestRequestProps) => {
       }
     };
 
-    void fetchMeta();
-  }, []);
+    if (!organizationLoading) {
+      void fetchMeta();
+    }
+  }, [organizationLoading, resolvedOrganizationId]);
 
   const filteredCollectionCenters = useMemo(() => {
     if (!formData.lab_id) {

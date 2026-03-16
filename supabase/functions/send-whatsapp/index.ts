@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createServiceClient,
+  fetchScopedSettings,
+  resolveOrganizationIdentity,
+} from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +20,8 @@ interface SendWhatsAppRequest {
   languageCode?: string;
   templateParams?: string[];
   fallbackToText?: boolean;
+  patientId?: string;
+  organizationId?: string;
 }
 
 const normalizePhoneNumber = (value: string, defaultCountryCode: string): string | null => {
@@ -92,7 +99,7 @@ const getMetaErrorDetails = (payload: any) => {
   if (tokenExpired) {
     return {
       userMessage:
-        "WhatsApp access token has expired. Update WHATSAPP_ACCESS_TOKEN in Supabase Edge Function secrets.",
+        "WhatsApp access token has expired. Update the organization's whatsapp_access_token setting or the platform WHATSAPP_ACCESS_TOKEN secret.",
       hint:
         "Generate a new token in Meta and rotate the secret, then retry. Consider using a long-lived System User token.",
       code,
@@ -123,6 +130,45 @@ const getMetaErrorDetails = (payload: any) => {
   };
 };
 
+async function authorizeRequest(
+  req: Request,
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  serviceRoleKey: string,
+): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization");
+  const internalServiceKey = req.headers.get("x-internal-service-key");
+
+  if (internalServiceKey && internalServiceKey === serviceRoleKey) {
+    return authHeader;
+  }
+
+  if (!authHeader) {
+    throw new Response(
+      JSON.stringify({ success: false, error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  });
+
+  const { data: authData, error: authError } = await authClient.auth.getUser();
+  if (authError || !authData.user) {
+    throw new Response(
+      JSON.stringify({ success: false, error: "Invalid authentication token" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  return authHeader;
+}
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -144,6 +190,8 @@ serve(async (req: Request): Promise<Response> => {
       languageCode,
       templateParams,
       fallbackToText = true,
+      patientId,
+      organizationId,
     }: SendWhatsAppRequest = await req.json();
 
     if (!to) {
@@ -161,41 +209,46 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-    const apiVersion = Deno.env.get("WHATSAPP_API_VERSION") || "v23.0";
-
-    if (!accessToken || !phoneNumberId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID is not configured",
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    const authHeader = await authorizeRequest(req, supabaseUrl, supabaseAnonKey, serviceRoleKey);
 
     const supabase = supabaseUrl && serviceRoleKey
-      ? createClient(supabaseUrl, serviceRoleKey)
+      ? createServiceClient(supabaseUrl, serviceRoleKey)
       : null;
 
     let defaultCountryCode = "91";
     let resolvedLanguageCode = languageCode || "en_US";
     let resolvedTemplateName = templateName || "";
+    let resolvedAccessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
+    let resolvedPhoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") || "";
+    let resolvedApiVersion = Deno.env.get("WHATSAPP_API_VERSION") || "v23.0";
+
+    let resolvedOrganizationId: string | null = organizationId || null;
 
     if (supabase) {
-      const { data: settings } = await supabase
-        .from("system_settings")
-        .select("setting_key, setting_value")
-        .in("setting_key", [
+      const identity = await resolveOrganizationIdentity({
+        supabaseUrl,
+        supabaseAnonKey,
+        serviceRoleKey,
+        authHeader,
+        organizationId,
+        patientId,
+      });
+      resolvedOrganizationId = identity.organizationId;
+
+      const settingsMap = await fetchScopedSettings(
+        supabaseUrl,
+        serviceRoleKey,
+        [
+          "whatsapp_access_token",
+          "whatsapp_phone_number_id",
+          "whatsapp_api_version",
           "whatsapp_default_country_code",
           "whatsapp_template_language_code",
           "whatsapp_utility_template_name",
-        ]);
-
-      const settingsMap = new Map(
-        (settings || []).map((row: any) => [row.setting_key, row.setting_value]),
+        ],
+        identity.organizationId,
       );
 
       defaultCountryCode = settingsMap.get("whatsapp_default_country_code") || defaultCountryCode;
@@ -203,6 +256,22 @@ serve(async (req: Request): Promise<Response> => {
         languageCode || settingsMap.get("whatsapp_template_language_code") || resolvedLanguageCode;
       resolvedTemplateName =
         templateName || settingsMap.get("whatsapp_utility_template_name") || resolvedTemplateName;
+      resolvedAccessToken =
+        settingsMap.get("whatsapp_access_token")?.trim() || resolvedAccessToken;
+      resolvedPhoneNumberId =
+        settingsMap.get("whatsapp_phone_number_id")?.trim() || resolvedPhoneNumberId;
+      resolvedApiVersion =
+        settingsMap.get("whatsapp_api_version")?.trim() || resolvedApiVersion;
+    }
+
+    if (!resolvedAccessToken || !resolvedPhoneNumberId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "WhatsApp credentials are not configured for this organization",
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const normalizedPhone = normalizePhoneNumber(to, defaultCountryCode);
@@ -213,12 +282,12 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const endpoint = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+    const endpoint = `https://graph.facebook.com/${resolvedApiVersion}/${resolvedPhoneNumberId}/messages`;
     const sendRequest = async (payload: Record<string, unknown>) => {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          "Authorization": `Bearer ${resolvedAccessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -307,7 +376,8 @@ serve(async (req: Request): Promise<Response> => {
         event_type: "unknown",
         message_id: firstMessage?.id || null,
         wa_id: normalizedPhone,
-        phone_number_id: phoneNumberId,
+        phone_number_id: resolvedPhoneNumberId,
+        organization_id: resolvedOrganizationId,
         status: sendResult.ok ? "accepted" : "failed",
         payload: {
           request: requestPayload,
@@ -343,6 +413,7 @@ serve(async (req: Request): Promise<Response> => {
         success: true,
         provider: "meta_whatsapp_cloud",
         to: normalizedPhone,
+        phoneNumberId: resolvedPhoneNumberId,
         messageId: sendResult.payload?.messages?.[0]?.id || null,
         messageStatus: sendResult.payload?.messages?.[0]?.message_status || "accepted",
         fallbackUsed,
@@ -350,6 +421,9 @@ serve(async (req: Request): Promise<Response> => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
+    if (error instanceof Response) {
+      return error;
+    }
     console.error("Error in send-whatsapp:", error);
     return new Response(
       JSON.stringify({ success: false, error: error?.message || "Failed to send WhatsApp message" }),

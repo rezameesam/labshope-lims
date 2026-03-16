@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 type ConsentState = {
   version: string;
@@ -50,6 +51,9 @@ const writeConsentCookie = (consent: ConsentState) => {
 const isPublicPath = (path: string) => {
   const publicPaths = [
     "/",
+    "/book-test",
+    "/careers",
+    "/work-with-us",
     "/privacy",
     "/terms",
     "/auth/patient",
@@ -82,6 +86,7 @@ const getBrowserCountry = (): { country_code: string | null; country_name: strin
 
 const CookieConsent = () => {
   const location = useLocation();
+  const { organization, loading: organizationLoading } = useOrganization();
   const [consent, setConsent] = useState<ConsentState | null>(null);
   const [bannerOpen, setBannerOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -109,10 +114,13 @@ const CookieConsent = () => {
   }, [isPublic]);
 
   useEffect(() => {
+    if (organizationLoading) return;
     if (!isPublic) return;
     const current = consent || parseConsentCookie();
     const payload = {
       event_type: "page_view",
+      organization_id: organization?.id || null,
+      hostname: window.location.hostname || null,
       path: location.pathname,
       referrer: document.referrer || null,
       consent: current,
@@ -128,7 +136,7 @@ const CookieConsent = () => {
     };
 
     sendLog();
-  }, [isPublic, location.pathname, consent, browserCountry]);
+  }, [isPublic, location.pathname, consent, browserCountry, organization?.id, organizationLoading]);
 
   const applyConsent = (nextPrefs: typeof prefs) => {
     const nextConsent: ConsentState = {
@@ -145,6 +153,8 @@ const CookieConsent = () => {
     void supabase.functions.invoke("log-visitor", {
       body: {
         event_type: "consent_update",
+        organization_id: organization?.id || null,
+        hostname: window.location.hostname || null,
         path: location.pathname,
         referrer: document.referrer || null,
         consent: nextConsent,

@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildPatientAuthEmail,
+  verifyTurnstile,
+} from "../_shared/patient-auth.ts";
+import { resolvePublicOrganizationId } from "../_shared/public-organization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,9 +16,9 @@ interface PatientLoginRequest {
   identifier: string;
   password: string;
   turnstile_token?: string;
+  organization_id?: string | null;
+  hostname?: string | null;
 }
-
-const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -21,7 +26,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { identifier, password, turnstile_token }: PatientLoginRequest = await req.json();
+    const { identifier, password, turnstile_token, organization_id, hostname }: PatientLoginRequest = await req.json();
     const trimmedIdentifier = identifier?.trim();
 
     if (!trimmedIdentifier || !password) {
@@ -42,11 +47,25 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const resolvedOrganizationId = await resolvePublicOrganizationId(
+      supabase,
+      req,
+      organization_id || null,
+      hostname || null,
+    );
+
+    if (!resolvedOrganizationId) {
+      return new Response(
+        JSON.stringify({ error: "Organization not found." }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
+    }
 
     const { data: patients, error } = await supabase
-      .rpc("patient_login", {
+      .rpc("patient_login_scoped", {
         p_identifier: trimmedIdentifier,
         p_password: password,
+        p_organization_id: resolvedOrganizationId,
       });
 
     if (error || !patients || patients.length === 0) {
@@ -133,50 +152,3 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
-
-function buildPatientAuthEmail(patientId: string): string {
-  const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  return `patient-${normalizedId}@${PATIENT_AUTH_DOMAIN}`;
-}
-
-async function verifyTurnstile(token: string, req: Request): Promise<string | null> {
-  const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-  if (
-    origin.includes("localhost") ||
-    origin.includes("127.0.0.1") ||
-    origin.includes("0.0.0.0") ||
-    /https?:\/\/10\.\d+\.\d+\.\d+/.test(origin) ||
-    /https?:\/\/192\.168\.\d+\.\d+/.test(origin) ||
-    /https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+/.test(origin)
-  ) {
-    return null;
-  }
-  const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
-  if (!secret) return null;
-  if (!token) return "Security check failed. Please try again.";
-
-  const formData = new FormData();
-  formData.append("secret", secret);
-  formData.append("response", token);
-
-  const forwardedFor = req.headers.get("x-forwarded-for") || "";
-  if (forwardedFor) {
-    formData.append("remoteip", forwardedFor.split(",")[0].trim());
-  }
-
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!response.ok) {
-    return "Security check unavailable. Please try again.";
-  }
-
-  const result = await response.json();
-  if (!result.success) {
-    return "Security check failed. Please try again.";
-  }
-
-  return null;
-}

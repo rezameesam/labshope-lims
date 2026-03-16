@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { 
-  Plus, Search, Eye, Receipt, CreditCard, Banknote, 
-  IndianRupee, Calendar, User, FileText, Printer, 
-  CheckCircle, Clock, XCircle, Filter, Download, Edit2, ChevronDown
+  Plus, Search, Eye, Receipt, CreditCard, Banknote,
+  IndianRupee, Calendar, User, FileText, Printer,
+  CheckCircle, Clock, XCircle, Filter, Download, Edit2, ChevronDown, FileSpreadsheet
 } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
+import { DateInput } from "@/components/ui/date-input";
+import { DataPagination } from "@/components/ui/data-pagination";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
@@ -60,7 +63,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
+import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { AbdmCareContextButton } from "@/components/admin/AbdmCareContextButton";
 
 interface Invoice {
   id: string;
@@ -85,6 +91,7 @@ interface Invoice {
     full_name: string;
     patient_id: string;
     phone: string;
+    abha_address?: string | null;
   };
   labs?: {
     id: string;
@@ -166,7 +173,9 @@ interface TestPrice {
 
 const ManageBilling = () => {
   const { hasRole, isCollector } = useAuth();
+  const { branding, organization, loading: organizationLoading } = useOrganization();
   const isAdmin = hasRole("admin");
+  const organizationId = organization?.id ?? null;
   
   // Collectors should not have access to billing
   useEffect(() => {
@@ -175,12 +184,15 @@ const ManageBilling = () => {
     }
   }, [isCollector]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [linkedInvoiceIds, setLinkedInvoiceIds] = useState<Set<string>>(new Set());
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "partial" | "paid">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -267,17 +279,23 @@ const ManageBilling = () => {
     [resolveUserDisplayNames],
   );
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
+    if (!organizationId) {
+      setInvoices([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       // Try to fetch with lab/collection center joins, fallback to basic query if it fails
       let data, error;
       
       try {
-        const result = await supabase
+        let query = supabase
           .from("invoices")
           .select(`
             *,
-            patient:patients(full_name, patient_id, phone),
+            patient:patients(full_name, patient_id, phone, abha_address),
             labs (
               id,
               name,
@@ -290,46 +308,81 @@ const ManageBilling = () => {
             )
           `)
           .order("created_at", { ascending: false });
+
+        query = query.eq("organization_id" as any, organizationId);
+
+        const result = await query;
         
         data = result.data;
         error = result.error;
         
         // If join fails due to missing tables/columns, fallback to basic query
         if (error && (error.code === "PGRST116" || error.code === "42P01" || error.message?.includes("Could not find") || error.message?.includes("relation") || error.code === "400")) {
-          const basicResult = await supabase
+          let basicQuery = supabase
             .from("invoices")
             .select(`
               *,
-              patient:patients(full_name, patient_id, phone)
+              patient:patients(full_name, patient_id, phone, abha_address)
             `)
             .order("created_at", { ascending: false });
+
+          basicQuery = basicQuery.eq("organization_id" as any, organizationId);
+
+          const basicResult = await basicQuery;
           data = basicResult.data;
           error = basicResult.error;
         }
       } catch (err: any) {
         // If join fails, try basic query
-        const basicResult = await supabase
+        let basicQuery = supabase
           .from("invoices")
           .select(`
             *,
-            patient:patients(full_name, patient_id, phone)
+            patient:patients(full_name, patient_id, phone, abha_address)
           `)
           .order("created_at", { ascending: false });
+
+        basicQuery = basicQuery.eq("organization_id" as any, organizationId);
+
+        const basicResult = await basicQuery;
         data = basicResult.data;
         error = basicResult.error;
       }
 
       if (error) throw error;
-      setInvoices((data || []) as Invoice[]);
+      const invoiceList = (data || []) as Invoice[];
+      setInvoices(invoiceList);
+
+      // Fetch which invoices are already linked to ABHA
+      const invoiceIds = invoiceList
+        .filter((inv) => inv.patient?.abha_address)
+        .map((inv) => inv.id);
+      if (invoiceIds.length > 0) {
+        const { data: linkData } = await supabase
+          .from("abdm_care_context_links" as any)
+          .select("invoice_id")
+          .eq("organization_id" as any, organizationId)
+          .in("invoice_id", invoiceIds)
+          .in("link_status", ["linked", "notified"]);
+        const ids = new Set<string>((linkData || []).map((r: any) => r.invoice_id).filter(Boolean));
+        setLinkedInvoiceIds(ids);
+      } else {
+        setLinkedInvoiceIds(new Set());
+      }
     } catch (error) {
       console.error("Error fetching invoices:", error);
       toast.error("Failed to fetch invoices");
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
 
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
+    if (!organizationId) {
+      setPatients([]);
+      return;
+    }
+
     try {
       // Collectors shouldn't access billing, but if they do, restrict to their patients
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -338,6 +391,8 @@ const ManageBilling = () => {
         .from("patients")
         .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
         .eq("is_active", true);
+
+      query = query.eq("organization_id" as any, organizationId);
 
       // Note: Collectors shouldn't be here, but add restriction just in case
       if (isCollector && authUser?.id) {
@@ -351,20 +406,29 @@ const ManageBilling = () => {
     } catch (error) {
       console.error("Error fetching patients:", error);
     }
-  };
+  }, [isCollector, organizationId]);
 
-  const fetchTestsDb = async () => {
+  const fetchTestsDb = useCallback(async () => {
+    if (!organizationId) {
+      setTestsDb([]);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("tests")
         .select("id, name, price");
+
+      query = query.eq("organization_id", organizationId);
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setTestsDb((data || []) as Test[]);
     } catch (error) {
       console.error("Error fetching tests:", error);
     }
-  };
+  }, [organizationId]);
 
   // Filter patients based on search query
   const filteredPatients = patients.filter((patient) => {
@@ -380,11 +444,17 @@ const ManageBilling = () => {
   const selectedPatient = patients.find(p => p.id === selectedPatientId);
 
   const fetchInvoiceItems = async (invoiceId: string) => {
+    if (!organizationId) {
+      setInvoiceItems([]);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("invoice_items")
         .select("id, test_name, unit_price, quantity, amount")
-        .eq("invoice_id", invoiceId);
+        .eq("invoice_id", invoiceId)
+        .eq("organization_id", organizationId);
 
       if (error) throw error;
       setInvoiceItems((data || []) as InvoiceItem[]);
@@ -394,11 +464,17 @@ const ManageBilling = () => {
   };
 
   const fetchPayments = async (invoiceId: string) => {
+    if (!organizationId) {
+      setPayments([]);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("payments")
         .select("id, amount, payment_method, payment_date, transaction_id, notes, received_by")
         .eq("invoice_id", invoiceId)
+        .eq("organization_id", organizationId)
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
@@ -427,11 +503,17 @@ const ManageBilling = () => {
   };
 
   const fetchBillingAudit = async (invoiceId: string) => {
+    if (!organizationId) {
+      setBillingAuditLogs([]);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("billing_audit")
         .select("*")
         .eq("invoice_id", invoiceId)
+        .eq("organization_id", organizationId)
         .order("changed_at", { ascending: false });
 
       if (error) throw error;
@@ -458,9 +540,14 @@ const ManageBilling = () => {
     }
   };
 
-  const fetchPatientTests = async (patientId: string) => {
+  const fetchPatientTests = useCallback(async (patientId: string) => {
+    if (!organizationId) {
+      setPatientTests([]);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("patient_tests")
         .select(`
           id, test_name, test_date, status, test_id,
@@ -468,6 +555,10 @@ const ManageBilling = () => {
         `)
         .eq("patient_id", patientId)
         .order("test_date", { ascending: false });
+
+      query = query.eq("organization_id" as any, organizationId);
+
+      const { data, error } = await query;
 
       if (error) throw error;
       
@@ -479,15 +570,20 @@ const ManageBilling = () => {
         const { data: invoiceItemsData } = await supabase
           .from("invoice_items")
           .select("patient_test_id, invoice_id")
-          .in("patient_test_id", testIds);
+          .in("patient_test_id", testIds)
+          .eq("organization_id", organizationId);
 
         if (invoiceItemsData && invoiceItemsData.length > 0) {
           // Get invoice payment statuses
           const invoiceIds = Array.from(new Set(invoiceItemsData.map(item => item.invoice_id)));
-          const { data: invoicesData } = await supabase
+          let invoicesQuery = supabase
             .from("invoices")
             .select("id, invoice_number, payment_status, final_amount, paid_amount")
             .in("id", invoiceIds);
+
+          invoicesQuery = invoicesQuery.eq("organization_id" as any, organizationId);
+
+          const { data: invoicesData } = await invoicesQuery;
 
           // Create maps for quick lookup
           const testToInvoiceMap = new Map<string, string>();
@@ -535,21 +631,40 @@ const ManageBilling = () => {
     } catch (error) {
       console.error("Error fetching patient tests:", error);
     }
-  };
+  }, [organizationId]);
 
   useEffect(() => {
-    fetchInvoices();
-    fetchPatients();
-    fetchTestsDb();
-  }, []);
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setInvoices([]);
+      setPatients([]);
+      setTestsDb([]);
+      setPatientTests([]);
+      setSelectedPatientId("");
+      setLoading(false);
+      return;
+    }
+
+    void fetchInvoices();
+    void fetchPatients();
+    void fetchTestsDb();
+  }, [fetchInvoices, fetchPatients, fetchTestsDb, organizationId, organizationLoading]);
 
   useEffect(() => {
+    if (!organizationId) {
+      setPatientTests([]);
+      return;
+    }
+
     if (selectedPatientId) {
-      fetchPatientTests(selectedPatientId);
+      void fetchPatientTests(selectedPatientId);
       setSelectedTestIds(new Set());
       setCustomPrices(new Map());
     }
-  }, [selectedPatientId]);
+  }, [fetchPatientTests, organizationId, selectedPatientId]);
 
   // Initialize custom prices when tests are loaded - look up prices from testsDb by test name
   useEffect(() => {
@@ -572,12 +687,6 @@ const ManageBilling = () => {
     });
     setCustomPrices(newPrices);
   }, [patientTests, testsDb]);
-
-  const generateInvoiceNumber = () => {
-    const year = new Date().getFullYear().toString().slice(-2);
-    const random = Math.floor(10000 + Math.random() * 90000);
-    return `INV${year}${random}`;
-  };
 
   const getTestPrice = (testId: string) => {
     return customPrices.get(testId) || 0;
@@ -602,6 +711,11 @@ const ManageBilling = () => {
   };
 
   const handleCreateInvoice = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before creating invoices");
+      return;
+    }
+
     if (!selectedPatientId || selectedTestIds.size === 0) {
       toast.error("Please select a patient and at least one test");
       return;
@@ -635,13 +749,14 @@ const ManageBilling = () => {
       const totalAmount = calculateTotal();
       const appliedDiscount = clampDiscount(discount, totalAmount);
       const finalAmount = totalAmount - appliedDiscount;
-      const invoiceNumber = generateInvoiceNumber();
+      const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
 
       const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
         .insert({
           invoice_number: invoiceNumber,
           patient_id: selectedPatientId,
+          organization_id: organizationId,
           lab_id: selectedPatient?.lab_id || null,
           collection_center_id: selectedPatient?.collection_center_id || null,
           total_amount: totalAmount,
@@ -661,6 +776,7 @@ const ManageBilling = () => {
         const price = getTestPrice(t.id);
         return {
           invoice_id: invoice.id,
+          organization_id: organizationId,
           patient_test_id: t.id,
           test_name: t.test_name,
           unit_price: price,
@@ -687,6 +803,11 @@ const ManageBilling = () => {
   };
 
   const handleRecordPayment = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before recording payments");
+      return;
+    }
+
     if (!selectedInvoice || paymentAmount <= 0) {
       toast.error("Please enter a valid payment amount");
       return;
@@ -701,6 +822,7 @@ const ManageBilling = () => {
         .from("payments")
         .insert({
           invoice_id: selectedInvoice.id,
+          organization_id: organizationId,
           amount: paymentAmount,
           payment_method: paymentMethod,
           transaction_id: transactionId || null,
@@ -722,13 +844,20 @@ const ManageBilling = () => {
           payment_method: paymentMethod,
           paid_at: newStatus === "paid" ? new Date().toISOString() : null,
         })
-        .eq("id", selectedInvoice.id);
+        .eq("id", selectedInvoice.id)
+        .eq("organization_id" as any, organizationId);
 
       if (updateError) throw updateError;
 
       if (newStatus === "paid") {
         const { sendPaymentSuccessNotification } = await import("@/services/notificationService");
-        await sendPaymentSuccessNotification(selectedInvoice.patient_id, paymentAmount, selectedInvoice.invoice_number);
+        await sendPaymentSuccessNotification(
+          selectedInvoice.patient_id,
+          paymentAmount,
+          selectedInvoice.invoice_number,
+          branding.displayName,
+          `${window.location.origin}/auth/patient`
+        );
       }
 
       toast.success("Payment recorded successfully");
@@ -764,6 +893,9 @@ const ManageBilling = () => {
   const openPaymentDialog = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setPaymentAmount(invoice.final_amount - invoice.paid_amount);
+    setPaymentMethod("cash");
+    setTransactionId("");
+    setPaymentNotes("");
     setIsPaymentDialogOpen(true);
   };
 
@@ -781,7 +913,8 @@ const ManageBilling = () => {
     const { data: items, error } = await supabase
       .from("invoice_items")
       .select("id, test_name, unit_price, quantity, amount")
-      .eq("invoice_id", invoice.id);
+      .eq("invoice_id", invoice.id)
+      .eq("organization_id", organizationId);
 
     if (error) {
       toast.error("Failed to load invoice items");
@@ -815,6 +948,10 @@ const ManageBilling = () => {
 
   const handleSaveInvoice = async () => {
     if (!selectedInvoice) return;
+    if (!organizationId) {
+      toast.error("Organization context is required before updating invoices");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -834,12 +971,13 @@ const ManageBilling = () => {
       // Update invoice items
       for (const item of editableItems) {
         const { error } = await supabase
-          .from("invoice_items")
-          .update({
-            unit_price: item.unit_price,
-            amount: item.amount,
-          })
-          .eq("id", item.id);
+        .from("invoice_items")
+        .update({
+          unit_price: item.unit_price,
+          amount: item.amount,
+        })
+        .eq("id", item.id)
+        .eq("organization_id", organizationId);
 
         if (error) throw error;
       }
@@ -856,7 +994,8 @@ const ManageBilling = () => {
           payment_status: newStatus,
           paid_at: newPaidAt,
         })
-        .eq("id", selectedInvoice.id);
+        .eq("id", selectedInvoice.id)
+        .eq("organization_id" as any, organizationId);
 
       if (invoiceError) throw invoiceError;
 
@@ -871,7 +1010,7 @@ const ManageBilling = () => {
             .from("invoices")
             .select(`
               *,
-              patient:patients(full_name, patient_id, phone),
+              patient:patients(full_name, patient_id, phone, abha_address),
               labs (
                 id,
                 name,
@@ -884,6 +1023,7 @@ const ManageBilling = () => {
               )
             `)
             .eq("id", selectedInvoice.id)
+            .eq("organization_id" as any, organizationId)
             .single();
           
           if (!result.error && result.data) {
@@ -900,9 +1040,10 @@ const ManageBilling = () => {
               .from("invoices")
               .select(`
                 *,
-                patient:patients(full_name, patient_id, phone)
+                patient:patients(full_name, patient_id, phone, abha_address)
               `)
               .eq("id", selectedInvoice.id)
+              .eq("organization_id" as any, organizationId)
               .single();
             
             if (!basicResult.error && basicResult.data) {
@@ -994,7 +1135,8 @@ const ManageBilling = () => {
     const { data: items, error } = await supabase
       .from("invoice_items")
       .select("id, test_name, unit_price, quantity, amount")
-      .eq("invoice_id", invoice.id);
+      .eq("invoice_id", invoice.id)
+      .eq("organization_id", organizationId);
 
     if (error) {
       toast.error("Failed to fetch invoice items");
@@ -1005,6 +1147,7 @@ const ManageBilling = () => {
       .from("payments")
       .select("amount, payment_method, payment_date, transaction_id")
       .eq("invoice_id", invoice.id)
+      .eq("organization_id", organizationId)
       .order("payment_date", { ascending: false });
 
     if (paymentError) {
@@ -1022,8 +1165,8 @@ const ManageBilling = () => {
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("IRM Clinical Pathology Laboratory", pageWidth / 2, 28, { align: "center" });
-    doc.text("Zabarpora Budgam, J&K | 9419034607", pageWidth / 2, 34, { align: "center" });
+    doc.text(branding.displayName, pageWidth / 2, 28, { align: "center" });
+    doc.text(`${branding.addressLines.join(", ")} | ${branding.primaryPhone}`, pageWidth / 2, 34, { align: "center" });
     
     // Invoice details
     doc.setFontSize(11);
@@ -1162,10 +1305,15 @@ const ManageBilling = () => {
       invoice.patient?.full_name.toLowerCase().includes(search.toLowerCase()) ||
       invoice.patient?.patient_id.toLowerCase().includes(search.toLowerCase());
     
-    const matchesStatus = 
+    const matchesStatus =
       filterStatus === "all" || invoice.payment_status === filterStatus;
 
-    return matchesSearch && matchesStatus;
+    const invDate = invoice.created_at ? invoice.created_at.slice(0, 10) : null;
+    const matchesDate =
+      (!dateFrom || (invDate && invDate >= dateFrom)) &&
+      (!dateTo || (invDate && invDate <= dateTo));
+
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
@@ -1176,7 +1324,7 @@ const ManageBilling = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterStatus]);
+  }, [search, filterStatus, dateFrom, dateTo]);
 
   useEffect(() => {
     if (currentPage !== safePage) {
@@ -1250,8 +1398,8 @@ const ManageBilling = () => {
       </div>
 
       {/* Header with search and filters */}
-      <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
-        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
           <div className="relative max-w-sm">
             <Label htmlFor="billing-search" className="sr-only">
               Search invoices
@@ -1275,17 +1423,73 @@ const ManageBilling = () => {
               <TabsTrigger value="paid">Paid</TabsTrigger>
             </TabsList>
           </Tabs>
+          <DateInput
+            id="billing-date-from"
+            value={dateFrom}
+            onChange={setDateFrom}
+            placeholder="From date"
+            className="w-[150px]"
+            showFormatHint
+          />
+          <DateInput
+            id="billing-date-to"
+            value={dateTo}
+            onChange={setDateTo}
+            placeholder="To date"
+            className="w-[150px]"
+            showFormatHint
+          />
+          {(dateFrom || dateTo) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="text-muted-foreground"
+            >
+              Clear dates ×
+            </Button>
+          )}
         </div>
 
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-clinical-navy hover:bg-clinical-navy/90">
-          <Plus className="h-4 w-4 mr-2" />
-          Create Invoice
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              exportToExcel("invoices", [
+                { key: "invoice_number", label: "Invoice #" },
+                { key: "patient_name", label: "Patient" },
+                { key: "patient_phone", label: "Phone" },
+                { key: "final_amount", label: "Amount (₹)" },
+                { key: "paid_amount", label: "Paid (₹)" },
+                { key: "balance", label: "Balance (₹)" },
+                { key: "payment_status", label: "Status" },
+                { key: "payment_method", label: "Payment Method" },
+                { key: "created_at", label: "Date" },
+              ], filteredInvoices.map(inv => ({
+                ...inv,
+                patient_name: inv.patient?.full_name ?? "",
+                patient_phone: inv.patient?.phone ?? "",
+                balance: inv.final_amount - inv.paid_amount,
+                created_at: inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-IN") : "",
+              })))
+            }
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-clinical-navy hover:bg-clinical-navy/90">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Invoice
+          </Button>
+        </div>
       </div>
 
       {/* Invoices Table */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -1327,9 +1531,20 @@ const ManageBilling = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {invoice.patient?.abha_address && organizationId && (
+                          <AbdmCareContextButton
+                            organizationId={organizationId}
+                            patientId={invoice.patient_id}
+                            invoiceId={invoice.id}
+                            careContextReference={invoice.invoice_number || invoice.id}
+                            careContextDisplay={`Invoice ${invoice.invoice_number} — ${invoice.patient?.full_name}`}
+                            abhaAddress={invoice.patient?.abha_address ?? null}
+                            initialLinked={linkedInvoiceIds.has(invoice.id)}
+                          />
+                        )}
                         {invoice.payment_status !== "paid" && (
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             onClick={() => openPaymentDialog(invoice)}
                             className="gap-1"
                           >
@@ -1370,51 +1585,14 @@ const ManageBilling = () => {
               )}
             </TableBody>
           </Table>
-          {filteredInvoices.length > 0 && (
-            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredInvoices.length)} of{" "}
-                {filteredInvoices.length}
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Rows</span>
-                  <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                    <SelectTrigger className="h-8 w-[90px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={safePage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={safePage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
+          <DataPagination
+            total={filteredInvoices.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </CardContent>
       </Card>
 

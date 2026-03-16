@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -30,6 +30,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday, addDays, differenceInDays } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 import { formatAppDate } from "@/lib/date";
 
@@ -62,6 +63,11 @@ interface NoticeBoardProps {
 
 const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
   const { user, isCollector } = useAuth();
+  const { organization, loading: organizationLoading } = useOrganization();
+  const onStatsChangeRef = useRef(onStatsChange);
+  useEffect(() => {
+    onStatsChangeRef.current = onStatsChange;
+  });
   const [loading, setLoading] = useState(true);
   const [notices, setNotices] = useState<NoticeItem[]>([]);
   const [stats, setStats] = useState<NoticeStats>({
@@ -75,14 +81,23 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
   });
   const [activeTab, setActiveTab] = useState<"all" | "tests" | "reminders" | "invoices">("all");
 
-  useEffect(() => {
-    fetchNotices();
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchNotices, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const fetchNotices = useCallback(async () => {
+    if (!organization?.id) {
+      setNotices([]);
+      setStats({
+        pendingTests: 0,
+        overdueTests: 0,
+        upcomingReminders: 0,
+        overdueReminders: 0,
+        pendingInvoices: 0,
+        overdueInvoices: 0,
+        totalActionItems: 0,
+      });
+      setLoading(false);
+      onStatsChangeRef.current?.(0);
+      return;
+    }
 
-  const fetchNotices = async () => {
     setLoading(true);
     try {
       const noticesList: NoticeItem[] = [];
@@ -116,6 +131,8 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         testsQuery = testsQuery.eq("collected_by", user?.id);
       }
 
+      testsQuery = testsQuery.eq("organization_id" as any, organization.id);
+
       const { data: tests, error: testsError } = await testsQuery;
 
       if (!testsError && tests) {
@@ -148,7 +165,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       }
 
       // Fetch upcoming and overdue reminders
-      const { data: reminders, error: remindersError } = await supabase
+      let remindersQuery = supabase
         .from("patient_reminders")
         .select(`
           id,
@@ -162,6 +179,10 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         .eq("is_completed", false)
         .order("reminder_date", { ascending: true })
         .limit(50);
+
+      remindersQuery = remindersQuery.eq("organization_id" as any, organization.id);
+
+      const { data: reminders, error: remindersError } = await remindersQuery;
 
       if (!remindersError && reminders) {
         reminders.forEach((reminder) => {
@@ -193,7 +214,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       }
 
       // Fetch pending invoices
-      const { data: invoices, error: invoicesError } = await supabase
+      let invoicesQuery = supabase
         .from("invoices")
         .select(`
           id,
@@ -207,6 +228,10 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         .neq("payment_status", "paid")
         .order("created_at", { ascending: true })
         .limit(50);
+
+      invoicesQuery = invoicesQuery.eq("organization_id" as any, organization.id);
+
+      const { data: invoices, error: invoicesError } = await invoicesQuery;
 
       if (!invoicesError && invoices) {
         invoices.forEach((invoice) => {
@@ -252,14 +277,26 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       statsData.totalActionItems = noticesList.length;
       setNotices(noticesList);
       setStats(statsData);
-      onStatsChange?.(statsData.totalActionItems);
+      onStatsChangeRef.current?.(statsData.totalActionItems);
     } catch (error: any) {
       console.error("Error fetching notices:", error);
       toast.error("Failed to load notice board");
     } finally {
       setLoading(false);
     }
-  };
+  }, [isCollector, organization?.id, user?.id]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    void fetchNotices();
+    const interval = setInterval(() => {
+      void fetchNotices();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchNotices, organizationLoading]);
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {

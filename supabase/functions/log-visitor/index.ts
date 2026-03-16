@@ -14,6 +14,9 @@ type ConsentPayload = {
   ads?: boolean;
 };
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
 
 const normalizeCountryCode = (value: unknown): string | null => {
@@ -68,6 +71,104 @@ const resolveCountryName = (countryCode: string | null, countryNameFromBody: unk
   }
 };
 
+const normalizeHostname = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/:\d+$/, "");
+};
+
+const extractHostname = (value: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return normalizeHostname(new URL(value).hostname);
+  } catch {
+    return null;
+  }
+};
+
+const getSlugCandidate = (hostname: string | null): string | null => {
+  if (!hostname) {
+    return null;
+  }
+
+  if (hostname.endsWith(".localhost")) {
+    const slug = hostname.slice(0, -".localhost".length).trim();
+    return slug || null;
+  }
+
+  const configuredBaseDomain =
+    normalizeHostname(Deno.env.get("PUBLIC_BASE_DOMAIN")) ||
+    normalizeHostname(Deno.env.get("VITE_PUBLIC_BASE_DOMAIN"));
+
+  if (configuredBaseDomain && hostname.endsWith(`.${configuredBaseDomain}`)) {
+    const slug = hostname.slice(0, -(configuredBaseDomain.length + 1)).trim();
+    return slug || null;
+  }
+
+  return null;
+};
+
+const resolveOrganizationId = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  explicitOrganizationId: string | null,
+  hostname: string | null,
+): Promise<string | null> => {
+  if (hostname) {
+    const { data: domainMatch, error: domainError } = await supabaseAdmin
+      .from("organization_domains")
+      .select("organization_id")
+      .eq("domain", hostname)
+      .order("is_primary", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!domainError && domainMatch?.organization_id) {
+      return domainMatch.organization_id as string;
+    }
+
+    const slugCandidate = getSlugCandidate(hostname);
+    if (slugCandidate) {
+      const { data: organizationMatch, error: organizationError } = await supabaseAdmin
+        .from("organizations")
+        .select("id")
+        .eq("slug", slugCandidate)
+        .in("status", ["trial", "active"])
+        .limit(1)
+        .maybeSingle();
+
+      if (!organizationError && organizationMatch?.id) {
+        return organizationMatch.id as string;
+      }
+    }
+  }
+
+  if (explicitOrganizationId && UUID_PATTERN.test(explicitOrganizationId)) {
+    const { data: organizationMatch, error: organizationError } = await supabaseAdmin
+      .from("organizations")
+      .select("id")
+      .eq("id", explicitOrganizationId)
+      .in("status", ["trial", "active"])
+      .limit(1)
+      .maybeSingle();
+
+    if (!organizationError && organizationMatch?.id) {
+      return organizationMatch.id as string;
+    }
+  }
+
+  return null;
+};
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -90,6 +191,12 @@ serve(async (req: Request) => {
     const path = typeof body.path === "string" ? body.path : null;
     const referrer = typeof body.referrer === "string" ? body.referrer : null;
     const consent = typeof body.consent === "object" ? (body.consent as ConsentPayload) : null;
+    const explicitOrganizationId =
+      typeof body.organization_id === "string" ? body.organization_id.trim() : null;
+    const hostname =
+      normalizeHostname(body.hostname) ||
+      extractHostname(req.headers.get("origin")) ||
+      extractHostname(referrer);
 
     const forwardedFor = req.headers.get("x-forwarded-for") || "";
     const ip = forwardedFor.split(",")[0]?.trim() || req.headers.get("x-real-ip") || null;
@@ -107,8 +214,14 @@ serve(async (req: Request) => {
       normalizeCountryCode(countryHeader) ||
       parseCountryFromAcceptLanguage(acceptLanguage);
     const countryName = resolveCountryName(countryCode, body.country_name);
+    const organizationId = await resolveOrganizationId(
+      supabaseAdmin,
+      explicitOrganizationId,
+      hostname,
+    );
 
     const insertPayload = {
+      organization_id: organizationId,
       event_type: eventType,
       path,
       referrer,
@@ -121,6 +234,7 @@ serve(async (req: Request) => {
     let { error } = await supabaseAdmin.from("visitor_logs").insert(insertPayload);
     if (error && (String(error.message || "").includes("country_code") || String(error.message || "").includes("country_name"))) {
       const fallbackPayload = {
+        organization_id: organizationId,
         event_type: eventType,
         path,
         referrer,

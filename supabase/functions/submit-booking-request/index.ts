@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthenticatedUserFromRequest, verifyTurnstile } from "../_shared/patient-auth.ts";
+import { fetchOrganizationBranding } from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +12,10 @@ const corsHeaders = {
 const MAX_ADDRESS_LENGTH = 250;
 const MAX_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 200;
-const BOOKING_ALERT_EMAIL = "irmclinic@gmail.com";
+const BOOKING_ALERT_EMAIL =
+  Deno.env.get("BOOKING_ALERT_EMAIL")?.trim() ||
+  Deno.env.get("DEFAULT_FROM_EMAIL")?.trim() ||
+  "support@example.com";
 
 interface SubmitBookingRequestBody {
   full_name: string;
@@ -24,8 +28,20 @@ interface SubmitBookingRequestBody {
   preferred_date?: string | null;
   lab_id?: string | null;
   collection_center_id?: string | null;
+  organization_id?: string | null;
   turnstile_token?: string;
 }
+
+type OrganizationScopedLab = {
+  id: string;
+  organization_id: string | null;
+};
+
+type OrganizationScopedCenter = {
+  id: string;
+  lab_id: string | null;
+  organization_id: string | null;
+};
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -42,6 +58,7 @@ serve(async (req: Request): Promise<Response> => {
           phone: string;
           email: string | null;
           address: string | null;
+          organization_id: string | null;
         }
       | null = null;
 
@@ -69,7 +86,7 @@ serve(async (req: Request): Promise<Response> => {
     if (authenticated?.user?.id) {
       const { data: patientRecord, error: patientError } = await supabaseAdmin
         .from("patients")
-        .select("id, full_name, phone, email, address")
+        .select("id, full_name, phone, email, address, organization_id")
         .eq("user_id", authenticated.user.id)
         .eq("is_active", true)
         .maybeSingle();
@@ -98,6 +115,7 @@ serve(async (req: Request): Promise<Response> => {
     const preferredDate = (body.preferred_date || "").trim();
     const labId = (body.lab_id || "").trim();
     const collectionCenterId = (body.collection_center_id || "").trim();
+    const organizationId = (body.organization_id || "").trim();
 
     if (!fullName || !phone) {
       return jsonResponse({ error: "Full name and phone number are required." }, 400);
@@ -123,6 +141,83 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Address is required for home collection." }, 400);
     }
 
+    let resolvedOrganizationId = portalPatient?.organization_id || organizationId || null;
+    let resolvedLabId = labId || null;
+    let resolvedCollectionCenterId = collectionCenterId || null;
+
+    let selectedLab: OrganizationScopedLab | null = null;
+    if (resolvedLabId) {
+      const { data: labRecord, error: labError } = await supabaseAdmin
+        .from("labs")
+        .select("id, organization_id")
+        .eq("id", resolvedLabId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (labError || !labRecord) {
+        return jsonResponse({ error: "Selected lab is invalid." }, 400);
+      }
+
+      selectedLab = labRecord as OrganizationScopedLab;
+      resolvedOrganizationId = resolvedOrganizationId || selectedLab.organization_id || null;
+    }
+
+    let selectedCollectionCenter: OrganizationScopedCenter | null = null;
+    if (resolvedCollectionCenterId) {
+      const { data: centerRecord, error: centerError } = await supabaseAdmin
+        .from("collection_centers")
+        .select("id, lab_id, organization_id")
+        .eq("id", resolvedCollectionCenterId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (centerError || !centerRecord) {
+        return jsonResponse({ error: "Selected collection center is invalid." }, 400);
+      }
+
+      selectedCollectionCenter = centerRecord as OrganizationScopedCenter;
+      resolvedOrganizationId = resolvedOrganizationId || selectedCollectionCenter.organization_id || null;
+
+      if (!resolvedLabId && selectedCollectionCenter.lab_id) {
+        resolvedLabId = selectedCollectionCenter.lab_id;
+      }
+    }
+
+    if (!resolvedOrganizationId) {
+      const { data: defaultOrganization } = await supabaseAdmin
+        .from("organizations")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      resolvedOrganizationId = defaultOrganization?.id || null;
+    }
+
+    if (
+      resolvedOrganizationId &&
+      selectedLab?.organization_id &&
+      selectedLab.organization_id !== resolvedOrganizationId
+    ) {
+      return jsonResponse({ error: "Selected lab does not belong to the resolved organization." }, 400);
+    }
+
+    if (
+      resolvedOrganizationId &&
+      selectedCollectionCenter?.organization_id &&
+      selectedCollectionCenter.organization_id !== resolvedOrganizationId
+    ) {
+      return jsonResponse({ error: "Selected collection center does not belong to the resolved organization." }, 400);
+    }
+
+    if (
+      selectedLab?.id &&
+      selectedCollectionCenter?.lab_id &&
+      selectedCollectionCenter.lab_id !== selectedLab.id
+    ) {
+      return jsonResponse({ error: "Selected collection center does not belong to the selected lab." }, 400);
+    }
+
     const insertPayload = {
       full_name: fullName,
       phone,
@@ -132,8 +227,9 @@ serve(async (req: Request): Promise<Response> => {
       test_details: testDetails || null,
       notes: notes || null,
       preferred_date: preferredDate || null,
-      lab_id: labId || null,
-      collection_center_id: collectionCenterId || null,
+      lab_id: resolvedLabId,
+      collection_center_id: resolvedCollectionCenterId,
+      organization_id: resolvedOrganizationId,
       patient_id: portalPatient?.id || null,
       source: portalPatient ? "patient_portal" : "website",
       status: "new",
@@ -146,9 +242,19 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Failed to submit booking request." }, 500);
     }
 
-    const alertEmail = Deno.env.get("BOOKING_ALERT_EMAIL")?.trim() || BOOKING_ALERT_EMAIL;
+    const organizationBranding = await fetchOrganizationBranding(
+      supabaseUrl,
+      serviceRoleKey,
+      resolvedOrganizationId,
+    );
+
+    const alertEmail =
+      organizationBranding?.primaryEmail?.trim() ||
+      Deno.env.get("BOOKING_ALERT_EMAIL")?.trim() ||
+      BOOKING_ALERT_EMAIL;
+
     if (alertEmail) {
-      const emailSubject = `New booking request: ${fullName}`;
+      const emailSubject = `New booking request${organizationBranding?.displayName ? ` - ${organizationBranding.displayName}` : ""}: ${fullName}`;
       const emailHtml = buildBookingAlertEmail({
         fullName,
         phone,
@@ -158,8 +264,9 @@ serve(async (req: Request): Promise<Response> => {
         testDetails: testDetails || null,
         notes: notes || null,
         preferredDate: preferredDate || null,
-        labId: labId || null,
-        collectionCenterId: collectionCenterId || null,
+        labId: resolvedLabId,
+        collectionCenterId: resolvedCollectionCenterId,
+        organizationName: organizationBranding?.displayName || null,
         source: portalPatient ? "patient_portal" : "website",
         patientRecordId: portalPatient?.id || null,
       });
@@ -167,7 +274,10 @@ serve(async (req: Request): Promise<Response> => {
       try {
         const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-service-key": serviceRoleKey,
+          },
           body: JSON.stringify({
             to: alertEmail,
             subject: emailSubject,
@@ -181,8 +291,9 @@ serve(async (req: Request): Promise<Response> => {
               testDetails: testDetails || null,
               notes: notes || null,
               preferredDate: preferredDate || null,
-              labId: labId || null,
-              collectionCenterId: collectionCenterId || null,
+              labId: resolvedLabId,
+              collectionCenterId: resolvedCollectionCenterId,
+              organizationName: organizationBranding?.displayName || null,
               source: portalPatient ? "patient_portal" : "website",
               patientRecordId: portalPatient?.id || null,
             }),
@@ -226,6 +337,7 @@ type BookingAlertPayload = {
   preferredDate: string | null;
   labId: string | null;
   collectionCenterId: string | null;
+  organizationName: string | null;
   source: string;
   patientRecordId: string | null;
 };
@@ -236,6 +348,7 @@ function buildBookingAlertEmail(payload: BookingAlertPayload): string {
     : null;
 
   const rows = [
+    ["Organization", payload.organizationName || "Default organization"],
     ["Patient Name", payload.fullName],
     ["Phone", payload.phone],
     ["Email", payload.email || "Not provided"],
@@ -280,6 +393,7 @@ function buildBookingAlertEmail(payload: BookingAlertPayload): string {
 function buildBookingAlertText(payload: BookingAlertPayload): string {
   return [
     "New Booking Request",
+    `Organization: ${payload.organizationName || "Default organization"}`,
     `Patient Name: ${payload.fullName}`,
     `Phone: ${payload.phone}`,
     `Email: ${payload.email || "Not provided"}`,

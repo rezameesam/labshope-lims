@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatAppDate } from "@/lib/date";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface TestResult {
   id: string;
@@ -86,6 +87,7 @@ interface TestResultsTableProps {
   tests: TestResult[];
   patient: PatientInfo;
   patientDbId?: string;
+  patientOrganizationId?: string | null;
   loading?: boolean;
   onPayNow?: () => void;
 }
@@ -94,7 +96,9 @@ type CompletedResultRow =
   | { kind: "single"; test: TestResult }
   | { kind: "package"; groupId: string; tests: TestResult[] };
 
-const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: TestResultsTableProps) => {
+const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, loading, onPayNow }: TestResultsTableProps) => {
+  const { organization, branding } = useOrganization();
+  const resolvedOrganizationId = patientOrganizationId || organization?.id || null;
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
@@ -118,16 +122,21 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
   // Check for outstanding dues
   useEffect(() => {
     const checkPaymentStatus = async () => {
-      if (!patientDbId) {
+      if (!patientDbId || !resolvedOrganizationId) {
         setCheckingPayment(false);
+        setHasOutstandingDues(false);
+        setOutstandingAmount(0);
         return;
       }
 
       try {
-        const { data: invoices, error } = await supabase
+        const invoicesQuery = supabase
           .from("invoices")
           .select("final_amount, paid_amount, payment_status")
-          .eq("patient_id", patientDbId);
+          .eq("patient_id", patientDbId)
+          .eq("organization_id" as any, resolvedOrganizationId);
+
+        const { data: invoices, error } = await invoicesQuery;
 
         if (error) throw error;
 
@@ -144,19 +153,6 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
         
         const outstanding = totalBilled - totalPaid;
 
-        // Debug logging
-        console.log("Payment Status Check:", {
-          invoicesCount: invoices?.length || 0,
-          totalBilled,
-          totalPaid,
-          outstanding,
-          invoices: invoices?.map(inv => ({
-            final: inv.final_amount,
-            paid: inv.paid_amount,
-            status: inv.payment_status
-          }))
-        });
-
         setHasOutstandingDues(outstanding > 0);
         setOutstandingAmount(Math.max(0, outstanding)); // Ensure non-negative
       } catch (error) {
@@ -167,15 +163,17 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
     };
 
     checkPaymentStatus();
-  }, [patientDbId]);
+  }, [resolvedOrganizationId, patientDbId]);
 
   // Filter tests by date range
   const dateFilteredTests = useMemo(() => {
     if (!startDate && !endDate) return completedTests;
     
     return completedTests.filter(test => {
+      if (!test.test_date) return false;
       const testDate = parseISO(test.test_date);
-      
+      if (isNaN(testDate.getTime())) return false;
+
       if (startDate && endDate) {
         return isWithinInterval(testDate, {
           start: startOfDay(parseISO(startDate)),
@@ -383,7 +381,20 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             collection_center_code: t.collection_centers?.code,
           })),
           enteredByLabel,
-          options
+          options,
+          undefined,
+          {
+            organizationId: resolvedOrganizationId || undefined,
+            name: branding.displayName,
+            tagline: branding.tagline,
+            address: branding.addressLines.join(", "),
+            phone: branding.phoneNumbers.join(" | "),
+            email: branding.email,
+            website: branding.website,
+            logoUrl: branding.logoUrl,
+            reportTagline: branding.reportTagline,
+            reportFooterNote: branding.reportFooterNote,
+          }
         );
 
         if (success) {
@@ -455,7 +466,20 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             collection_center_code: t.collection_centers?.code,
           })),
           enteredByLabel,
-          options
+          options,
+          undefined,
+          {
+            organizationId: resolvedOrganizationId || undefined,
+            name: branding.displayName,
+            tagline: branding.tagline,
+            address: branding.addressLines.join(", "),
+            phone: branding.phoneNumbers.join(" | "),
+            email: branding.email,
+            website: branding.website,
+            logoUrl: branding.logoUrl,
+            reportTagline: branding.reportTagline,
+            reportFooterNote: branding.reportFooterNote,
+          }
         );
 
         if (success) {
@@ -525,7 +549,21 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
             collection_center_name: test.collection_centers?.name,
             collection_center_code: test.collection_centers?.code,
           }],
-          test.entered_by_name
+          test.entered_by_name,
+          undefined,
+          undefined,
+          {
+            organizationId: resolvedOrganizationId || undefined,
+            name: branding.displayName,
+            tagline: branding.tagline,
+            address: branding.addressLines.join(", "),
+            phone: branding.phoneNumbers.join(" | "),
+            email: branding.email,
+            website: branding.website,
+            logoUrl: branding.logoUrl,
+            reportTagline: branding.reportTagline,
+            reportFooterNote: branding.reportFooterNote,
+          }
         );
 
         if (success) {
@@ -715,33 +753,6 @@ const TestResultsTable = ({ tests, patient, patientDbId, loading, onPayNow }: Te
 
   return (
     <div className="space-y-6">
-      {/* Outstanding Dues Warning */}
-      {hasOutstandingDues && (
-        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <Lock className="h-5 w-5 text-amber-600" />
-              <div className="flex-1">
-                <p className="font-semibold text-amber-900 dark:text-amber-100">Outstanding Dues</p>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  You have outstanding dues of ₹{outstandingAmount.toLocaleString()}. Please clear your dues to download test reports.
-                </p>
-              </div>
-              {onPayNow && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onPayNow}
-                  className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                >
-                  Pay Now
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Completed Tests */}
       <Card>
         <CardHeader>

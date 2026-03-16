@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
+import { getPublicHostname, getPublicSlugCandidate } from "@/lib/publicTenant";
 
 type UserRole = "admin" | "employee" | "patient" | "collector";
 
@@ -11,6 +12,7 @@ interface AuthContextType {
   currentSessionId: string | null;
   loading: boolean;
   roles: UserRole[];
+  staffPasswordResetRequired: boolean;
   signIn: (
     email: string,
     password: string,
@@ -20,6 +22,8 @@ interface AuthContextType {
     roles?: UserRole[];
     isStaff?: boolean;
     isCollector?: boolean;
+    requiresPasswordReset?: boolean;
+    firstLoginFlow?: string | null;
   }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -36,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<UserRole[]>([]);
+  const [staffPasswordResetRequired, setStaffPasswordResetRequired] = useState(false);
   const roleRequestIdRef = useRef(0);
 
   const fetchUserRoles = async (userId: string) => {
@@ -63,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const syncRolesForSession = (nextSession: Session | null) => {
       const requestId = ++roleRequestIdRef.current;
       setRoles([]);
+      setStaffPasswordResetRequired(Boolean(nextSession?.user?.user_metadata?.must_change_password));
 
       if (!nextSession?.user) {
         return;
@@ -119,6 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email,
           password,
           turnstile_token: turnstileToken,
+          organization_slug: getPublicSlugCandidate(getPublicHostname()),
         }),
       });
 
@@ -148,6 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!nextSession?.user) {
         setRoles([]);
+        setStaffPasswordResetRequired(false);
         return { error: null };
       }
 
@@ -156,6 +164,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         : await fetchUserRoles(nextSession.user.id);
 
       setRoles(nextRoles);
+      const requiresPasswordReset = Boolean(nextSession.user.user_metadata?.must_change_password);
+      setStaffPasswordResetRequired(requiresPasswordReset);
 
       return {
         error: null,
@@ -165,6 +175,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           nextRoles.includes("collector") &&
           !nextRoles.includes("admin") &&
           !nextRoles.includes("employee"),
+        requiresPasswordReset,
+        firstLoginFlow: typeof result.first_login_flow === "string" ? result.first_login_flow : null,
       };
     } catch (error) {
       return { error: error as Error };
@@ -186,8 +198,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
     setRoles([]);
     setCurrentSessionId(null);
+    setStaffPasswordResetRequired(false);
   };
 
   const hasRole = (role: UserRole) => roles.includes(role);
@@ -280,6 +295,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         currentSessionId,
         loading,
         roles,
+        staffPasswordResetRequired,
         signIn,
         signUp,
         signOut,

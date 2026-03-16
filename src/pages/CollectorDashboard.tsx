@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import ManagePatients from "@/components/admin/ManagePatients";
@@ -24,7 +25,8 @@ type TabType = "overview" | "patients" | "tests" | "security";
 
 const CollectorDashboard = () => {
   const navigate = useNavigate();
-  const { user, signOut, loading, hasRole, isCollector } = useAuth();
+  const { user, signOut, loading, hasRole, isCollector, staffPasswordResetRequired } = useAuth();
+  const { branding } = useOrganization();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -35,11 +37,16 @@ const CollectorDashboard = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
+    if (!loading && user && staffPasswordResetRequired) {
+      navigate("/staff/reset-password?first_login=1", { replace: true });
+      return;
+    }
+
     if (!loading && user && !isCollector && !hasRole("admin") && !hasRole("employee")) {
       toast.error("Access denied. Collector access only.");
       navigate("/", { replace: true });
     }
-  }, [user, loading, isCollector, hasRole, navigate]);
+  }, [user, loading, isCollector, hasRole, navigate, staffPasswordResetRequired]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,10 +84,10 @@ const CollectorDashboard = () => {
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img src={logo} alt="IRM Clinic" className="h-8 w-8" />
+              <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-8 w-8" />
               <div>
                 <h1 className="font-heading font-bold text-clinical-navy text-lg">
-                  IRM Clinic
+                  {branding.displayName}
                 </h1>
                 <p className="text-xs text-muted-foreground">Sample Collection</p>
               </div>

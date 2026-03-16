@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Phone, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.png";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const navLinks = [
   { name: "Home", href: "/" },
@@ -17,6 +18,7 @@ const navLinks = [
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { branding } = useOrganization();
 
   const isActiveLink = (href: string) => {
     if (href === "/") {
@@ -36,12 +38,12 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="IRM Clinical Laboratory" className="h-14 w-14" />
+            <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-14 w-14" />
             <div className="hidden sm:block">
               <h1 className="text-lg font-heading font-bold text-clinical-navy leading-tight">
-                IRM Clinical
+                {branding.shortName}
               </h1>
-              <p className="text-xs text-muted-foreground">Laboratory</p>
+              <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>
             </div>
           </Link>
 
@@ -63,9 +65,9 @@ const Navbar = () => {
 
           {/* Desktop CTA */}
           <div className="hidden lg:flex items-center gap-3">
-            <a href="tel:9419034607" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
+            <a href={`tel:${branding.primaryPhone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
               <Phone className="h-4 w-4" />
-              <span>9419034607</span>
+              <span>{branding.primaryPhone}</span>
             </a>
             <Link to="/auth/staff">
               <Button variant="outline" size="sm">
@@ -118,11 +120,11 @@ const Navbar = () => {
                 ))}
                 <div className="pt-3 px-4 space-y-3 border-t border-border">
                   <a
-                    href="tel:9419034607"
+                    href={`tel:${branding.primaryPhone}`}
                     className="flex items-center gap-2 text-sm text-muted-foreground"
                   >
                     <Phone className="h-4 w-4" />
-                    <span>9419034607</span>
+                    <span>{branding.primaryPhone}</span>
                   </a>
                   <div className="flex gap-2">
                     <Link to="/auth/staff" className="flex-1">

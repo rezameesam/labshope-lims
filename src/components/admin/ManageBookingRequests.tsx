@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Link2, RefreshCcw, Search, UserPlus } from "lucide-react";
+import { Link2, RefreshCcw, Search, UserPlus, FileSpreadsheet } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
+import { DateInput } from "@/components/ui/date-input";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
@@ -40,6 +43,8 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useLab } from "@/contexts/LabContext";
 import { DEFAULT_COUNTRY_CODE, getPhoneLookupVariants, normalizePhoneNumber } from "@/lib/phone";
 
 type BookingRequestRow = Database["public"]["Tables"]["booking_requests"]["Row"];
@@ -109,6 +114,17 @@ interface ManageBookingRequestsProps {
 
 const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) => {
   const { user } = useAuth();
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
+  const { currentLab } = useLab();
+
+  // Stable ref so onCountChange never needs to be a useCallback/useEffect dependency.
+  // Inline arrow functions passed from the parent create a new reference on every render,
+  // which would cause fetchRequests to be recreated → infinite fetch loop.
+  const onCountChangeRef = useRef(onCountChange);
+  useEffect(() => {
+    onCountChangeRef.current = onCountChange;
+  });
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,6 +132,8 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewStatus, setReviewStatus] = useState("new");
@@ -125,10 +143,18 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
   const [searchingPatients, setSearchingPatients] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
+    if (!organizationId) {
+      setRequests([]);
+      onCountChangeRef.current?.(0);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("booking_requests")
         .select(`
           *,
@@ -151,13 +177,17 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         `)
         .order("created_at", { ascending: false });
 
+      query = query.eq("organization_id" as any, organizationId);
+
+      const { data, error } = await query;
+
       if (error) {
         throw error;
       }
 
       const nextRequests = (data || []) as BookingRequest[];
       setRequests(nextRequests);
-      onCountChange?.(nextRequests.filter((request) => request.status === "new").length);
+      onCountChangeRef.current?.(nextRequests.filter((request) => request.status === "new").length);
     } catch (error: any) {
       console.error("Error fetching booking requests:", error);
       toast.error(error.message || "Failed to fetch booking requests");
@@ -165,19 +195,36 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [organizationId]);
 
   useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setRequests([]);
+      setMatchingPatients([]);
+      setManualResults([]);
+      setLoading(false);
+      onCountChangeRef.current?.(0);
+      return;
+    }
+
     void fetchRequests();
-  }, []);
+  }, [fetchRequests, organizationId, organizationLoading]);
 
   const filteredRequests = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return requests.filter((request) => {
       const matchesStatus = statusFilter === "all" || request.status === statusFilter;
+      const reqDate = request.created_at ? request.created_at.slice(0, 10) : null;
+      const matchesDate =
+        (!dateFrom || (reqDate && reqDate >= dateFrom)) &&
+        (!dateTo || (reqDate && reqDate <= dateTo));
       if (!query) {
-        return matchesStatus;
+        return matchesStatus && matchesDate;
       }
 
       const haystack = [
@@ -192,9 +239,9 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         .join(" ")
         .toLowerCase();
 
-      return matchesStatus && haystack.includes(query);
+      return matchesStatus && matchesDate && haystack.includes(query);
     });
-  }, [requests, search, statusFilter]);
+  }, [requests, search, statusFilter, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -204,7 +251,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, pageSize]);
+  }, [search, statusFilter, pageSize, dateFrom, dateTo]);
 
   useEffect(() => {
     if (currentPage !== safePage) {
@@ -231,18 +278,27 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
   }, [requests]);
 
   const fetchPatientsByPhone = async (phone: string) => {
+    if (!organizationId) {
+      setMatchingPatients([]);
+      return;
+    }
+
     const variants = getPhoneLookupVariants(phone, DEFAULT_COUNTRY_CODE);
     if (variants.length === 0) {
       setMatchingPatients([]);
       return;
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("patients")
       .select("id, patient_id, full_name, phone, address, email, created_at")
       .in("phone", variants)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
+
+    query = query.eq("organization_id" as any, organizationId);
+
+    const { data, error } = await query;
 
     if (error) {
       throw error;
@@ -270,6 +326,12 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
   };
 
   const handleManualSearch = async () => {
+    if (!organizationId) {
+      setManualResults([]);
+      toast.error("Organization context is required before searching patients");
+      return;
+    }
+
     const query = manualSearch.trim();
     if (query.length < 2) {
       toast.error("Enter at least 2 characters to search patients");
@@ -279,7 +341,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
     setSearchingPatients(true);
     try {
       const sanitized = query.replace(/,/g, " ");
-      const { data, error } = await supabase
+      let patientQuery = supabase
         .from("patients")
         .select("id, patient_id, full_name, phone, address, email, created_at")
         .eq("is_active", true)
@@ -288,6 +350,10 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         )
         .order("created_at", { ascending: false })
         .limit(10);
+
+      patientQuery = patientQuery.eq("organization_id" as any, organizationId);
+
+      const { data, error } = await patientQuery;
 
       if (error) {
         throw error;
@@ -307,7 +373,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       const nextRequests = current.map((request) =>
         request.id === requestId ? { ...request, ...updates } : request,
       );
-      onCountChange?.(nextRequests.filter((request) => request.status === "new").length);
+      onCountChangeRef.current?.(nextRequests.filter((request) => request.status === "new").length);
       return nextRequests;
     });
     setSelectedRequest((current) =>
@@ -319,13 +385,18 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
     if (!selectedRequest) {
       return;
     }
+    if (!organizationId) {
+      toast.error("Organization context is required before updating booking requests");
+      return;
+    }
 
     setSaving(true);
     try {
       const { error } = await supabase
         .from("booking_requests")
         .update({ status: reviewStatus })
-        .eq("id", selectedRequest.id);
+        .eq("id", selectedRequest.id)
+        .eq("organization_id" as any, organizationId);
 
       if (error) {
         throw error;
@@ -345,6 +416,10 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
     if (!selectedRequest) {
       return;
     }
+    if (!organizationId) {
+      toast.error("Organization context is required before linking patients");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -357,7 +432,8 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       const { error } = await supabase
         .from("booking_requests")
         .update(updates)
-        .eq("id", selectedRequest.id);
+        .eq("id", selectedRequest.id)
+        .eq("organization_id" as any, organizationId);
 
       if (error) {
         throw error;
@@ -387,6 +463,10 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
     if (!selectedRequest) {
       return;
     }
+    if (!organizationId) {
+      toast.error("Organization context is required before creating patients");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -394,12 +474,16 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         normalizePhoneNumber(selectedRequest.phone, DEFAULT_COUNTRY_CODE) || selectedRequest.phone;
       const phoneVariants = getPhoneLookupVariants(normalizedPhone, DEFAULT_COUNTRY_CODE);
 
-      const { data: existingPatients, error: checkError } = await supabase
+      let duplicateQuery = supabase
         .from("patients")
         .select("id, patient_id, full_name, phone, address, email, created_at")
         .in("phone", phoneVariants)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
+
+      duplicateQuery = duplicateQuery.eq("organization_id" as any, organizationId);
+
+      const { data: existingPatients, error: checkError } = await duplicateQuery;
 
       if (checkError) {
         throw checkError;
@@ -418,7 +502,8 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         phone: normalizedPhone,
         email: selectedRequest.email || null,
         address: selectedRequest.address || null,
-        lab_id: selectedRequest.lab_id || null,
+        organization_id: organizationId,
+        lab_id: selectedRequest.lab_id || currentLab?.id || null,
         collection_center_id: selectedRequest.collection_center_id || null,
         created_by: user?.id || null,
       };
@@ -488,18 +573,43 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                 Review public website requests before converting them into patients.
               </CardDescription>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setRefreshing(true);
-                void fetchRequests();
-              }}
-              disabled={refreshing}
-            >
-              <RefreshCcw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  exportToExcel("booking_requests", [
+                    { key: "request_date", label: "Date" },
+                    { key: "requester_name", label: "Name" },
+                    { key: "requester_phone", label: "Phone" },
+                    { key: "requester_email", label: "Email" },
+                    { key: "tests_requested", label: "Tests Requested" },
+                    { key: "status", label: "Status" },
+                    { key: "lab_name", label: "Lab" },
+                    { key: "notes", label: "Notes" },
+                  ], filteredRequests.map(r => ({
+                    ...r,
+                    request_date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-IN") : "",
+                    lab_name: r.labs?.name ?? "",
+                  })))
+                }
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRefreshing(true);
+                  void fetchRequests();
+                }}
+                disabled={refreshing}
+              >
+                <RefreshCcw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
           <div className="grid gap-4 pt-2 md:grid-cols-[1fr_220px]">
             <div className="relative">
@@ -533,11 +643,41 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <DateInput
+              id="booking-date-from"
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder="Submitted from"
+              className="w-[160px]"
+              showFormatHint
+            />
+            <DateInput
+              id="booking-date-to"
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder="Submitted to"
+              className="w-[160px]"
+              showFormatHint
+            />
+            {(dateFrom || dateTo) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-muted-foreground"
+              >
+                Clear dates ×
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="py-12 text-center text-muted-foreground">Loading booking requests...</div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40">
@@ -614,54 +754,15 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                 )}
               </TableBody>
             </Table>
-          )}
-          {filteredRequests.length > 0 && (
-            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredRequests.length)} of{" "}
-                {filteredRequests.length}
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="booking-request-page-size" className="text-sm text-muted-foreground">
-                    Rows
-                  </Label>
-                  <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                    <SelectTrigger id="booking-request-page-size" className="h-8 w-[90px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={safePage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={safePage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
+          <DataPagination
+            total={filteredRequests.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </CardContent>
       </Card>
 

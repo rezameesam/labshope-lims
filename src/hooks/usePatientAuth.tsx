@@ -14,8 +14,13 @@ interface Patient {
   address: string | null;
   date_of_birth: string | null;
   is_active: boolean;
+  organization_id?: string | null;
   password_reset_required?: boolean;
   last_password_change?: string | null;
+  abha_number?: string | null;
+  abha_address?: string | null;
+  abdm_source?: string | null;
+  abdm_last_verified_at?: string | null;
 }
 
 interface PatientAuthContextType {
@@ -23,10 +28,19 @@ interface PatientAuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   currentSessionId: string | null;
-  login: (identifier: string, password: string, turnstileToken: string) => Promise<{ error: Error | null }>;
+  login: (
+    identifier: string,
+    password: string,
+    turnstileToken: string,
+    organizationId?: string | null,
+  ) => Promise<{ error: Error | null }>;
   setPassword: (currentPassword: string, newPassword: string) => Promise<{ error: Error | null }>;
   updateAddress: (address: string) => Promise<{ error: Error | null }>;
-  requestPasswordReset: (identifier: string, turnstileToken: string) => Promise<{ error: Error | null }>;
+  requestPasswordReset: (
+    identifier: string,
+    turnstileToken: string,
+    organizationId?: string | null,
+  ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -51,7 +65,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
       const { data, error } = await supabase
         .from("patients")
-        .select("id, patient_id, full_name, phone, email, gender, blood_group, address, date_of_birth, is_active, password_reset_required, last_password_change")
+        .select("id, patient_id, full_name, phone, email, gender, blood_group, address, date_of_birth, is_active, organization_id, password_reset_required, last_password_change, abha_number, abha_address, abdm_source, abdm_last_verified_at")
         .eq("user_id", userId)
         .eq("is_active", true)
         .maybeSingle();
@@ -207,7 +221,12 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [currentSessionId, patient?.id, session?.access_token]);
 
-  const login = async (identifier: string, password: string, turnstileToken: string): Promise<{ error: Error | null }> => {
+  const login = async (
+    identifier: string,
+    password: string,
+    turnstileToken: string,
+    organizationId?: string | null,
+  ): Promise<{ error: Error | null }> => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
@@ -216,7 +235,13 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ identifier, password, turnstile_token: turnstileToken }),
+        body: JSON.stringify({
+          identifier,
+          password,
+          turnstile_token: turnstileToken,
+          organization_id: organizationId || null,
+          hostname: typeof window !== "undefined" ? window.location.hostname : null,
+        }),
       });
 
       const result = await response.json();
@@ -291,7 +316,11 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const requestPasswordReset = async (identifier: string, turnstileToken: string): Promise<{ error: Error | null }> => {
+  const requestPasswordReset = async (
+    identifier: string,
+    turnstileToken: string,
+    organizationId?: string | null,
+  ): Promise<{ error: Error | null }> => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/patient-request-password-reset`, {
@@ -302,6 +331,8 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({
           identifier,
           turnstile_token: turnstileToken,
+          organization_id: organizationId || null,
+          hostname: typeof window !== "undefined" ? window.location.hostname : null,
         }),
       });
 

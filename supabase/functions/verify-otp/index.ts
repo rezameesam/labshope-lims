@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolvePublicOrganizationId } from "../_shared/public-organization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +11,11 @@ const corsHeaders = {
 interface VerifyOtpRequest {
   phone: string;
   otp: string;
+  organization_id?: string | null;
+  hostname?: string | null;
 }
+
+const PHONE_INPUT_PATTERN = /^[+()0-9\s-]{8,20}$/;
 
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
@@ -19,10 +24,10 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { phone, otp }: VerifyOtpRequest = await req.json();
+    const { phone, otp, organization_id, hostname }: VerifyOtpRequest = await req.json();
 
     // Validate inputs
-    if (!phone || !/^\d{10}$/.test(phone)) {
+    if (!phone || !PHONE_INPUT_PATTERN.test(phone)) {
       return new Response(
         JSON.stringify({ error: "Invalid phone number" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -40,17 +45,30 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const resolvedOrganizationId = await resolvePublicOrganizationId(
+      supabase,
+      req,
+      organization_id || null,
+      hostname || null,
+    );
 
     // Get the OTP record
-    const { data: otpRecord, error: otpError } = await supabase
+    let otpQuery = supabase
       .from("otp_codes")
       .select("*")
       .eq("phone", phone)
       .eq("verified", false)
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+
+    if (resolvedOrganizationId) {
+      otpQuery = otpQuery.eq("organization_id", resolvedOrganizationId);
+    } else {
+      otpQuery = otpQuery.is("organization_id", null);
+    }
+
+    const { data: otpRecord, error: otpError } = await otpQuery.single();
 
     if (otpError || !otpRecord) {
       console.log("No valid OTP found for phone:", phone);
@@ -91,12 +109,10 @@ serve(async (req: Request): Promise<Response> => {
       .eq("id", otpRecord.id);
 
     // Fetch patient(s) for this phone
-    const { data: patients, error: patientError } = await supabase
-      .from("patients")
-      .select("id, patient_id, full_name, phone, email, gender, blood_group, address, date_of_birth, is_active")
-      .eq("phone", phone)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
+    const { data: patients, error: patientError } = await supabase.rpc("find_patient_candidates", {
+      p_identifier: phone,
+      p_organization_id: resolvedOrganizationId,
+    });
 
     if (patientError || !patients || patients.length === 0) {
       return new Response(
@@ -109,7 +125,8 @@ serve(async (req: Request): Promise<Response> => {
     await supabase
       .from("otp_codes")
       .delete()
-      .eq("phone", phone);
+      .eq("phone", phone)
+      .eq("organization_id", resolvedOrganizationId);
 
     // Return patients list (could be one or multiple)
     const needsSelection = patients.length > 1;

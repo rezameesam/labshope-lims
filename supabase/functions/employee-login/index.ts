@@ -14,6 +14,7 @@ interface EmployeeLoginRequest {
   email: string;
   password: string;
   turnstile_token?: string;
+  organization_slug?: string | null;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -22,7 +23,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email, password, turnstile_token }: EmployeeLoginRequest = await req.json();
+    const { email, password, turnstile_token, organization_slug }: EmployeeLoginRequest = await req.json();
     const trimmedEmail = email?.trim().toLowerCase();
 
     if (!trimmedEmail || !password) {
@@ -88,11 +89,81 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Your account does not have staff access." }, 403);
     }
 
+    const { data: employeeRecord, error: employeeError } = await adminClient
+      .from("employees")
+      .select("id, is_active, organization_id")
+      .eq("user_id", authData.user.id)
+      .maybeSingle();
+
+    if (employeeError || !employeeRecord || employeeRecord.is_active !== true) {
+      await authClient.auth.signOut();
+      return jsonResponse({ error: "Your staff account is inactive or not linked to an employee record." }, 403);
+    }
+
+    const resolvedOrganizationId =
+      (employeeRecord as { organization_id?: string | null }).organization_id || null;
+
+    if (!resolvedOrganizationId) {
+      await authClient.auth.signOut();
+      return jsonResponse({ error: "Your staff account is not linked to an active organization." }, 403);
+    }
+
+    // If the client sent an organization_slug (i.e. they're on a tenant subdomain),
+    // verify the employee actually belongs to that specific organization.
+    // This prevents an employee from one lab logging in at another lab's URL.
+    if (organization_slug) {
+      const { data: requestedOrg, error: orgLookupError } = await adminClient
+        .from("organizations")
+        .select("id")
+        .eq("slug", organization_slug)
+        .maybeSingle();
+
+      if (orgLookupError) {
+        console.error("Error looking up organization by slug:", orgLookupError);
+        await authClient.auth.signOut();
+        return jsonResponse({ error: "Unable to verify organization." }, 500);
+      }
+
+      if (!requestedOrg) {
+        await authClient.auth.signOut();
+        return jsonResponse({ error: "Organization not found." }, 403);
+      }
+
+      if (requestedOrg.id !== resolvedOrganizationId) {
+        await authClient.auth.signOut();
+        return jsonResponse({ error: "Your account does not belong to this organization." }, 403);
+      }
+    }
+
+    const { data: organizationMemberships, error: organizationMembershipError } = await adminClient
+      .from("organization_users")
+      .select("organization_id")
+      .eq("user_id", authData.user.id)
+      .eq("organization_id", resolvedOrganizationId)
+      .eq("is_active", true)
+      .limit(1);
+
+    if (organizationMembershipError) {
+      console.error("Error verifying organization membership:", organizationMembershipError);
+      await authClient.auth.signOut();
+      return jsonResponse({ error: "Unable to verify staff organization access." }, 500);
+    }
+
+    if (!organizationMemberships || organizationMemberships.length === 0) {
+      await authClient.auth.signOut();
+      return jsonResponse({ error: "Your staff account is not linked to an active organization." }, 403);
+    }
+
     return jsonResponse({
       success: true,
       roles,
       is_staff: isStaff,
       is_collector: isCollector,
+      organization_id: resolvedOrganizationId,
+      password_reset_required: authData.user.user_metadata?.must_change_password === true,
+      first_login_flow: typeof authData.user.user_metadata?.first_login_flow === "string"
+        ? authData.user.user_metadata.first_login_flow
+        : null,
       session: {
         access_token: authData.session.access_token,
         refresh_token: authData.session.refresh_token,

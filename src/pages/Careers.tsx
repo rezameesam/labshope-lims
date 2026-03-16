@@ -5,6 +5,10 @@ import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import PlatformCareersPage from "@/components/platform/PlatformCareersPage";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 const applicationLink = "https://forms.gle/KRNCJz9TfzCgkaKE9";
 
@@ -28,20 +32,34 @@ const opportunityTypes = [
 
 const qualifications = ["DMLT", "BMLT", "MLT", "Related lab technician diplomas or degrees"];
 
-const reasonsToApply = [
-  "Work with a trusted diagnostic laboratory serving the community since 1996.",
-  "Contribute to patient care in a professional, healthcare-focused environment.",
-  "Explore flexible opportunities for part-time, full-time, or additional income.",
-];
-
 const Careers = () => {
+  const { loading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
+  const { branding } = useOrganization();
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-muted-foreground">Loading...</div></div>;
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode) {
+    return <PlatformCareersPage />;
+  }
+
+  const reasonsToApply = [
+    `Work with a trusted diagnostic laboratory${branding.establishedYear ? ` serving patients since ${branding.establishedYear}` : ""}.`,
+    "Contribute to patient care in a professional, healthcare-focused environment.",
+    "Explore flexible opportunities for part-time, full-time, or additional income.",
+  ];
   return (
     <>
       <Helmet>
-        <title>Work With Us | IRM Clinical Laboratory</title>
+        <title>{`Work With Us | ${branding.displayName}`}</title>
         <meta
           name="description"
-          content="Apply to join IRM Clinical Laboratory. We welcome qualified lab technician diploma and degree holders for full-time, part-time, and flexible opportunities."
+          content={`Apply to join ${branding.displayName}. We welcome qualified lab technician diploma and degree holders for full-time, part-time, and flexible opportunities.`}
         />
       </Helmet>
 
@@ -62,13 +80,18 @@ const Careers = () => {
                   transition={{ duration: 0.6 }}
                 >
                   <span className="mb-6 inline-flex rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2 text-sm font-medium text-primary-foreground">
-                    Careers at IRM Clinical Laboratory
+                    Careers at {branding.displayName}
                   </span>
                   <h1 className="max-w-3xl text-4xl font-bold leading-tight text-primary-foreground md:text-5xl lg:text-6xl">
                     Work With Us
                   </h1>
                   <p className="mt-6 max-w-3xl text-lg leading-8 text-primary-foreground/85 md:text-xl">
-                    IRM Clinical Laboratory is inviting qualified and motivated candidates to apply for opportunities with our team. If you hold a Lab Technician diploma or degree and are interested in working with us, including part-time or flexible opportunities to earn extra income, we would love to hear from you.
+                    {branding.displayName} is inviting qualified and motivated
+                    candidates to apply for opportunities with our team. If you
+                    hold a lab technician diploma or degree and are interested
+                    in working with us, including part-time or flexible
+                    opportunities to earn extra income, we would love to hear
+                    from you.
                   </p>
 
                   <div className="mt-8 flex flex-wrap gap-3">
@@ -91,7 +114,7 @@ const Careers = () => {
                       </a>
                     </Button>
                     <Button asChild variant="heroOutline" size="xl">
-                      <a href="tel:9419034607">
+                      <a href={`tel:${branding.primaryPhone}`}>
                         Speak With Our Team
                         <Phone className="h-5 w-5" />
                       </a>
@@ -196,13 +219,16 @@ const Careers = () => {
                       <Stethoscope className="h-6 w-6" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-semibold text-foreground">Why IRM Clinical Laboratory</h2>
+                      <h2 className="text-2xl font-semibold text-foreground">Why {branding.displayName}</h2>
                       <p className="text-sm text-muted-foreground">A trusted healthcare and diagnostic environment</p>
                     </div>
                   </div>
 
                   <p className="mt-6 leading-7 text-muted-foreground">
-                    IRM Clinical Laboratory has been serving the community since 1996. We value professionalism, dependable diagnostic practices, and patient-focused service in every role across our laboratory operations.
+                    {branding.displayName} has been serving patients with
+                    dependable diagnostic practices and patient-focused service.
+                    We value professionalism, accuracy, and clear communication
+                    across every role in our laboratory operations.
                   </p>
 
                   <ul className="mt-6 space-y-4">

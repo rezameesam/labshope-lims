@@ -7,11 +7,21 @@ import ServicesSection from "@/components/ServicesSection";
 import AboutSection from "@/components/AboutSection";
 import ContactSection from "@/components/ContactSection";
 import Footer from "@/components/Footer";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import ProductLandingPage from "@/components/platform/ProductLandingPage";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 const Index = () => {
   const location = useLocation();
+  const { branding } = useOrganization();
+  const { loading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
 
   useEffect(() => {
+    if (platformMode) {
+      return;
+    }
+
     const sectionId = location.hash.replace("#", "");
 
     if (!sectionId) {
@@ -25,13 +35,29 @@ const Index = () => {
     return () => window.clearTimeout(timeoutId);
   }, [location.hash]);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode) {
+    return <ProductLandingPage />;
+  }
+
   return (
     <>
       <Helmet>
-        <title>IRM Clinical Laboratory | Trusted Diagnostic Centre in Budgam, J&K</title>
+        <title>{`${branding.displayName} | Trusted Diagnostic Centre${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}`}</title>
         <meta
           name="description"
-          content="IRM Clinical Laboratory - Your trusted pathological diagnostic centre in Budgam since 1996. Expert blood tests including haematology, biochemistry, immunology & more."
+          content={`${branding.displayName} - ${branding.description}`}
         />
       </Helmet>
       

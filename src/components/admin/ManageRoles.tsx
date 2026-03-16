@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Edit2, Trash2, Shield, Search, Users, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface CustomRole {
   id: string;
@@ -137,6 +138,8 @@ const PERMISSION_LABELS: Record<PermissionType, string> = {
 };
 
 const ManageRoles = () => {
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -150,19 +153,24 @@ const ManageRoles = () => {
     is_active: true,
   });
 
-  useEffect(() => {
-    fetchRoles();
-  }, []);
-
-  const fetchRoles = async () => {
+  const fetchRoles = useCallback(async () => {
     try {
       setLoading(true);
+
+      if (!organizationId) {
+        setRoles([]);
+        setLoading(false);
+        return;
+      }
       
       // Fetch roles
-      const { data: rolesData, error: rolesError } = await supabase
+      const rolesQuery = supabase
         .from("custom_roles")
         .select("*")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
+
+      const { data: rolesData, error: rolesError } = await rolesQuery;
 
       if (rolesError) throw rolesError;
 
@@ -195,7 +203,21 @@ const ManageRoles = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setRoles([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchRoles();
+  }, [fetchRoles, organizationId, organizationLoading]);
 
   const fetchRolePermissions = async (roleId: string) => {
     try {
@@ -238,6 +260,11 @@ const ManageRoles = () => {
   };
 
   const handleSaveRole = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before managing roles");
+      return;
+    }
+
     if (!roleForm.name.trim()) {
       toast.error("Role name is required");
       return;
@@ -246,14 +273,17 @@ const ManageRoles = () => {
     try {
       if (selectedRole) {
         // Update existing role
-        const { error: updateError } = await supabase
+        let updateQuery = supabase
           .from("custom_roles")
           .update({
             name: roleForm.name,
             description: roleForm.description || null,
             is_active: roleForm.is_active,
           })
-          .eq("id", selectedRole.id);
+          .eq("id", selectedRole.id)
+          .eq("organization_id", organizationId);
+
+        const { error: updateError } = await updateQuery;
 
         if (updateError) throw updateError;
 
@@ -297,6 +327,7 @@ const ManageRoles = () => {
             name: roleForm.name,
             description: roleForm.description || null,
             is_active: roleForm.is_active,
+            organization_id: organizationId,
           })
           .select()
           .single();
@@ -327,7 +358,7 @@ const ManageRoles = () => {
   };
 
   const handleDelete = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || !organizationId) return;
 
     if (selectedRole.is_system_role) {
       toast.error("System roles cannot be deleted");
@@ -335,10 +366,13 @@ const ManageRoles = () => {
     }
 
     try {
-      const { error } = await supabase
+      let deleteQuery = supabase
         .from("custom_roles")
         .delete()
-        .eq("id", selectedRole.id);
+        .eq("id", selectedRole.id)
+        .eq("organization_id", organizationId);
+
+      const { error } = await deleteQuery;
 
       if (error) throw error;
 

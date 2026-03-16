@@ -18,6 +18,9 @@ interface CreateEmployeeRequest {
   lab_id?: string | null;
 }
 
+const mapOrganizationRole = (role: CreateEmployeeRequest["role"]) =>
+  role === "admin" ? "org_admin" : "staff";
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -78,6 +81,36 @@ serve(async (req: Request) => {
       );
     }
 
+    const { data: callerOrganizations, error: callerOrganizationsError } = await supabaseAdmin
+      .from("organization_users")
+      .select("organization_id, is_primary")
+      .eq("user_id", callingUser.id)
+      .eq("is_active", true)
+      .order("is_primary", { ascending: false });
+
+    if (callerOrganizationsError) {
+      return new Response(
+        JSON.stringify({ error: "Unable to determine admin organization access" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const callerOrganizationIds = new Set(
+      (callerOrganizations || [])
+        .map((row: { organization_id?: string | null }) => row.organization_id || null)
+        .filter((value): value is string => !!value)
+    );
+
+    if (callerOrganizationIds.size === 0) {
+      return new Response(
+        JSON.stringify({ error: "Admin is not linked to an active organization" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const callerPrimaryOrganizationId =
+      (callerOrganizations || [])[0]?.organization_id || null;
+
     const { email, password, full_name, phone, designation, department, role, lab_id }: CreateEmployeeRequest = await req.json();
 
     if (!email || !password || !full_name || !role) {
@@ -87,7 +120,108 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if user already exists
+    // Resolve target lab:
+    // 1) explicit lab_id from request
+    // 2) caller's primary lab
+    // 3) LAB001 fallback
+    let targetLabId = lab_id || null;
+
+    let targetOrganizationId: string | null = null;
+
+    if (targetLabId) {
+      const { data: lab, error: labError } = await supabaseAdmin
+        .from("labs")
+        .select("id, organization_id")
+        .eq("id", targetLabId)
+        .eq("is_active", true)
+        .single();
+
+      if (labError || !lab) {
+        return new Response(
+          JSON.stringify({ error: "Invalid lab selected" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      targetOrganizationId = lab.organization_id || null;
+
+      if (!targetOrganizationId || !callerOrganizationIds.has(targetOrganizationId)) {
+        return new Response(
+          JSON.stringify({ error: "You do not have access to the selected lab" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      const { data: callerPrimaryLab } = await supabaseAdmin
+        .from("lab_users")
+        .select("lab_id, lab:labs(organization_id)")
+        .eq("user_id", callingUser.id)
+        .order("is_primary", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (callerPrimaryLab?.lab_id) {
+        targetLabId = callerPrimaryLab.lab_id;
+        targetOrganizationId = (callerPrimaryLab.lab as { organization_id?: string | null } | null)?.organization_id || null;
+      } else {
+        const { data: defaultLab } = await supabaseAdmin
+          .from("labs")
+          .select("id, organization_id")
+          .eq("lab_code", "LAB001")
+          .eq("organization_id", callerPrimaryOrganizationId)
+          .limit(1)
+          .maybeSingle();
+
+        if (defaultLab?.id) {
+          targetLabId = defaultLab.id;
+          targetOrganizationId = defaultLab.organization_id || null;
+        } else {
+          const { data: insertedLab, error: insertLabError } = await supabaseAdmin
+            .from("labs")
+            .insert({
+              lab_code: "LAB001",
+              name: "Main Laboratory",
+              type: "main",
+              is_active: true,
+              organization_id: callerPrimaryOrganizationId,
+            })
+            .select("id, organization_id")
+            .single();
+
+          if (insertLabError) {
+            console.error("Failed creating LAB001 fallback:", insertLabError);
+            const { data: retryLab } = await supabaseAdmin
+              .from("labs")
+              .select("id, organization_id")
+              .eq("lab_code", "LAB001")
+              .eq("organization_id", callerPrimaryOrganizationId)
+              .limit(1)
+              .maybeSingle();
+            targetLabId = retryLab?.id || null;
+            targetOrganizationId = retryLab?.organization_id || null;
+          } else {
+            targetLabId = insertedLab?.id || null;
+            targetOrganizationId = insertedLab?.organization_id || null;
+          }
+        }
+      }
+    }
+
+    if (!targetLabId) {
+      return new Response(
+        JSON.stringify({ error: "No active lab available. Create a lab first." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!targetOrganizationId || !callerOrganizationIds.has(targetOrganizationId)) {
+      return new Response(
+        JSON.stringify({ error: "Resolved organization is not accessible to this admin" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check if user already exists only after target tenant access is fully resolved.
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(u => u.email === email);
     
@@ -132,80 +266,37 @@ serve(async (req: Request) => {
       console.log(`Created new user: ${email}`);
     }
 
-    // Resolve target lab:
-    // 1) explicit lab_id from request
-    // 2) caller's primary lab
-    // 3) LAB001 fallback
-    let targetLabId = lab_id || null;
+    if (existingUser) {
+      const { data: existingMemberships, error: existingMembershipsError } = await supabaseAdmin
+        .from("organization_users")
+        .select("organization_id")
+        .eq("user_id", existingUser.id)
+        .eq("is_active", true);
 
-    if (targetLabId) {
-      const { data: lab, error: labError } = await supabaseAdmin
-        .from("labs")
-        .select("id")
-        .eq("id", targetLabId)
-        .eq("is_active", true)
-        .single();
-
-      if (labError || !lab) {
+      if (existingMembershipsError) {
+        if (createdNewAuthUser) {
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+        }
         return new Response(
-          JSON.stringify({ error: "Invalid lab selected" }),
+          JSON.stringify({ error: "Unable to verify existing user organization access" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const conflictingMembership = (existingMemberships || []).some(
+        (membership: { organization_id?: string | null }) =>
+          !!membership.organization_id && membership.organization_id !== targetOrganizationId
+      );
+
+      if (conflictingMembership) {
+        if (createdNewAuthUser) {
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+        }
+        return new Response(
+          JSON.stringify({ error: "This email is already linked to another organization" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-    } else {
-      const { data: callerPrimaryLab } = await supabaseAdmin
-        .from("lab_users")
-        .select("lab_id")
-        .eq("user_id", callingUser.id)
-        .order("is_primary", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (callerPrimaryLab?.lab_id) {
-        targetLabId = callerPrimaryLab.lab_id;
-      } else {
-        const { data: defaultLab } = await supabaseAdmin
-          .from("labs")
-          .select("id")
-          .eq("lab_code", "LAB001")
-          .limit(1)
-          .maybeSingle();
-
-        if (defaultLab?.id) {
-          targetLabId = defaultLab.id;
-        } else {
-          const { data: insertedLab, error: insertLabError } = await supabaseAdmin
-            .from("labs")
-            .insert({
-              lab_code: "LAB001",
-              name: "Main Laboratory",
-              type: "main",
-              is_active: true,
-            })
-            .select("id")
-            .single();
-
-          if (insertLabError) {
-            console.error("Failed creating LAB001 fallback:", insertLabError);
-            const { data: retryLab } = await supabaseAdmin
-              .from("labs")
-              .select("id")
-              .eq("lab_code", "LAB001")
-              .limit(1)
-              .maybeSingle();
-            targetLabId = retryLab?.id || null;
-          } else {
-            targetLabId = insertedLab?.id || null;
-          }
-        }
-      }
-    }
-
-    if (!targetLabId) {
-      return new Response(
-        JSON.stringify({ error: "No active lab available. Create a lab first." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     const employeeId = `EMP${Math.floor(1000 + Math.random() * 9000)}`;
@@ -222,6 +313,7 @@ serve(async (req: Request) => {
         designation: designation || null,
         department: department || null,
         lab_id: targetLabId,
+        organization_id: targetOrganizationId,
       })
       .select("id, user_id, employee_id")
       .single();
@@ -245,6 +337,9 @@ serve(async (req: Request) => {
 
     if (roleError) {
       console.error("Error assigning role:", roleError);
+      if (createdNewAuthUser) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      }
       return new Response(
         JSON.stringify({ error: roleError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -259,6 +354,9 @@ serve(async (req: Request) => {
 
     if (unsetPrimaryError) {
       console.error("Error clearing previous primary labs:", unsetPrimaryError);
+      if (createdNewAuthUser) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      }
       return new Response(
         JSON.stringify({ error: unsetPrimaryError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -281,10 +379,39 @@ serve(async (req: Request) => {
 
     if (labUserError) {
       console.error("Error assigning lab membership:", labUserError);
+      if (createdNewAuthUser) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      }
       return new Response(
         JSON.stringify({ error: labUserError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    if (targetOrganizationId) {
+      const { error: organizationUserError } = await supabaseAdmin
+        .from("organization_users")
+        .upsert(
+          {
+            organization_id: targetOrganizationId,
+            user_id: userId,
+            role: mapOrganizationRole(role),
+            is_primary: true,
+            is_active: true,
+          },
+          { onConflict: "organization_id,user_id" }
+        );
+
+      if (organizationUserError) {
+        console.error("Error assigning organization membership:", organizationUserError);
+        if (createdNewAuthUser) {
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+        }
+        return new Response(
+          JSON.stringify({ error: organizationUserError.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     console.log(`Employee created successfully: ${email}`);

@@ -1,0 +1,21 @@
+{
+  "display_name": "Acme Diagnostics",
+  "legal_name": "Acme Diagnostics Private Limited",
+  "slug": "acme-diagnostics",
+  "plan_code": "standard",
+  "primary_email": "hello@acme.example",
+  "primary_phone": "+91-9876543210",
+  "billing_email": "billing@acme.example",
+  "timezone": "Asia/Kolkata",
+  "currency_code": "INR",
+  "country_code": "IN",
+  "primary_domain": "acme-diagnostics.example.com",
+  "owner_email": "owner@acme.example",
+  "owner_password": "ChangeThisBeforeUse123!",
+  "owner_full_name": "Acme Owner",
+  "owner_phone": "+91-9876543211",
+  "owner_designation": "Administrator",
+  "owner_department": "Administration",
+  "primary_lab_name": "Acme Main Lab",
+  "primary_lab_code": "LAB001"
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Mail, MessageSquare, Users, Send, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const SendPromotion = () => {
+  const { organization, loading: organizationLoading } = useOrganization();
   const [patients, setPatients] = useState<Array<{ id: string; full_name: string; email: string | null; phone: string }>>([]);
   const [selectedPatients, setSelectedPatients] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,17 +24,22 @@ const SendPromotion = () => {
   const [message, setMessage] = useState("");
   const [filterType, setFilterType] = useState<"all" | "with_email" | "with_phone">("all");
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      if (!organization?.id) {
+        setPatients([]);
+        setLoading(false);
+        return;
+      }
+
+      const query = supabase
         .from("patients")
         .select("id, full_name, email, phone")
         .eq("is_active", true)
+        .eq("organization_id", organization.id)
         .order("full_name");
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setPatients(data || []);
@@ -42,7 +49,15 @@ const SendPromotion = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organization?.id]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    void fetchPatients();
+  }, [fetchPatients, organizationLoading]);
 
   const filteredPatients = patients.filter((patient) => {
     // Search filter

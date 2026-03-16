@@ -1,4 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  fetchOrganizationBranding,
+  fetchScopedSettings,
+  resolveOrganizationIdentity,
+} from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +13,57 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const DEFAULT_FROM_NAME =
+  Deno.env.get("DEFAULT_FROM_NAME")?.trim() ||
+  Deno.env.get("MAIL_DEFAULT_FROM_NAME")?.trim() ||
+  "Diagnostic Laboratory";
+
+const DEFAULT_FROM_EMAIL =
+  Deno.env.get("DEFAULT_FROM_EMAIL")?.trim() ||
+  Deno.env.get("MAIL_DEFAULT_FROM_EMAIL")?.trim() ||
+  "no-reply@example.com";
+
+const trimOrEmpty = (value: string | null | undefined): string => value?.trim() || "";
+
+async function authorizeRequest(
+  req: Request,
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  serviceRoleKey: string,
+): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization");
+  const internalServiceKey = req.headers.get("x-internal-service-key");
+
+  if (internalServiceKey && internalServiceKey === serviceRoleKey) {
+    return authHeader;
+  }
+
+  if (!authHeader) {
+    throw new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  });
+
+  const { data: authData, error: authError } = await authClient.auth.getUser();
+  if (authError || !authData.user) {
+    throw new Response(
+      JSON.stringify({ error: "Invalid authentication token" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  return authHeader;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -14,7 +71,7 @@ serve(async (req) => {
   }
 
   try {
-    const { to, subject, htmlContent, textContent } = await req.json();
+    const { to, subject, htmlContent, textContent, patientId, organizationId } = await req.json();
 
     if (!to || !subject || !htmlContent) {
       return new Response(
@@ -25,16 +82,102 @@ serve(async (req) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const authHeader = await authorizeRequest(req, supabaseUrl, supabaseAnonKey, serviceRoleKey);
+
+    let resolvedOrganizationId: string | null = null;
+    let emailFromName = "";
+    let emailFromAddress = "";
+    let replyToEmail = "";
+    let settingsMap = new Map<string, string>();
+
+    if (supabaseUrl && serviceRoleKey) {
+      const identity = await resolveOrganizationIdentity({
+        supabaseUrl,
+        supabaseAnonKey,
+        serviceRoleKey,
+        authHeader,
+        organizationId,
+        patientId,
+      });
+
+      resolvedOrganizationId = identity.organizationId;
+
+      const [scopedSettingsMap, organizationBranding] = await Promise.all([
+        fetchScopedSettings(
+          supabaseUrl,
+          serviceRoleKey,
+          [
+            "email_from_name",
+            "email_from_email",
+            "email_reply_to",
+            "mailjet_api_key",
+            "mailjet_secret_key",
+            "resend_api_key",
+            "mailgun_api_key",
+            "mailgun_domain",
+            "sendgrid_api_key",
+          ],
+          resolvedOrganizationId,
+        ),
+        fetchOrganizationBranding(supabaseUrl, serviceRoleKey, resolvedOrganizationId),
+      ]);
+      settingsMap = scopedSettingsMap;
+
+      emailFromName =
+        settingsMap.get("email_from_name")?.trim() ||
+        organizationBranding?.displayName ||
+        DEFAULT_FROM_NAME;
+      emailFromAddress =
+        settingsMap.get("email_from_email")?.trim() ||
+        organizationBranding?.primaryEmail ||
+        DEFAULT_FROM_EMAIL;
+      replyToEmail = settingsMap.get("email_reply_to")?.trim() || "";
+    }
+
+    const orgProviderSettings = {
+      mailjetApiKey: trimOrEmpty(settingsMap.get("mailjet_api_key")),
+      mailjetSecretKey: trimOrEmpty(settingsMap.get("mailjet_secret_key")),
+      resendApiKey: trimOrEmpty(settingsMap.get("resend_api_key")),
+      mailgunApiKey: trimOrEmpty(settingsMap.get("mailgun_api_key")),
+      mailgunDomain: trimOrEmpty(settingsMap.get("mailgun_domain")),
+      sendgridApiKey: trimOrEmpty(settingsMap.get("sendgrid_api_key")),
+    };
+
+    const hasOrgSpecificProvider = Boolean(
+      orgProviderSettings.mailjetApiKey ||
+      orgProviderSettings.mailjetSecretKey ||
+      orgProviderSettings.resendApiKey ||
+      orgProviderSettings.mailgunApiKey ||
+      orgProviderSettings.mailgunDomain ||
+      orgProviderSettings.sendgridApiKey
+    );
+
+    const providerSettings = {
+      mailjetApiKey: orgProviderSettings.mailjetApiKey || (!hasOrgSpecificProvider ? trimOrEmpty(Deno.env.get("MAILJET_API_KEY")) : ""),
+      mailjetSecretKey: orgProviderSettings.mailjetSecretKey || (!hasOrgSpecificProvider ? trimOrEmpty(Deno.env.get("MAILJET_SECRET_KEY")) : ""),
+      resendApiKey: orgProviderSettings.resendApiKey || (!hasOrgSpecificProvider ? trimOrEmpty(Deno.env.get("RESEND_API_KEY")) : ""),
+      mailgunApiKey: orgProviderSettings.mailgunApiKey || (!hasOrgSpecificProvider ? trimOrEmpty(Deno.env.get("MAILGUN_API_KEY")) : ""),
+      mailgunDomain: orgProviderSettings.mailgunDomain || (!hasOrgSpecificProvider ? trimOrEmpty(Deno.env.get("MAILGUN_DOMAIN")) : ""),
+      sendgridApiKey: orgProviderSettings.sendgridApiKey || (!hasOrgSpecificProvider ? trimOrEmpty(Deno.env.get("SENDGRID_API_KEY")) : ""),
+    };
+
     // Try Mailjet first (if API key is configured) - Free 6,000 emails/month
-    const mailjetApiKey = Deno.env.get("MAILJET_API_KEY");
-    const mailjetSecretKey = Deno.env.get("MAILJET_SECRET_KEY");
-    if (mailjetApiKey && mailjetSecretKey) {
+    if (providerSettings.mailjetApiKey && providerSettings.mailjetSecretKey) {
       try {
-        const mailjetFromEmail = Deno.env.get("MAILJET_FROM_EMAIL") || "no-reply@irmclinic.com";
-        const mailjetFromName = Deno.env.get("MAILJET_FROM_NAME") || "IRM Clinic";
+        const mailjetFromEmail =
+          emailFromAddress ||
+          Deno.env.get("MAILJET_FROM_EMAIL") ||
+          DEFAULT_FROM_EMAIL;
+        const mailjetFromName =
+          emailFromName ||
+          Deno.env.get("MAILJET_FROM_NAME") ||
+          DEFAULT_FROM_NAME;
         
         // Create Basic Auth header (API Key:Secret Key)
-        const auth = btoa(`${mailjetApiKey}:${mailjetSecretKey}`);
+        const auth = btoa(`${providerSettings.mailjetApiKey}:${providerSettings.mailjetSecretKey}`);
         
         const mailjetResponse = await fetch("https://api.mailjet.com/v3.1/send", {
           method: "POST",
@@ -54,6 +197,14 @@ serve(async (req) => {
               Subject: subject,
               HTMLPart: htmlContent,
               TextPart: textContent || htmlContent.replace(/<[^>]*>/g, ""),
+              ...(replyToEmail
+                ? {
+                    ReplyTo: {
+                      Email: replyToEmail,
+                      Name: mailjetFromName,
+                    },
+                  }
+                : {}),
             }],
           }),
         });
@@ -88,15 +239,14 @@ serve(async (req) => {
     }
 
     // Try Resend (if API key is configured)
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (resendApiKey) {
+    if (providerSettings.resendApiKey) {
       try {
-        const resendFrom = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+        const resendFrom = emailFromAddress || Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
         
         const resendResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${resendApiKey}`,
+            "Authorization": `Bearer ${providerSettings.resendApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -105,6 +255,7 @@ serve(async (req) => {
             subject: subject,
             html: htmlContent,
             text: textContent || htmlContent.replace(/<[^>]*>/g, ""),
+            ...(replyToEmail ? { reply_to: replyToEmail } : {}),
           }),
         });
 
@@ -125,14 +276,11 @@ serve(async (req) => {
     // SMTP is not supported in Supabase Edge Functions (no raw TCP).
     
     // Try Mailgun if configured
-    const mailgunApiKey = Deno.env.get("MAILGUN_API_KEY");
-    const mailgunDomain = Deno.env.get("MAILGUN_DOMAIN");
-    
-    if (mailgunApiKey && mailgunDomain) {
+    if (providerSettings.mailgunApiKey && providerSettings.mailgunDomain) {
       try {
-        const mailgunUrl = `https://api.mailgun.net/v3/${mailgunDomain}/messages`;
-        const auth = btoa(`api:${mailgunApiKey}`);
-        const mailgunFrom = Deno.env.get("MAILGUN_FROM_EMAIL") || `noreply@${mailgunDomain}`;
+        const mailgunUrl = `https://api.mailgun.net/v3/${providerSettings.mailgunDomain}/messages`;
+        const auth = btoa(`api:${providerSettings.mailgunApiKey}`);
+        const mailgunFrom = emailFromAddress || Deno.env.get("MAILGUN_FROM_EMAIL") || `noreply@${providerSettings.mailgunDomain}`;
         
         const formData = new FormData();
         formData.append("from", mailgunFrom);
@@ -141,6 +289,9 @@ serve(async (req) => {
         formData.append("html", htmlContent);
         if (textContent) {
           formData.append("text", textContent);
+        }
+        if (replyToEmail) {
+          formData.append("h:Reply-To", replyToEmail);
         }
 
         const mailgunResponse = await fetch(mailgunUrl, {
@@ -165,14 +316,16 @@ serve(async (req) => {
     }
 
     // Try SendGrid if configured
-    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
-    if (sendgridApiKey) {
+    if (providerSettings.sendgridApiKey) {
       try {
-        const sendgridFrom = Deno.env.get("SENDGRID_FROM_EMAIL") || "no-reply@irmclinic.com";
+        const sendgridFrom =
+          emailFromAddress ||
+          Deno.env.get("SENDGRID_FROM_EMAIL") ||
+          DEFAULT_FROM_EMAIL;
         const sendgridResponse = await fetch("https://api.sendgrid.com/v3/mail/send", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${sendgridApiKey}`,
+            "Authorization": `Bearer ${providerSettings.sendgridApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -181,6 +334,7 @@ serve(async (req) => {
             }],
             from: { email: sendgridFrom },
             subject: subject,
+            ...(replyToEmail ? { reply_to: { email: replyToEmail } } : {}),
             content: [
               {
                 type: "text/html",
@@ -210,18 +364,25 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: "No email service configured. Please set up one of:",
+        error: hasOrgSpecificProvider
+          ? "No working email provider is configured for this organization."
+          : "No email service configured. Please set up one of:",
         options: {
           mailjet: "Free 6,000 emails/month - https://mailjet.com (Best free tier)",
           resend: "Free 3,000 emails/month - https://resend.com (Easiest setup)",
           mailgun: "Free 5,000 emails/month - https://mailgun.com",
           sendgrid: "Free 100 emails/day - https://sendgrid.com",
         },
-        setup: "Add MAILJET_API_KEY + MAILJET_SECRET_KEY (or RESEND_API_KEY, MAILGUN_API_KEY, or SENDGRID_API_KEY) to Supabase Edge Function secrets",
+        setup: hasOrgSpecificProvider
+          ? "Review this organization's provider credentials in organization_settings and confirm the selected provider account is valid."
+          : "Add organization-specific provider credentials in organization_settings, or configure platform Edge Function secrets such as MAILJET_API_KEY + MAILJET_SECRET_KEY (or RESEND_API_KEY, MAILGUN_API_KEY, or SENDGRID_API_KEY).",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
+    if (error instanceof Response) {
+      return error;
+    }
     console.error("Error sending email:", error);
     return new Response(
       JSON.stringify({

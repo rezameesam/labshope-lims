@@ -45,9 +45,23 @@ interface ReportOptions {
   includeWatermark?: boolean;
 }
 
+interface ReportBranding {
+  organizationId?: string;
+  name?: string;
+  tagline?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  logoUrl?: string;
+  reportTagline?: string;
+  reportFooterNote?: string;
+}
+
 interface ReportTemplate {
   id: string;
   name: string;
+  organization_id?: string | null;
   test_category: string | null;
   test_id: string | null;
   header_template: string | null;
@@ -72,22 +86,38 @@ interface ReportData {
   registry_serial?: string;
   options?: ReportOptions;
   template?: ReportTemplate | null;
+  branding?: ReportBranding;
 }
 
 // Lab Information
 const LAB_INFO = {
-  name: "IRM Clinical Laboratory",
+  name: "Diagnostic Laboratory",
   tagline: "Clinical Laboratory Services",
-  address: "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
-  phone: "+91-9419034607 | +91-9622635767",
-  email: "irmclinic@gmail.com",
-  website: "https://irmclinic.com",
+  address: "Laboratory Address, City, State - Postal Code",
+  phone: "+91-0000000000",
+  email: "support@example.com",
+  website: "https://example.com",
+  reportTagline: "Quality Healthcare Services",
+  reportFooterNote: "This is a computer-generated report.",
 };
 
 let watermarkImagePromise: Promise<string | null> | null = null;
+let watermarkImageSource: string | null = null;
 
-const hasWebsiteReference = (value: string) =>
-  value.toLowerCase().includes("irmclinic.com");
+const resolveReportBranding = (branding?: ReportBranding) => ({
+  name: branding?.name || LAB_INFO.name,
+  tagline: branding?.tagline || LAB_INFO.tagline,
+  address: branding?.address || LAB_INFO.address,
+  phone: branding?.phone || LAB_INFO.phone,
+  email: branding?.email || LAB_INFO.email,
+  website: branding?.website || LAB_INFO.website,
+  logoUrl: branding?.logoUrl || logoImageUrl,
+  reportTagline: branding?.reportTagline || LAB_INFO.reportTagline,
+  reportFooterNote: branding?.reportFooterNote || LAB_INFO.reportFooterNote,
+});
+
+const hasWebsiteReference = (value: string, website?: string) =>
+  !!website && value.toLowerCase().includes(website.toLowerCase());
 
 const loadImage = (src: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -98,14 +128,15 @@ const loadImage = (src: string) =>
     image.src = src;
   });
 
-const getWatermarkImage = async () => {
+const getWatermarkImage = async (source: string) => {
   if (typeof document === "undefined") {
     return null;
   }
 
-  if (!watermarkImagePromise) {
+  if (!watermarkImagePromise || watermarkImageSource !== source) {
+    watermarkImageSource = source;
     watermarkImagePromise = (async () => {
-      const image = await loadImage(logoImageUrl);
+      const image = await loadImage(source);
       const canvas = document.createElement("canvas");
       const canvasSize = 900;
       canvas.width = canvasSize;
@@ -184,12 +215,12 @@ const getSampleCollectionDate = (
   return datedTests[0].createdAt;
 };
 
-const addReportWatermark = async (doc: jsPDF, options: ReportOptions) => {
+const addReportWatermark = async (doc: jsPDF, options: ReportOptions, logoSource: string) => {
   if (options.includeWatermark === false) {
     return;
   }
 
-  const watermarkImage = await getWatermarkImage();
+  const watermarkImage = await getWatermarkImage(logoSource);
   if (!watermarkImage) {
     return;
   }
@@ -207,39 +238,65 @@ const addReportWatermark = async (doc: jsPDF, options: ReportOptions) => {
   }
 };
 
-const resolveReportTemplate = async (tests: TestResult[], templateId?: string) => {
-  const { data: templates, error } = await supabase
-    .from("test_templates")
-    .select("*")
-    .order("created_at", { ascending: true });
+const resolveReportTemplate = async (
+  tests: TestResult[],
+  templateId?: string,
+  organizationId?: string,
+) => {
+  const templateQuery = organizationId
+    ? supabase
+        .from("test_templates")
+        .select("*")
+        .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+        .order("created_at", { ascending: true })
+    : supabase
+        .from("test_templates")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+  const { data: templates, error } = await templateQuery;
 
   if (error || !templates || templates.length === 0) {
     return null;
   }
 
+  const prioritizedTemplates = organizationId
+    ? [...templates].sort((left: any, right: any) => {
+        const leftPriority = left.organization_id === organizationId ? 0 : 1;
+        const rightPriority = right.organization_id === organizationId ? 0 : 1;
+        return leftPriority - rightPriority;
+      })
+    : templates;
+
   if (templateId) {
-    const override = templates.find((t) => t.id === templateId);
+    const override = prioritizedTemplates.find((t) => t.id === templateId);
     if (override) return override;
   }
 
-  const defaultTemplate = templates.find((t) => t.is_default);
+  const defaultTemplate = prioritizedTemplates.find((t) => t.is_default);
   const testIds = Array.from(new Set(tests.map((t) => t.test_id).filter(Boolean)));
   const categoryNames = Array.from(new Set(tests.map((t) => t.category).filter(Boolean)));
 
   if (tests.length === 1 && testIds.length === 1) {
-    const match = templates.find((t) => t.test_id === testIds[0]);
+    const match = prioritizedTemplates.find((t) => t.test_id === testIds[0]);
     if (match) return match;
   }
   if (tests.length === 1 && categoryNames.length === 1) {
-    const match = templates.find((t) => t.test_category === categoryNames[0]);
+    const match = prioritizedTemplates.find((t) => t.test_category === categoryNames[0]);
     if (match) return match;
   }
 
   if (testIds.length > 0) {
-    const { data: testRows } = await supabase
+    let testsQuery = supabase
       .from("tests")
       .select("id, test_categories(name)")
       .in("id", testIds);
+
+    if (organizationId) {
+      testsQuery = testsQuery.eq("organization_id", organizationId);
+    }
+
+    const { data: testRows } = await testsQuery;
 
     const resolvedCategoryNames = Array.from(
       new Set(
@@ -250,7 +307,7 @@ const resolveReportTemplate = async (tests: TestResult[], templateId?: string) =
     );
 
     if (resolvedCategoryNames.length === 1) {
-      const categoryMatch = templates.find(
+      const categoryMatch = prioritizedTemplates.find(
         (t) => t.test_category === resolvedCategoryNames[0]
       );
       if (categoryMatch) return categoryMatch;
@@ -265,6 +322,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
     const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const options = data.options || { includeHeader: true, includeFooter: true, includeWatermark: true };
+  const branding = resolveReportBranding(data.branding);
   const template = data.template;
   const includeNormalRange = template?.include_normal_range ?? true;
   const includeAbnormalFlag = template?.include_abnormal_flag ?? true;
@@ -277,10 +335,10 @@ export const generateTestReportPDF = async (data: ReportData) => {
     test_name: data.tests.length === 1 ? data.tests[0].test_name : "Multiple Tests",
     test_date: formatAppDate(data.test_date),
     report_date: formatAppDate(new Date()),
-    lab_name: data.lab_name || LAB_INFO.name,
+    lab_name: data.lab_name || branding.name,
     lab_code: data.lab_code || "",
     collection_center: data.collection_center_code || data.collection_center_name || "",
-    entered_by: data.entered_by || "IRM Clinical Laboratory",
+    entered_by: data.entered_by || branding.name,
   };
   const headerText = template?.header_template
     ? renderReportTemplateText(template.header_template, templateContext)
@@ -288,10 +346,10 @@ export const generateTestReportPDF = async (data: ReportData) => {
   const footerText = template?.footer_template
     ? renderReportTemplateText(template.footer_template, templateContext)
     : "";
-  const reportHasWebsite = hasWebsiteReference(headerText) || hasWebsiteReference(footerText);
+  const reportHasWebsite = hasWebsiteReference(headerText, branding.website) || hasWebsiteReference(footerText, branding.website);
   const emailLine = reportHasWebsite
-    ? `Email: ${LAB_INFO.email}`
-    : `Email: ${LAB_INFO.email} | Website: ${LAB_INFO.website}`;
+    ? `Email: ${branding.email}`
+    : `Email: ${branding.email} | Website: ${branding.website}`;
   
   // Always reserve space for header area (for pre-printed paper compatibility)
   const HEADER_RESERVED_HEIGHT = 55;
@@ -310,7 +368,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
       const logoY = 7.5; // Center vertically in header (45/2 - 30/2 = 7.5)
       
       // jsPDF can handle image URLs directly
-      doc.addImage(logoImageUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
+      doc.addImage(branding.logoUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
     } catch (error) {
       console.warn("Could not load logo image:", error);
       // Continue without logo if image fails to load
@@ -324,12 +382,12 @@ export const generateTestReportPDF = async (data: ReportData) => {
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
     // Header always uses the main brand name
-    doc.text(LAB_INFO.name, centerX, 12, { align: "center" });
+    doc.text(branding.name, centerX, 12, { align: "center" });
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(LAB_INFO.address, centerX, 21, { align: "center" });
-    doc.text(`Phone: ${LAB_INFO.phone}`, centerX, 27, { align: "center" });
+    doc.text(branding.address, centerX, 21, { align: "center" });
+    doc.text(`Phone: ${branding.phone}`, centerX, 27, { align: "center" });
     doc.text(emailLine, centerX, 33, { align: "center" });
   }
   // If not including header, space is still reserved (empty) for pre-printed paper
@@ -740,7 +798,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
     const footerY = footerStartY;
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text("This is a computer-generated report.", 14, footerY);
+    doc.text(branding.reportFooterNote, 14, footerY);
     doc.text(`Generated on: ${formatAppDateTime(new Date())}`, 14, footerY + 5);
     
     doc.setDrawColor(200, 200, 200);
@@ -748,14 +806,14 @@ export const generateTestReportPDF = async (data: ReportData) => {
     
     doc.setFontSize(8);
     doc.setTextColor(30, 58, 138);
-    doc.text("IRM Clinical Laboratory - Quality Healthcare Services", pageWidth / 2, footerY + 19, { align: "center" });
+    doc.text(`${branding.name} - ${branding.reportTagline}`, pageWidth / 2, footerY + 19, { align: "center" });
     if (!reportHasWebsite && options.includeHeader === false) {
       doc.text(emailLine, pageWidth / 2, footerY + 24, { align: "center" });
     }
   }
   // If not including footer, space is still reserved (empty) for pre-printed paper
 
-    await addReportWatermark(doc, options);
+    await addReportWatermark(doc, options, branding.logoUrl);
 
     // Save the PDF
     const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
@@ -800,7 +858,8 @@ export const generateMultiTestReportPDF = async (
   }>,
   enteredByName?: string,
   options?: ReportOptions,
-  templateId?: string
+  templateId?: string,
+  branding?: ReportBranding
 ) => {
   const completedTests = tests.filter(t => t.status === "completed");
   
@@ -834,11 +893,16 @@ export const generateMultiTestReportPDF = async (
   // If lab details weren't populated in the caller, try to resolve them from Supabase
   if ((!labName || !labCode) && firstTest.lab_id) {
     try {
-      const { data: labRow } = await supabase
+      let labQuery = supabase
         .from("labs")
         .select("name, lab_code")
-        .eq("id", firstTest.lab_id)
-        .maybeSingle();
+        .eq("id", firstTest.lab_id);
+
+      if (branding?.organizationId) {
+        labQuery = labQuery.eq("organization_id" as any, branding.organizationId);
+      }
+
+      const { data: labRow } = await labQuery.maybeSingle();
       
       if (labRow) {
         labName = labName || labRow.name;
@@ -849,21 +913,22 @@ export const generateMultiTestReportPDF = async (
     }
   }
 
-  const template = await resolveReportTemplate(testResults, templateId);
+  const template = await resolveReportTemplate(testResults, templateId, branding?.organizationId);
 
   await generateTestReportPDF({
     patient,
     test_date: completedTests[0].test_date,
     sample_collection_date: sampleCollectionDate,
     tests: testResults,
-    lab_name: labName || "IRM Clinical Laboratory",
+    lab_name: labName || branding?.name || LAB_INFO.name,
     lab_code: labCode,
     collection_center_name: firstTest.collection_center_name,
     collection_center_code: firstTest.collection_center_code,
     entered_by: employeeName,
     registry_serial: firstTest.registry_serial || undefined,
     options,
-    template
+    template,
+    branding
   });
 
   return true;

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Users, 
-  UserPlus, 
-  Stethoscope, 
-  LogOut, 
-  Menu, 
+  Users,
+  UserPlus,
+  Stethoscope,
+  LogOut,
+  Menu,
   X,
   Home,
   ClipboardList,
@@ -23,14 +23,27 @@ import {
   Shield,
   Laptop,
   Globe,
-  PhoneCall
+  PhoneCall,
+  Sparkles,
+  TrendingUp,
+  Loader2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { initiateRazorpayPayment } from "@/services/razorpayService";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import ManageEmployees from "@/components/admin/ManageEmployees";
 import ManagePatients from "@/components/admin/ManagePatients";
 import ManageTests from "@/components/admin/ManageTests";
@@ -53,8 +66,10 @@ import NoticeBoard from "@/components/admin/NoticeBoard";
 import ActiveSessions from "@/components/account/ActiveSessions";
 import ManageVisitorLogs from "@/components/admin/ManageVisitorLogs";
 import ManageBookingRequests from "@/components/admin/ManageBookingRequests";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import AdminQuickSetup from "@/components/admin/AdminQuickSetup";
 
-type TabType = "overview" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
+type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
 
 type PatientSummary = {
   id: string;
@@ -67,7 +82,10 @@ type PatientSummary = {
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { user, signOut, loading, isStaff, hasRole, isCollector } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, signOut, loading, isStaff, hasRole, isCollector, staffPasswordResetRequired } = useAuth();
+  const { isPlatformAdmin } = usePlatformAdmin();
+  const { branding, organization, loading: organizationLoading } = useOrganization();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPatientForTests, setSelectedPatientForTests] = useState<PatientSummary | null>(null);
@@ -76,6 +94,26 @@ const AdminDashboard = () => {
     noticeBoard: 0,
   });
 
+  type PlanLimitInfo = {
+    currentPlan: string;
+    exceededMetric: string;
+    currentValue: number;
+    limit: number;
+    upgradeTo: string;
+    upgradePrice: number;
+  };
+  const [planLimitOpen, setPlanLimitOpen] = useState(false);
+  const [planLimitInfo, setPlanLimitInfo] = useState<PlanLimitInfo | null>(null);
+  const [upgradingPlan, setUpgradingPlan] = useState(false);
+
+  const requestedTab = searchParams.get("tab");
+  const setDashboardTab = (tab: TabType) => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", tab);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth/staff", { replace: true });
@@ -83,6 +121,46 @@ const AdminDashboard = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
+    const validTabs = new Set<TabType>([
+      "overview",
+      "quick-setup",
+      "notice-board",
+      "booking-requests",
+      "employees",
+      "patients",
+      "tests",
+      "test-catalog",
+      "test-packages",
+      "test-templates",
+      "billing",
+      "inventory",
+      "reports",
+      "doctors",
+      "reminders",
+      "labs",
+      "collection-centers",
+      "roles",
+      "security",
+      "visitor-logs",
+      "notifications",
+      "system-settings",
+    ]);
+
+    if (requestedTab && validTabs.has(requestedTab as TabType) && requestedTab !== activeTab) {
+      setActiveTab(requestedTab as TabType);
+    }
+  }, [activeTab, requestedTab]);
+
+  useEffect(() => {
+    if (!loading && user && staffPasswordResetRequired) {
+      const nextTarget =
+        String(user.user_metadata?.first_login_flow || "") === "self_serve_owner"
+          ? "/admin?tab=quick-setup&onboarding=1"
+          : `/admin?tab=${activeTab}`;
+      navigate(`/staff/reset-password?first_login=1&next=${encodeURIComponent(nextTarget)}`, { replace: true });
+      return;
+    }
+
     if (!loading && user && !isStaff) {
       toast.error("Access denied. Staff only.");
       navigate("/", { replace: true });
@@ -91,7 +169,7 @@ const AdminDashboard = () => {
     if (!loading && user && isCollector) {
       navigate("/collector", { replace: true });
     }
-  }, [user, loading, isStaff, isCollector, navigate]);
+  }, [user, loading, isStaff, isCollector, navigate, staffPasswordResetRequired, activeTab]);
 
   useEffect(() => {
     if (activeTab !== "tests" && selectedPatientForTests) {
@@ -100,7 +178,15 @@ const AdminDashboard = () => {
   }, [activeTab, selectedPatientForTests]);
 
   useEffect(() => {
-    if (!user || !isStaff) {
+    if (!user || !isStaff || organizationLoading) {
+      return;
+    }
+
+    if (!organization?.id) {
+      setSidebarCounts({
+        bookingRequests: 0,
+        noticeBoard: 0,
+      });
       return;
     }
 
@@ -115,26 +201,40 @@ const AdminDashboard = () => {
           testsQuery = testsQuery.eq("collected_by", user.id);
         }
 
+        if (organization?.id) {
+          testsQuery = testsQuery.eq("organization_id" as any, organization.id);
+        }
+
+        let bookingRequestsQuery = supabase
+          .from("booking_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "new");
+
+        let remindersQuery = supabase
+          .from("patient_reminders")
+          .select("id, reminder_date, due_date, is_completed")
+          .eq("is_completed", false)
+          .limit(100);
+
+        let invoicesQuery = supabase
+          .from("invoices")
+          .select("id", { count: "exact", head: true })
+          .neq("payment_status", "paid");
+
+        bookingRequestsQuery = bookingRequestsQuery.eq("organization_id" as any, organization.id);
+        remindersQuery = remindersQuery.eq("organization_id" as any, organization.id);
+        invoicesQuery = invoicesQuery.eq("organization_id" as any, organization.id);
+
         const [
           bookingRequestsResult,
           pendingTestsResult,
           remindersResult,
           invoicesResult,
         ] = await Promise.all([
-          supabase
-            .from("booking_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "new"),
+          bookingRequestsQuery,
           testsQuery,
-          supabase
-            .from("patient_reminders")
-            .select("id, reminder_date, due_date, is_completed")
-            .eq("is_completed", false)
-            .limit(100),
-          supabase
-            .from("invoices")
-            .select("id", { count: "exact", head: true })
-            .neq("payment_status", "paid"),
+          remindersQuery,
+          invoicesQuery,
         ]);
 
         const today = new Date();
@@ -163,7 +263,127 @@ const AdminDashboard = () => {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [user, isStaff, isCollector]);
+  }, [user, isStaff, isCollector, organization?.id, organizationLoading]);
+
+  useEffect(() => {
+    if (!organization?.id || organizationLoading) return;
+    // Only show once per session per org
+    const dismissKey = `plan_limit_dismissed_${organization.id}`;
+    if (sessionStorage.getItem(dismissKey)) return;
+
+    const PLAN_PRICES: Record<string, number> = { starter: 10000, growth: 20000, premium: 40000 };
+    const PLAN_PATIENT_LIMITS: Record<string, number> = { starter: 25000, growth: 100000, premium: Infinity };
+    const NEXT_PLAN: Record<string, string> = { starter: "growth", growth: "premium" };
+
+    const checkPlanLimits = async () => {
+      const [settingsResult, patientsResult] = await Promise.all([
+        (supabase as any)
+          .from("organization_settings")
+          .select("setting_value")
+          .eq("organization_id", organization.id)
+          .eq("setting_key", "plan_tier")
+          .maybeSingle(),
+        (supabase as any)
+          .from("patients")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organization.id),
+      ]);
+
+      const currentPlan: string = settingsResult.data?.setting_value || "starter";
+      const patientCount: number = patientsResult.count ?? 0;
+      const patientLimit = PLAN_PATIENT_LIMITS[currentPlan] ?? 25000;
+
+      if (patientCount > patientLimit && NEXT_PLAN[currentPlan]) {
+        const upgradeTo = NEXT_PLAN[currentPlan];
+        setPlanLimitInfo({
+          currentPlan,
+          exceededMetric: "active patients",
+          currentValue: patientCount,
+          limit: patientLimit,
+          upgradeTo,
+          upgradePrice: (PLAN_PRICES[upgradeTo] ?? 0) - (PLAN_PRICES[currentPlan] ?? 0),
+        });
+        setPlanLimitOpen(true);
+      }
+    };
+
+    void checkPlanLimits();
+  }, [organization?.id, organizationLoading]);
+
+  const handleUpgradeNow = useCallback(async () => {
+    if (!planLimitInfo || !organization?.id) return;
+    setUpgradingPlan(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-plan-upgrade-order`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            organization_id: organization.id,
+            to_plan: planLimitInfo.upgradeTo,
+          }),
+        },
+      );
+      const orderData = await resp.json();
+      if (!resp.ok) throw new Error(orderData.error || "Failed to create order");
+
+      await initiateRazorpayPayment(
+        orderData.key_id,
+        orderData.order_id,
+        orderData.upgrade_amount,
+        `PLAN-UPGRADE-${planLimitInfo.upgradeTo.toUpperCase()}`,
+        organization.slug,
+        user?.email ?? "",
+        user?.email ?? "",
+        "",
+        async (razorpayResponse) => {
+          // Verify payment server-side and activate upgrade
+          try {
+            const confirmResp = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-plan-upgrade`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${session?.access_token}`,
+                },
+                body: JSON.stringify({
+                  organization_id: organization.id,
+                  to_plan: planLimitInfo.upgradeTo,
+                  razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                  razorpay_order_id: razorpayResponse.razorpay_order_id,
+                  razorpay_signature: razorpayResponse.razorpay_signature,
+                }),
+              },
+            );
+            const confirmData = await confirmResp.json();
+            if (!confirmResp.ok) throw new Error(confirmData.error || "Plan activation failed");
+
+            toast.success(`Plan upgraded to ${planLimitInfo.upgradeTo}! Thank you.`);
+            setPlanLimitOpen(false);
+            sessionStorage.removeItem(`plan_limit_dismissed_${organization.id}`);
+          } catch (confirmErr: any) {
+            toast.error(confirmErr.message || "Plan activation failed. Contact support with your payment ID.");
+          } finally {
+            setUpgradingPlan(false);
+          }
+        },
+        (errMsg) => {
+          if (errMsg !== "Payment cancelled by user") toast.error(errMsg);
+          setUpgradingPlan(false);
+        },
+      );
+    } catch (e: any) {
+      toast.error(e.message || "Upgrade failed. Please try again.");
+    } finally {
+      setUpgradingPlan(false);
+    }
+  }, [planLimitInfo, organization, user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -185,6 +405,7 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: Home },
+    { id: "quick-setup" as TabType, label: "Quick Setup", icon: Sparkles, adminOnly: true },
     { id: "notice-board" as TabType, label: "Notice Board", icon: Bell },
     { id: "booking-requests" as TabType, label: "Booking Requests", icon: PhoneCall },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
@@ -221,10 +442,10 @@ const AdminDashboard = () => {
         <div className="flex flex-col h-full p-4">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-8 p-2">
-            <img src={logo} alt="IRM Clinical Laboratory" className="h-10 w-10" />
+            <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-10 w-10" />
             <div>
               <h1 className="text-sm font-heading font-bold text-primary-foreground">
-                IRM Clinical
+                {branding.shortName}
               </h1>
               <p className="text-xs text-primary-foreground/70">Admin Panel</p>
             </div>
@@ -237,7 +458,7 @@ const AdminDashboard = () => {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    setActiveTab(tab.id);
+                    setDashboardTab(tab.id);
                     setSidebarOpen(false);
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
@@ -311,6 +532,24 @@ const AdminDashboard = () => {
             </div>
             <div className="flex items-center gap-2">
               <LabSelector />
+              {isPlatformAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/platform/leads")}
+                >
+                  Demo Leads
+                </Button>
+              )}
+              {isPlatformAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/platform/onboarding")}
+                >
+                  Onboarding Queue
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -331,10 +570,11 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setActiveTab(tab as TabType)} />}
+            {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setDashboardTab(tab as TabType)} />}
+            {activeTab === "quick-setup" && hasRole("admin") && <AdminQuickSetup />}
             {activeTab === "notice-board" && (
               <NoticeBoard
-                onNavigate={(tab) => setActiveTab(tab as TabType)}
+                onNavigate={(tab) => setDashboardTab(tab as TabType)}
                 onStatsChange={(count) =>
                   setSidebarCounts((current) => ({ ...current, noticeBoard: count }))
                 }
@@ -352,7 +592,7 @@ const AdminDashboard = () => {
               <ManagePatients
                 onAssignTests={(patient) => {
                   setSelectedPatientForTests(patient);
-                  setActiveTab("tests");
+                  setDashboardTab("tests");
                 }}
               />
             )}
@@ -375,6 +615,76 @@ const AdminDashboard = () => {
           </motion.div>
         </div>
       </main>
+
+      {/* Plan limit upgrade dialog */}
+      {planLimitInfo && (
+        <Dialog
+          open={planLimitOpen}
+          onOpenChange={(open) => {
+            if (!open && organization?.id) {
+              sessionStorage.setItem(`plan_limit_dismissed_${organization.id}`, "1");
+            }
+            setPlanLimitOpen(open);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mx-auto mb-3">
+                <TrendingUp className="h-6 w-6 text-amber-600" />
+              </div>
+              <DialogTitle className="text-center text-xl">Time to upgrade your plan</DialogTitle>
+              <DialogDescription className="text-center">
+                You have{" "}
+                <span className="font-semibold text-slate-900">
+                  {planLimitInfo.currentValue.toLocaleString("en-IN")}
+                </span>{" "}
+                {planLimitInfo.exceededMetric}, which exceeds the{" "}
+                <span className="font-semibold capitalize">{planLimitInfo.currentPlan}</span> plan limit of{" "}
+                <span className="font-semibold">
+                  {planLimitInfo.limit.toLocaleString("en-IN")}
+                </span>
+                .
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-center">
+              <p className="font-semibold text-blue-900 capitalize">
+                Upgrade to {planLimitInfo.upgradeTo}
+              </p>
+              <p className="mt-1 text-blue-700">
+                ₹{planLimitInfo.upgradePrice.toLocaleString("en-IN")}/year + GST
+              </p>
+              <p className="mt-1 text-xs text-blue-500">
+                (difference from your current {planLimitInfo.currentPlan} plan)
+              </p>
+            </div>
+
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={upgradingPlan}
+                onClick={() => {
+                  if (organization?.id) sessionStorage.setItem(`plan_limit_dismissed_${organization.id}`, "1");
+                  setPlanLimitOpen(false);
+                }}
+              >
+                Remind me later
+              </Button>
+              <Button
+                className="flex-1 bg-blue-600 hover:bg-blue-700 gap-2"
+                disabled={upgradingPlan}
+                onClick={() => void handleUpgradeNow()}
+              >
+                {upgradingPlan && <Loader2 className="h-4 w-4 animate-spin" />}
+                {upgradingPlan
+                  ? "Processing…"
+                  : `Upgrade to ${planLimitInfo?.upgradeTo} — ₹${planLimitInfo?.upgradePrice.toLocaleString("en-IN")}/yr`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

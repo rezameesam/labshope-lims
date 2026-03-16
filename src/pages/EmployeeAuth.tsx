@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Mail, Lock, ArrowRight, Shield, Users, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,19 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import Turnstile from "@/components/ui/turnstile";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { getWebsiteHostname } from "@/lib/branding";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import PlatformAccessPage from "@/components/platform/PlatformAccessPage";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 const EmployeeAuth = () => {
   const navigate = useNavigate();
-  const { signIn, user, loading: authLoading, isStaff, isCollector } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { signIn, user, loading: authLoading, isStaff, isCollector, staffPasswordResetRequired } = useAuth();
+  const { branding } = useOrganization();
+  const { loading: publicModeLoading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -31,17 +40,35 @@ const EmployeeAuth = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+  const staffEmailPlaceholder = `staff@${getWebsiteHostname(branding.website)}`;
+  const requestedNext = searchParams.get("next");
+  const platformAdminLoginMode =
+    location.pathname === "/platform/login" || searchParams.get("platform") === "1";
+
+  const getResetPath = (firstLoginFlow?: string | null, fallbackCollector = false) => {
+    const nextPath =
+      firstLoginFlow === "self_serve_owner"
+        ? "/admin?tab=quick-setup&onboarding=1"
+        : fallbackCollector
+          ? "/collector"
+          : "/admin";
+    return `/staff/reset-password?first_login=1&next=${encodeURIComponent(nextPath)}`;
+  };
 
   useEffect(() => {
     if (!authLoading && user && isStaff) {
-      // Redirect collectors to collector dashboard, others to admin dashboard
-      if (isCollector) {
-        navigate("/collector", { replace: true });
-      } else {
-        navigate("/admin", { replace: true });
+      if (staffPasswordResetRequired) {
+        navigate(getResetPath(String(user.user_metadata?.first_login_flow || "")), { replace: true });
+        return;
       }
+
+      // Redirect collectors to collector dashboard, others to admin dashboard
+      navigate(
+        requestedNext || (platformAdminLoginMode ? "/platform" : isCollector ? "/collector" : "/admin"),
+        { replace: true }
+      );
     }
-  }, [user, authLoading, isStaff, isCollector, navigate]);
+  }, [user, authLoading, isStaff, isCollector, navigate, platformAdminLoginMode, staffPasswordResetRequired, requestedNext]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +83,13 @@ const EmployeeAuth = () => {
     }
 
     setIsLoading(true);
-    const { error, isStaff: signedInStaff, isCollector: signedInCollector } = await signIn(
+    const {
+      error,
+      isStaff: signedInStaff,
+      isCollector: signedInCollector,
+      requiresPasswordReset,
+      firstLoginFlow,
+    } = await signIn(
       email.trim(),
       password,
       captchaToken,
@@ -74,7 +107,11 @@ const EmployeeAuth = () => {
 
     toast.success("Signed in successfully!");
     if (signedInStaff) {
-      navigate(signedInCollector ? "/collector" : "/admin");
+      navigate(
+        requiresPasswordReset
+          ? getResetPath(firstLoginFlow, signedInCollector)
+          : requestedNext || (platformAdminLoginMode ? "/platform" : signedInCollector ? "/collector" : "/admin")
+      );
     } else {
       toast.error("Your account does not have staff access.");
     }
@@ -114,17 +151,45 @@ const EmployeeAuth = () => {
     );
   }
 
+  if (publicModeLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-subtle-gradient">
+        <div className="animate-pulse text-clinical-navy">Loading...</div>
+      </div>
+    );
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode && !platformAdminLoginMode) {
+    return (
+      <PlatformAccessPage
+        eyebrow="Staff Access"
+        title="Staff access is available from each lab’s own workspace domain."
+        description="The root site is the product website. Laboratory admins, collectors, and staff should sign in through their organization’s branded domain so access, permissions, and data stay tenant-specific."
+        primaryCtaLabel="Book Demo"
+        primaryCtaTo="/book-test"
+        secondaryCtaLabel="Patient Portal"
+        secondaryCtaTo="/auth/patient"
+        helperTitle="Looking for your staff workspace?"
+        helperBody="Use the URL shared by your lab administrator. Staff login, role checks, password resets, and dashboard access are all resolved from the organization domain."
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-clinical-navy p-12 flex-col justify-between">
         <Link to="/" className="flex items-center gap-3">
-          <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+          <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
           <div>
             <h1 className="text-lg font-heading font-bold text-primary-foreground">
-              IRM Clinical
+              {branding.shortName}
             </h1>
-            <p className="text-xs text-primary-foreground/70">Laboratory</p>
+            <p className="text-xs text-primary-foreground/70">{branding.secondaryLabel}</p>
           </div>
         </Link>
 
@@ -149,7 +214,7 @@ const EmployeeAuth = () => {
         </div>
 
         <p className="text-primary-foreground/60 text-sm">
-          © {new Date().getFullYear()} IRM Clinical Laboratory
+          © {new Date().getFullYear()} {branding.displayName}
         </p>
       </div>
 
@@ -159,12 +224,12 @@ const EmployeeAuth = () => {
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
             <Link to="/" className="inline-flex items-center gap-3">
-              <img src={logo} alt="IRM Clinical Laboratory" className="h-14 w-14" />
+              <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-14 w-14" />
               <div className="text-left">
                 <h1 className="text-lg font-heading font-bold text-clinical-navy">
-                  IRM Clinical
+                  {branding.shortName}
                 </h1>
-                <p className="text-xs text-muted-foreground">Laboratory</p>
+                <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>
               </div>
             </Link>
           </div>
@@ -180,7 +245,7 @@ const EmployeeAuth = () => {
                 Staff Login
               </h2>
               <p className="text-muted-foreground">
-                Sign in with your staff credentials
+                {platformAdminLoginMode ? "Sign in to the platform admin portal" : "Sign in with your staff credentials"}
               </p>
             </div>
 
@@ -303,7 +368,7 @@ const EmployeeAuth = () => {
               type="email"
               value={forgotEmail}
               onChange={(e) => setForgotEmail(e.target.value)}
-              placeholder="staff@irmclinic.com"
+              placeholder={staffEmailPlaceholder}
               autoComplete="email"
             />
           </div>

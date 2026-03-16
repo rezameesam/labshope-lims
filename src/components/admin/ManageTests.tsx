@@ -1,5 +1,8 @@
-import { useState, useEffect, useMemo, Fragment, startTransition } from "react";
-import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2, ChevronDown, ChevronUp } from "lucide-react";
+import { useCallback, useEffect, useMemo, Fragment, startTransition, useState } from "react";
+import { AbdmCareContextButton } from "./AbdmCareContextButton";
+import { Plus, Search, CheckCircle, Clock, AlertCircle, Calendar, History, User, X, Printer, Building2, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -51,7 +54,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { useLab } from "@/contexts/LabContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
+import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
 
 interface PatientTest {
   id: string;
@@ -195,8 +200,11 @@ interface ResultDataState {
 const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const { user, isCollector } = useAuth();
   const { currentLab, availableLabs } = useLab();
+  const { organization, branding, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
 
   const [tests, setTests] = useState<PatientTest[]>([]);
+  const [linkedTestIds, setLinkedTestIds] = useState<Set<string>>(new Set());
   const [patients, setPatients] = useState<Patient[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
   const [testCatalog, setTestCatalog] = useState<Test[]>([]);
@@ -219,6 +227,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
@@ -425,7 +435,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     return filtered;
   }, [testsByCategory, testSearch, selectedCategoryFilter]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!organizationId) {
+      setTests([]);
+      setPatients([]);
+      setCategories([]);
+      setTestCatalog([]);
+      setDoctors([]);
+      setTestPackages([]);
+      setReportTemplates([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       // Build queries with collector restrictions
@@ -444,7 +466,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             gender,
             date_of_birth,
             blood_group,
-            created_by
+            created_by,
+            abha_address
           ),
           labs (
             id,
@@ -458,6 +481,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           )
         `);
 
+      testsQuery = testsQuery.eq("organization_id" as any, organizationId);
+
       // Collectors should only see tests they collected OR tests for patients they created
       if (isCollector && user?.id) {
         // Filter by collected_by OR patient's created_by
@@ -468,22 +493,51 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       let patientsQuery: any = supabase
         .from("patients")
         .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .eq("organization_id" as any, organizationId);
 
       // Collectors should only see patients they created
       if (isCollector && user?.id) {
         patientsQuery = patientsQuery.eq("created_by", user.id);
       }
 
+      const templatesQuery = supabase
+        .from("test_templates")
+        .select("id, name, is_default")
+        .eq("organization_id" as any, organizationId)
+        .order("name");
+
+      const categoriesQuery = supabase
+        .from("test_categories")
+        .select("id, name")
+        .eq("organization_id", organizationId);
+
+      const catalogQuery = supabase
+        .from("tests")
+        .select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max")
+        .eq("organization_id", organizationId);
+
+      const packagesQuery = supabase
+        .from("test_packages")
+        .select("id, name, price, discount_percentage, is_active")
+        .eq("is_active", true)
+        .eq("organization_id", organizationId);
+
+      const doctorsQuery = supabase
+        .from("doctors")
+        .select("id, name, specialization, commission_percentage")
+        .eq("is_active", true)
+        .eq("organization_id" as any, organizationId);
+
       const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes, packagesRes, packageTestsRes, templatesRes] = await Promise.all([
         testsQuery.order("created_at", { ascending: false }),
         patientsQuery,
-        supabase.from("test_categories").select("id, name"),
-        supabase.from("tests").select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max"),
-        supabase.from("doctors").select("id, name, specialization, commission_percentage").eq("is_active", true),
-        supabase.from("test_packages").select("id, name, price, discount_percentage, is_active").eq("is_active", true),
+        categoriesQuery,
+        catalogQuery,
+        doctorsQuery,
+        packagesQuery,
         supabase.from("test_package_tests").select("package_id, test_id"),
-        supabase.from("test_templates").select("id, name, is_default").order("name"),
+        templatesQuery,
       ]);
 
       if (testsRes.error) throw testsRes.error;
@@ -510,6 +564,24 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       }
 
       setTests(testsData);
+
+      // Fetch which completed tests are already linked to ABHA
+      const completedTestIds = testsData
+        .filter((t) => t.status === "completed" && (t.patients as any)?.abha_address)
+        .map((t) => t.id);
+      if (completedTestIds.length > 0) {
+        const { data: linkData } = await supabase
+          .from("abdm_care_context_links" as any)
+          .select("patient_test_id")
+          .eq("organization_id" as any, organizationId)
+          .in("patient_test_id", completedTestIds)
+          .in("link_status", ["linked", "notified"]);
+        const ids = new Set<string>((linkData || []).map((r: any) => r.patient_test_id).filter(Boolean));
+        setLinkedTestIds(ids);
+      } else {
+        setLinkedTestIds(new Set());
+      }
+
       setPatients(patientsRes.data || []);
       setCategories(categoriesRes.data || []);
       setTestCatalog((catalogRes.data || []) as Test[]);
@@ -519,11 +591,14 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         const existing = packageTestsMap.get(row.package_id) || [];
         packageTestsMap.set(row.package_id, [...existing, row.test_id]);
       });
+      const packageIds = (packagesRes.data || []).map((pkg) => pkg.id);
       const packages = (packagesRes.data || []).map((pkg) => ({
         ...pkg,
         tests: packageTestsMap.get(pkg.id) || [],
       })) as TestPackage[];
-      setTestPackages(packages);
+      setTestPackages(
+        packages.filter((pkg) => packageIds.includes(pkg.id)),
+      );
       setReportTemplates((templatesRes.data || []) as ReportTemplateOption[]);
     } catch (error: any) {
       console.error("Error fetching data:", error);
@@ -538,14 +613,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isCollector, organizationId, user?.id]);
 
-  const fetchLabs = async () => {
+  const fetchLabs = useCallback(async () => {
     try {
+      if (!organizationId) {
+        setLabs([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("labs")
         .select("id, name, lab_code")
         .eq("is_active", true)
+        .eq("organization_id" as any, organizationId)
         .order("name");
 
       if (error) {
@@ -561,14 +642,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       console.error("Error fetching labs:", error);
       setLabs([]);
     }
-  };
+  }, [organizationId]);
 
-  const fetchCollectionCenters = async () => {
+  const fetchCollectionCenters = useCallback(async () => {
     try {
+      if (!organizationId) {
+        setCollectionCenters([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("collection_centers")
         .select("id, name, code, lab_id")
         .eq("is_active", true)
+        .eq("organization_id" as any, organizationId)
         .order("name");
 
       if (error) {
@@ -584,13 +671,31 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       console.error("Error fetching collection centers:", error);
       setCollectionCenters([]);
     }
-  };
+  }, [organizationId]);
 
   useEffect(() => {
-    fetchData();
-    fetchLabs();
-    fetchCollectionCenters();
-  }, []);
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setTests([]);
+      setPatients([]);
+      setCategories([]);
+      setTestCatalog([]);
+      setDoctors([]);
+      setTestPackages([]);
+      setReportTemplates([]);
+      setLabs([]);
+      setCollectionCenters([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+    void fetchLabs();
+    void fetchCollectionCenters();
+  }, [fetchCollectionCenters, fetchData, fetchLabs, organizationId, organizationLoading]);
 
   useEffect(() => {
     if (!appliedPackage) return;
@@ -755,6 +860,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     setIsSubmitting(true);
 
     try {
+      if (!organizationId) {
+        throw new Error("Organization context is required before adding tests");
+      }
+
       const { data: userData } = await supabase.auth.getUser();
       const packageGroupId = appliedPackage ? crypto.randomUUID() : null;
       const packageTestNames = appliedPackage
@@ -771,6 +880,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       // Insert all selected tests for the patient
       const testsToInsert = selectedTests.map((testName) => ({
         patient_id: selectedPatient.id,
+        organization_id: organizationId,
         test_name: testName,
         test_date: formData.test_date,
         notes: formData.notes || null,
@@ -793,7 +903,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       if (error) throw error;
 
       // Auto-create invoice for the tests
-      const invoiceNumber = `INV${new Date().getFullYear().toString().slice(-2)}${Math.floor(10000 + Math.random() * 90000)}`;
+      const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
       
       // Calculate prices from test catalog
       let totalAmount = 0;
@@ -829,6 +939,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .insert({
           invoice_number: invoiceNumber,
           patient_id: selectedPatient.id,
+          organization_id: organizationId,
           lab_id: formData.lab_id || selectedPatient.lab_id || null,
           collection_center_id: formData.collection_center_id || selectedPatient.collection_center_id || null,
           total_amount: totalAmount,
@@ -844,7 +955,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       // Create invoice items
       const invoiceItems = invoiceItemsData.map(item => ({
         ...item,
-        invoice_id: invoice.id
+        invoice_id: invoice.id,
+        organization_id: organizationId,
       }));
 
       const { error: itemsError } = await supabase
@@ -866,6 +978,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             .insert({
               doctor_id: selectedDoctor.id,
               patient_id: selectedPatient.id,
+              organization_id: organizationId,
               invoice_id: invoice.id,
               invoice_number: invoiceNumber,
               invoice_amount: totalAmount,
@@ -981,6 +1094,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     const willComplete = resultData.status === "completed" && willHaveResult;
 
     try {
+      if (!organizationId) {
+        throw new Error("Organization context is required before updating test results");
+      }
+
       const panelAbnormal = usePanelResults ? getPanelAbnormal(resultData.result_items) : false;
       const finalAbnormal = usePanelResults ? panelAbnormal || resultData.is_abnormal : resultData.is_abnormal;
       const updateData: Record<string, unknown> = {
@@ -1004,7 +1121,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       const { error } = await supabase
         .from("patient_tests")
         .update(updateData)
-        .eq("id", selectedTest.id);
+        .eq("id", selectedTest.id)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -1016,16 +1134,20 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             .from("invoice_items")
             .select("invoice_id")
             .eq("patient_test_id", selectedTest.id)
+            .eq("organization_id", organizationId)
             .maybeSingle();
 
           if (invoiceItem?.invoice_id) {
             const { data: invoiceItems, error: invoiceItemsError } = await supabase
               .from("invoice_items")
               .select("patient_test_id, patient_tests(status,result,result_value,test_name)")
-              .eq("invoice_id", invoiceItem.invoice_id);
-
+              .eq("invoice_id", invoiceItem.invoice_id)
+              .eq("organization_id", organizationId);
+              
             if (!invoiceItemsError && invoiceItems) {
-              const allCompleted = invoiceItems.every((item) => {
+              const scopedInvoiceItems = invoiceItems.filter(Boolean);
+
+              const allCompleted = scopedInvoiceItems.every((item) => {
                 const test = item.patient_tests as {
                   status: string;
                   result: string | null;
@@ -1037,7 +1159,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
               });
 
               if (allCompleted) {
-                const testNames = invoiceItems
+                const testNames = scopedInvoiceItems
                   .map((item) => (item.patient_tests as { test_name?: string | null } | null)?.test_name)
                   .filter((name): name is string => Boolean(name));
                 await sendAllTestsReadyNotification(
@@ -1206,8 +1328,11 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     const matchesStatus = statusFilter === "all" || test.status === statusFilter;
     const matchesLab = labFilter === "all" || test.lab_id === labFilter;
     const matchesCollectionCenter = collectionCenterFilter === "all" || test.collection_center_id === collectionCenterFilter;
+    const matchesDate =
+      (!dateFrom || (test.test_date && test.test_date >= dateFrom)) &&
+      (!dateTo || (test.test_date && test.test_date <= dateTo));
 
-    return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter;
+    return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter && matchesDate;
   });
 
   const groupedRows = useMemo(() => {
@@ -1243,7 +1368,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, labFilter, collectionCenterFilter]);
+  }, [search, statusFilter, labFilter, collectionCenterFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     if (currentPage !== safePage) {
@@ -1353,7 +1478,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           patientData.tests,
           undefined,
           printOptions,
-          selectedTemplateId === "auto" ? undefined : selectedTemplateId
+          selectedTemplateId === "auto" ? undefined : selectedTemplateId,
+          {
+            organizationId: organization?.id || undefined,
+            name: branding.displayName,
+            tagline: branding.tagline,
+            address: branding.addressLines.join(", "),
+            phone: branding.phoneNumbers.join(" | "),
+            email: branding.email,
+            website: branding.website,
+            logoUrl: branding.logoUrl,
+            reportTagline: branding.reportTagline,
+            reportFooterNote: branding.reportFooterNote,
+          }
         );
         if (success) printedCount++;
       }
@@ -1443,8 +1580,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       </div>
 
       {/* Search and Actions */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+      <div className="flex flex-wrap gap-3 justify-between items-start">
+        <div className="flex flex-wrap gap-3 flex-1">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -1488,26 +1625,74 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 ))}
             </SelectContent>
           </Select>
-          {(statusFilter !== "all" || labFilter !== "all" || collectionCenterFilter !== "all") && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => {
-                setStatusFilter("all");
-                setLabFilter("all");
-                setCollectionCenterFilter("all");
-              }}
-              className="text-muted-foreground"
-            >
-              Clear filters ×
-            </Button>
-          )}
+          <div className="flex items-start gap-3">
+            <DateInput
+              id="tests-date-from"
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder="From date"
+              className="w-[150px]"
+              showFormatHint
+            />
+            <DateInput
+              id="tests-date-to"
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder="To date"
+              className="w-[150px]"
+              showFormatHint
+            />
+            {(statusFilter !== "all" || labFilter !== "all" || collectionCenterFilter !== "all" || dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setLabFilter("all");
+                  setCollectionCenterFilter("all");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="text-muted-foreground"
+              >
+                Clear filters ×
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              exportToExcel("tests", [
+                { key: "patient_name", label: "Patient" },
+                { key: "patient_id_code", label: "Patient ID" },
+                { key: "test_name", label: "Test" },
+                { key: "test_date", label: "Test Date" },
+                { key: "status", label: "Status" },
+                { key: "result", label: "Result" },
+                { key: "result_value", label: "Value" },
+                { key: "result_unit", label: "Unit" },
+                { key: "is_abnormal", label: "Abnormal" },
+                { key: "lab_name", label: "Lab" },
+              ], filteredTests.map(t => ({
+                ...t,
+                patient_name: t.patients?.full_name ?? "",
+                patient_id_code: t.patients?.patient_id ?? "",
+                lab_name: t.labs?.name ?? "",
+                test_date: t.test_date ? new Date(t.test_date).toLocaleDateString("en-IN") : "",
+                is_abnormal: t.is_abnormal ? "Yes" : "No",
+              })))
+            }
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export
+          </Button>
           {selectedTestIds.length > 0 && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsPrintDialogOpen(true)}
               className="gap-2"
             >
@@ -2649,7 +2834,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
               <div className="space-y-0.5">
                 <Label htmlFor="include-watermark" className="text-base font-medium">Include Watermark</Label>
                 <p className="text-sm text-muted-foreground">
-                  Very light IRM logo behind the report content
+                  Very light organization logo behind the report content
                 </p>
               </div>
               <Switch
@@ -2682,6 +2867,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
       {/* Tests Table */}
       <Card className="border-0 shadow-md">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -2739,7 +2925,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
                   return (
                     <Fragment key={`package-${row.groupId}`}>
-                      <TableRow key={`package-${row.groupId}`} className="bg-muted/30">
+                      <TableRow className="bg-muted/30">
                         <TableCell>
                           <Checkbox
                             checked={hasCompleted && testsInGroup.filter((t) => t.status === "completed").every((t) => selectedTestIds.includes(t.id))}
@@ -3035,6 +3221,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {test.status === "completed" && organizationId && (
+                          <AbdmCareContextButton
+                            organizationId={organizationId}
+                            patientId={test.patient_id}
+                            patientTestId={test.id}
+                            careContextReference={test.id}
+                            careContextDisplay={`${test.test_name} — ${test.test_date ? new Date(test.test_date).toLocaleDateString("en-IN") : "N/A"}`}
+                            abhaAddress={(test.patients as any)?.abha_address ?? null}
+                            initialLinked={linkedTestIds.has(test.id)}
+                          />
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -3070,51 +3267,14 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             )}
           </TableBody>
         </Table>
-        {filteredTests.length > 0 && (
-          <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1}-{Math.min(endIndex, groupedRows.rows.length)} of{" "}
-              {groupedRows.rows.length}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows</span>
-                <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                  <SelectTrigger className="h-8 w-[90px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  disabled={safePage === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {safePage} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={safePage === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
+        <DataPagination
+          total={groupedRows.rows.length}
+          page={safePage}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </Card>
     </div>
   );

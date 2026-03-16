@@ -1,6 +1,7 @@
 import { createClient, type User } from "https://esm.sh/@supabase/supabase-js@2";
 
-export const PATIENT_AUTH_DOMAIN = "patients.irmclinic.local";
+export const PATIENT_AUTH_DOMAIN =
+  Deno.env.get("PATIENT_AUTH_DOMAIN")?.trim() || "patients.irmclinic.local";
 export const PATIENT_PASSWORD_MIN_LENGTH = 6;
 
 const LOCAL_ORIGIN_PATTERN = /^(https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?|https?:\/\/(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?)$/i;

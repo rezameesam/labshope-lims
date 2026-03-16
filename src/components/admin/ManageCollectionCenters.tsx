@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   MapPin,
   Plus,
@@ -53,6 +53,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import CollectionCenterAnalytics from "@/components/admin/CollectionCenterAnalytics";
 import { BarChart3, Settings } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -77,6 +78,8 @@ interface CollectionCenter {
 const ManageCollectionCenters = () => {
   const { hasRole } = useAuth();
   const { currentLab, availableLabs, isLabAdmin } = useLab();
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [centers, setCenters] = useState<CollectionCenter[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,13 +101,7 @@ const ManageCollectionCenters = () => {
     is_active: true,
   });
 
-  useEffect(() => {
-    if (currentLab || hasRole("admin")) {
-      fetchCenters();
-    }
-  }, [currentLab]);
-
-  const fetchCenters = async () => {
+  const fetchCenters = useCallback(async () => {
     setLoading(true);
     try {
       let query = supabase
@@ -114,6 +111,10 @@ const ManageCollectionCenters = () => {
           lab:labs(id, name, lab_code)
         `)
         .order("name");
+
+      if (organizationId) {
+        query = query.eq("organization_id" as any, organizationId);
+      }
 
       // If not admin, filter by current lab
       if (!hasRole("admin") && currentLab) {
@@ -130,7 +131,17 @@ const ManageCollectionCenters = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentLab, hasRole, organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (currentLab || hasRole("admin")) {
+      void fetchCenters();
+    }
+  }, [currentLab, fetchCenters, hasRole, organizationId, organizationLoading]);
 
   const resetForm = () => {
     setCenterForm({
@@ -162,6 +173,11 @@ const ManageCollectionCenters = () => {
   };
 
   const handleSaveCenter = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before managing collection centers");
+      return;
+    }
+
     if (!centerForm.lab_id || !centerForm.code.trim() || !centerForm.name.trim()) {
       toast.error("Lab, code, and name are required");
       return;
@@ -176,6 +192,7 @@ const ManageCollectionCenters = () => {
     try {
       const centerData = {
         lab_id: centerForm.lab_id,
+        organization_id: organizationId,
         code: centerForm.code.trim().toUpperCase(),
         name: centerForm.name.trim(),
         address: centerForm.address.trim() || null,
@@ -186,10 +203,12 @@ const ManageCollectionCenters = () => {
       };
 
       if (editingCenter) {
-        const { error } = await supabase
+        let updateQuery = supabase
           .from("collection_centers")
           .update(centerData)
-          .eq("id", editingCenter.id);
+          .eq("id", editingCenter.id)
+          .eq("organization_id" as any, organizationId);
+        const { error } = await updateQuery;
 
         if (error) throw error;
         toast.success("Collection center updated successfully");
@@ -214,13 +233,14 @@ const ManageCollectionCenters = () => {
   };
 
   const handleDeleteCenter = async () => {
-    if (!centerToDelete) return;
+    if (!centerToDelete || !organizationId) return;
 
     try {
       const { error } = await supabase
         .from("collection_centers")
         .delete()
-        .eq("id", centerToDelete);
+        .eq("id", centerToDelete)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -239,9 +259,13 @@ const ManageCollectionCenters = () => {
     center.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const organizationLabs = organizationId
+    ? availableLabs.filter((lab) => lab.organization_id === organizationId)
+    : availableLabs;
+
   const accessibleLabs = hasRole("admin")
-    ? availableLabs
-    : availableLabs.filter((lab) => isLabAdmin(lab.id));
+    ? organizationLabs
+    : organizationLabs.filter((lab) => isLabAdmin(lab.id));
 
   if (!currentLab && !hasRole("admin")) {
     return (

@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  fetchOrganizationBranding,
+  fetchScopedSettings,
+} from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +25,16 @@ type EmployeeRecord = {
   full_name: string;
   email: string;
   is_active: boolean;
+  organization_id: string | null;
+};
+
+const getEmployeeUserMetadata = async (supabaseAdmin: any, userId: string) => {
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (error) {
+    throw new Error(error.message || "Failed to load employee auth metadata.");
+  }
+
+  return data.user?.user_metadata || {};
 };
 
 serve(async (req: Request): Promise<Response> => {
@@ -92,7 +106,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const { data: employee, error: employeeError } = await supabaseAdmin
       .from("employees")
-      .select("id, user_id, employee_id, full_name, email, is_active")
+      .select("id, user_id, employee_id, full_name, email, is_active, organization_id")
       .eq("id", employee_id)
       .single();
 
@@ -110,14 +124,41 @@ serve(async (req: Request): Promise<Response> => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    if (!employeeRecord.organization_id) {
+      return new Response(
+        JSON.stringify({ error: "Employee is not linked to an organization." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { data: organizationAccess } = await supabaseAdmin
+      .from("organization_users")
+      .select("organization_id")
+      .eq("user_id", userData.user.id)
+      .eq("organization_id", employeeRecord.organization_id)
+      .eq("is_active", true)
+      .limit(1);
+
+    if (!organizationAccess || organizationAccess.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "You do not have access to this employee." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     if (resolvedMode === "temp") {
       const tempPassword = generatePassword(12);
       const userId = await ensureEmployeeAuthUser(supabaseAdmin, employeeRecord, tempPassword);
+      const existingMetadata = await getEmployeeUserMetadata(supabaseAdmin, userId);
 
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
         password: tempPassword,
         email_confirm: true,
+        user_metadata: {
+          ...existingMetadata,
+          must_change_password: true,
+          first_login_flow: "admin_reset_temp",
+        },
       });
       if (updateError) {
         return new Response(
@@ -142,9 +183,15 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const userId = await ensureEmployeeAuthUser(supabaseAdmin, employeeRecord, generatePassword(12));
+      const existingMetadata = await getEmployeeUserMetadata(supabaseAdmin, userId);
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
         password,
         email_confirm: true,
+        user_metadata: {
+          ...existingMetadata,
+          must_change_password: false,
+          first_login_flow: null,
+        },
       });
       if (updateError) {
         return new Response(
@@ -173,7 +220,25 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    await ensureEmployeeAuthUser(supabaseAdmin, employeeRecord, generatePassword(12));
+    const ensuredUserId = await ensureEmployeeAuthUser(supabaseAdmin, employeeRecord, generatePassword(12));
+    const existingMetadata = await getEmployeeUserMetadata(supabaseAdmin, ensuredUserId);
+
+    {
+      const { error: metadataError } = await supabaseAdmin.auth.admin.updateUserById(ensuredUserId, {
+        user_metadata: {
+          ...existingMetadata,
+          must_change_password: true,
+          first_login_flow: "admin_reset_email",
+        },
+      });
+
+      if (metadataError) {
+        return new Response(
+          JSON.stringify({ error: metadataError.message || "Failed to prepare employee reset state." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
 
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
@@ -198,16 +263,33 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const subject = "Reset your IRM Employee Portal password";
-    const htmlContent = buildResetEmail(employeeRecord.full_name, actionLink);
+    const [settingsMap, organizationBranding] = await Promise.all([
+      fetchScopedSettings(
+        supabaseUrl,
+        serviceRoleKey,
+        ["employee_portal_name"],
+        employeeRecord.organization_id,
+      ),
+      fetchOrganizationBranding(supabaseUrl, serviceRoleKey, employeeRecord.organization_id),
+    ]);
+    const businessName =
+      organizationBranding?.displayName?.trim() ||
+      settingsMap.get("employee_portal_name")?.trim() ||
+      "Diagnostic Laboratory";
+    const subject = `Reset your ${businessName} employee portal password`;
+    const htmlContent = buildResetEmail(employeeRecord.full_name, actionLink, businessName);
 
     const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-service-key": serviceRoleKey,
+      },
       body: JSON.stringify({
         to: employeeRecord.email,
         subject,
         htmlContent,
+        organizationId: employeeRecord.organization_id,
       }),
     });
 
@@ -272,12 +354,12 @@ function generatePassword(length: number): string {
   return Array.from(bytes).map((value) => chars[value % chars.length]).join("");
 }
 
-function buildResetEmail(name: string, link: string): string {
+function buildResetEmail(name: string, link: string, businessName: string): string {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.5;">
       <h2 style="color:#1F2937;">Reset your password</h2>
       <p>Hello ${name || "there"},</p>
-      <p>An administrator requested a password reset for your IRM Employee Portal account.</p>
+      <p>An administrator requested a password reset for your ${escapeHtml(businessName)} employee portal account.</p>
       <p>
         <a href="${link}" style="display:inline-block;padding:10px 16px;background:#1F2937;color:#fff;text-decoration:none;border-radius:6px;">
           Reset Password
@@ -286,4 +368,13 @@ function buildResetEmail(name: string, link: string): string {
       <p>This link will expire automatically. If you did not request this reset, please contact an administrator.</p>
     </div>
   `;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

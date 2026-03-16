@@ -9,9 +9,15 @@ import logo from "@/assets/logo.png";
 import Turnstile from "@/components/ui/turnstile";
 import PasswordRequirements from "@/components/patient/PasswordRequirements";
 import { validatePatientPassword } from "@/lib/patientSecurity";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import PlatformResetPage from "@/components/platform/PlatformResetPage";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 const PatientResetPassword = () => {
   const navigate = useNavigate();
+  const { branding } = useOrganization();
+  const { loading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +27,30 @@ const PatientResetPassword = () => {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token") || "";
   const passwordValidationMessage = useMemo(() => validatePatientPassword(newPassword), [newPassword]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-subtle-gradient flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode) {
+    return (
+      <PlatformResetPage
+        eyebrow="Patient Password Reset"
+        title="Patient password reset must be opened from the lab portal."
+        description="Reset links are issued per laboratory organization. Open the reset email from your lab’s own portal domain to continue safely."
+        loginLabel="Patient Portal Guidance"
+        loginTo="/auth/patient"
+      />
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,9 +109,9 @@ const PatientResetPassword = () => {
         <section className="hidden lg:flex bg-hero-gradient px-10 py-12 text-primary-foreground flex-col justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+              <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
               <div>
-                <p className="font-heading text-lg font-semibold">IRM Clinical</p>
+                <p className="font-heading text-lg font-semibold">{branding.shortName}</p>
                 <p className="text-xs text-primary-foreground/70">Patient Portal Security</p>
               </div>
             </div>

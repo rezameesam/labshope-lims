@@ -13,6 +13,7 @@ import {
   FileText,
   FlaskConical,
   GitBranch,
+  HeartPulse,
   Lock,
   LogOut,
   Mail,
@@ -48,6 +49,7 @@ import PatientBookTestRequest from "@/components/patient/PatientBookTestRequest"
 import PasswordRequirements from "@/components/patient/PasswordRequirements";
 import PageErrorBoundary from "@/components/PageErrorBoundary";
 import { formatPhoneForDisplay } from "@/lib/phone";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { validatePatientPassword } from "@/lib/patientSecurity";
 
 interface PatientTest {
@@ -120,6 +122,7 @@ const patientTabTriggerClassName =
   "h-14 w-full cursor-pointer flex-row items-center justify-center gap-2.5 rounded-2xl border border-border/70 bg-background/85 px-4 text-center text-sm font-semibold leading-none text-clinical-navy/75 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-clinical-navy/20 hover:bg-background hover:text-clinical-navy hover:shadow-md data-[state=active]:border-clinical-navy data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg md:h-16 md:text-base";
 
 const PatientDashboard = () => {
+  const { branding } = useOrganization();
   const navigate = useNavigate();
   const { patient, loading, isAuthenticated, signOut, setPassword, updateAddress } = usePatientAuth();
   const [tests, setTests] = useState<PatientTest[]>([]);
@@ -154,10 +157,17 @@ const PatientDashboard = () => {
     }
 
     try {
-      const { data: invoices, error } = await supabase
+      let invoicesQuery = supabase
         .from("invoices")
         .select("final_amount, paid_amount, payment_status")
         .eq("patient_id", patient.id);
+
+      const resolvedOrganizationId = patient.organization_id || null;
+      if (resolvedOrganizationId) {
+        invoicesQuery = invoicesQuery.eq("organization_id" as any, resolvedOrganizationId);
+      }
+
+      const { data: invoices, error } = await invoicesQuery;
 
       if (error) throw error;
 
@@ -172,7 +182,7 @@ const PatientDashboard = () => {
     } finally {
       setCheckingDues(false);
     }
-  }, [patient?.id]);
+  }, [patient?.id, patient?.organization_id]);
 
   useEffect(() => {
     const fetchTests = async () => {
@@ -183,7 +193,7 @@ const PatientDashboard = () => {
         let error;
 
         try {
-          const result = await supabase
+          let testsQuery = supabase
             .from("patient_tests")
             .select(`
               *,
@@ -198,8 +208,13 @@ const PatientDashboard = () => {
                 code
               )
             `)
-            .eq("patient_id", patient.id)
-            .order("created_at", { ascending: false });
+            .eq("patient_id", patient.id);
+
+          if (patient.organization_id) {
+            testsQuery = testsQuery.eq("organization_id" as any, patient.organization_id);
+          }
+
+          const result = await testsQuery.order("created_at", { ascending: false });
 
           data = result.data;
           error = result.error;
@@ -212,20 +227,30 @@ const PatientDashboard = () => {
               error.message?.includes("Could not find") ||
               error.message?.includes("relationship"))
           ) {
-            const basicResult = await supabase
+            let basicQuery = supabase
               .from("patient_tests")
               .select("*")
-              .eq("patient_id", patient.id)
-              .order("created_at", { ascending: false });
+              .eq("patient_id", patient.id);
+
+            if (patient.organization_id) {
+              basicQuery = basicQuery.eq("organization_id" as any, patient.organization_id);
+            }
+
+            const basicResult = await basicQuery.order("created_at", { ascending: false });
             data = basicResult.data;
             error = basicResult.error;
           }
         } catch {
-          const basicResult = await supabase
+          let basicQuery = supabase
             .from("patient_tests")
             .select("*")
-            .eq("patient_id", patient.id)
-            .order("created_at", { ascending: false });
+            .eq("patient_id", patient.id);
+
+          if (patient.organization_id) {
+            basicQuery = basicQuery.eq("organization_id" as any, patient.organization_id);
+          }
+
+          const basicResult = await basicQuery.order("created_at", { ascending: false });
           data = basicResult.data;
           error = basicResult.error;
         }
@@ -262,7 +287,7 @@ const PatientDashboard = () => {
       void fetchTests();
       void refreshDues();
     }
-  }, [patient?.id, refreshDues]);
+  }, [patient?.id, patient?.organization_id, refreshDues]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -378,10 +403,10 @@ const PatientDashboard = () => {
       <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="IRM Clinical" className="h-11 w-11 rounded-2xl border border-border bg-card p-1" />
+            <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-11 w-11 rounded-2xl border border-border bg-card p-1" />
             <div>
               <h1 className="font-heading text-lg font-semibold text-clinical-navy">Patient Portal</h1>
-              <p className="text-xs text-muted-foreground">IRM Clinical Laboratory</p>
+              <p className="text-xs text-muted-foreground">{branding.displayName}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -571,6 +596,7 @@ const PatientDashboard = () => {
                   blood_group: patient.blood_group,
                 }}
                 patientDbId={patient.id}
+                patientOrganizationId={patient.organization_id}
                 loading={testsLoading}
                 onPayNow={() => setActiveTab("billing")}
               />
@@ -598,6 +624,7 @@ const PatientDashboard = () => {
             >
               <BillingPortal
                 patientId={patient.id}
+                organizationId={patient.organization_id}
                 patientName={patient.full_name}
                 patientPhone={patient.phone}
                 onPaymentStatusChange={() => {
@@ -708,10 +735,49 @@ const PatientDashboard = () => {
                         You can update your address here. Contact our clinic team for phone number, email, or demographic changes.
                       </p>
                     </div>
-                    <p>Phone: +91 9622635767</p>
-                    <p>Email: support@irmclinic.com</p>
+                    <p>{`Phone: ${branding.primaryPhone}`}</p>
+                    <p>{`Email: ${branding.email}`}</p>
                   </CardContent>
                 </Card>
+
+                {(patient.abha_number || patient.abha_address) && (
+                  <Card className="rounded-3xl border border-border bg-card shadow-sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <HeartPulse className="h-5 w-5 text-emerald-600" />
+                        ABHA / Health ID
+                      </CardTitle>
+                      <CardDescription>Your Ayushman Bharat Health Account details.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      {patient.abha_number && (
+                        <div className="rounded-2xl border border-border bg-muted/40 p-4">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">ABHA Number</p>
+                          <p className="mt-1 font-mono font-medium text-foreground">{patient.abha_number}</p>
+                        </div>
+                      )}
+                      {patient.abha_address && (
+                        <div className="rounded-2xl border border-border bg-muted/40 p-4">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">ABHA Address</p>
+                          <p className="mt-1 font-mono font-medium text-foreground">{patient.abha_address}</p>
+                        </div>
+                      )}
+                      {patient.abdm_last_verified_at && (
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                          <p className="text-xs uppercase tracking-wide text-emerald-700">Last verified</p>
+                          <p className="mt-1 font-medium text-emerald-800">
+                            {formatAppDate(patient.abdm_last_verified_at)}
+                            {patient.abdm_source && (
+                              <span className="ml-2 text-xs text-emerald-600 capitalize">
+                                via {patient.abdm_source.replace(/_/g, " ")}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 <PatientActiveSessions />
               </div>
@@ -730,6 +796,7 @@ const PatientDashboard = () => {
                   phone: patient.phone,
                   email: patient.email,
                   address: patient.address,
+                  organization_id: patient.organization_id,
                 }}
               />
             </PageErrorBoundary>
@@ -848,11 +915,11 @@ const PatientDashboard = () => {
       <footer className="mt-12 border-t border-border bg-card/70">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground sm:px-6 md:flex-row lg:px-8">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="IRM Clinical" className="h-8 w-8 rounded-xl border border-border bg-card p-1" />
-            <span>© {new Date().getFullYear()} IRM Clinical Laboratory</span>
+            <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-8 w-8 rounded-xl border border-border bg-card p-1" />
+            <span>{`© ${new Date().getFullYear()} ${branding.displayName}`}</span>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <span>Need help? Call +91 9622635767</span>
+            <span>{`Need help? Call ${branding.primaryPhone}`}</span>
             <span>Portal access is intended for patients and authorized caregivers only.</span>
           </div>
         </div>

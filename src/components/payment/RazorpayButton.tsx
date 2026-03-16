@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { initiateRazorpayPayment } from "@/services/razorpayService";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface RazorpayButtonProps {
   invoiceId?: string;
@@ -35,6 +36,7 @@ export const RazorpayButton = ({
   size = "default",
 }: RazorpayButtonProps) => {
   const [processing, setProcessing] = useState(false);
+  const { branding } = useOrganization();
 
   const extractOrderErrorMessage = async (error: unknown, fallback?: string) => {
     if (fallback) return fallback;
@@ -132,55 +134,47 @@ export const RazorpayButton = ({
         orderData.order_id,
         orderAmountInRupees,
         resolvedInvoiceNumber,
+        branding.displayName,
         patientName,
         patientEmail,
         patientPhone,
         async (response) => {
           // Payment successful
           try {
-            const paymentNotes = isBulkPayment
+            // Confirm payment server-side (HMAC signature verification + DB update)
+            const confirmBody = isBulkPayment
               ? {
-                  bulk_invoices: JSON.stringify(
-                    (invoices || []).map((invoice) => ({
-                      invoice_id: invoice.id,
-                      invoice_number: invoice.invoice_number,
-                      amount: invoice.amount,
-                    }))
-                  ),
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  bulk_invoices: (invoices || []).map((inv) => ({
+                    invoice_id: inv.id,
+                    invoice_number: inv.invoice_number,
+                    amount: inv.amount,
+                  })),
                 }
               : {
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
                   invoice_id: invoiceId,
-                  invoice_number: resolvedInvoiceNumber,
+                  amount: orderAmountInRupees,
                 };
 
-            // Verify payment with backend
-            const { error: verifyError } = await supabase.functions.invoke(
-              "razorpay-webhook",
+            const { data: confirmData, error: confirmError } = await supabase.functions.invoke(
+              "confirm-razorpay-payment",
               {
-                body: {
-                  event: "payment.captured",
-                  payload: {
-                    payment: {
-                      entity: {
-                        id: response.razorpay_payment_id,
-                        order_id: response.razorpay_order_id,
-                        amount: Math.round(orderAmountInRupees * 100), // In paise
-                        status: "captured",
-                        notes: paymentNotes,
-                      },
-                    },
-                  },
-                },
+                body: confirmBody,
+                headers: { Authorization: `Bearer ${session.access_token}` },
               }
             );
 
-            if (verifyError) {
-              console.error("Payment verification error:", verifyError);
-              // Still show success as Razorpay payment was successful
-              // Webhook will handle the update
+            if (confirmError || !confirmData?.success) {
+              const msg = confirmData?.error || (confirmError as any)?.message || "Payment confirmation failed";
+              throw new Error(msg);
             }
 
-            toast.success("Payment successful! Your invoice will be updated shortly.");
+            toast.success("Payment successful!");
             if (onPaymentSuccess) {
               onPaymentSuccess();
             }

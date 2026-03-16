@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   UserPlus,
   Search,
@@ -12,7 +12,9 @@ import {
   IndianRupee,
   TrendingUp,
   Users,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +51,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatAppDate } from "@/lib/date";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Doctor {
   id: string;
@@ -80,6 +83,8 @@ interface DoctorReferral {
 }
 
 const ManageDoctors = () => {
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [referrals, setReferrals] = useState<DoctorReferral[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,29 +106,46 @@ const ManageDoctors = () => {
     notes: "",
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const fetchData = useCallback(async () => {
+    if (!organizationId) {
+      setDoctors([]);
+      setReferrals([]);
+      setLoading(false);
+      return;
+    }
 
-  const fetchData = async () => {
     setLoading(true);
     try {
       // Fetch doctors
-      const { data: doctorsData, error: doctorsError } = await supabase
+      let doctorsQuery = supabase
         .from("doctors")
         .select("*")
         .order("name");
 
+      doctorsQuery = doctorsQuery.eq("organization_id" as any, organizationId);
+
+      const { data: doctorsData, error: doctorsError } = await doctorsQuery;
+
       if (doctorsError) throw doctorsError;
-      setDoctors(doctorsData || []);
+      const scopedDoctors = doctorsData || [];
+      setDoctors(scopedDoctors);
+
+      const doctorIds = scopedDoctors.map((doctor) => doctor.id);
 
       // Fetch referrals
+      if (doctorIds.length === 0) {
+        setReferrals([]);
+        return;
+      }
+
       const { data: referralsData, error: referralsError } = await supabase
         .from("doctor_referrals")
         .select(`
           *,
           doctor:doctors(*)
         `)
+        .eq("organization_id" as any, organizationId)
+        .in("doctor_id", doctorIds)
         .order("referral_date", { ascending: false });
 
       if (referralsError) throw referralsError;
@@ -132,11 +154,14 @@ const ManageDoctors = () => {
       const referralsWithPatients = await Promise.all(
         (referralsData || []).map(async (ref) => {
           if (ref.patient_id) {
-            const { data: patientData } = await supabase
+            let patientQuery = supabase
               .from("patients")
               .select("full_name, patient_id")
-              .eq("id", ref.patient_id)
-              .single();
+              .eq("id", ref.patient_id);
+
+            patientQuery = patientQuery.eq("organization_id" as any, organizationId);
+
+            const { data: patientData } = await patientQuery.single();
 
             return {
               ...ref,
@@ -159,7 +184,22 @@ const ManageDoctors = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setDoctors([]);
+      setReferrals([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+  }, [fetchData, organizationId, organizationLoading]);
 
   const resetForm = () => {
     setDoctorForm({
@@ -191,6 +231,11 @@ const ManageDoctors = () => {
   };
 
   const handleSaveDoctor = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before saving doctors");
+      return;
+    }
+
     if (!doctorForm.name.trim()) {
       toast.error("Doctor name is required");
       return;
@@ -199,6 +244,7 @@ const ManageDoctors = () => {
     try {
       const doctorData = {
         name: doctorForm.name.trim(),
+        organization_id: organizationId,
         specialization: doctorForm.specialization.trim() || null,
         phone: doctorForm.phone.trim() || null,
         email: doctorForm.email.trim() || null,
@@ -212,7 +258,8 @@ const ManageDoctors = () => {
         const { error } = await supabase
           .from("doctors")
           .update(doctorData)
-          .eq("id", editingDoctor.id);
+          .eq("id", editingDoctor.id)
+          .eq("organization_id" as any, organizationId);
 
         if (error) throw error;
         toast.success("Doctor updated successfully");
@@ -236,12 +283,17 @@ const ManageDoctors = () => {
 
   const handleDeleteDoctor = async () => {
     if (!doctorToDelete) return;
+    if (!organizationId) {
+      toast.error("Organization context is required before deleting doctors");
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from("doctors")
         .delete()
-        .eq("id", doctorToDelete);
+        .eq("id", doctorToDelete)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -256,11 +308,17 @@ const ManageDoctors = () => {
   };
 
   const handleMarkCommissionPaid = async (referralId: string) => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating commissions");
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("doctor_referrals")
         .update({ commission_paid: true })
-        .eq("id", referralId);
+        .eq("id", referralId)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
       toast.success("Commission marked as paid");
@@ -292,10 +350,30 @@ const ManageDoctors = () => {
           <h2 className="text-2xl font-bold text-clinical-navy">Doctor Management</h2>
           <p className="text-muted-foreground">Manage referral doctors and track commissions</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add Doctor
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              exportToExcel("doctors", [
+                { key: "name", label: "Name" },
+                { key: "specialization", label: "Specialization" },
+                { key: "phone", label: "Phone" },
+                { key: "email", label: "Email" },
+                { key: "address", label: "Address" },
+                { key: "commission_percentage", label: "Commission %" },
+                { key: "is_active", label: "Active" },
+              ], filteredDoctors.map(d => ({ ...d, is_active: d.is_active ? "Yes" : "No" })))
+            }
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Doctor
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -395,6 +473,7 @@ const ManageDoctors = () => {
                   No doctors found. Add your first doctor!
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -470,6 +549,7 @@ const ManageDoctors = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -490,6 +570,7 @@ const ManageDoctors = () => {
                   No referrals found
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -561,6 +642,7 @@ const ManageDoctors = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

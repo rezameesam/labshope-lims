@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { Phone, Mail, MapPin } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const { branding } = useOrganization();
 
   return (
     <footer className="bg-clinical-navy text-primary-foreground">
@@ -12,15 +14,14 @@ const Footer = () => {
           {/* Brand */}
           <div>
             <Link to="/" className="flex items-center gap-3 mb-4">
-              <img src={logo} alt="IRM Clinical Laboratory" className="h-12 w-12" />
+              <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
               <div>
-                <h3 className="font-heading font-bold text-lg">IRM Clinical</h3>
-                <p className="text-sm text-primary-foreground/70">Laboratory</p>
+                <h3 className="font-heading font-bold text-lg">{branding.shortName}</h3>
+                <p className="text-sm text-primary-foreground/70">{branding.secondaryLabel}</p>
               </div>
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
-              Your trusted pathological diagnostic centre in Budgam, 
-              serving the community with accurate and reliable test results since 1996.
+              {`${branding.displayName} is your trusted diagnostic partner${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}, serving the community with accurate and reliable test results since ${branding.establishedYear}.`}
             </p>
           </div>
 
@@ -90,24 +91,25 @@ const Footer = () => {
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-3 text-primary-foreground/70">
                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Old Post Office Building, Budgam, J&K - 191111</span>
+                <span>{branding.addressLines.join(", ")}</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="h-4 w-4 flex-shrink-0" />
                 <div className="text-primary-foreground/70">
-                  <a href="tel:9419034607" className="hover:text-primary-foreground transition-colors">
-                    9419034607
-                  </a>
-                  {" / "}
-                  <a href="tel:9622635767" className="hover:text-primary-foreground transition-colors">
-                    9622635767
-                  </a>
+                  {branding.phoneNumbers.map((phone, index) => (
+                    <span key={phone}>
+                      {index > 0 ? " / " : null}
+                      <a href={`tel:${phone}`} className="hover:text-primary-foreground transition-colors">
+                        {phone}
+                      </a>
+                    </span>
+                  ))}
                 </div>
               </li>
               <li className="flex items-center gap-3 text-primary-foreground/70">
                 <Mail className="h-4 w-4 flex-shrink-0" />
-                <a href="mailto:irmclinic@gmail.com" className="hover:text-primary-foreground transition-colors">
-                  irmclinic@gmail.com
+                <a href={`mailto:${branding.email}`} className="hover:text-primary-foreground transition-colors">
+                  {branding.email}
                 </a>
               </li>
             </ul>
@@ -117,7 +119,7 @@ const Footer = () => {
         {/* Bottom */}
         <div className="mt-12 pt-8 border-t border-primary-foreground/10 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-primary-foreground/60">
-            © {currentYear} IRM Clinical Laboratory. All rights reserved.
+            © {currentYear} {branding.displayName}. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm text-primary-foreground/60">
             <Link to="/privacy" className="hover:text-primary-foreground transition-colors">

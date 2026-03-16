@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Copy,
   Edit,
@@ -52,10 +52,12 @@ import {
   type ReportTemplatePreviewContext,
 } from "@/lib/reportTemplates";
 import { toast } from "sonner";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface TestTemplate {
   id: string;
   name: string;
+  organization_id: string | null;
   test_category: string | null;
   test_id: string | null;
   header_template: string | null;
@@ -102,19 +104,6 @@ const EMPTY_FORM: TemplateFormState = {
   is_default: false,
 };
 
-const PREVIEW_CONTEXT: ReportTemplatePreviewContext = {
-  patient_name: "Amina Bhat",
-  patient_id: "IRM-20481",
-  phone: "+91 9622635767",
-  test_name: "Complete Blood Count",
-  test_date: "10 Mar 2026",
-  report_date: "10 Mar 2026",
-  lab_name: "IRM Clinical Laboratory",
-  lab_code: "IRM-MAIN",
-  collection_center: "Budgam Main Collection Center",
-  entered_by: "Dr. Irfan Ahmad",
-};
-
 const PREVIEW_ROWS = [
   {
     test: "Hemoglobin",
@@ -144,14 +133,16 @@ const createTemplateCardPreview = (
     | "include_abnormal_flag"
     | "include_notes"
   >,
+  previewContext: ReportTemplatePreviewContext,
 ) => ({
-  headerText: renderReportTemplateText(template.header_template, PREVIEW_CONTEXT),
-  footerText: renderReportTemplateText(template.footer_template, PREVIEW_CONTEXT),
+  headerText: renderReportTemplateText(template.header_template, previewContext),
+  footerText: renderReportTemplateText(template.footer_template, previewContext),
 });
 
 const TemplateReportPreview = ({
   template,
   scopeLabel,
+  previewContext,
 }: {
   template: Pick<
     TemplateFormState,
@@ -163,8 +154,9 @@ const TemplateReportPreview = ({
     | "include_notes"
   >;
   scopeLabel: string;
+  previewContext: ReportTemplatePreviewContext;
 }) => {
-  const { headerText, footerText } = createTemplateCardPreview(template);
+  const { headerText, footerText } = createTemplateCardPreview(template, previewContext);
   const displayRows = PREVIEW_ROWS.map((row) => {
     const cells = [row.test, row.result, row.unit];
     if (template.include_normal_range) cells.push(row.normalRange);
@@ -192,11 +184,11 @@ const TemplateReportPreview = ({
         </div>
         <div className="rounded-xl border border-border bg-background px-4 py-3 shadow-sm">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            IRM Clinical Laboratory
+            {previewContext.lab_name}
           </div>
-          <div className="mt-2 text-lg font-semibold text-foreground">{PREVIEW_CONTEXT.test_name}</div>
+          <div className="mt-2 text-lg font-semibold text-foreground">{previewContext.test_name}</div>
           <div className="mt-1 text-sm text-muted-foreground">
-            Patient {PREVIEW_CONTEXT.patient_name} · {PREVIEW_CONTEXT.patient_id}
+            Patient {previewContext.patient_name} · {previewContext.patient_id}
           </div>
         </div>
       </CardHeader>
@@ -292,6 +284,8 @@ const TemplateReportPreview = ({
 };
 
 const ManageTestTemplates = () => {
+  const { organization, branding, settings, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const [templates, setTemplates] = useState<TestTemplate[]>([]);
   const [categories, setCategories] = useState<TestCategory[]>([]);
   const [tests, setTests] = useState<Array<{ id: string; name: string }>>([]);
@@ -306,17 +300,52 @@ const ManageTestTemplates = () => {
   const [activeEditor, setActiveEditor] = useState<"header_template" | "footer_template" | "custom_css">("header_template");
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(EMPTY_FORM);
 
-  useEffect(() => {
-    void fetchData();
-  }, []);
+  const previewContext = useMemo<ReportTemplatePreviewContext>(
+    () => ({
+      patient_name: "Amina Bhat",
+      patient_id: "IRM-20481",
+      phone: branding.primaryPhone,
+      test_name: "Complete Blood Count",
+      test_date: "10 Mar 2026",
+      report_date: "10 Mar 2026",
+      lab_name: branding.displayName,
+      lab_code: "MAIN",
+      collection_center: "Main Collection Center",
+      entered_by: "Dr. Irfan Ahmad",
+    }),
+    [branding.displayName, branding.primaryPhone]
+  );
 
-  const fetchData = async () => {
+  const defaultTemplateForm = useMemo<TemplateFormState>(
+    () => ({
+      ...EMPTY_FORM,
+      header_template: settings.report_default_header_template || "",
+      footer_template: settings.report_default_footer_template || "",
+    }),
+    [settings.report_default_footer_template, settings.report_default_header_template]
+  );
+
+  const fetchData = useCallback(async () => {
+    if (!organizationId) {
+      setTemplates([]);
+      setCategories([]);
+      setTests([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const templatesQuery = supabase
+        .from("test_templates")
+        .select("*")
+        .eq("organization_id" as any, organizationId)
+        .order("name");
+
       const [templatesResult, categoriesResult, testsResult] = await Promise.all([
-        supabase.from("test_templates").select("*").order("name"),
-        supabase.from("test_categories").select("id, name").order("name"),
-        supabase.from("tests").select("id, name").order("name"),
+        templatesQuery,
+        supabase.from("test_categories").select("id, name").eq("organization_id", organizationId).order("name"),
+        supabase.from("tests").select("id, name").eq("organization_id", organizationId).order("name"),
       ]);
 
       if (templatesResult.error) throw templatesResult.error;
@@ -332,10 +361,26 @@ const ManageTestTemplates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setTemplates([]);
+      setCategories([]);
+      setTests([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+  }, [fetchData, organizationId, organizationLoading]);
 
   const resetForm = () => {
-    setTemplateForm(EMPTY_FORM);
+    setTemplateForm(defaultTemplateForm);
     setEditingTemplate(null);
     setActiveEditor("header_template");
   };
@@ -410,6 +455,11 @@ const ManageTestTemplates = () => {
   };
 
   const handleSaveTemplate = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before saving templates");
+      return;
+    }
+
     if (!templateForm.name.trim()) {
       toast.error("Template name is required");
       return;
@@ -417,6 +467,7 @@ const ManageTestTemplates = () => {
 
     try {
       const payload = {
+        organization_id: organizationId,
         name: templateForm.name.trim(),
         test_category: templateForm.test_category || null,
         test_id: templateForm.test_id || null,
@@ -434,7 +485,8 @@ const ManageTestTemplates = () => {
         const { error } = await supabase
           .from("test_templates")
           .update(payload)
-          .eq("id", editingTemplate.id);
+          .eq("id", editingTemplate.id)
+          .eq("organization_id" as any, organizationId);
 
         if (error) throw error;
         toast.success("Template updated successfully");
@@ -458,12 +510,17 @@ const ManageTestTemplates = () => {
 
   const handleDeleteTemplate = async () => {
     if (!templateToDelete) return;
+    if (!organizationId) {
+      toast.error("Organization context is required before deleting templates");
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from("test_templates")
         .delete()
-        .eq("id", templateToDelete);
+        .eq("id", templateToDelete)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -599,7 +656,7 @@ const ManageTestTemplates = () => {
               include_normal_range: template.include_normal_range ?? true,
               include_abnormal_flag: template.include_abnormal_flag ?? true,
               include_notes: template.include_notes ?? false,
-            });
+            }, previewContext);
 
             return (
               <Card key={template.id} className="overflow-hidden border-border/70 shadow-sm">
@@ -941,7 +998,11 @@ const ManageTestTemplates = () => {
 
               <div className="bg-muted/20 px-5 py-6">
                 <div className="space-y-4">
-                  <TemplateReportPreview template={templateForm} scopeLabel={formScopeLabel} />
+                  <TemplateReportPreview
+                    template={templateForm}
+                    scopeLabel={formScopeLabel}
+                    previewContext={previewContext}
+                  />
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Creation Tips</CardTitle>
@@ -991,6 +1052,7 @@ const ManageTestTemplates = () => {
                 previewTemplate.test_category,
                 tests.find((item) => item.id === previewTemplate.test_id)?.name || null,
               )}
+              previewContext={previewContext}
             />
           )}
         </DialogContent>

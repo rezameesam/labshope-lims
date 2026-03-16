@@ -2,14 +2,22 @@ import { motion } from "framer-motion";
 import { ArrowRight, Shield, Clock, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const features = [
   { icon: Shield, text: "Accurate Results" },
   { icon: Clock, text: "Quick Turnaround" },
-  { icon: Award, text: "Since 1996" },
+  { icon: Award, text: "Trusted Care" },
 ];
 
 const HeroSection = () => {
+  const { branding } = useOrganization();
+  const featuresWithBranding = [
+    features[0],
+    features[1],
+    { icon: Award, text: `Since ${branding.establishedYear}` },
+  ];
+
   return (
     <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
       {/* Background */}
@@ -26,7 +34,7 @@ const HeroSection = () => {
             transition={{ duration: 0.6 }}
           >
             <span className="inline-block px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground text-sm font-medium mb-6 border border-primary-foreground/20">
-              Trusted Diagnostic Centre in Budgam
+              {`Trusted Diagnostic Centre${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}`}
             </span>
           </motion.div>
 
@@ -46,9 +54,7 @@ const HeroSection = () => {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mb-8"
           >
-            IRM Clinical Laboratory has been providing accurate and reliable pathological 
-            diagnostic services to the people of Budgam and Kashmir since 1996. 
-            Experience trusted healthcare with modern technology.
+            {branding.description} Experience trusted healthcare with modern diagnostic support.
           </motion.p>
 
           {/* Features Pills */}
@@ -58,7 +64,7 @@ const HeroSection = () => {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-wrap gap-4 mb-10"
           >
-            {features.map((feature, index) => (
+            {featuresWithBranding.map((feature) => (
               <div
                 key={feature.text}
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground border border-primary-foreground/20"

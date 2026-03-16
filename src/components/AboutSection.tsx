@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, Users, Award, Clock } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const highlights = [
   "State-of-the-art laboratory equipment",
@@ -18,6 +19,8 @@ const stats = [
 ];
 
 const AboutSection = () => {
+  const { branding } = useOrganization();
+
   return (
     <section id="about" className="scroll-mt-24 bg-subtle-gradient py-20 lg:py-28">
       <div className="container mx-auto px-4 lg:px-8">
@@ -34,17 +37,13 @@ const AboutSection = () => {
             </span>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-heading font-bold text-foreground mb-6">
               Trusted Healthcare{" "}
-              <span className="text-primary">Since 1996</span>
+              <span className="text-primary">{`Since ${branding.establishedYear}`}</span>
             </h2>
             <p className="text-muted-foreground text-lg mb-6 leading-relaxed">
-              IRM Clinical Laboratory was established in 1996 with a vision to provide 
-              accurate and affordable pathological diagnostic services to the people of 
-              Budgam and surrounding areas in Jammu & Kashmir.
+              {`${branding.displayName} was established in ${branding.establishedYear} with a vision to provide accurate and affordable pathological diagnostic services${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}.`}
             </p>
             <p className="text-muted-foreground mb-8 leading-relaxed">
-              Over the years, we have grown to become one of the most trusted diagnostic 
-              centres in the region, serving thousands of patients with our commitment 
-              to quality, accuracy, and compassionate care.
+              Over the years, we have grown into a trusted diagnostic centre, serving patients with a commitment to quality, accuracy, and compassionate care.
             </p>
 
             {/* Highlights */}
@@ -95,17 +94,17 @@ const AboutSection = () => {
               {/* Logo Display */}
               <div className="flex flex-col items-center text-center">
                 <motion.img
-                  src={logo}
-                  alt="IRM Clinical Laboratory Logo"
+                  src={branding.logoUrl || logo}
+                  alt={`${branding.displayName} Logo`}
                   className="w-48 h-48 lg:w-64 lg:h-64 mb-6"
                   animate={{ rotate: [0, 2, 0, -2, 0] }}
                   transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
                 />
                 <h3 className="text-2xl lg:text-3xl font-heading font-bold text-clinical-navy mb-2">
-                  IRM Clinical Laboratory
+                  {branding.displayName}
                 </h3>
                 <p className="text-muted-foreground font-medium">
-                  Established 1996
+                  {`Established ${branding.establishedYear}`}
                 </p>
                 <div className="mt-6 px-6 py-3 bg-secondary rounded-full">
                   <p className="text-sm text-secondary-foreground font-medium">

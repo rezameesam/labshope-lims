@@ -10,18 +10,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useLab } from "@/contexts/LabContext";
-import { useAuth } from "@/hooks/useAuth";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 
 const LabSelector = () => {
   const { currentLab, availableLabs, setCurrentLab, loading } = useLab();
-  const { hasRole } = useAuth();
+  const { isPlatformAdmin } = usePlatformAdmin();
 
   if (loading || availableLabs.length === 0) {
     return null;
   }
 
   // Don't show selector if user only has access to one lab (unless admin)
-  if (availableLabs.length === 1 && !hasRole("admin")) {
+  if (availableLabs.length === 1 && !isPlatformAdmin) {
     return null;
   }
 
@@ -67,4 +67,3 @@ const LabSelector = () => {
 };
 
 export default LabSelector;
-

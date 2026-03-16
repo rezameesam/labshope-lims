@@ -1,12 +1,25 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
+import { fetchScopedSettings } from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+function getReceiptIdentifier(receipt: string): string | null {
+  if (!receipt.startsWith("INV-")) {
+    return null;
+  }
+
+  return receipt.replace("INV-", "").trim() || null;
+}
+
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 // Verify Razorpay webhook signature
 async function verifyWebhookSignature(
@@ -39,6 +52,90 @@ async function verifyWebhookSignature(
   }
 }
 
+async function resolveWebhookOrganizationId(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  webhookData: any,
+): Promise<string | null> {
+  const payment = webhookData?.payload?.payment?.entity || webhookData?.payload?.payment;
+  const notes = payment?.notes || {};
+
+  if (typeof notes.organization_id === "string" && notes.organization_id.trim()) {
+    return notes.organization_id.trim();
+  }
+
+  const invoiceId = typeof notes.invoice_id === "string" ? notes.invoice_id.trim() : "";
+  if (invoiceId) {
+    const { data: invoice } = await supabaseAdmin
+      .from("invoices")
+      .select("organization_id")
+      .eq("id", invoiceId)
+      .maybeSingle();
+
+    const organizationId =
+      (invoice as { organization_id?: string | null } | null)?.organization_id ?? null;
+
+    if (organizationId) {
+      return organizationId;
+    }
+  }
+
+  const bulkInvoicesRaw = notes.bulk_invoices;
+  if (bulkInvoicesRaw) {
+    try {
+      const bulkInvoices = Array.isArray(bulkInvoicesRaw)
+        ? bulkInvoicesRaw
+        : JSON.parse(bulkInvoicesRaw);
+
+      const invoiceIds = (bulkInvoices || [])
+        .map((row: { invoice_id?: string }) => row.invoice_id)
+        .filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0);
+
+      if (invoiceIds.length > 0) {
+        const { data: invoices } = await supabaseAdmin
+          .from("invoices")
+          .select("organization_id")
+          .in("id", invoiceIds);
+
+        const organizationIds = new Set(
+          (invoices || [])
+            .map((invoice: any) => invoice.organization_id || null)
+            .filter((organizationId: string | null): organizationId is string => Boolean(organizationId)),
+        );
+
+        if (organizationIds.size === 1) {
+          return Array.from(organizationIds)[0];
+        }
+      }
+    } catch (error) {
+      console.error("Failed to resolve organization from bulk invoice notes:", error);
+    }
+  }
+
+  const receipt = typeof notes.receipt === "string" ? notes.receipt : payment?.receipt;
+  const receiptIdentifier = typeof receipt === "string" ? getReceiptIdentifier(receipt) : null;
+  if (receiptIdentifier) {
+    if (isUuidLike(receiptIdentifier)) {
+      const { data: invoice } = await supabaseAdmin
+        .from("invoices")
+        .select("organization_id")
+        .eq("id", receiptIdentifier)
+        .maybeSingle();
+
+      return (invoice as { organization_id?: string | null } | null)?.organization_id ?? null;
+    }
+
+    const { data: invoice } = await supabaseAdmin
+      .from("invoices")
+      .select("organization_id")
+      .eq("invoice_number", receiptIdentifier)
+      .maybeSingle();
+
+    return (invoice as { organization_id?: string | null } | null)?.organization_id ?? null;
+  }
+
+  return null;
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -48,16 +145,6 @@ serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const razorpayWebhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET");
-
-    // SECURITY: Webhook secret is REQUIRED to prevent payment fraud
-    if (!razorpayWebhookSecret) {
-      console.error("RAZORPAY_WEBHOOK_SECRET not configured - rejecting webhook");
-      return new Response(
-        JSON.stringify({ error: "Webhook not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     // Get webhook signature from headers
     const razorpaySignature = req.headers.get("X-Razorpay-Signature");
@@ -73,6 +160,29 @@ serve(async (req: Request) => {
 
     // Read request body
     const body = await req.text();
+    const webhookData = JSON.parse(body);
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const resolvedOrganizationId = await resolveWebhookOrganizationId(supabaseAdmin, webhookData);
+
+    const settingsMap = await fetchScopedSettings(
+      supabaseUrl,
+      serviceRoleKey,
+      ["razorpay_webhook_secret"],
+      resolvedOrganizationId,
+    );
+    const razorpayWebhookSecret =
+      settingsMap.get("razorpay_webhook_secret")?.trim() ||
+      Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ||
+      "";
+
+    // SECURITY: Webhook secret is REQUIRED to prevent payment fraud
+    if (!razorpayWebhookSecret) {
+      console.error("Razorpay webhook secret not configured - rejecting webhook");
+      return new Response(
+        JSON.stringify({ error: "Webhook not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Verify webhook signature - MANDATORY
     const isValid = await verifyWebhookSignature(body, razorpaySignature, razorpayWebhookSecret);
@@ -84,7 +194,6 @@ serve(async (req: Request) => {
       );
     }
 
-    const webhookData = JSON.parse(body);
     const event = webhookData.event;
     const payment = webhookData.payload?.payment?.entity || webhookData.payload?.payment;
 
@@ -116,8 +225,6 @@ serve(async (req: Request) => {
     }
 
     // Get invoice from order notes
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-
     const bulkInvoicesRaw = payment.notes?.bulk_invoices;
     if (bulkInvoicesRaw) {
       let bulkInvoices: Array<{ invoice_id: string; amount: number }> = [];
@@ -164,7 +271,7 @@ serve(async (req: Request) => {
 
         const { data: invoice, error: invoiceError } = await supabaseAdmin
           .from("invoices")
-          .select("id, final_amount, paid_amount, payment_status")
+          .select("id, final_amount, paid_amount, payment_status, organization_id")
           .eq("id", invoiceId)
           .single();
 
@@ -182,6 +289,7 @@ serve(async (req: Request) => {
 
         const { error: paymentError } = await supabaseAdmin.from("payments").insert({
           invoice_id: invoiceId,
+          organization_id: (invoice as { organization_id?: string | null }).organization_id || null,
           amount: appliedAmount,
           payment_method: "online",
           payment_gateway: "razorpay",
@@ -233,17 +341,21 @@ serve(async (req: Request) => {
     let invoiceId = payment.notes?.invoice_id;
 
     if (!invoiceId) {
-      // Try to extract from receipt (format: INV-{invoice_number})
+      // Try to extract from receipt. New receipts use invoice UUIDs; older ones used invoice numbers.
       const receipt = payment.notes?.receipt || payment.receipt;
-      if (receipt && receipt.startsWith("INV-")) {
-        const invoiceNumber = receipt.replace("INV-", "");
-        const { data: invoice } = await supabaseAdmin
-          .from("invoices")
-          .select("id")
-          .eq("invoice_number", invoiceNumber)
-          .single();
-        if (invoice) {
-          invoiceId = invoice.id;
+      const receiptIdentifier = typeof receipt === "string" ? getReceiptIdentifier(receipt) : null;
+      if (receiptIdentifier) {
+        if (isUuidLike(receiptIdentifier)) {
+          invoiceId = receiptIdentifier;
+        } else {
+          const { data: invoice } = await supabaseAdmin
+            .from("invoices")
+            .select("id")
+            .eq("invoice_number", receiptIdentifier)
+            .single();
+          if (invoice) {
+            invoiceId = invoice.id;
+          }
         }
       }
     }
@@ -273,7 +385,7 @@ serve(async (req: Request) => {
     // Get invoice details
     const { data: invoice, error: invoiceError } = await supabaseAdmin
       .from("invoices")
-      .select("id, final_amount, paid_amount, payment_status")
+      .select("id, final_amount, paid_amount, payment_status, organization_id")
       .eq("id", invoiceId)
       .single();
 
@@ -287,6 +399,7 @@ serve(async (req: Request) => {
     // Create payment record
     const { error: paymentError } = await supabaseAdmin.from("payments").insert({
       invoice_id: invoiceId,
+      organization_id: (invoice as { organization_id?: string | null }).organization_id || null,
       amount: amount,
       payment_method: "online",
       payment_gateway: "razorpay",

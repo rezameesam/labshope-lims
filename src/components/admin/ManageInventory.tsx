@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Package,
   Plus,
@@ -15,7 +15,10 @@ import {
   Calendar,
   Box,
   Settings,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -51,6 +54,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatAppDate } from "@/lib/date";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface InventoryCategory {
   id: string;
@@ -116,6 +120,8 @@ interface EquipmentMaintenance {
 
 const ManageInventory = () => {
   const { user } = useAuth();
+  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
   const purchaseQuantityInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState("items");
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -193,21 +199,30 @@ const ManageInventory = () => {
     description: "",
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!organizationId) {
+      setItems([]);
+      setCategories([]);
+      setPurchases([]);
+      setUsages([]);
+      setMaintenances([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const [itemsRes, categoriesRes, purchasesRes, usagesRes, maintenancesRes] = await Promise.all([
-        supabase.from("inventory_items").select("*").order("name"),
-        supabase.from("inventory_categories").select("*").order("name"),
-        supabase.from("inventory_purchases").select("*").order("purchase_date", { ascending: false }).limit(100),
-        supabase.from("inventory_usage").select("*").order("usage_date", { ascending: false }).limit(100),
-        supabase.from("equipment_maintenance").select("*").order("scheduled_date", { ascending: false }),
+      let itemsQuery = supabase.from("inventory_items").select("*").order("name");
+      let categoriesQuery = supabase.from("inventory_categories").select("*").order("name");
+      itemsQuery = itemsQuery.eq("organization_id" as any, organizationId);
+      categoriesQuery = categoriesQuery.eq("organization_id" as any, organizationId);
+
+      const [itemsRes, categoriesRes] = await Promise.all([
+        itemsQuery,
+        categoriesQuery,
       ]);
 
       if (itemsRes.error) throw itemsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
-      if (purchasesRes.error) throw purchasesRes.error;
-      if (usagesRes.error) throw usagesRes.error;
-      if (maintenancesRes.error) throw maintenancesRes.error;
 
       // Map categories to items
       const categoryMap = new Map(categoriesRes.data?.map(c => [c.id, c]) || []);
@@ -216,17 +231,52 @@ const ManageInventory = () => {
         category: item.category_id ? categoryMap.get(item.category_id) : undefined,
       }));
 
+      const itemIds = itemsWithCategories.map((item) => item.id);
+      let purchasesData: InventoryPurchase[] = [];
+      let usagesData: InventoryUsage[] = [];
+      let maintenancesData: EquipmentMaintenance[] = [];
+
+      if (itemIds.length > 0) {
+        const [purchasesRes, usagesRes, maintenancesRes] = await Promise.all([
+          supabase
+            .from("inventory_purchases")
+            .select("*")
+            .in("item_id", itemIds)
+            .order("purchase_date", { ascending: false })
+            .limit(100),
+          supabase
+            .from("inventory_usage")
+            .select("*")
+            .in("item_id", itemIds)
+            .order("usage_date", { ascending: false })
+            .limit(100),
+          supabase
+            .from("equipment_maintenance")
+            .select("*")
+            .in("item_id", itemIds)
+            .order("scheduled_date", { ascending: false }),
+        ]);
+
+        if (purchasesRes.error) throw purchasesRes.error;
+        if (usagesRes.error) throw usagesRes.error;
+        if (maintenancesRes.error) throw maintenancesRes.error;
+
+        purchasesData = (purchasesRes.data || []) as InventoryPurchase[];
+        usagesData = (usagesRes.data || []) as InventoryUsage[];
+        maintenancesData = (maintenancesRes.data || []) as EquipmentMaintenance[];
+      }
+
       // Map items to purchases, usages, maintenances
       const itemMap = new Map(itemsWithCategories.map(i => [i.id, i]));
-      const purchasesWithItems = (purchasesRes.data || []).map(p => ({
+      const purchasesWithItems = purchasesData.map(p => ({
         ...p,
         item: itemMap.get(p.item_id),
       }));
-      const usagesWithItems = (usagesRes.data || []).map(u => ({
+      const usagesWithItems = usagesData.map(u => ({
         ...u,
         item: itemMap.get(u.item_id),
       }));
-      const maintenancesWithItems = (maintenancesRes.data || []).map(m => ({
+      const maintenancesWithItems = maintenancesData.map(m => ({
         ...m,
         item: itemMap.get(m.item_id),
       }));
@@ -242,11 +292,25 @@ const ManageInventory = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (organizationLoading) {
+      return;
+    }
+
+    if (!organizationId) {
+      setItems([]);
+      setCategories([]);
+      setPurchases([]);
+      setUsages([]);
+      setMaintenances([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+  }, [fetchData, organizationId, organizationLoading]);
 
   const filteredItems = useMemo(() => {
     return items.filter(item => {
@@ -314,15 +378,22 @@ const ManageInventory = () => {
 
   // Handlers
   const handleItemSubmit = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before saving inventory items");
+      return;
+    }
+
     try {
       if (editingItem) {
         const { error } = await supabase
           .from("inventory_items")
           .update({
             ...itemForm,
+            organization_id: organizationId,
             category_id: itemForm.category_id || null,
           })
-          .eq("id", editingItem.id);
+          .eq("id", editingItem.id)
+          .eq("organization_id" as any, organizationId);
         if (error) throw error;
         toast.success("Item updated successfully");
       } else {
@@ -330,6 +401,7 @@ const ManageInventory = () => {
           .from("inventory_items")
           .insert({
             ...itemForm,
+            organization_id: organizationId,
             category_id: itemForm.category_id || null,
           });
         if (error) throw error;
@@ -346,10 +418,16 @@ const ManageInventory = () => {
   };
 
   const handlePurchaseSubmit = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before recording purchases");
+      return;
+    }
+
     try {
       const total_cost = purchaseForm.quantity * purchaseForm.unit_cost;
       const { error } = await supabase.from("inventory_purchases").insert({
         ...purchaseForm,
+        organization_id: organizationId,
         total_cost,
         purchased_by: user?.id,
       });
@@ -361,7 +439,8 @@ const ManageInventory = () => {
         await supabase
           .from("inventory_items")
           .update({ current_stock: item.current_stock + purchaseForm.quantity })
-          .eq("id", purchaseForm.item_id);
+          .eq("id", purchaseForm.item_id)
+          .eq("organization_id" as any, organizationId);
       }
 
       toast.success("Purchase recorded successfully");
@@ -375,6 +454,11 @@ const ManageInventory = () => {
   };
 
   const handleUsageSubmit = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before recording inventory usage");
+      return;
+    }
+
     try {
       const item = items.find(i => i.id === usageForm.item_id);
       if (!item) {
@@ -390,6 +474,7 @@ const ManageInventory = () => {
       const total_cost = usageForm.quantity * item.unit_price;
       const { error } = await supabase.from("inventory_usage").insert({
         ...usageForm,
+        organization_id: organizationId,
         unit_cost: item.unit_price,
         total_cost,
         recorded_by: user?.id,
@@ -400,7 +485,8 @@ const ManageInventory = () => {
       await supabase
         .from("inventory_items")
         .update({ current_stock: item.current_stock - usageForm.quantity })
-        .eq("id", usageForm.item_id);
+        .eq("id", usageForm.item_id)
+        .eq("organization_id" as any, organizationId);
 
       toast.success("Usage recorded successfully");
       setIsUsageDialogOpen(false);
@@ -413,10 +499,16 @@ const ManageInventory = () => {
   };
 
   const handleMaintenanceSubmit = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before scheduling maintenance");
+      return;
+    }
+
     try {
       const { error } = await supabase.from("equipment_maintenance").insert({
         ...maintenanceForm,
         cost: maintenanceForm.cost || null,
+        organization_id: organizationId,
         performed_by: user?.id,
       });
       if (error) throw error;
@@ -431,8 +523,16 @@ const ManageInventory = () => {
   };
 
   const handleCategorySubmit = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before creating categories");
+      return;
+    }
+
     try {
-      const { error } = await supabase.from("inventory_categories").insert(categoryForm);
+      const { error } = await supabase.from("inventory_categories").insert({
+        ...categoryForm,
+        organization_id: organizationId,
+      });
       if (error) throw error;
       toast.success("Category added successfully");
       setIsCategoryDialogOpen(false);
@@ -446,8 +546,16 @@ const ManageInventory = () => {
 
   const handleDeleteItem = async (id: string) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!organizationId) {
+      toast.error("Organization context is required before deleting inventory items");
+      return;
+    }
     try {
-      const { error } = await supabase.from("inventory_items").delete().eq("id", id);
+      const { error } = await supabase
+        .from("inventory_items")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id" as any, organizationId);
       if (error) throw error;
       toast.success("Item deleted successfully");
       fetchData();
@@ -721,6 +829,35 @@ const ManageInventory = () => {
           </TabsList>
 
           <div className="flex gap-2">
+            {activeTab === "items" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  exportToExcel("inventory", [
+                    { key: "name", label: "Item Name" },
+                    { key: "sku", label: "SKU" },
+                    { key: "category_name", label: "Category" },
+                    { key: "type", label: "Type" },
+                    { key: "unit", label: "Unit" },
+                    { key: "current_stock", label: "Current Stock" },
+                    { key: "min_stock_level", label: "Min Stock Level" },
+                    { key: "unit_price", label: "Unit Price (₹)" },
+                    { key: "supplier", label: "Supplier" },
+                    { key: "location", label: "Location" },
+                    { key: "is_active", label: "Active" },
+                  ], filteredItems.map(item => ({
+                    ...item,
+                    category_name: item.category?.name ?? "",
+                    is_active: item.is_active ? "Yes" : "No",
+                  })))
+                }
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
               <Settings className="h-4 w-4 mr-2" />
               Categories
@@ -785,6 +922,7 @@ const ManageInventory = () => {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -840,51 +978,14 @@ const ManageInventory = () => {
                   )}
                 </TableBody>
               </Table>
-              {filteredItems.length > 0 && (
-                <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of{" "}
-                    {filteredItems.length}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Rows</span>
-                      <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                        <SelectTrigger className="h-8 w-[90px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="25">25</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                          <SelectItem value="100">100</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                        disabled={safePage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {safePage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                        disabled={safePage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
+              <DataPagination
+                total={filteredItems.length}
+                page={safePage}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -897,6 +998,7 @@ const ManageInventory = () => {
               <CardDescription>Track all inventory purchases from vendors</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -930,6 +1032,7 @@ const ManageInventory = () => {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -942,6 +1045,7 @@ const ManageInventory = () => {
               <CardDescription>Track inventory consumption and costs</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -973,6 +1077,7 @@ const ManageInventory = () => {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -985,6 +1090,7 @@ const ManageInventory = () => {
               <CardDescription>Schedule and track equipment maintenance</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -1018,6 +1124,7 @@ const ManageInventory = () => {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1048,6 +1155,7 @@ const ManageInventory = () => {
                     <p>All items are well stocked!</p>
                   </div>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -1128,6 +1236,7 @@ const ManageInventory = () => {
                         })}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

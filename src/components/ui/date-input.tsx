@@ -7,10 +7,11 @@ import { Input } from "./input";
 type DateInputProps = Omit<React.ComponentProps<typeof Input>, "type" | "value" | "onChange"> & {
   value: string;
   onChange: (value: string) => void;
+  showFormatHint?: boolean;
 };
 
 const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
-  ({ value, onChange, min, max, placeholder = "dd/mm/yyyy", inputMode = "numeric", ...props }, ref) => {
+  ({ value, onChange, min, max, placeholder = "dd/mm/yyyy", inputMode = "numeric", showFormatHint = false, ...props }, ref) => {
     const [displayValue, setDisplayValue] = React.useState(() => formatDateInputDisplay(value));
 
     React.useEffect(() => {
@@ -44,6 +45,26 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
       const parsedValue = parseDateInputValue(displayValue);
       setDisplayValue(parsedValue ? formatDateInputDisplay(parsedValue) : formatDateInputDisplay(value));
     };
+
+    if (showFormatHint) {
+      return (
+        <div className="flex flex-col gap-0.5">
+          <Input
+            {...props}
+            ref={ref}
+            type="text"
+            value={displayValue}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            min={undefined}
+            max={undefined}
+            placeholder={placeholder}
+            inputMode={inputMode}
+          />
+          <span className="text-[11px] text-muted-foreground leading-none pl-0.5">dd/mm/yyyy</span>
+        </div>
+      );
+    }
 
     return (
       <Input

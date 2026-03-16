@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Building2,
   Plus,
@@ -10,6 +10,7 @@ import {
   Phone,
   Mail,
   Users,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -54,11 +56,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import LabAnalytics from "@/components/admin/LabAnalytics";
 import { BarChart3, Settings } from "lucide-react";
 
 interface Lab {
   id: string;
+  organization_id?: string | null;
   lab_code: string;
   name: string;
   type: string;
@@ -70,12 +74,34 @@ interface Lab {
   phone: string | null;
   email: string | null;
   is_active: boolean | null;
+  settings?: Record<string, unknown> | null;
   parent_lab?: Lab[];
 }
+
+const getLabAbdmSettings = (lab: Pick<Lab, "settings">) => {
+  const settings =
+    lab.settings && typeof lab.settings === "object"
+      ? (lab.settings as Record<string, unknown>)
+      : {};
+
+  return {
+    enabled:
+      typeof settings.abdm_enabled === "boolean"
+        ? settings.abdm_enabled
+        : typeof settings.abdm_enabled === "string"
+          ? settings.abdm_enabled === "true"
+          : false,
+    facilityId:
+      typeof settings.abdm_facility_id === "string" ? settings.abdm_facility_id : "",
+  };
+};
 
 const ManageLabs = () => {
   const { hasRole } = useAuth();
   const { refreshLabs, availableLabs } = useLab();
+  const { organization, settings, loading: organizationLoading } = useOrganization();
+  const organizationId = organization?.id ?? null;
+  const isStarterPlan = settings.plan_tier === "starter";
   const [labs, setLabs] = useState<Lab[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,21 +124,25 @@ const ManageLabs = () => {
     pincode: "",
     phone: "",
     email: "",
+    abdm_enabled: false,
+    abdm_facility_id: "",
     is_active: true,
   });
 
-  useEffect(() => {
-    fetchLabs();
-  }, []);
-
-  const fetchLabs = async () => {
+  const fetchLabs = useCallback(async () => {
     setLoading(true);
     try {
       // First check if labs table exists by trying a simple query
-      const { data: labsData, error } = await supabase
+      let query = supabase
         .from("labs")
         .select("*")
         .order("name");
+
+      if (organizationId) {
+        query = query.eq("organization_id" as any, organizationId);
+      }
+
+      const { data: labsData, error } = await query;
 
       if (error) {
         // If table doesn't exist, show helpful message
@@ -155,7 +185,15 @@ const ManageLabs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationLoading) {
+      return;
+    }
+
+    void fetchLabs();
+  }, [fetchLabs, organizationId, organizationLoading]);
 
   const resetForm = () => {
     setLabForm({
@@ -169,6 +207,8 @@ const ManageLabs = () => {
       pincode: "",
       phone: "",
       email: "",
+      abdm_enabled: false,
+      abdm_facility_id: "",
       is_active: true,
     });
     setEditingLab(null);
@@ -176,6 +216,7 @@ const ManageLabs = () => {
 
   const openEditDialog = (lab: Lab) => {
     setEditingLab(lab);
+    const abdmSettings = getLabAbdmSettings(lab);
     setLabForm({
       lab_code: lab.lab_code,
       name: lab.name,
@@ -187,12 +228,19 @@ const ManageLabs = () => {
       pincode: lab.pincode || "",
       phone: lab.phone || "",
       email: lab.email || "",
+      abdm_enabled: abdmSettings.enabled,
+      abdm_facility_id: abdmSettings.facilityId,
       is_active: lab.is_active,
     });
     setIsDialogOpen(true);
   };
 
   const handleSaveLab = async () => {
+    if (!organizationId) {
+      toast.error("Organization context is required before managing labs");
+      return;
+    }
+
     if (!labForm.lab_code.trim() || !labForm.name.trim()) {
       toast.error("Lab code and name are required");
       return;
@@ -201,6 +249,7 @@ const ManageLabs = () => {
     try {
       const labData = {
         lab_code: labForm.lab_code.trim().toUpperCase(),
+        organization_id: organizationId,
         name: labForm.name.trim(),
         type: labForm.type,
         parent_lab_id: labForm.parent_lab_id || null,
@@ -210,14 +259,21 @@ const ManageLabs = () => {
         pincode: labForm.pincode.trim() || null,
         phone: labForm.phone.trim() || null,
         email: labForm.email.trim() || null,
+        settings: {
+          ...(editingLab?.settings && typeof editingLab.settings === "object" ? editingLab.settings : {}),
+          abdm_enabled: labForm.abdm_enabled,
+          abdm_facility_id: labForm.abdm_facility_id.trim() || null,
+        },
         is_active: labForm.is_active,
       };
 
       if (editingLab) {
-        const { error } = await supabase
+        let updateQuery = supabase
           .from("labs")
           .update(labData)
-          .eq("id", editingLab.id);
+          .eq("id", editingLab.id)
+          .eq("organization_id" as any, organizationId);
+        const { error } = await updateQuery;
 
         if (error) throw error;
         toast.success("Lab updated successfully");
@@ -243,10 +299,14 @@ const ManageLabs = () => {
   };
 
   const handleDeleteLab = async () => {
-    if (!labToDelete) return;
+    if (!labToDelete || !organizationId) return;
 
     try {
-      const { error } = await supabase.from("labs").delete().eq("id", labToDelete);
+      const { error } = await supabase
+        .from("labs")
+        .delete()
+        .eq("id", labToDelete)
+        .eq("organization_id" as any, organizationId);
 
       if (error) throw error;
 
@@ -285,6 +345,9 @@ const ManageLabs = () => {
 
   const mainLabs = labs.filter((l) => l.type === "main");
   const branches = labs.filter((l) => l.type === "branch");
+  const orgScopedAvailableLabs = organizationId
+    ? availableLabs.filter((lab) => lab.organization_id === organizationId)
+    : availableLabs;
 
   if (!hasRole("admin")) {
     return (
@@ -316,10 +379,28 @@ const ManageLabs = () => {
             </TabsList>
           </Tabs>
           {viewMode === "management" && (
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Lab
-            </Button>
+            isStarterPlan && labs.length >= 1 ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button disabled>
+                        <Lock className="h-4 w-4 mr-2" />
+                        Add Lab
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Starter plan allows only 1 lab. Upgrade to Growth or Premium to add more.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Lab
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -490,7 +571,16 @@ const ManageLabs = () => {
                     {filteredLabs.map((lab) => (
                       <TableRow key={lab.id}>
                         <TableCell className="font-mono font-medium">{lab.lab_code}</TableCell>
-                        <TableCell className="font-medium">{lab.name}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <p className="font-medium">{lab.name}</p>
+                            {getLabAbdmSettings(lab).facilityId && (
+                              <Badge variant="outline" className="text-xs">
+                                ABDM {getLabAbdmSettings(lab).enabled ? "Enabled" : "Mapped"}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{getTypeBadge(lab.type)}</TableCell>
                         <TableCell>
                           {lab.parent_lab && lab.parent_lab.length > 0 ? (
@@ -629,7 +719,9 @@ const ManageLabs = () => {
                       <SelectValue placeholder="Select parent lab" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mainLabs.map((lab) => (
+                      {mainLabs
+                        .filter((lab) => orgScopedAvailableLabs.some((availableLab) => availableLab.id === lab.id))
+                        .map((lab) => (
                         <SelectItem key={lab.id} value={lab.id}>
                           {lab.name}
                         </SelectItem>
@@ -712,6 +804,44 @@ const ManageLabs = () => {
                   placeholder="lab@example.com"
                   autoComplete="email"
                 />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-4 space-y-4">
+              <div>
+                <h3 className="font-medium text-slate-900">ABDM For This Lab</h3>
+                <p className="text-sm text-muted-foreground">
+                  Keep ABDM login and gateway settings at the organization level. Use this section only to map the facility/HFR ID for this lab.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="lab_abdm_enabled">ABDM Enabled</Label>
+                  <Select
+                    value={labForm.abdm_enabled ? "true" : "false"}
+                    onValueChange={(value) =>
+                      setLabForm({ ...labForm, abdm_enabled: value === "true" })
+                    }
+                  >
+                    <SelectTrigger id="lab_abdm_enabled">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Enabled</SelectItem>
+                      <SelectItem value="false">Disabled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="lab_abdm_facility_id">Facility / HFR ID</Label>
+                  <Input
+                    id="lab_abdm_facility_id"
+                    value={labForm.abdm_facility_id}
+                    onChange={(e) => setLabForm({ ...labForm, abdm_facility_id: e.target.value })}
+                    placeholder="IN07..."
+                  />
+                </div>
               </div>
             </div>
 

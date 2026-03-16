@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchScopedSettings } from "../_shared/organization-settings.ts";
+import { resolvePublicOrganizationId } from "../_shared/public-organization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +11,11 @@ const corsHeaders = {
 
 interface SendOtpRequest {
   phone: string;
+  organization_id?: string | null;
+  hostname?: string | null;
 }
+
+const PHONE_INPUT_PATTERN = /^[+()0-9\s-]{8,20}$/;
 
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
@@ -18,12 +24,12 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { phone }: SendOtpRequest = await req.json();
+    const { phone, organization_id, hostname }: SendOtpRequest = await req.json();
 
-    // Validate phone number (10 digits)
-    if (!phone || !/^\d{10}$/.test(phone)) {
+    // Validate phone number input
+    if (!phone || !PHONE_INPUT_PATTERN.test(phone)) {
       return new Response(
-        JSON.stringify({ error: "Invalid phone number. Must be 10 digits." }),
+        JSON.stringify({ error: "Invalid phone number." }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -32,13 +38,18 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const resolvedOrganizationId = await resolvePublicOrganizationId(
+      supabase,
+      req,
+      organization_id || null,
+      hostname || null,
+    );
 
     // Check if patient exists with this phone
-    const { data: patients, error: patientError } = await supabase
-      .from("patients")
-      .select("id")
-      .eq("phone", phone)
-      .eq("is_active", true);
+    const { data: patients, error: patientError } = await supabase.rpc("find_patient_candidates", {
+      p_identifier: phone,
+      p_organization_id: resolvedOrganizationId,
+    });
 
     if (patientError || !patients || patients.length === 0) {
       return new Response(
@@ -46,22 +57,33 @@ serve(async (req: Request): Promise<Response> => {
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    const limitedPatients = patients.slice(0, resolvedOrganizationId ? 1 : 2);
+    if (!resolvedOrganizationId && limitedPatients.length !== 1) {
+      return new Response(
+        JSON.stringify({ error: "Unable to determine which organization this account belongs to." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
-    const { data: settingsRows } = await supabase
-      .from("system_settings")
-      .select("setting_key, setting_value")
-      .in("setting_key", [
+    const organizationId =
+      (limitedPatients[0] as { organization_id?: string | null }).organization_id || null;
+    const settings = await fetchScopedSettings(
+      supabaseUrl,
+      supabaseServiceKey,
+      [
         "demo_mode_enabled",
+        "msg91_auth_key",
         "msg91_template_id",
         "msg91_sender_id",
         "whatsapp_enabled",
+        "whatsapp_access_token",
+        "whatsapp_phone_number_id",
+        "whatsapp_api_version",
         "whatsapp_otp_template_name",
         "whatsapp_template_language_code",
         "whatsapp_default_country_code",
-      ]);
-
-    const settings = new Map<string, string>(
-      (settingsRows || []).map((row: any) => [row.setting_key, row.setting_value || ""]),
+      ],
+      organizationId,
     );
 
     const demoModeEnabled = settings.get("demo_mode_enabled") === "true";
@@ -74,12 +96,14 @@ serve(async (req: Request): Promise<Response> => {
       await supabase
         .from("otp_codes")
         .delete()
-        .eq("phone", phone);
+        .eq("phone", phone)
+        .eq("organization_id", organizationId);
 
       // Store demo OTP (hash of 123456)
       const demoOtpHash = await hashOtp("123456");
       await supabase.from("otp_codes").insert({
         phone,
+        organization_id: organizationId,
         otp_hash: demoOtpHash,
         expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
       });
@@ -99,6 +123,7 @@ serve(async (req: Request): Promise<Response> => {
       .from("otp_codes")
       .select("created_at")
       .eq("phone", phone)
+      .eq("organization_id", organizationId)
       .gte("created_at", new Date(Date.now() - 60 * 1000).toISOString())
       .order("created_at", { ascending: false })
       .limit(1);
@@ -118,11 +143,13 @@ serve(async (req: Request): Promise<Response> => {
     await supabase
       .from("otp_codes")
       .delete()
-      .eq("phone", phone);
+      .eq("phone", phone)
+      .eq("organization_id", organizationId);
 
     // Store OTP
     await supabase.from("otp_codes").insert({
       phone,
+      organization_id: organizationId,
       otp_hash: otpHash,
       expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
     });
@@ -131,6 +158,12 @@ serve(async (req: Request): Promise<Response> => {
     const whatsappTemplate = settings.get("whatsapp_otp_template_name") || "";
     const whatsappLanguageCode = settings.get("whatsapp_template_language_code") || "en_US";
     const whatsappCountryCode = settings.get("whatsapp_default_country_code") || "91";
+    const whatsappAccessToken =
+      settings.get("whatsapp_access_token")?.trim() || Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
+    const whatsappPhoneNumberId =
+      settings.get("whatsapp_phone_number_id")?.trim() || Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") || "";
+    const whatsappApiVersion =
+      settings.get("whatsapp_api_version")?.trim() || Deno.env.get("WHATSAPP_API_VERSION") || "v23.0";
 
     let whatsappAttempted = false;
     if (whatsappEnabled && whatsappTemplate) {
@@ -138,6 +171,9 @@ serve(async (req: Request): Promise<Response> => {
       const whatsappResult = await sendOtpViaWhatsApp({
         phone,
         otp,
+        accessToken: whatsappAccessToken,
+        phoneNumberId: whatsappPhoneNumberId,
+        apiVersion: whatsappApiVersion,
         templateName: whatsappTemplate,
         languageCode: whatsappLanguageCode,
         countryCode: whatsappCountryCode,
@@ -157,9 +193,9 @@ serve(async (req: Request): Promise<Response> => {
       console.error("WhatsApp OTP delivery failed, falling back to SMS:", whatsappResult.error);
     }
 
-    const msg91AuthKey = Deno.env.get("MSG91_AUTH_KEY");
+    const msg91AuthKey = settings.get("msg91_auth_key")?.trim() || Deno.env.get("MSG91_AUTH_KEY") || "";
     const msg91TemplateId = settings.get("msg91_template_id") || "";
-    const msg91SenderId = settings.get("msg91_sender_id") || "IRMLAB";
+    const msg91SenderId = settings.get("msg91_sender_id") || "LABOTP";
 
     if (!msg91AuthKey || !msg91TemplateId) {
       return new Response(
@@ -213,6 +249,9 @@ async function hashOtp(otp: string): Promise<string> {
 interface WhatsAppOtpInput {
   phone: string;
   otp: string;
+  accessToken: string;
+  phoneNumberId: string;
+  apiVersion: string;
   templateName: string;
   languageCode: string;
   countryCode: string;
@@ -260,11 +299,7 @@ const normalizePhoneNumber = (value: string, defaultCountryCode: string): string
 };
 
 async function sendOtpViaWhatsApp(input: WhatsAppOtpInput): Promise<{ success: boolean; error?: string }> {
-  const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-  const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-  const apiVersion = Deno.env.get("WHATSAPP_API_VERSION") || "v23.0";
-
-  if (!accessToken || !phoneNumberId) {
+  if (!input.accessToken || !input.phoneNumberId) {
     return { success: false, error: "WhatsApp Cloud API secrets are missing" };
   }
 
@@ -272,11 +307,11 @@ async function sendOtpViaWhatsApp(input: WhatsAppOtpInput): Promise<{ success: b
   if (!normalizedPhone) {
     return { success: false, error: "Invalid phone number for WhatsApp OTP" };
   }
-  const endpoint = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+  const endpoint = `https://graph.facebook.com/${input.apiVersion}/${input.phoneNumberId}/messages`;
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${accessToken}`,
+      "Authorization": `Bearer ${input.accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

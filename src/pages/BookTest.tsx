@@ -24,6 +24,10 @@ import {
   DEFAULT_COUNTRY_CODE,
   PHONE_COUNTRY_OPTIONS,
 } from "@/lib/phone";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import PlatformBookDemoPage from "@/components/platform/PlatformBookDemoPage";
+import { usePublicPageMode } from "@/hooks/usePublicPageMode";
+import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 
 type LabOption = {
   id: string;
@@ -42,6 +46,8 @@ const today = new Date().toISOString().split("T")[0];
 const MAX_ADDRESS_LENGTH = 250;
 
 const BookTest = () => {
+  const { loading: publicModeLoading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
+  const { branding, organization, primaryLab, loading: organizationLoading } = useOrganization();
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -60,17 +66,23 @@ const BookTest = () => {
     lab_id: "",
     collection_center_id: "",
   });
+  const resolvedOrganizationId = organization?.id || primaryLab?.organization_id || null;
 
   useEffect(() => {
     const fetchMeta = async () => {
-      const [labsRes, centersRes] = await Promise.all([
-        supabase.from("labs").select("id, name, lab_code").eq("is_active", true).order("name"),
-        supabase
-          .from("collection_centers")
-          .select("id, name, code, lab_id")
-          .eq("is_active", true)
-          .order("name"),
-      ]);
+      let labsQuery = supabase.from("labs").select("id, name, lab_code").eq("is_active", true).order("name");
+      let centersQuery = supabase
+        .from("collection_centers")
+        .select("id, name, code, lab_id")
+        .eq("is_active", true)
+        .order("name");
+
+      if (resolvedOrganizationId) {
+        labsQuery = labsQuery.eq("organization_id" as any, resolvedOrganizationId);
+        centersQuery = centersQuery.eq("organization_id" as any, resolvedOrganizationId);
+      }
+
+      const [labsRes, centersRes] = await Promise.all([labsQuery, centersQuery]);
 
       if (labsRes.error) {
         console.error("Error fetching labs:", labsRes.error);
@@ -85,8 +97,10 @@ const BookTest = () => {
       }
     };
 
-    void fetchMeta();
-  }, []);
+    if (!organizationLoading) {
+      void fetchMeta();
+    }
+  }, [organizationLoading, resolvedOrganizationId]);
 
   const filteredCollectionCenters = useMemo(() => {
     if (!formData.lab_id) {
@@ -141,6 +155,7 @@ const BookTest = () => {
           preferred_date: formData.preferred_date || null,
           lab_id: formData.lab_id || null,
           collection_center_id: formData.collection_center_id || null,
+          organization_id: resolvedOrganizationId,
           turnstile_token: captchaToken,
         },
       });
@@ -162,13 +177,25 @@ const BookTest = () => {
     }
   };
 
+  if (publicModeLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-muted-foreground">Loading...</div></div>;
+  }
+
+  if (invalidTenantHost) {
+    return <InvalidTenantPage hostname={hostname} />;
+  }
+
+  if (platformMode) {
+    return <PlatformBookDemoPage />;
+  }
+
   return (
     <>
       <Helmet>
-        <title>Book Test Now | IRM Clinical Laboratory</title>
+        <title>{`Book Test Now | ${branding.displayName}`}</title>
         <meta
           name="description"
-          content="Request a diagnostic test booking with IRM Clinical Laboratory. Share your name, phone number, visit preference, and preferred date."
+          content={`Request a diagnostic test booking with ${branding.displayName}. Share your name, phone number, visit preference, and preferred date.`}
         />
       </Helmet>
 

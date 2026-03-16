@@ -59,3 +59,48 @@ verify_jwt = false
 
 [functions.submit-booking-request]
 verify_jwt = false
+
+[functions.provision-organization]
+verify_jwt = false
+
+[functions.check-onboarding-subdomain]
+verify_jwt = false
+
+[functions.submit-demo-request]
+verify_jwt = false
+
+[functions.submit-onboarding-request]
+verify_jwt = false
+
+[functions.provision-onboarding-request]
+verify_jwt = false
+
+[functions.abdm-scan-share]
+verify_jwt = false
+
+[functions.abdm-profile-share]
+verify_jwt = false
+
+[functions.abdm-on-share]
+verify_jwt = false
+
+[functions.abdm-enroll-abha]
+verify_jwt = false
+
+[functions.abdm-link-care-context]
+verify_jwt = false
+
+[functions.abdm-running-token]
+verify_jwt = false
+
+[functions.validate-coupon]
+verify_jwt = false
+
+[functions.create-plan-upgrade-order]
+verify_jwt = false
+
+[functions.confirm-plan-upgrade]
+verify_jwt = false
+
+[functions.confirm-razorpay-payment]
+verify_jwt = false

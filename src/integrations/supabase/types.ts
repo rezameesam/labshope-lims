@@ -157,6 +157,7 @@ export type Database = {
           new_values: Json | null
           notes: string | null
           old_values: Json | null
+          organization_id: string | null
           payment_id: string | null
         }
         Insert: {
@@ -169,6 +170,7 @@ export type Database = {
           new_values?: Json | null
           notes?: string | null
           old_values?: Json | null
+          organization_id?: string | null
           payment_id?: string | null
         }
         Update: {
@@ -181,6 +183,7 @@ export type Database = {
           new_values?: Json | null
           notes?: string | null
           old_values?: Json | null
+          organization_id?: string | null
           payment_id?: string | null
         }
         Relationships: [
@@ -208,6 +211,7 @@ export type Database = {
           is_active: boolean | null
           is_system_role: boolean | null
           name: string
+          organization_id: string | null
           updated_at: string
         }
         Insert: {
@@ -217,6 +221,7 @@ export type Database = {
           is_active?: boolean | null
           is_system_role?: boolean | null
           name: string
+          organization_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -226,6 +231,7 @@ export type Database = {
           is_active?: boolean | null
           is_system_role?: boolean | null
           name?: string
+          organization_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -241,6 +247,7 @@ export type Database = {
           invoice_id: string | null
           invoice_number: string | null
           notes: string | null
+          organization_id: string | null
           patient_id: string | null
           referral_date: string
           updated_at: string
@@ -255,6 +262,7 @@ export type Database = {
           invoice_id?: string | null
           invoice_number?: string | null
           notes?: string | null
+          organization_id?: string | null
           patient_id?: string | null
           referral_date?: string
           updated_at?: string
@@ -269,6 +277,7 @@ export type Database = {
           invoice_id?: string | null
           invoice_number?: string | null
           notes?: string | null
+          organization_id?: string | null
           patient_id?: string | null
           referral_date?: string
           updated_at?: string
@@ -308,6 +317,7 @@ export type Database = {
           lab_id: string | null
           name: string
           notes: string | null
+          organization_id: string | null
           phone: string | null
           specialization: string | null
           updated_at: string
@@ -322,6 +332,7 @@ export type Database = {
           lab_id?: string | null
           name: string
           notes?: string | null
+          organization_id?: string | null
           phone?: string | null
           specialization?: string | null
           updated_at?: string
@@ -336,6 +347,7 @@ export type Database = {
           lab_id?: string | null
           name?: string
           notes?: string | null
+          organization_id?: string | null
           phone?: string | null
           specialization?: string | null
           updated_at?: string
@@ -459,6 +471,7 @@ export type Database = {
           item_id: string
           maintenance_type: string
           notes: string | null
+          organization_id: string | null
           performed_by: string | null
           scheduled_date: string | null
           status: string | null
@@ -472,6 +485,7 @@ export type Database = {
           item_id: string
           maintenance_type: string
           notes?: string | null
+          organization_id?: string | null
           performed_by?: string | null
           scheduled_date?: string | null
           status?: string | null
@@ -485,6 +499,7 @@ export type Database = {
           item_id?: string
           maintenance_type?: string
           notes?: string | null
+          organization_id?: string | null
           performed_by?: string | null
           scheduled_date?: string | null
           status?: string | null
@@ -506,6 +521,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          organization_id: string | null
           type: string
         }
         Insert: {
@@ -513,6 +529,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          organization_id?: string | null
           type?: string
         }
         Update: {
@@ -520,6 +537,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          organization_id?: string | null
           type?: string
         }
         Relationships: []
@@ -536,6 +554,7 @@ export type Database = {
           location: string | null
           min_stock_level: number | null
           name: string
+          organization_id: string | null
           sku: string | null
           supplier: string | null
           type: string
@@ -554,6 +573,7 @@ export type Database = {
           location?: string | null
           min_stock_level?: number | null
           name: string
+          organization_id?: string | null
           sku?: string | null
           supplier?: string | null
           type?: string
@@ -572,6 +592,7 @@ export type Database = {
           location?: string | null
           min_stock_level?: number | null
           name?: string
+          organization_id?: string | null
           sku?: string | null
           supplier?: string | null
           type?: string
@@ -603,6 +624,7 @@ export type Database = {
           invoice_number: string | null
           item_id: string
           notes: string | null
+          organization_id: string | null
           purchase_date: string
           purchased_by: string | null
           quantity: number
@@ -616,6 +638,7 @@ export type Database = {
           invoice_number?: string | null
           item_id: string
           notes?: string | null
+          organization_id?: string | null
           purchase_date?: string
           purchased_by?: string | null
           quantity: number
@@ -629,6 +652,7 @@ export type Database = {
           invoice_number?: string | null
           item_id?: string
           notes?: string | null
+          organization_id?: string | null
           purchase_date?: string
           purchased_by?: string | null
           quantity?: number
@@ -652,6 +676,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          organization_id: string | null
           patient_test_id: string | null
           quantity: number
           recorded_by: string | null
@@ -664,6 +689,7 @@ export type Database = {
           id?: string
           item_id: string
           notes?: string | null
+          organization_id?: string | null
           patient_test_id?: string | null
           quantity: number
           recorded_by?: string | null
@@ -676,6 +702,7 @@ export type Database = {
           id?: string
           item_id?: string
           notes?: string | null
+          organization_id?: string | null
           patient_test_id?: string | null
           quantity?: number
           recorded_by?: string | null
@@ -707,6 +734,7 @@ export type Database = {
           discount: number | null
           id: string
           invoice_id: string
+          organization_id: string | null
           patient_test_id: string | null
           quantity: number
           test_name: string
@@ -718,6 +746,7 @@ export type Database = {
           discount?: number | null
           id?: string
           invoice_id: string
+          organization_id?: string | null
           patient_test_id?: string | null
           quantity?: number
           test_name: string
@@ -729,6 +758,7 @@ export type Database = {
           discount?: number | null
           id?: string
           invoice_id?: string
+          organization_id?: string | null
           patient_test_id?: string | null
           quantity?: number
           test_name?: string
@@ -1230,6 +1260,12 @@ export type Database = {
       patients: {
         Row: {
           address: string | null
+          abdm_last_verified_at: string | null
+          abdm_link_status: string | null
+          abdm_linked_at: string | null
+          abdm_source: string | null
+          abha_address: string | null
+          abha_number: string | null
           blood_group: string | null
           collection_center_id: string | null
           created_at: string
@@ -1248,6 +1284,12 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          abdm_last_verified_at?: string | null
+          abdm_link_status?: string | null
+          abdm_linked_at?: string | null
+          abdm_source?: string | null
+          abha_address?: string | null
+          abha_number?: string | null
           blood_group?: string | null
           collection_center_id?: string | null
           created_at?: string
@@ -1266,6 +1308,12 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          abdm_last_verified_at?: string | null
+          abdm_link_status?: string | null
+          abdm_linked_at?: string | null
+          abdm_source?: string | null
+          abha_address?: string | null
+          abha_number?: string | null
           blood_group?: string | null
           collection_center_id?: string | null
           created_at?: string
@@ -1306,9 +1354,14 @@ export type Database = {
           id: string
           invoice_id: string
           notes: string | null
+          organization_id: string | null
           payment_date: string
+          payment_gateway: string | null
           payment_method: string
           received_by: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          razorpay_signature: string | null
           transaction_id: string | null
         }
         Insert: {
@@ -1317,9 +1370,14 @@ export type Database = {
           id?: string
           invoice_id: string
           notes?: string | null
+          organization_id?: string | null
           payment_date?: string
+          payment_gateway?: string | null
           payment_method: string
           received_by?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_signature?: string | null
           transaction_id?: string | null
         }
         Update: {
@@ -1328,9 +1386,14 @@ export type Database = {
           id?: string
           invoice_id?: string
           notes?: string | null
+          organization_id?: string | null
           payment_date?: string
+          payment_gateway?: string | null
           payment_method?: string
           received_by?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_signature?: string | null
           transaction_id?: string | null
         }
         Relationships: [
@@ -1387,6 +1450,7 @@ export type Database = {
           amount: number
           created_at: string
           id: string
+          organization_id: string | null
           quantity: number
           quotation_id: string
           test_name: string
@@ -1396,6 +1460,7 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          organization_id?: string | null
           quantity?: number
           quotation_id: string
           test_name: string
@@ -1405,6 +1470,7 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          organization_id?: string | null
           quantity?: number
           quotation_id?: string
           test_name?: string
@@ -1431,6 +1497,7 @@ export type Database = {
           final_amount: number
           id: string
           notes: string | null
+          organization_id: string | null
           quotation_number: string
           status: string
           total_amount: number
@@ -1447,6 +1514,7 @@ export type Database = {
           final_amount?: number
           id?: string
           notes?: string | null
+          organization_id?: string | null
           quotation_number: string
           status?: string
           total_amount?: number
@@ -1463,6 +1531,7 @@ export type Database = {
           final_amount?: number
           id?: string
           notes?: string | null
+          organization_id?: string | null
           quotation_number?: string
           status?: string
           total_amount?: number
@@ -1542,18 +1611,21 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          organization_id: string | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
           name: string
+          organization_id?: string | null
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
           name?: string
+          organization_id?: string | null
         }
         Relationships: []
       }
@@ -1602,6 +1674,7 @@ export type Database = {
           is_active: boolean | null
           lab_id: string | null
           name: string
+          organization_id: string | null
           price: number
           updated_at: string
         }
@@ -1613,6 +1686,7 @@ export type Database = {
           is_active?: boolean | null
           lab_id?: string | null
           name: string
+          organization_id?: string | null
           price?: number
           updated_at?: string
         }
@@ -1624,6 +1698,7 @@ export type Database = {
           is_active?: boolean | null
           lab_id?: string | null
           name?: string
+          organization_id?: string | null
           price?: number
           updated_at?: string
         }
@@ -1649,6 +1724,7 @@ export type Database = {
           include_notes: boolean | null
           is_default: boolean | null
           name: string
+          organization_id: string | null
           result_format: string
           test_category: string | null
           test_id: string | null
@@ -1665,6 +1741,7 @@ export type Database = {
           include_notes?: boolean | null
           is_default?: boolean | null
           name: string
+          organization_id?: string | null
           result_format?: string
           test_category?: string | null
           test_id?: string | null
@@ -1681,12 +1758,20 @@ export type Database = {
           include_notes?: boolean | null
           is_default?: boolean | null
           name?: string
+          organization_id?: string | null
           result_format?: string
           test_category?: string | null
           test_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "test_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "test_templates_test_id_fkey"
             columns: ["test_id"]
@@ -1706,6 +1791,7 @@ export type Database = {
           normal_range_max: number | null
           normal_range_min: number | null
           normal_range_text: string | null
+          organization_id: string | null
           price: number | null
           sample_type: string | null
           test_id: string | null
@@ -1720,6 +1806,7 @@ export type Database = {
           normal_range_max?: number | null
           normal_range_min?: number | null
           normal_range_text?: string | null
+          organization_id?: string | null
           price?: number | null
           sample_type?: string | null
           test_id?: string | null
@@ -1734,6 +1821,7 @@ export type Database = {
           normal_range_max?: number | null
           normal_range_min?: number | null
           normal_range_text?: string | null
+          organization_id?: string | null
           price?: number | null
           sample_type?: string | null
           test_id?: string | null
@@ -1801,7 +1889,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      generate_invoice_number: { Args: never; Returns: string }
+      generate_invoice_number: {
+        Args: { p_organization_id?: string | null }
+        Returns: string
+      }
       get_user_lab_id: { Args: { _user_id: string }; Returns: string }
       get_user_permissions: {
         Args: { _user_id: string }

@@ -1,9 +1,11 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 
 interface Lab {
   id: string;
+  organization_id?: string | null;
   lab_code: string;
   name: string;
   type: string;
@@ -46,78 +48,74 @@ const LabContext = createContext<LabContextType | undefined>(undefined);
 
 export const LabProvider = ({ children }: { children: ReactNode }) => {
   const { user, hasRole } = useAuth();
+  const { isPlatformAdmin, loading: platformAdminLoading } = usePlatformAdmin();
   const [currentLab, setCurrentLabState] = useState<Lab | null>(null);
   const [availableLabs, setAvailableLabs] = useState<Lab[]>([]);
   const [labUsers, setLabUsers] = useState<LabUser[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserLabs = async () => {
+  const fetchUserLabs = useCallback(async () => {
+    if (platformAdminLoading) {
+      return;
+    }
+
     if (!user) {
       setLoading(false);
       return;
     }
 
     try {
-      // If user is system admin, get all labs
-      if (hasRole("admin")) {
-        const { data: allLabs, error: labsError } = await supabase
-          .from("labs")
-          .select("*")
-          .eq("is_active", true)
-          .order("name");
+      // Always load labs the user personally belongs to via lab_users.
+      // Platform pages (/platform/*) query Supabase directly and never rely on
+      // LabContext, so there is no need to load every org's lab here. Loading
+      // all labs here incorrectly sets currentLab to an arbitrary org's lab for
+      // users who are both a platform admin and a regular org admin.
+      const { data: userLabs, error: userLabsError } = await supabase
+        .from("lab_users")
+        .select(`
+          *,
+          lab:labs(*)
+        `)
+        .eq("user_id", user.id)
+        .order("is_primary", { ascending: false });
 
-        if (labsError) throw labsError;
-        setAvailableLabs(allLabs || []);
+      if (userLabsError) throw userLabsError;
 
-        // Set primary lab or first lab as current
-        const primaryLab = allLabs?.find((lab) => lab.lab_code === "LAB001") || allLabs?.[0];
-        if (primaryLab && !currentLab) {
-          setCurrentLabState(primaryLab);
-          localStorage.setItem("currentLabId", primaryLab.id);
-        }
-      } else {
-        // Get labs user has access to
-        const { data: userLabs, error: userLabsError } = await supabase
-          .from("lab_users")
-          .select(`
-            *,
-            lab:labs(*)
-          `)
-          .eq("user_id", user.id)
-          .order("is_primary", { ascending: false });
+      const labs = (userLabs || [])
+        .map((lu: any) => lu.lab)
+        .filter((lab: any): lab is Lab => lab !== null && lab.is_active);
 
-        if (userLabsError) throw userLabsError;
+      setAvailableLabs(labs);
+      setLabUsers(userLabs || []);
 
-        const labs = (userLabs || [])
-          .map((lu: any) => lu.lab)
-          .filter((lab: any): lab is Lab => lab !== null && lab.is_active);
+      // Set primary lab or first lab as current — only update if the ID changed
+      const primaryLabUser = userLabs?.find((lu) => lu.is_primary);
+      const primaryLab = primaryLabUser?.lab || labs[0];
 
-        setAvailableLabs(labs);
-        setLabUsers(userLabs || []);
+      if (primaryLab) {
+        const savedLabId = localStorage.getItem("currentLabId");
+        const savedLab = savedLabId ? labs.find((l) => l.id === savedLabId) : null;
+        const labToSet = savedLab || primaryLab;
 
-        // Set primary lab or first lab as current
-        const primaryLabUser = userLabs?.find((lu) => lu.is_primary);
-        const primaryLab = primaryLabUser?.lab || labs[0];
-        
-        if (primaryLab) {
-          const savedLabId = localStorage.getItem("currentLabId");
-          const savedLab = savedLabId ? labs.find((l) => l.id === savedLabId) : null;
-          const labToSet = savedLab || primaryLab;
-          
-          setCurrentLabState(labToSet);
+        setCurrentLabState((prev) => {
+          if (prev?.id === labToSet.id) return prev;
           localStorage.setItem("currentLabId", labToSet.id);
-        }
+          return labToSet;
+        });
       }
     } catch (error) {
       console.error("Error fetching user labs:", error);
     } finally {
       setLoading(false);
     }
-  };
+    // NOTE: currentLab intentionally excluded from deps — including it causes an
+    // infinite loop because fetchUserLabs sets currentLab, which would recreate
+    // the callback, which would re-run the effect.
+  }, [platformAdminLoading, user]);
 
   useEffect(() => {
-    fetchUserLabs();
-  }, [user]);
+    void fetchUserLabs();
+  }, [fetchUserLabs]);
 
   const setCurrentLab = (lab: Lab | null) => {
     setCurrentLabState(lab);
@@ -129,12 +127,17 @@ export const LabProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const hasLabAccess = (labId: string): boolean => {
-    if (hasRole("admin")) return true;
+    if (isPlatformAdmin) return true;
     return labUsers.some((lu) => lu.lab_id === labId);
   };
 
   const isLabAdmin = (labId?: string): boolean => {
-    if (hasRole("admin")) return true;
+    if (isPlatformAdmin) return true;
+    if (hasRole("admin")) {
+      const targetLabId = labId || currentLab?.id;
+      if (!targetLabId) return false;
+      return availableLabs.some((lab) => lab.id === targetLabId);
+    }
     const targetLabId = labId || currentLab?.id;
     if (!targetLabId) return false;
     return labUsers.some(
@@ -172,4 +175,3 @@ export const useLab = () => {
   }
   return context;
 };
-
