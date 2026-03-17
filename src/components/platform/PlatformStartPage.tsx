@@ -82,6 +82,10 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
 
+const PAGES_CNAME_TARGET =
+  import.meta.env.VITE_PAGES_CNAME_TARGET ||
+  `${import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.split(".")[0] || "app"}.pages.dev`;
+
 const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   if (!customDomain || !fallbackDomain) {
     return null;
@@ -91,9 +95,9 @@ const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   const isApexDomain = labels.length <= 2;
 
   return {
-    recordType: isApexDomain ? "ALIAS / ANAME" : "CNAME",
-    hostLabel: isApexDomain ? "@" : labels[0],
-    target: fallbackDomain,
+    recordType: "CNAME",
+    hostLabel: isApexDomain ? "www" : labels[0],
+    target: PAGES_CNAME_TARGET,
     isApexDomain,
   };
 };

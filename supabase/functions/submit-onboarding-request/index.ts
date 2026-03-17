@@ -153,6 +153,9 @@ const buildLaunchUrls = (domain: string | null, slug: string) => {
   };
 };
 
+// @ts-ignore Deno runtime
+const PAGES_CNAME_TARGET: string = (typeof Deno !== "undefined" ? (Deno as any).env.get("PAGES_CNAME_TARGET") : null) || "labshope-lims.pages.dev";
+
 const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   if (!customDomain || !fallbackDomain) {
     return null;
@@ -164,7 +167,7 @@ const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   return {
     recordType: "CNAME",
     hostLabel: isApexDomain ? "www" : labels[0],
-    target: fallbackDomain,
+    target: PAGES_CNAME_TARGET,
     isApexDomain,
   };
 };
