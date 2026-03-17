@@ -9,6 +9,7 @@ const PlatformSiteFooter = () => {
         <div>
           <img src="/labshope-logo.jpg" alt="LabShope LIMS" className="h-8 w-auto object-contain mb-2" />
           <p className="mt-1">{platformBranding.tagline}</p>
+          <p className="mt-1"><a href={`mailto:${platformBranding.contactEmail}`} className="transition hover:text-primary">{platformBranding.contactEmail}</a></p>
           <p className="mt-1 text-xs">© {new Date().getFullYear()} LabShope Technologies. All rights reserved.</p>
         </div>
         <div className="flex flex-wrap gap-5">
