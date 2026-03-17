@@ -3,10 +3,12 @@ import {
   ArrowRight,
   BadgeCheck,
   Building2,
+  CheckCircle2,
   ClipboardList,
   CreditCard,
   FlaskConical,
   Globe2,
+  Loader2,
   Mail,
   MapPin,
   MessageCircle,
@@ -15,6 +17,7 @@ import {
   Save,
   Sparkles,
   Users,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -215,6 +218,8 @@ const AdminQuickSetup = () => {
   const [saving, setSaving] = useState(false);
   const [seedingStarterCatalog, setSeedingStarterCatalog] = useState(false);
   const [verifyingDomain, setVerifyingDomain] = useState(false);
+  const [dnsCheckStatus, setDnsCheckStatus] = useState<"idle" | "checking" | "connected" | "not_connected">("idle");
+  const [dnsCheckCname, setDnsCheckCname] = useState<string | null>(null);
 
   const populateForm = useCallback(async () => {
     if (organizationLoading) {
@@ -386,6 +391,10 @@ const AdminQuickSetup = () => {
   }, [launchAccessDomain, normalizedWebsite, organization?.slug, primaryDomainRecord]);
 
   const handleChange = (field: keyof QuickSetupForm, value: string) => {
+    if (field === "customDomain") {
+      setDnsCheckStatus("idle");
+      setDnsCheckCname(null);
+    }
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
@@ -782,6 +791,30 @@ const AdminQuickSetup = () => {
     }
   };
 
+  const handleCheckDns = async () => {
+    if (!normalizedCustomDomain) return;
+    setDnsCheckStatus("checking");
+    setDnsCheckCname(null);
+    try {
+      const domainToCheck = dnsGuide?.isApexDomain ? `www.${normalizedCustomDomain}` : normalizedCustomDomain;
+      const { data, error } = await supabase.functions.invoke("check-domain-dns", {
+        body: { domain: domainToCheck, expected_cname: launchAccessDomain },
+      });
+      if (error) throw error;
+      setDnsCheckCname(data?.cname || null);
+      if (data?.connected) {
+        setDnsCheckStatus("connected");
+        if (customDomainRecord?.id && !customDomainRecord.verified_at) {
+          await handleToggleDomainVerification();
+        }
+      } else {
+        setDnsCheckStatus("not_connected");
+      }
+    } catch {
+      setDnsCheckStatus("not_connected");
+    }
+  };
+
   if (loading) {
     return <div className="py-8 text-center text-muted-foreground">Loading quick setup...</div>;
   }
@@ -942,24 +975,60 @@ const AdminQuickSetup = () => {
                   provider-specific ALIAS or ANAME support.
                 </p>
                 {normalizedCustomDomain ? (
-                  <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-muted/10 px-4 py-3">
-                    <div className="text-sm text-muted-foreground">
-                      {customDomainRecord?.id
-                        ? customDomainRecord.verified_at
-                          ? "DNS looks ready. Keep this marked live while the custom domain is serving traffic."
-                          : "Once DNS is pointing correctly, mark this domain live so launch links prefer it."
-                        : "Save Quick Setup first so this custom domain is stored before you mark it live."}
+                  <div className="rounded-2xl border border-border bg-muted/10 px-4 py-3 space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      {dnsCheckStatus === "connected" || customDomainRecord?.verified_at ? (
+                        <div className="flex items-center gap-2 text-sm text-emerald-700">
+                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                          <span>DNS is connected.{dnsCheckCname ? ` Resolves to: ${dnsCheckCname}` : ""}</span>
+                        </div>
+                      ) : dnsCheckStatus === "not_connected" ? (
+                        <div className="flex items-center gap-2 text-sm text-red-600">
+                          <XCircle className="h-4 w-4 shrink-0" />
+                          <span>
+                            Not pointed correctly yet.{dnsCheckCname ? ` Found: ${dnsCheckCname}` : " No CNAME found."}
+                            {" "}Expected: <span className="font-medium">{launchAccessDomain}</span>
+                          </span>
+                        </div>
+                      ) : dnsCheckStatus === "checking" ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                          <span>Checking DNS...</span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          {customDomainRecord?.id
+                            ? "Click Check DNS to verify the domain is pointing correctly."
+                            : "Save Quick Setup first so the domain is stored before checking."}
+                        </div>
+                      )}
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={customDomainRecord?.verified_at ? "outline" : "clinical"}
-                      onClick={() => void handleToggleDomainVerification()}
-                      disabled={verifyingDomain || !customDomainRecord?.id}
-                    >
-                      <BadgeCheck className="mr-2 h-4 w-4" />
-                      {customDomainRecord?.verified_at ? "Mark pending" : "Mark domain live"}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleCheckDns()}
+                        disabled={dnsCheckStatus === "checking" || !customDomainRecord?.id}
+                      >
+                        {dnsCheckStatus === "checking" ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Globe2 className="mr-2 h-4 w-4" />
+                        )}
+                        Check DNS
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={customDomainRecord?.verified_at ? "outline" : "ghost"}
+                        onClick={() => void handleToggleDomainVerification()}
+                        disabled={verifyingDomain || !customDomainRecord?.id}
+                      >
+                        <BadgeCheck className="mr-2 h-4 w-4" />
+                        {customDomainRecord?.verified_at ? "Mark pending" : "Mark live manually"}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
               </div>
