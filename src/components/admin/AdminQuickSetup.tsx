@@ -31,6 +31,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import AdminSetupChecklist from "@/components/admin/AdminSetupChecklist";
 
 type QuickSetupForm = {
   displayName: string;
@@ -211,7 +212,11 @@ type OrganizationDomainRecord = {
   verified_at: string | null;
 };
 
-const AdminQuickSetup = () => {
+type AdminQuickSetupProps = {
+  onNavigate?: (tabId: string) => void;
+};
+
+const AdminQuickSetup = ({ onNavigate }: AdminQuickSetupProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
@@ -831,6 +836,7 @@ const AdminQuickSetup = () => {
 
   return (
     <div className="space-y-6">
+      <AdminSetupChecklist onNavigate={onNavigate} />
       {onboardingMode ? (
         <div className="rounded-[2rem] border border-clinical-blue/20 bg-[linear-gradient(135deg,rgba(31,138,205,0.1),rgba(255,255,255,0.98))] p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

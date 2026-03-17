@@ -405,7 +405,6 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: Home },
-    { id: "quick-setup" as TabType, label: "Quick Setup", icon: Sparkles, adminOnly: true },
     { id: "notice-board" as TabType, label: "Notice Board", icon: Bell },
     { id: "booking-requests" as TabType, label: "Booking Requests", icon: PhoneCall },
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
@@ -426,6 +425,7 @@ const AdminDashboard = () => {
     { id: "visitor-logs" as TabType, label: "Visitor Logs", icon: Globe, adminOnly: true },
     { id: "notifications" as TabType, label: "Notifications", icon: Bell, adminOnly: true },
     { id: "system-settings" as TabType, label: "System Settings", icon: Settings, adminOnly: true },
+    { id: "quick-setup" as TabType, label: "Quick Setup", icon: Sparkles, adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
@@ -571,7 +571,7 @@ const AdminDashboard = () => {
             transition={{ duration: 0.2 }}
           >
             {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setDashboardTab(tab as TabType)} />}
-            {activeTab === "quick-setup" && hasRole("admin") && <AdminQuickSetup />}
+            {activeTab === "quick-setup" && hasRole("admin") && <AdminQuickSetup onNavigate={(tab) => setDashboardTab(tab as TabType)} />}
             {activeTab === "notice-board" && (
               <NoticeBoard
                 onNavigate={(tab) => setDashboardTab(tab as TabType)}

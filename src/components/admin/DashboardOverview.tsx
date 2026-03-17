@@ -23,7 +23,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import AdminSetupChecklist from "@/components/admin/AdminSetupChecklist";
 import {
   AreaChart,
   Area,
@@ -463,8 +462,6 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
   return (
     <div className="space-y-6">
-      <AdminSetupChecklist onNavigate={onNavigate} />
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card) => (
