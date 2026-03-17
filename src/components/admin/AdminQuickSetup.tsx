@@ -184,6 +184,10 @@ const normalizeDomain = (value: string) => {
   }
 };
 
+const PAGES_CNAME_TARGET =
+  import.meta.env.VITE_PAGES_CNAME_TARGET ||
+  `${import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.split(".")[0] || "app"}.pages.dev`;
+
 const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   if (!customDomain || !fallbackDomain) {
     return null;
@@ -195,7 +199,7 @@ const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   return {
     recordType: isApexDomain ? "ALIAS / ANAME" : "CNAME",
     hostLabel: isApexDomain ? "@" : labels[0],
-    target: fallbackDomain,
+    target: PAGES_CNAME_TARGET,
     isApexDomain,
   };
 };
