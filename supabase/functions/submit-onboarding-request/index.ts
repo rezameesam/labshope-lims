@@ -322,34 +322,22 @@ async function notifyOwnerConfirmation(
     needsWhiteLabel: boolean;
   },
 ) {
-  const dnsGuide = getDnsGuide(payload.customDomain, payload.fallbackDomain);
+  const planLabel = payload.selectedPlan === "starter" ? "Starter" : payload.selectedPlan === "growth" ? "Growth" : "Premium";
+  const workspaceUrl = payload.fallbackDomain ? `https://${payload.fallbackDomain}` : null;
   const htmlContent = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;">
       <h2 style="margin:0 0 12px;">We received your setup request</h2>
-      <p style="margin:0 0 16px;">Hi ${escapeHtml(payload.ownerFullName)}, thanks for starting setup for ${escapeHtml(payload.organizationName)}.</p>
-      <p style="margin:0 0 16px;">Your request is now in the onboarding queue. A platform admin will review the details and either provision your workspace directly or contact you if anything needs clarification.</p>
-      <p style="margin:0 0 16px;">${
-        payload.customDomain
-          ? `Requested primary domain: ${escapeHtml(payload.customDomain)}. We will keep a platform fallback URL available during launch.`
-          : "No custom domain was supplied, so the initial launch will use a platform-managed subdomain."
-      }</p>
-      <table style="border-collapse:collapse;width:100%;max-width:720px;">
-        <tr><td style="padding:8px 0;font-weight:600;">Plan</td><td style="padding:8px 0;">${escapeHtml(payload.selectedPlan)}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Setup mode</td><td style="padding:8px 0;">${escapeHtml(payload.setupMode)}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Branches</td><td style="padding:8px 0;">${payload.branchCount}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Preferred subdomain</td><td style="padding:8px 0;">${escapeHtml(payload.preferredSubdomain || "-")}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Fallback launch domain</td><td style="padding:8px 0;">${escapeHtml(payload.fallbackDomain || "-")}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Go-live target</td><td style="padding:8px 0;">${escapeHtml(payload.goLiveTarget || "-")}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Needs data import</td><td style="padding:8px 0;">${payload.needsDataImport ? "Yes" : "No"}</td></tr>
-        <tr><td style="padding:8px 0;font-weight:600;">Needs white-label</td><td style="padding:8px 0;">${payload.needsWhiteLabel ? "Yes" : "No"}</td></tr>
+      <p style="margin:0 0 16px;">Hi ${escapeHtml(payload.ownerFullName)}, thanks for submitting a setup request for <strong>${escapeHtml(payload.organizationName)}</strong>.</p>
+      <p style="margin:0 0 16px;">We are reviewing your details and will provision your workspace shortly. You will receive a second email with your login credentials and workspace link once it is ready.</p>
+
+      <table style="border-collapse:collapse;width:100%;max-width:520px;margin:0 0 16px;">
+        <tr><td style="padding:6px 0;font-weight:600;width:160px;">Plan</td><td style="padding:6px 0;">${escapeHtml(planLabel)}</td></tr>
+        <tr><td style="padding:6px 0;font-weight:600;">Branches</td><td style="padding:6px 0;">${payload.branchCount}</td></tr>
+        ${payload.customDomain ? `<tr><td style="padding:6px 0;font-weight:600;">Custom domain</td><td style="padding:6px 0;">${escapeHtml(payload.customDomain)}</td></tr>` : ""}
+        ${workspaceUrl ? `<tr><td style="padding:6px 0;font-weight:600;">Workspace URL</td><td style="padding:6px 0;"><a href="${escapeHtml(workspaceUrl)}" style="color:#1d4ed8;">${escapeHtml(workspaceUrl)}</a></td></tr>` : ""}
       </table>
-      ${dnsGuide ? `<div style="margin-top:16px;padding:12px;border:1px solid #fcd34d;border-radius:12px;background:#fffbeb;">
-        <p style="margin:0 0 8px;font-weight:600;">Domain connection step</p>
-        <p style="margin:0 0 8px;">Add: ${escapeHtml(dnsGuide.recordType)} · ${escapeHtml(dnsGuide.hostLabel)} -> ${escapeHtml(dnsGuide.target)}</p>
-        ${dnsGuide.isApexDomain ? `<p style="margin:0;">Root domains may need provider-specific ALIAS or ANAME support.</p>` : ""}
-      </div>` : ""}
-      <p style="margin-top:16px;">Once your workspace is ready, we will send launch details and login access to this email address.</p>
-      <p style="margin-top:16px;">For questions, reply to ${escapeHtml(PLATFORM_CONTACT_EMAIL)}.</p>
+
+      <p style="margin:0 0 8px;">For questions, contact us at <a href="mailto:${escapeHtml(PLATFORM_CONTACT_EMAIL)}">${escapeHtml(PLATFORM_CONTACT_EMAIL)}</a>.</p>
     </div>
   `;
 
@@ -357,20 +345,15 @@ async function notifyOwnerConfirmation(
     `Hi ${payload.ownerFullName},`,
     "",
     `We received your setup request for ${payload.organizationName}.`,
-    payload.customDomain
-      ? `Requested primary domain: ${payload.customDomain}`
-      : "No custom domain supplied. Initial launch will use a platform-managed subdomain.",
-    `Plan: ${payload.selectedPlan}`,
-    `Setup mode: ${payload.setupMode}`,
-    `Branches: ${payload.branchCount}`,
-    `Preferred subdomain: ${payload.preferredSubdomain || "-"}`,
-    `Fallback launch domain: ${payload.fallbackDomain || "-"}`,
-    `Go-live target: ${payload.goLiveTarget || "-"}`,
-    `Needs data import: ${payload.needsDataImport ? "Yes" : "No"}`,
-    `Needs white-label: ${payload.needsWhiteLabel ? "Yes" : "No"}`,
     "",
-    "A platform admin will review the request and send launch details once the workspace is ready.",
-    `For questions, reply to ${PLATFORM_CONTACT_EMAIL}.`,
+    `Plan: ${planLabel}`,
+    `Branches: ${payload.branchCount}`,
+    ...(payload.customDomain ? [`Custom domain: ${payload.customDomain}`] : []),
+    ...(workspaceUrl ? [`Workspace URL: ${workspaceUrl}`] : []),
+    "",
+    "We are reviewing your details and will send your login credentials and workspace link once ready.",
+    "",
+    `For questions, contact us at ${PLATFORM_CONTACT_EMAIL}.`,
   ].join("\n");
 
   const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
