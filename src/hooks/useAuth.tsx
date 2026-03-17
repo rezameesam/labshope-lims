@@ -218,6 +218,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Skip session tracking for platform admin impersonation sessions
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("platform_access") === "1") {
+      sessionStorage.setItem("platform_access", "1");
+    }
+    if (sessionStorage.getItem("platform_access") === "1") {
+      return;
+    }
+
     const sessionId = extractSessionIdFromAccessToken(session.access_token);
     if (!sessionId) {
       return;

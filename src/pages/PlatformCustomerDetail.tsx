@@ -146,6 +146,7 @@ const PlatformCustomerDetail = () => {
   const [pendingPlan, setPendingPlan] = useState<PlanTier>("starter");
   const [savingPlan, setSavingPlan] = useState(false);
   const [resolvedPlan, setResolvedPlan] = useState<PlanTier>("starter");
+  const [accessingOrg, setAccessingOrg] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -400,6 +401,23 @@ const PlatformCustomerDetail = () => {
     });
   };
 
+  const handleAccessOrg = async () => {
+    if (!organization?.id) return;
+    setAccessingOrg(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("platform-impersonate-org", {
+        body: { organization_id: organization.id },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error("No access URL returned.");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate access link.");
+    } finally {
+      setAccessingOrg(false);
+    }
+  };
+
   if (authLoading || platformAdminLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
@@ -505,6 +523,19 @@ const PlatformCustomerDetail = () => {
                     <Button variant="outline" size="sm" onClick={handleCopyOrgId}>
                       <ClipboardCopy className="mr-1.5 h-3.5 w-3.5" />
                       Copy Org ID
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleAccessOrg()}
+                      disabled={accessingOrg}
+                    >
+                      {accessingOrg ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <LogIn className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Access as Admin
                     </Button>
                   </div>
                 </div>
