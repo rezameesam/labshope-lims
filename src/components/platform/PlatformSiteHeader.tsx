@@ -31,6 +31,10 @@ const PlatformSiteHeader = () => {
   };
 
   return (
+    <>
+      <div className="w-full bg-amber-500 px-4 py-2 text-center text-sm font-medium text-amber-950">
+        🚧 This platform is currently under development. No orders or sign-up requests will be accepted or entertained at this time.
+      </div>
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur">
       <div className="container mx-auto flex h-18 items-center justify-between px-4 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
@@ -119,6 +123,7 @@ const PlatformSiteHeader = () => {
         </div>
       </div>
     </header>
+    </>
   );
 };
 
