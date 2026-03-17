@@ -76,7 +76,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         const patientData = data as unknown as Patient;
         setPatient(patientData);
       } else {
-        if (error) {
+        if (error && error.code !== "42501") {
           console.error("Failed to load patient record for session:", error);
         }
         setPatient(null);
