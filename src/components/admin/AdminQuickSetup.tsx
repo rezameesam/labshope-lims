@@ -798,7 +798,7 @@ const AdminQuickSetup = () => {
     try {
       const domainToCheck = dnsGuide?.isApexDomain ? `www.${normalizedCustomDomain}` : normalizedCustomDomain;
       const { data, error } = await supabase.functions.invoke("check-domain-dns", {
-        body: { domain: domainToCheck, expected_cname: launchAccessDomain },
+        body: { domain: domainToCheck },
       });
       if (error) throw error;
       setDnsCheckCname(data?.cname || null);
@@ -992,8 +992,7 @@ const AdminQuickSetup = () => {
                         <div className="flex items-center gap-2 text-sm text-red-600">
                           <XCircle className="h-4 w-4 shrink-0" />
                           <span>
-                            Not pointed correctly yet.{dnsCheckCname ? ` Found: ${dnsCheckCname}` : " No CNAME found."}
-                            {" "}Expected: <span className="font-medium">{launchAccessDomain}</span>
+                            No CNAME record found for this domain yet.{dnsCheckCname ? ` Found: ${dnsCheckCname}` : ""}
                           </span>
                         </div>
                       ) : dnsCheckStatus === "checking" ? (
