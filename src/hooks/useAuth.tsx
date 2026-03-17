@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
-import { getPublicHostname, getPublicSlugCandidate } from "@/lib/publicTenant";
+import { getPublicHostname, getPublicSlugCandidate, isDefinitelyPlatformHostname } from "@/lib/publicTenant";
 
 type UserRole = "admin" | "employee" | "patient" | "collector";
 
@@ -125,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email,
           password,
           turnstile_token: turnstileToken,
-          organization_slug: getPublicSlugCandidate(getPublicHostname()),
+          organization_slug: isDefinitelyPlatformHostname(getPublicHostname()) ? null : getPublicSlugCandidate(getPublicHostname()),
         }),
       });
 
