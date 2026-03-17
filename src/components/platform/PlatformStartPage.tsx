@@ -130,6 +130,8 @@ const PlatformStartPage = () => {
   const [needsDataImport, setNeedsDataImport] = useState(false);
   const [needsWhiteLabel, setNeedsWhiteLabel] = useState(false);
   const [notes, setNotes] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [faviconUrl, setFaviconUrl] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [couponValidation, setCouponValidation] = useState<{
     status: "idle" | "checking" | "valid" | "invalid";
@@ -486,6 +488,8 @@ const PlatformStartPage = () => {
           go_live_target: goLiveTarget || null,
           needs_data_import: needsDataImport,
           needs_white_label: needsWhiteLabel,
+          logo_url: logoUrl.trim() || null,
+          favicon_url: faviconUrl.trim() || null,
           notes: notes.trim() || null,
           coupon_code: couponCode.trim().toUpperCase() || null,
           hostname: window.location.hostname,
@@ -529,6 +533,8 @@ const PlatformStartPage = () => {
       setGoLiveTarget("");
       setNeedsDataImport(false);
       setNeedsWhiteLabel(false);
+      setLogoUrl("");
+      setFaviconUrl("");
       setNotes("");
       setCouponCode("");
       setCaptchaToken("");
@@ -1113,7 +1119,7 @@ const PlatformStartPage = () => {
                       </div>
                       {customDomainDnsGuide.isApexDomain ? (
                         <p className="mt-3 text-xs text-amber-800">
-                          Apex/root domains often need provider-specific `ALIAS` or `ANAME` support instead of a plain `CNAME`.
+                          This points <strong>www.{normalizedCustomDomain}</strong> to your workspace. Most providers (including GoDaddy) don't support CNAME on the root domain — use your provider's domain forwarding to redirect the root to www.
                         </p>
                       ) : null}
                     </div>
@@ -1128,6 +1134,39 @@ const PlatformStartPage = () => {
                       <Checkbox checked={needsWhiteLabel} onCheckedChange={(checked) => setNeedsWhiteLabel(Boolean(checked))} />
                       <span className="text-sm leading-6 text-muted-foreground">We need white-label branding or a dedicated domain rollout.</span>
                     </label>
+                  </div>
+
+                  <div className="rounded-[1.5rem] border border-border bg-background p-5 space-y-4">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">Branding</p>
+                      <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                        Optional. Paste a public URL to your logo and favicon so we can apply them when your workspace is set up. You can also upload them later from the admin panel.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="logo-url">Logo URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                        <Input
+                          id="logo-url"
+                          type="url"
+                          placeholder="https://yourdomain.com/logo.png"
+                          value={logoUrl}
+                          onChange={(e) => setLogoUrl(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">PNG or JPG · min 400 × 400 px · max 2 MB</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="favicon-url">Favicon URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                        <Input
+                          id="favicon-url"
+                          type="url"
+                          placeholder="https://yourdomain.com/favicon.png"
+                          value={faviconUrl}
+                          onChange={(e) => setFaviconUrl(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">PNG · 32 × 32 px or 64 × 64 px</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
