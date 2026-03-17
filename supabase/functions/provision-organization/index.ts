@@ -501,10 +501,7 @@ serve(async (req: Request) => {
 
       const { error: roleError } = await supabaseAdmin
         .from("user_roles")
-        .insert({
-          user_id: userId,
-          role: "admin",
-        });
+        .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
 
       if (roleError) {
         throw new Error(`Failed to assign owner role: ${roleError.message}`);
