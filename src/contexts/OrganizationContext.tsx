@@ -3,7 +3,7 @@ import fallbackLogo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLab } from "@/contexts/LabContext";
-import { getPublicHostname, getPublicSlugCandidate } from "@/lib/publicTenant";
+import { getPublicHostname, getPublicSlugCandidate, isDefinitelyPlatformHostname } from "@/lib/publicTenant";
 
 interface OrganizationRecord {
   id: string;
@@ -209,10 +209,11 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       // is no subdomain (e.g. localhost with no prefix).
       const hostname = getPublicHostname();
       const slugCandidate = getPublicSlugCandidate(hostname);
-      if (slugCandidate) {
+      const isCustomDomain = !isDefinitelyPlatformHostname(hostname) && !slugCandidate;
+      if (slugCandidate || isCustomDomain) {
         const { data: publicContext, error: publicContextError } = await supabase.rpc(
           "get_public_organization_context" as any,
-          { _domain: hostname, _slug: slugCandidate }
+          { _domain: hostname, _slug: slugCandidate ?? null }
         );
         if (!publicContextError && publicContext) {
           const payload = publicContext as unknown as PublicOrganizationContextPayload;
