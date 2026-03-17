@@ -418,6 +418,8 @@ serve(async (req: Request) => {
         throw new Error(`Failed to seed default report template: ${templateError.message}`);
       }
 
+      let authUserId: string | null = null;
+
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: ownerEmail,
         password: ownerPassword,
@@ -431,11 +433,50 @@ serve(async (req: Request) => {
         },
       });
 
-      if (authError || !authData.user?.id) {
-        throw new Error(`Failed to create owner auth user: ${authError?.message || "unknown error"}`);
+      if (authError) {
+        const isAlreadyRegistered =
+          authError.message?.toLowerCase().includes("already registered") ||
+          authError.message?.toLowerCase().includes("already been registered");
+
+        if (!isAlreadyRegistered) {
+          throw new Error(`Failed to create owner auth user: ${authError.message}`);
+        }
+
+        // User already exists — look them up and update their password
+        const searchRes = await fetch(
+          `${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(ownerEmail)}`,
+          { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } },
+        );
+        const searchData = await searchRes.json().catch(() => ({}));
+        const existingUser = (searchData?.users || []).find(
+          (u: { email: string }) => u.email?.toLowerCase() === ownerEmail,
+        );
+
+        if (!existingUser?.id) {
+          throw new Error(`Failed to create owner auth user: ${authError.message}`);
+        }
+
+        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          password: ownerPassword,
+          email_confirm: true,
+          user_metadata: {
+            organization_slug: slug,
+            organization_id: organizationId,
+            role: OWNER_ORG_ROLE,
+            must_change_password: true,
+            first_login_flow: "self_serve_owner",
+          },
+        });
+
+        authUserId = existingUser.id;
+      } else {
+        if (!authData.user?.id) {
+          throw new Error("Failed to create owner auth user: unknown error");
+        }
+        authUserId = authData.user.id;
       }
 
-      userId = authData.user.id;
+      userId = authUserId;
 
       const { error: employeeError } = await supabaseAdmin
         .from("employees")
