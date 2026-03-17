@@ -67,13 +67,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const syncRolesForSession = (nextSession: Session | null) => {
       const requestId = ++roleRequestIdRef.current;
-      setRoles([]);
       setStaffPasswordResetRequired(Boolean(nextSession?.user?.user_metadata?.must_change_password));
 
       if (!nextSession?.user) {
+        // No user — clear roles and unblock loading immediately.
+        setRoles([]);
+        setLoading(false);
         return;
       }
 
+      // User is present. Do NOT clear existing roles — keeping them avoids a
+      // brief isStaff=false window (e.g. after TOKEN_REFRESHED on tab focus)
+      // that would fire the "access denied" guard and redirect away from
+      // protected pages like /admin or /platform/*.
+      // loading stays true on the very first call (initial page load) and is
+      // only cleared once the role fetch resolves, so guards never fire before
+      // roles are known.
       window.setTimeout(() => {
         void fetchUserRoles(nextSession.user.id).then((nextRoles) => {
           if (!isMounted || roleRequestIdRef.current !== requestId) {
@@ -81,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
 
           setRoles(nextRoles);
+          setLoading(false);
         });
       }, 0);
     };
@@ -91,7 +101,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
         syncRolesForSession(nextSession);
-        setLoading(false);
+        // NOTE: setLoading(false) is now handled inside syncRolesForSession
+        // so that loading stays true until roles are fetched on first load.
       }
     );
 
@@ -104,7 +115,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
       syncRolesForSession(initialSession);
-      setLoading(false);
+      // NOTE: setLoading(false) is handled inside syncRolesForSession.
     });
 
     return () => {
