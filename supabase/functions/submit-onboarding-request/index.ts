@@ -162,8 +162,8 @@ const getDnsGuide = (customDomain: string, fallbackDomain: string) => {
   const isApexDomain = labels.length <= 2;
 
   return {
-    recordType: isApexDomain ? "ALIAS / ANAME" : "CNAME",
-    hostLabel: isApexDomain ? "@" : labels[0],
+    recordType: "CNAME",
+    hostLabel: isApexDomain ? "www" : labels[0],
     target: fallbackDomain,
     isApexDomain,
   };
@@ -254,7 +254,7 @@ async function notifyOnboardingLead(
       ${dnsGuide ? `<div style="margin-top:16px;padding:12px;border:1px solid #fcd34d;border-radius:12px;background:#fffbeb;">
         <p style="margin:0 0 8px;font-weight:600;">DNS handoff</p>
         <p style="margin:0 0 8px;">${escapeHtml(dnsGuide.recordType)} · ${escapeHtml(dnsGuide.hostLabel)} -> ${escapeHtml(dnsGuide.target)}</p>
-        ${dnsGuide.isApexDomain ? `<p style="margin:0;">Root domains may need provider-specific ALIAS or ANAME support.</p>` : ""}
+        ${dnsGuide.isApexDomain ? `<p style="margin:0;font-size:13px;color:#92400e;">This points <strong>www.${escapeHtml(payload.customDomain || "")}</strong> to your workspace. Most DNS providers (including GoDaddy) do not support CNAME on the root domain (@). Once www is working, set up a redirect from the root domain to www in your DNS provider's settings.</p>` : ""}
       </div>` : ""}
     </div>
   `;
@@ -411,7 +411,7 @@ async function notifyOwnerProvisioned(
         <p style="margin:0 0 8px;font-weight:600;">Custom domain DNS step</p>
         <p style="margin:0 0 8px;">Keep using the fallback launch domain until DNS is ready.</p>
         <p style="margin:0 0 8px;">Add: ${escapeHtml(dnsGuide.recordType)} · ${escapeHtml(dnsGuide.hostLabel)} -> ${escapeHtml(dnsGuide.target)}</p>
-        ${dnsGuide.isApexDomain ? `<p style="margin:0;">Root domains may need provider-specific ALIAS or ANAME support.</p>` : ""}
+        ${dnsGuide.isApexDomain ? `<p style="margin:0;font-size:13px;color:#92400e;">This points <strong>www.${escapeHtml(payload.primaryDomain || "")}</strong> to your workspace. Most DNS providers (including GoDaddy) do not support CNAME on the root domain (@). Once www is working, set up a redirect from the root domain to www in your DNS provider's settings.</p>` : ""}
       </div>` : ""}
       <p style="margin-top:16px;">Use the temporary password for your first sign-in, then rotate it from the admin side after onboarding.</p>
       <p style="margin-top:16px;">If you need help, reply to ${escapeHtml(PLATFORM_CONTACT_EMAIL)}.</p>
