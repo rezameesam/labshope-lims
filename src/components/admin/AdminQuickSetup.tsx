@@ -804,6 +804,12 @@ const AdminQuickSetup = () => {
       setDnsCheckCname(data?.cname || null);
       if (data?.connected) {
         setDnsCheckStatus("connected");
+        // Register domain with Cloudflare Pages (idempotent — safe to call repeatedly)
+        supabase.functions.invoke("register-pages-domain", {
+          body: { domain: normalizedCustomDomain },
+        }).catch((err) => {
+          console.warn("Cloudflare Pages domain registration failed (non-blocking):", err);
+        });
         if (customDomainRecord?.id && !customDomainRecord.verified_at) {
           await handleToggleDomainVerification();
         }
