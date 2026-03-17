@@ -276,16 +276,23 @@ serve(async (req: Request) => {
     let organizationId: string | null = null;
     let labId: string | null = null;
     let userId: string | null = null;
+    let userWasCreated = false;
     let employeeCreated = false;
 
     const rollback = async () => {
-      if (userId) {
-        await supabaseAdmin.from("lab_users").delete().eq("user_id", userId);
-        await supabaseAdmin.from("organization_users").delete().eq("user_id", userId);
-        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
+      // Only clean up records scoped to the new org/lab — never touch other orgs
+      if (userId && labId) {
+        await supabaseAdmin.from("lab_users").delete().eq("user_id", userId).eq("lab_id", labId);
+      }
+      if (userId && organizationId) {
+        await supabaseAdmin.from("organization_users").delete().eq("user_id", userId).eq("organization_id", organizationId);
         if (employeeCreated) {
-          await supabaseAdmin.from("employees").delete().eq("user_id", userId);
+          await supabaseAdmin.from("employees").delete().eq("user_id", userId).eq("organization_id", organizationId);
         }
+      }
+      // Only delete auth user if we created them in this request
+      if (userId && userWasCreated) {
+        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
         await supabaseAdmin.auth.admin.deleteUser(userId);
       }
 
@@ -474,6 +481,7 @@ serve(async (req: Request) => {
           throw new Error("Failed to create owner auth user: unknown error");
         }
         authUserId = authData.user.id;
+        userWasCreated = true;
       }
 
       userId = authUserId;
@@ -520,6 +528,13 @@ serve(async (req: Request) => {
       if (orgUserError) {
         throw new Error(`Failed to create organization membership: ${orgUserError.message}`);
       }
+
+      // Clear any stale primary flag on other lab_users for this user before inserting
+      await supabaseAdmin
+        .from("lab_users")
+        .update({ is_primary: false })
+        .eq("user_id", userId)
+        .eq("is_primary", true);
 
       const { error: labUserError } = await supabaseAdmin
         .from("lab_users")
