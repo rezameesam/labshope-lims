@@ -645,7 +645,7 @@ export async function sendNotification(
       results.push(smsResult);
     } else {
       // SMS not configured, skip silently or log
-      console.log("SMS not configured, skipping SMS notification");
+      // SMS not configured, skipping
       if (options.type === 'sms') {
         results.push({ success: false, error: "SMS service not configured", method: 'sms' });
       }
