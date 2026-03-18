@@ -1,28 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { 
-  Receipt, IndianRupee, CheckCircle, Clock, XCircle, 
-  Calendar, FileText, Download
-} from "lucide-react";
-import { RazorpayButton } from "@/components/payment/RazorpayButton";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Receipt, CheckCircle, Clock, IndianRupee } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -32,6 +10,8 @@ import autoTable from "jspdf-autotable";
 import { sendPaymentSuccessNotification } from "@/services/notificationService";
 import { formatAppDate } from "@/lib/date";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { BillingHistory } from "./billing/BillingHistory";
+import { BillingDetail } from "./billing/BillingDetail";
 
 interface Invoice {
   id: string;
@@ -72,6 +52,11 @@ interface BillingPortalProps {
   onPaymentStatusChange?: () => void;
 }
 
+const getPaymentMethodLabel = (method: string) => {
+  const map: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank Transfer", online: "Online" };
+  return map[method] || method;
+};
+
 const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, onPaymentStatusChange }: BillingPortalProps) => {
   const { branding } = useOrganization();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -83,367 +68,106 @@ const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, o
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
 
   const fetchInvoices = useCallback(async () => {
-    if (!organizationId) {
-      setInvoices([]);
-      setLoading(false);
-      return;
-    }
-
+    if (!organizationId) { setInvoices([]); setLoading(false); return; }
     try {
-      const query = supabase
-        .from("invoices")
-        .select("*")
-        .eq("patient_id", patientId)
-        .eq("organization_id" as any, organizationId)
-        .order("created_at", { ascending: false });
-
-      const { data, error } = await query;
-
+      const { data, error } = await supabase.from("invoices").select("*").eq("patient_id", patientId).eq("organization_id" as any, organizationId).order("created_at", { ascending: false });
       if (error) throw error;
       setInvoices(data || []);
-    } catch (error) {
-      console.error("Error fetching invoices:", error);
-      toast.error("Failed to load billing information");
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error("Error fetching invoices:", error); toast.error("Failed to load billing information"); }
+    finally { setLoading(false); }
   }, [organizationId, patientId]);
 
   const fetchInvoiceDetails = async (invoiceId: string) => {
-    if (!organizationId) {
-      setSelectedInvoice(null);
-      setInvoiceItems([]);
-      setPayments([]);
-      return;
-    }
-
+    if (!organizationId) { setSelectedInvoice(null); setInvoiceItems([]); setPayments([]); return; }
     try {
-      const invoiceQuery = supabase
-        .from("invoices")
-        .select("*")
-        .eq("id", invoiceId)
-        .eq("organization_id" as any, organizationId);
-
-      const { data: invoiceData, error: invoiceError } = await invoiceQuery.single();
-
-      if (invoiceError) throw invoiceError;
-      if (invoiceData) {
-        setSelectedInvoice(invoiceData);
-      }
-
-      // Fetch items
-      const { data: items, error: itemsError } = await supabase
-        .from("invoice_items")
-        .select("*")
-        .eq("invoice_id", invoiceId)
-        .eq("organization_id", organizationId);
-
-      if (itemsError) throw itemsError;
+      const { data: inv, error: invErr } = await supabase.from("invoices").select("*").eq("id", invoiceId).eq("organization_id" as any, organizationId).single();
+      if (invErr) throw invErr;
+      if (inv) setSelectedInvoice(inv);
+      const { data: items, error: itemsErr } = await supabase.from("invoice_items").select("*").eq("invoice_id", invoiceId).eq("organization_id", organizationId);
+      if (itemsErr) throw itemsErr;
       setInvoiceItems(items || []);
-
-      // Fetch payments
-      const { data: paymentData, error: paymentsError } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("invoice_id", invoiceId)
-        .eq("organization_id", organizationId)
-        .order("payment_date", { ascending: false });
-
-      if (paymentsError) throw paymentsError;
-      setPayments(paymentData || []);
-    } catch (error) {
-      console.error("Error fetching invoice details:", error);
-    }
+      const { data: pData, error: pErr } = await supabase.from("payments").select("*").eq("invoice_id", invoiceId).eq("organization_id", organizationId).order("payment_date", { ascending: false });
+      if (pErr) throw pErr;
+      setPayments(pData || []);
+    } catch (error) { console.error("Error fetching invoice details:", error); }
   };
 
   useEffect(() => {
-    if (patientId && organizationId) {
-      void fetchInvoices();
-    } else {
-      setInvoices([]);
-      setLoading(false);
-    }
+    if (patientId && organizationId) void fetchInvoices();
+    else { setInvoices([]); setLoading(false); }
   }, [fetchInvoices, organizationId, patientId]);
 
-  const openInvoiceDetails = async (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    await fetchInvoiceDetails(invoice.id);
-    setIsDetailsOpen(true);
-  };
-
-  const toggleInvoiceSelection = (invoiceId: string) => {
-    const newSelected = new Set(selectedInvoiceIds);
-    if (newSelected.has(invoiceId)) {
-      newSelected.delete(invoiceId);
-    } else {
-      newSelected.add(invoiceId);
-    }
-    setSelectedInvoiceIds(newSelected);
-  };
-
-  const selectAllInvoices = () => {
-    setSelectedInvoiceIds(new Set(invoices.map(inv => inv.id)));
-  };
-
-  const clearSelection = () => {
-    setSelectedInvoiceIds(new Set());
-  };
-
-  const getOutstandingAmount = (invoice: Invoice) =>
-    Math.max(0, (Number(invoice.final_amount) || 0) - (Number(invoice.paid_amount) || 0));
+  const getOutstandingAmount = (invoice: Invoice) => Math.max(0, (Number(invoice.final_amount) || 0) - (Number(invoice.paid_amount) || 0));
 
   const getDisplayPaymentStatus = (invoice: Invoice) => {
-    const outstandingAmount = getOutstandingAmount(invoice);
-    const paidAmount = Number(invoice.paid_amount) || 0;
-
-    if (outstandingAmount <= 0) return "paid";
-    if (paidAmount > 0) return "partial";
+    const outstanding = getOutstandingAmount(invoice);
+    const paid = Number(invoice.paid_amount) || 0;
+    if (outstanding <= 0) return "paid";
+    if (paid > 0) return "partial";
     return "pending";
   };
 
   const handlePaymentNotification = async (invoice: Invoice) => {
-    const amountPaid = getOutstandingAmount(invoice);
-    if (amountPaid <= 0) {
-      return;
-    }
-
-    const results = await sendPaymentSuccessNotification(patientId, amountPaid, invoice.invoice_number, branding.displayName, `${window.location.origin}/auth/patient`);
-    if (!results.some((result) => result.success)) {
-      console.warn("Payment confirmation notification failed:", results);
-    }
+    const amount = getOutstandingAmount(invoice);
+    if (amount <= 0) return;
+    const results = await sendPaymentSuccessNotification(patientId, amount, invoice.invoice_number, branding.displayName, `${window.location.origin}/auth/patient`);
+    if (!results.some(r => r.success)) console.warn("Payment notification failed:", results);
   };
 
-  const handleBulkPaymentNotification = async (amountPaid: number) => {
-    if (amountPaid <= 0) {
-      return;
-    }
-
-    const results = await sendPaymentSuccessNotification(patientId, amountPaid, undefined, branding.displayName, `${window.location.origin}/auth/patient`);
-    if (!results.some((result) => result.success)) {
-      console.warn("Bulk payment confirmation notification failed:", results);
-    }
+  const handleBulkPaymentNotification = async (amount: number) => {
+    if (amount <= 0) return;
+    const results = await sendPaymentSuccessNotification(patientId, amount, undefined, branding.displayName, `${window.location.origin}/auth/patient`);
+    if (!results.some(r => r.success)) console.warn("Bulk payment notification failed:", results);
   };
 
   const generateInvoicePDF = async (invoicesToDownload: Invoice[]) => {
-    if (invoicesToDownload.length === 0) {
-      toast.error("No invoices selected");
-      return;
-    }
-
+    if (invoicesToDownload.length === 0) { toast.error("No invoices selected"); return; }
     try {
       const doc = new jsPDF();
       let yOffset = 20;
-
       for (let i = 0; i < invoicesToDownload.length; i++) {
         const invoice = invoicesToDownload[i];
-        
-        // Add new page for each invoice after the first
-        if (i > 0) {
-          doc.addPage();
-          yOffset = 20;
-        }
-
-        // Fetch items for this invoice
-        const { data: items } = await supabase
-          .from("invoice_items")
-          .select("*")
-          .eq("invoice_id", invoice.id)
-          .eq("organization_id", organizationId);
-        
-        const { data: paymentData } = await supabase
-          .from("payments")
-          .select("amount, payment_method, payment_date, transaction_id")
-          .eq("invoice_id", invoice.id)
-          .eq("organization_id", organizationId)
-          .order("payment_date", { ascending: false });
-
-        // Header
-        doc.setFontSize(20);
-        doc.setTextColor(26, 54, 93);
-        doc.text(branding.displayName, 105, yOffset, { align: "center" });
-        
-        yOffset += 8;
-        doc.setFontSize(10);
-        doc.setTextColor(100, 100, 100);
-        doc.text(`${branding.addressLines.join(", ")} | Phone: ${branding.primaryPhone}`, 105, yOffset, { align: "center" });
-        
-        yOffset += 15;
-        doc.setFontSize(16);
-        doc.setTextColor(0, 0, 0);
-        doc.text("INVOICE", 105, yOffset, { align: "center" });
-        
-        // Invoice details
-        yOffset += 15;
-        doc.setFontSize(10);
-        doc.text(`Invoice No: ${invoice.invoice_number}`, 20, yOffset);
-        doc.text(`Date: ${formatAppDate(invoice.created_at)}`, 140, yOffset);
-        
-        yOffset += 8;
-        doc.text(`Status: ${getDisplayPaymentStatus(invoice).toUpperCase()}`, 20, yOffset);
-        
-        // Items table
+        if (i > 0) { doc.addPage(); yOffset = 20; }
+        const { data: items } = await supabase.from("invoice_items").select("*").eq("invoice_id", invoice.id).eq("organization_id", organizationId);
+        const { data: paymentData } = await supabase.from("payments").select("amount, payment_method, payment_date, transaction_id").eq("invoice_id", invoice.id).eq("organization_id", organizationId).order("payment_date", { ascending: false });
+        doc.setFontSize(20); doc.setTextColor(26, 54, 93); doc.text(branding.displayName, 105, yOffset, { align: "center" });
+        yOffset += 8; doc.setFontSize(10); doc.setTextColor(100, 100, 100); doc.text(`${branding.addressLines.join(", ")} | Phone: ${branding.primaryPhone}`, 105, yOffset, { align: "center" });
+        yOffset += 15; doc.setFontSize(16); doc.setTextColor(0, 0, 0); doc.text("INVOICE", 105, yOffset, { align: "center" });
+        yOffset += 15; doc.setFontSize(10); doc.text(`Invoice No: ${invoice.invoice_number}`, 20, yOffset); doc.text(`Date: ${formatAppDate(invoice.created_at)}`, 140, yOffset);
+        yOffset += 8; doc.text(`Status: ${getDisplayPaymentStatus(invoice).toUpperCase()}`, 20, yOffset);
         yOffset += 10;
-        autoTable(doc, {
-          startY: yOffset,
-          head: [["Test Name", "Qty", "Unit Price", "Amount"]],
-          body: (items || []).map(item => [
-            item.test_name,
-            item.quantity.toString(),
-            `₹${item.unit_price.toLocaleString()}`,
-            `₹${item.amount.toLocaleString()}`
-          ]),
-          theme: "striped",
-          headStyles: { fillColor: [26, 54, 93] },
-          margin: { left: 20, right: 24 },
-          styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak", cellWidth: "wrap" },
-          columnStyles: {
-            0: { cellWidth: 84 },
-            1: { cellWidth: 16, halign: "center" },
-            2: { cellWidth: 34, halign: "center" },
-            3: { cellWidth: 34, halign: "center" }
-          }
-        });
-
-        // Get the final Y position after table
-        const tableEndY = (doc as any).lastAutoTable.finalY || yOffset + 30;
-        yOffset = tableEndY + 10;
-
-        // Summary
-        doc.setFontSize(10);
-        const amountX = 182;
-        const rightX = 140;
-        doc.text("Subtotal:", rightX, yOffset);
-        doc.text(`₹${invoice.total_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
-        
-        if (invoice.discount_amount > 0) {
-          yOffset += 7;
-          doc.setTextColor(34, 139, 34);
-          doc.text("Discount:", rightX, yOffset);
-          doc.text(`-₹${invoice.discount_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
-          doc.setTextColor(0, 0, 0);
-        }
-        
-        yOffset += 7;
-        doc.setFontSize(12);
-        doc.setFont(undefined as unknown as string, "bold");
-        doc.text("Total:", rightX, yOffset);
-        doc.text(`₹${invoice.final_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
-        
-        yOffset += 7;
-        doc.setFontSize(10);
-        doc.setFont(undefined as unknown as string, "normal");
-        doc.setTextColor(34, 139, 34);
-        doc.text("Paid:", rightX, yOffset);
-        doc.text(`₹${invoice.paid_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
-        
-        if (invoice.final_amount - invoice.paid_amount > 0) {
-          yOffset += 7;
-          doc.setTextColor(255, 140, 0);
-          doc.text("Outstanding:", rightX, yOffset);
-          doc.text(`₹${(invoice.final_amount - invoice.paid_amount).toLocaleString()}`, amountX, yOffset, { align: "right" });
-        }
-        
+        autoTable(doc, { startY: yOffset, head: [["Test Name", "Qty", "Unit Price", "Amount"]], body: (items || []).map(item => [item.test_name, item.quantity.toString(), `₹${item.unit_price.toLocaleString()}`, `₹${item.amount.toLocaleString()}`]), theme: "striped", headStyles: { fillColor: [26, 54, 93] }, margin: { left: 20, right: 24 }, styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak", cellWidth: "wrap" }, columnStyles: { 0: { cellWidth: 84 }, 1: { cellWidth: 16, halign: "center" }, 2: { cellWidth: 34, halign: "center" }, 3: { cellWidth: 34, halign: "center" } } });
+        yOffset = ((doc as any).lastAutoTable.finalY || yOffset + 30) + 10;
+        const amountX = 182, rightX = 140;
+        doc.setFontSize(10); doc.text("Subtotal:", rightX, yOffset); doc.text(`₹${invoice.total_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
+        if (invoice.discount_amount > 0) { yOffset += 7; doc.setTextColor(34, 139, 34); doc.text("Discount:", rightX, yOffset); doc.text(`-₹${invoice.discount_amount.toLocaleString()}`, amountX, yOffset, { align: "right" }); doc.setTextColor(0, 0, 0); }
+        yOffset += 7; doc.setFontSize(12); doc.setFont(undefined as unknown as string, "bold"); doc.text("Total:", rightX, yOffset); doc.text(`₹${invoice.final_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
+        yOffset += 7; doc.setFontSize(10); doc.setFont(undefined as unknown as string, "normal"); doc.setTextColor(34, 139, 34); doc.text("Paid:", rightX, yOffset); doc.text(`₹${invoice.paid_amount.toLocaleString()}`, amountX, yOffset, { align: "right" });
+        if (invoice.final_amount - invoice.paid_amount > 0) { yOffset += 7; doc.setTextColor(255, 140, 0); doc.text("Outstanding:", rightX, yOffset); doc.text(`₹${(invoice.final_amount - invoice.paid_amount).toLocaleString()}`, amountX, yOffset, { align: "right" }); }
         doc.setTextColor(0, 0, 0);
-
         const paymentsForInvoice = paymentData || [];
         if (paymentsForInvoice.length > 0) {
-          yOffset += 10;
-          doc.setFontSize(11);
-          doc.setTextColor(0, 0, 0);
-          doc.text("Payments", 20, yOffset);
-
-          yOffset += 6;
-          doc.setFontSize(9);
-          doc.setTextColor(80, 80, 80);
-
-          paymentsForInvoice.forEach((payment) => {
-            const method = getPaymentMethodLabel(payment.payment_method);
-            const dateText = formatAppDate(payment.payment_date);
-            const txnId = payment.transaction_id;
-            const lines = [
-              `₹${Number(payment.amount).toLocaleString()}`,
-              `${method} • ${dateText}`,
-              txnId ? `Txn: ${txnId}` : null,
-            ].filter(Boolean) as string[];
-
-            lines.forEach((line) => {
-              const wrapped = doc.splitTextToSize(line, 170);
-              doc.text(wrapped, 20, yOffset);
-              yOffset += wrapped.length * 5;
-            });
-
-            yOffset += 1;
+          yOffset += 10; doc.setFontSize(11); doc.text("Payments", 20, yOffset); yOffset += 6; doc.setFontSize(9); doc.setTextColor(80, 80, 80);
+          paymentsForInvoice.forEach(payment => {
+            const lines = [`₹${Number(payment.amount).toLocaleString()}`, `${getPaymentMethodLabel(payment.payment_method)} • ${formatAppDate(payment.payment_date)}`, payment.transaction_id ? `Txn: ${payment.transaction_id}` : null].filter(Boolean) as string[];
+            lines.forEach(line => { const wrapped = doc.splitTextToSize(line, 170); doc.text(wrapped, 20, yOffset); yOffset += wrapped.length * 5; }); yOffset += 1;
           });
         }
       }
-
-      // Save the PDF
-      const fileName = invoicesToDownload.length === 1 
-        ? `Invoice_${invoicesToDownload[0].invoice_number}.pdf`
-        : `Invoices_${format(new Date(), "yyyyMMdd_HHmmss")}.pdf`;
-      
-      doc.save(fileName);
-      toast.success(`${invoicesToDownload.length} invoice(s) downloaded successfully`);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error("Failed to generate invoice PDF");
-    }
+      doc.save(invoicesToDownload.length === 1 ? `Invoice_${invoicesToDownload[0].invoice_number}.pdf` : `Invoices_${format(new Date(), "yyyyMMdd_HHmmss")}.pdf`);
+      toast.success(`${invoicesToDownload.length} invoice(s) downloaded`);
+    } catch (error) { console.error("Error generating PDF:", error); toast.error("Failed to generate invoice PDF"); }
   };
 
-  const handleDownloadSelected = () => {
-    const selectedInvoices = invoices.filter(inv => selectedInvoiceIds.has(inv.id));
-    generateInvoicePDF(selectedInvoices);
-  };
-
-  const handleDownloadSingle = (invoice: Invoice) => {
-    generateInvoicePDF([invoice]);
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "paid":
-        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
-      case "partial":
-        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
-      case "pending":
-        return <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><XCircle className="h-3 w-3 mr-1" />Pending</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method) {
-      case "cash": return "Cash";
-      case "upi": return "UPI";
-      case "card": return "Card";
-      case "bank_transfer": return "Bank Transfer";
-      case "online": return "Online";
-      default: return method;
-    }
-  };
-
-  // Stats - calculate with proper null handling
-  const totalBilled = invoices.reduce((sum, inv) => {
-    const finalAmount = Number(inv.final_amount) || 0;
-    return sum + finalAmount;
-  }, 0);
-  
-  const totalPaid = invoices.reduce((sum, inv) => {
-    const paidAmount = Number(inv.paid_amount) || 0;
-    return sum + paidAmount;
-  }, 0);
-  
+  const totalBilled = invoices.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
+  const totalPaid = invoices.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
   const totalPending = Math.max(0, totalBilled - totalPaid);
 
   if (loading) {
     return (
       <Card>
         <CardContent className="py-8">
-          <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
+          <div className="space-y-4"><Skeleton className="h-20 w-full" /><Skeleton className="h-40 w-full" /></div>
         </CardContent>
       </Card>
     );
@@ -453,341 +177,41 @@ const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, o
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Billed</p>
-                <p className="text-2xl font-bold text-foreground">₹{totalBilled.toLocaleString()}</p>
-              </div>
-              <Receipt className="h-8 w-8 text-blue-500/50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Paid</p>
-                <p className="text-2xl font-bold text-foreground">₹{totalPaid.toLocaleString()}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-emerald-500/50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Outstanding</p>
-                <p className="text-2xl font-bold text-foreground">₹{totalPending.toLocaleString()}</p>
-              </div>
-              <Clock className="h-8 w-8 text-amber-500/50" />
-            </div>
-          </CardContent>
-        </Card>
+        <Card className="border-l-4 border-l-blue-500"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Billed</p><p className="text-2xl font-bold">₹{totalBilled.toLocaleString()}</p></div><Receipt className="h-8 w-8 text-blue-500/50" /></div></CardContent></Card>
+        <Card className="border-l-4 border-l-emerald-500"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Paid</p><p className="text-2xl font-bold">₹{totalPaid.toLocaleString()}</p></div><CheckCircle className="h-8 w-8 text-emerald-500/50" /></div></CardContent></Card>
+        <Card className="border-l-4 border-l-amber-500"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Outstanding</p><p className="text-2xl font-bold">₹{totalPending.toLocaleString()}</p></div><Clock className="h-8 w-8 text-amber-500/50" /></div></CardContent></Card>
       </div>
 
-      {/* Invoices List */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Your Invoices
-              </CardTitle>
-              <CardDescription>View and download your lab bills</CardDescription>
-            </div>
-            {invoices.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {selectedInvoiceIds.size > 0 && (
-                  <Badge variant="secondary">
-                    {selectedInvoiceIds.size} selected
-                  </Badge>
-                )}
-                {(() => {
-                  const unpaidInvoices = invoices.filter(
-                    (inv) => getOutstandingAmount(inv) > 0
-                  );
-                  const totalOutstanding = unpaidInvoices.reduce(
-                    (sum, inv) => sum + getOutstandingAmount(inv),
-                    0
-                  );
+      <BillingHistory
+        invoices={invoices}
+        selectedInvoiceIds={selectedInvoiceIds}
+        onToggleSelection={(id) => { const s = new Set(selectedInvoiceIds); s.has(id) ? s.delete(id) : s.add(id); setSelectedInvoiceIds(s); }}
+        onSelectAll={() => setSelectedInvoiceIds(new Set(invoices.map(i => i.id)))}
+        onClearSelection={() => setSelectedInvoiceIds(new Set())}
+        onOpenDetails={async (invoice) => { setSelectedInvoice(invoice); await fetchInvoiceDetails(invoice.id); setIsDetailsOpen(true); }}
+        onDownloadSingle={(invoice) => generateInvoicePDF([invoice])}
+        onDownloadSelected={() => generateInvoicePDF(invoices.filter(i => selectedInvoiceIds.has(i.id)))}
+        getOutstandingAmount={getOutstandingAmount}
+        getDisplayPaymentStatus={getDisplayPaymentStatus}
+        patientName={patientName}
+        patientPhone={patientPhone}
+        onPaymentSuccess={async (invoice) => { await fetchInvoices(); onPaymentStatusChange?.(); await handlePaymentNotification(invoice); }}
+        onBulkPaymentSuccess={async (total) => { await fetchInvoices(); onPaymentStatusChange?.(); await handleBulkPaymentNotification(total); }}
+      />
 
-                  if (unpaidInvoices.length > 0) {
-                    return (
-                      <RazorpayButton
-                        amount={totalOutstanding}
-                        invoices={unpaidInvoices.map((inv) => ({
-                          id: inv.id,
-                          invoice_number: inv.invoice_number,
-                          amount: getOutstandingAmount(inv),
-                        }))}
-                        patientName={patientName}
-                        patientPhone={patientPhone}
-                        onPaymentSuccess={async () => {
-                          fetchInvoices();
-                          onPaymentStatusChange?.();
-                          await handleBulkPaymentNotification(totalOutstanding);
-                        }}
-                        label={`Pay All Outstanding (₹${totalOutstanding.toLocaleString()})`}
-                        size="sm"
-                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                      />
-                    );
-                  }
-                  return null;
-                })()}
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={selectedInvoiceIds.size === invoices.length ? clearSelection : selectAllInvoices}
-                >
-                  {selectedInvoiceIds.size === invoices.length ? "Deselect All" : "Select All"}
-                </Button>
-                {selectedInvoiceIds.size > 0 && (
-                  <Button 
-                    size="sm"
-                    onClick={handleDownloadSelected}
-                    className="gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download ({selectedInvoiceIds.size})
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {invoices.length === 0 ? (
-            <div className="text-center py-12">
-              <Receipt className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No Invoices</h3>
-              <p className="text-muted-foreground">Your billing history will appear here.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedInvoiceIds.size === invoices.length && invoices.length > 0}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          selectAllInvoices();
-                        } else {
-                          clearSelection();
-                        }
-                      }}
-                    />
-                  </TableHead>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedInvoiceIds.has(invoice.id)}
-                        onCheckedChange={() => toggleInvoiceSelection(invoice.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono font-medium">{invoice.invoice_number}</TableCell>
-                    <TableCell className="text-right font-medium">₹{invoice.final_amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">₹{invoice.paid_amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-center">{getStatusBadge(getDisplayPaymentStatus(invoice))}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatAppDate(invoice.created_at)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {getOutstandingAmount(invoice) > 0 && (
-                          <>
-                            <RazorpayButton
-                              invoiceId={invoice.id}
-                              invoiceNumber={invoice.invoice_number}
-                              amount={getOutstandingAmount(invoice)}
-                              patientName={patientName}
-                              patientPhone={patientPhone}
-                              onPaymentSuccess={async () => {
-                                fetchInvoices();
-                                onPaymentStatusChange?.();
-                                await handlePaymentNotification(invoice);
-                              }}
-                              variant="default"
-                              size="sm"
-                              className="gap-1"
-                            />
-                          </>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDownloadSingle(invoice)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => openInvoiceDetails(invoice)}
-                        >
-                          View
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Invoice Details Dialog */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" />
-              Invoice {selectedInvoice?.invoice_number}
-            </DialogTitle>
-            <DialogDescription>
-              Review invoice items, payments, and download a copy.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedInvoice && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  {formatAppDate(selectedInvoice.created_at)}
-                </p>
-                {getStatusBadge(getDisplayPaymentStatus(selectedInvoice))}
-              </div>
-
-              {/* Items */}
-              <div className="space-y-2">
-                <h4 className="font-semibold">Items</h4>
-                <div className="border rounded-lg divide-y">
-                  {invoiceItems.map((item) => (
-                    <div key={item.id} className="p-3 flex justify-between">
-                      <span>{item.test_name}</span>
-                      <span className="font-medium">₹{item.amount.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>₹{selectedInvoice.total_amount.toLocaleString()}</span>
-                </div>
-                {selectedInvoice.discount_amount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Discount</span>
-                    <span>-₹{selectedInvoice.discount_amount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-semibold text-lg border-t pt-2">
-                  <span>Total</span>
-                  <span>₹{selectedInvoice.final_amount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-emerald-600">
-                  <span>Paid</span>
-                  <span>₹{selectedInvoice.paid_amount.toLocaleString()}</span>
-                </div>
-                {getOutstandingAmount(selectedInvoice) > 0 && (
-                  <div className="flex justify-between text-amber-600 font-medium border-t pt-2">
-                    <span>Outstanding</span>
-                    <span>₹{getOutstandingAmount(selectedInvoice).toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Payments */}
-              {payments.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Payment History</h4>
-                  <div className="border rounded-lg divide-y">
-                    {payments.map((payment) => (
-                      <div key={payment.id} className="p-3 flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">₹{payment.amount.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {getPaymentMethodLabel(payment.payment_method)} • {formatAppDate(payment.payment_date)}
-                          </p>
-                        </div>
-                        {payment.transaction_id && (
-                          <div className="text-right text-xs font-mono text-muted-foreground">
-                            <div>Txn: {payment.transaction_id}</div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Download Button */}
-              <Button 
-                className="w-full gap-2"
-                onClick={() => handleDownloadSingle(selectedInvoice)}
-              >
-                <Download className="h-4 w-4" />
-                Download Invoice PDF
-              </Button>
-
-              {/* Outstanding Payment Notice */}
-              {getOutstandingAmount(selectedInvoice) > 0 && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <IndianRupee className="h-5 w-5 text-amber-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-amber-900 dark:text-amber-100">Payment Pending</h4>
-                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                          Pay online securely or visit the lab to complete your payment.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Razorpay Payment Button */}
-                  <RazorpayButton
-                    invoiceId={selectedInvoice.id}
-                    invoiceNumber={selectedInvoice.invoice_number}
-                    amount={getOutstandingAmount(selectedInvoice)}
-                    patientName={patientName}
-                    patientPhone={patientPhone}
-                    onPaymentSuccess={async () => {
-                      fetchInvoices();
-                      fetchInvoiceDetails(selectedInvoice.id);
-                      onPaymentStatusChange?.();
-                      await handlePaymentNotification(selectedInvoice);
-                    }}
-                    className="w-full"
-                    variant="default"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <BillingDetail
+        isOpen={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+        selectedInvoice={selectedInvoice}
+        invoiceItems={invoiceItems}
+        payments={payments}
+        getOutstandingAmount={getOutstandingAmount}
+        getDisplayPaymentStatus={getDisplayPaymentStatus}
+        onDownloadSingle={(invoice) => generateInvoicePDF([invoice])}
+        patientName={patientName}
+        patientPhone={patientPhone}
+        onPaymentSuccess={async (invoice) => { await fetchInvoices(); await fetchInvoiceDetails(invoice.id); onPaymentStatusChange?.(); await handlePaymentNotification(invoice); }}
+      />
     </div>
   );
 };

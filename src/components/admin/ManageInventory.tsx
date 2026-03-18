@@ -1,128 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Package,
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  ShoppingCart,
-  TrendingDown,
-  Wrench,
-  AlertTriangle,
-  Filter,
-  ArrowUpDown,
-  IndianRupee,
-  Calendar,
-  Box,
-  Settings,
-  FileSpreadsheet,
-} from "lucide-react";
 import { exportToExcel } from "@/lib/exportToExcel";
-import { DataPagination } from "@/components/ui/data-pagination";
-import { Button } from "@/components/ui/button";
-import { DateInput } from "@/components/ui/date-input";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Plus, ShoppingCart, TrendingDown, Wrench, Settings, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { formatAppDate } from "@/lib/date";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { InventoryFilters } from "./inventory/InventoryFilters";
+import { InventorySummary } from "./inventory/InventorySummary";
+import { InventoryItemsTable, PurchasesTable, UsageTable, MaintenanceTable, AlertsTable } from "./inventory/InventoryTable";
+import { InventoryFormDialog } from "./inventory/InventoryFormDialog";
+import { PurchaseDialog, UsageDialog, MaintenanceDialog, CategoryDialog } from "./inventory/InventoryStockDialog";
 
-interface InventoryCategory {
-  id: string;
-  name: string;
-  type: string;
-  description: string | null;
-}
-
-interface InventoryItem {
-  id: string;
-  name: string;
-  description: string | null;
-  type: string;
-  sku: string | null;
-  unit: string;
-  current_stock: number;
-  min_stock_level: number;
-  unit_price: number;
-  supplier: string | null;
-  location: string | null;
-  is_active: boolean;
-  category_id: string | null;
-  category?: InventoryCategory;
-}
-
-interface InventoryPurchase {
-  id: string;
-  item_id: string;
-  quantity: number;
-  unit_cost: number;
-  total_cost: number;
-  supplier: string | null;
-  invoice_number: string | null;
-  purchase_date: string;
-  notes: string | null;
-  item?: InventoryItem;
-}
-
-interface InventoryUsage {
-  id: string;
-  item_id: string;
-  patient_test_id: string | null;
-  quantity: number;
-  unit_cost: number | null;
-  total_cost: number | null;
-  usage_date: string;
-  notes: string | null;
-  item?: InventoryItem;
-}
-
-interface EquipmentMaintenance {
-  id: string;
-  item_id: string;
-  maintenance_type: string;
-  scheduled_date: string | null;
-  completed_date: string | null;
-  cost: number | null;
-  vendor: string | null;
-  notes: string | null;
-  status: string;
-  item?: InventoryItem;
-}
+interface InventoryCategory { id: string; name: string; type: string; description: string | null; }
+interface InventoryItem { id: string; name: string; description: string | null; type: string; sku: string | null; unit: string; current_stock: number; min_stock_level: number; unit_price: number; supplier: string | null; location: string | null; is_active: boolean; category_id: string | null; category?: InventoryCategory; }
+interface InventoryPurchase { id: string; item_id: string; quantity: number; unit_cost: number; total_cost: number; supplier: string | null; invoice_number: string | null; purchase_date: string; notes: string | null; item?: InventoryItem; }
+interface InventoryUsage { id: string; item_id: string; patient_test_id: string | null; quantity: number; unit_cost: number | null; total_cost: number | null; usage_date: string; notes: string | null; item?: InventoryItem; }
+interface EquipmentMaintenance { id: string; item_id: string; maintenance_type: string; scheduled_date: string | null; completed_date: string | null; cost: number | null; vendor: string | null; notes: string | null; status: string; item?: InventoryItem; }
 
 const ManageInventory = () => {
   const { user } = useAuth();
   const { organization, loading: organizationLoading } = useOrganization();
   const organizationId = organization?.id ?? null;
   const purchaseQuantityInputRef = useRef<HTMLInputElement>(null);
+
+  // Data state
   const [activeTab, setActiveTab] = useState("items");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
@@ -130,12 +35,14 @@ const ManageInventory = () => {
   const [usages, setUsages] = useState<InventoryUsage[]>([]);
   const [maintenances, setMaintenances] = useState<EquipmentMaintenance[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Dialog states
+  // Dialog state
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
   const [isUsageDialogOpen, setIsUsageDialogOpen] = useState(false);
@@ -143,1620 +50,241 @@ const ManageInventory = () => {
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
-  // Form states
-  const [itemForm, setItemForm] = useState({
-    name: "",
-    description: "",
-    type: "supply",
-    sku: "",
-    unit: "pcs",
-    current_stock: 0,
-    min_stock_level: 0,
-    unit_price: 0,
-    supplier: "",
-    location: "",
-    category_id: "",
-  });
-
-  const [purchaseForm, setPurchaseForm] = useState({
-    item_id: "",
-    quantity: 0,
-    unit_cost: 0,
-    supplier: "",
-    invoice_number: "",
-    purchase_date: format(new Date(), "yyyy-MM-dd"),
-    notes: "",
-  });
+  // Form state
+  const [itemForm, setItemForm] = useState({ name: "", description: "", type: "supply", sku: "", unit: "pcs", current_stock: 0, min_stock_level: 0, unit_price: 0, supplier: "", location: "", category_id: "" });
+  const [purchaseForm, setPurchaseForm] = useState({ item_id: "", quantity: 0, unit_cost: 0, supplier: "", invoice_number: "", purchase_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
   const [purchaseBarcode, setPurchaseBarcode] = useState("");
-  const [purchaseBarcodeStatus, setPurchaseBarcodeStatus] = useState<{
-    type: "idle" | "matched" | "not_found";
-    message: string;
-  }>({
-    type: "idle",
-    message: "",
-  });
+  const [purchaseBarcodeStatus, setPurchaseBarcodeStatus] = useState<{ type: "idle" | "matched" | "not_found"; message: string }>({ type: "idle", message: "" });
+  const [usageForm, setUsageForm] = useState({ item_id: "", quantity: 0, usage_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
+  const [maintenanceForm, setMaintenanceForm] = useState({ item_id: "", maintenance_type: "", scheduled_date: format(new Date(), "yyyy-MM-dd"), cost: 0, vendor: "", notes: "", status: "scheduled" });
+  const [categoryForm, setCategoryForm] = useState({ name: "", type: "supply", description: "" });
 
-  const [usageForm, setUsageForm] = useState({
-    item_id: "",
-    quantity: 0,
-    usage_date: format(new Date(), "yyyy-MM-dd"),
-    notes: "",
-  });
-
-  const [maintenanceForm, setMaintenanceForm] = useState({
-    item_id: "",
-    maintenance_type: "",
-    scheduled_date: format(new Date(), "yyyy-MM-dd"),
-    cost: 0,
-    vendor: "",
-    notes: "",
-    status: "scheduled",
-  });
-
-  const [categoryForm, setCategoryForm] = useState({
-    name: "",
-    type: "supply",
-    description: "",
-  });
-
+  // ── Data fetching ──
   const fetchData = useCallback(async () => {
-    if (!organizationId) {
-      setItems([]);
-      setCategories([]);
-      setPurchases([]);
-      setUsages([]);
-      setMaintenances([]);
-      setLoading(false);
-      return;
-    }
-
+    if (!organizationId) { setItems([]); setCategories([]); setPurchases([]); setUsages([]); setMaintenances([]); setLoading(false); return; }
     try {
-      let itemsQuery = supabase.from("inventory_items").select("*").order("name");
-      let categoriesQuery = supabase.from("inventory_categories").select("*").order("name");
-      itemsQuery = itemsQuery.eq("organization_id" as any, organizationId);
-      categoriesQuery = categoriesQuery.eq("organization_id" as any, organizationId);
-
       const [itemsRes, categoriesRes] = await Promise.all([
-        itemsQuery,
-        categoriesQuery,
+        supabase.from("inventory_items").select("*").eq("organization_id" as any, organizationId).order("name"),
+        supabase.from("inventory_categories").select("*").eq("organization_id" as any, organizationId).order("name"),
       ]);
-
       if (itemsRes.error) throw itemsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
 
-      // Map categories to items
       const categoryMap = new Map(categoriesRes.data?.map(c => [c.id, c]) || []);
-      const itemsWithCategories = (itemsRes.data || []).map(item => ({
-        ...item,
-        category: item.category_id ? categoryMap.get(item.category_id) : undefined,
-      }));
+      const itemsWithCategories = (itemsRes.data || []).map(item => ({ ...item, category: item.category_id ? categoryMap.get(item.category_id) : undefined }));
+      const itemIds = itemsWithCategories.map(i => i.id);
 
-      const itemIds = itemsWithCategories.map((item) => item.id);
-      let purchasesData: InventoryPurchase[] = [];
-      let usagesData: InventoryUsage[] = [];
-      let maintenancesData: EquipmentMaintenance[] = [];
-
+      let purchasesData: InventoryPurchase[] = [], usagesData: InventoryUsage[] = [], maintenancesData: EquipmentMaintenance[] = [];
       if (itemIds.length > 0) {
-        const [purchasesRes, usagesRes, maintenancesRes] = await Promise.all([
-          supabase
-            .from("inventory_purchases")
-            .select("*")
-            .in("item_id", itemIds)
-            .order("purchase_date", { ascending: false })
-            .limit(100),
-          supabase
-            .from("inventory_usage")
-            .select("*")
-            .in("item_id", itemIds)
-            .order("usage_date", { ascending: false })
-            .limit(100),
-          supabase
-            .from("equipment_maintenance")
-            .select("*")
-            .in("item_id", itemIds)
-            .order("scheduled_date", { ascending: false }),
+        const [pRes, uRes, mRes] = await Promise.all([
+          supabase.from("inventory_purchases").select("*").in("item_id", itemIds).order("purchase_date", { ascending: false }).limit(100),
+          supabase.from("inventory_usage").select("*").in("item_id", itemIds).order("usage_date", { ascending: false }).limit(100),
+          supabase.from("equipment_maintenance").select("*").in("item_id", itemIds).order("scheduled_date", { ascending: false }),
         ]);
-
-        if (purchasesRes.error) throw purchasesRes.error;
-        if (usagesRes.error) throw usagesRes.error;
-        if (maintenancesRes.error) throw maintenancesRes.error;
-
-        purchasesData = (purchasesRes.data || []) as InventoryPurchase[];
-        usagesData = (usagesRes.data || []) as InventoryUsage[];
-        maintenancesData = (maintenancesRes.data || []) as EquipmentMaintenance[];
+        if (pRes.error) throw pRes.error; if (uRes.error) throw uRes.error; if (mRes.error) throw mRes.error;
+        purchasesData = (pRes.data || []) as InventoryPurchase[];
+        usagesData = (uRes.data || []) as InventoryUsage[];
+        maintenancesData = (mRes.data || []) as EquipmentMaintenance[];
       }
 
-      // Map items to purchases, usages, maintenances
       const itemMap = new Map(itemsWithCategories.map(i => [i.id, i]));
-      const purchasesWithItems = purchasesData.map(p => ({
-        ...p,
-        item: itemMap.get(p.item_id),
-      }));
-      const usagesWithItems = usagesData.map(u => ({
-        ...u,
-        item: itemMap.get(u.item_id),
-      }));
-      const maintenancesWithItems = maintenancesData.map(m => ({
-        ...m,
-        item: itemMap.get(m.item_id),
-      }));
-
       setItems(itemsWithCategories);
       setCategories(categoriesRes.data || []);
-      setPurchases(purchasesWithItems);
-      setUsages(usagesWithItems);
-      setMaintenances(maintenancesWithItems);
-    } catch (error) {
-      console.error("Error fetching inventory data:", error);
-      toast.error("Failed to load inventory data");
-    } finally {
-      setLoading(false);
-    }
+      setPurchases(purchasesData.map(p => ({ ...p, item: itemMap.get(p.item_id) })));
+      setUsages(usagesData.map(u => ({ ...u, item: itemMap.get(u.item_id) })));
+      setMaintenances(maintenancesData.map(m => ({ ...m, item: itemMap.get(m.item_id) })));
+    } catch (error) { console.error("Error fetching inventory data:", error); toast.error("Failed to load inventory data"); }
+    finally { setLoading(false); }
   }, [organizationId]);
 
   useEffect(() => {
-    if (organizationLoading) {
-      return;
-    }
-
-    if (!organizationId) {
-      setItems([]);
-      setCategories([]);
-      setPurchases([]);
-      setUsages([]);
-      setMaintenances([]);
-      setLoading(false);
-      return;
-    }
-
+    if (organizationLoading) return;
+    if (!organizationId) { setItems([]); setCategories([]); setPurchases([]); setUsages([]); setMaintenances([]); setLoading(false); return; }
     void fetchData();
   }, [fetchData, organizationId, organizationLoading]);
 
-  const filteredItems = useMemo(() => {
-    return items.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === "all" || item.type === typeFilter;
-      return matchesSearch && matchesType;
-    });
-  }, [items, searchQuery, typeFilter]);
+  // ── Derived state ──
+  const filteredItems = useMemo(() => items.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) || item.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch && (typeFilter === "all" || item.type === typeFilter);
+  }), [items, searchQuery, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
-  const startIndex = (safePage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const pagedItems = filteredItems.slice(startIndex, endIndex);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, typeFilter]);
-
-  useEffect(() => {
-    if (currentPage !== safePage) {
-      setCurrentPage(safePage);
-    }
-  }, [currentPage, safePage]);
-
-  useEffect(() => {
-    if (!purchaseForm.item_id) {
-      return;
-    }
-
-    const matchedItem = items.find((item) => item.id === purchaseForm.item_id);
-    if (!matchedItem) {
-      return;
-    }
-
-    if (matchedItem.sku) {
-      setPurchaseBarcode(matchedItem.sku);
-    }
-
-    setPurchaseBarcodeStatus({
-      type: "matched",
-      message: `${matchedItem.name}${matchedItem.supplier ? ` from ${matchedItem.supplier}` : ""} selected.`,
-    });
-  }, [items, purchaseForm.item_id]);
-
-  const lowStockItems = useMemo(() => {
-    return items.filter(item => item.current_stock <= item.min_stock_level && item.is_active);
-  }, [items]);
-
-  const equipmentItems = useMemo(() => {
-    return items.filter(item => item.type === "equipment");
-  }, [items]);
-
-  const selectedPurchaseItem = useMemo(() => {
-    return items.find((item) => item.id === purchaseForm.item_id) || null;
-  }, [items, purchaseForm.item_id]);
-
-  // Stats
-  const totalItems = items.length;
-  const totalValue = items.reduce((sum, item) => sum + (item.current_stock * item.unit_price), 0);
+  const pagedItems = filteredItems.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const lowStockItems = useMemo(() => items.filter(i => i.current_stock <= i.min_stock_level && i.is_active), [items]);
+  const equipmentItems = useMemo(() => items.filter(i => i.type === "equipment"), [items]);
+  const selectedPurchaseItem = useMemo(() => items.find(i => i.id === purchaseForm.item_id) || null, [items, purchaseForm.item_id]);
+  const totalValue = items.reduce((sum, i) => sum + i.current_stock * i.unit_price, 0);
   const totalPurchases = purchases.reduce((sum, p) => sum + p.total_cost, 0);
-  const totalUsageCost = usages.reduce((sum, u) => sum + (u.total_cost || 0), 0);
 
-  // Handlers
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, typeFilter]);
+  useEffect(() => { if (currentPage !== safePage) setCurrentPage(safePage); }, [currentPage, safePage]);
+  useEffect(() => {
+    if (!purchaseForm.item_id) return;
+    const matched = items.find(i => i.id === purchaseForm.item_id);
+    if (!matched) return;
+    if (matched.sku) setPurchaseBarcode(matched.sku);
+    setPurchaseBarcodeStatus({ type: "matched", message: `${matched.name}${matched.supplier ? ` from ${matched.supplier}` : ""} selected.` });
+  }, [items, purchaseForm.item_id]);
+
+  // ── Reset helpers ──
+  const resetItemForm = () => setItemForm({ name: "", description: "", type: "supply", sku: "", unit: "pcs", current_stock: 0, min_stock_level: 0, unit_price: 0, supplier: "", location: "", category_id: "" });
+  const resetPurchaseForm = () => { setPurchaseForm({ item_id: "", quantity: 0, unit_cost: 0, supplier: "", invoice_number: "", purchase_date: format(new Date(), "yyyy-MM-dd"), notes: "" }); setPurchaseBarcode(""); setPurchaseBarcodeStatus({ type: "idle", message: "" }); };
+  const resetUsageForm = () => setUsageForm({ item_id: "", quantity: 0, usage_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
+  const resetMaintenanceForm = () => setMaintenanceForm({ item_id: "", maintenance_type: "", scheduled_date: format(new Date(), "yyyy-MM-dd"), cost: 0, vendor: "", notes: "", status: "scheduled" });
+  const resetCategoryForm = () => setCategoryForm({ name: "", type: "supply", description: "" });
+
+  // ── Handlers ──
   const handleItemSubmit = async () => {
-    if (!organizationId) {
-      toast.error("Organization context is required before saving inventory items");
-      return;
-    }
-
+    if (!organizationId) { toast.error("Organization context required"); return; }
     try {
       if (editingItem) {
-        const { error } = await supabase
-          .from("inventory_items")
-          .update({
-            ...itemForm,
-            organization_id: organizationId,
-            category_id: itemForm.category_id || null,
-          })
-          .eq("id", editingItem.id)
-          .eq("organization_id" as any, organizationId);
-        if (error) throw error;
-        toast.success("Item updated successfully");
+        const { error } = await supabase.from("inventory_items").update({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null }).eq("id", editingItem.id).eq("organization_id" as any, organizationId);
+        if (error) throw error; toast.success("Item updated");
       } else {
-        const { error } = await supabase
-          .from("inventory_items")
-          .insert({
-            ...itemForm,
-            organization_id: organizationId,
-            category_id: itemForm.category_id || null,
-          });
-        if (error) throw error;
-        toast.success("Item added successfully");
+        const { error } = await supabase.from("inventory_items").insert({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null });
+        if (error) throw error; toast.success("Item added");
       }
-      setIsItemDialogOpen(false);
-      setEditingItem(null);
-      resetItemForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error saving item:", error);
-      toast.error("Failed to save item");
-    }
+      setIsItemDialogOpen(false); setEditingItem(null); resetItemForm(); fetchData();
+    } catch (error) { console.error("Error saving item:", error); toast.error("Failed to save item"); }
   };
 
   const handlePurchaseSubmit = async () => {
-    if (!organizationId) {
-      toast.error("Organization context is required before recording purchases");
-      return;
-    }
-
+    if (!organizationId) { toast.error("Organization context required"); return; }
     try {
       const total_cost = purchaseForm.quantity * purchaseForm.unit_cost;
-      const { error } = await supabase.from("inventory_purchases").insert({
-        ...purchaseForm,
-        organization_id: organizationId,
-        total_cost,
-        purchased_by: user?.id,
-      });
+      const { error } = await supabase.from("inventory_purchases").insert({ ...purchaseForm, organization_id: organizationId, total_cost, purchased_by: user?.id });
       if (error) throw error;
-
-      // Update stock
       const item = items.find(i => i.id === purchaseForm.item_id);
-      if (item) {
-        await supabase
-          .from("inventory_items")
-          .update({ current_stock: item.current_stock + purchaseForm.quantity })
-          .eq("id", purchaseForm.item_id)
-          .eq("organization_id" as any, organizationId);
-      }
-
-      toast.success("Purchase recorded successfully");
-      setIsPurchaseDialogOpen(false);
-      resetPurchaseForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error recording purchase:", error);
-      toast.error("Failed to record purchase");
-    }
+      if (item) await supabase.from("inventory_items").update({ current_stock: item.current_stock + purchaseForm.quantity }).eq("id", purchaseForm.item_id).eq("organization_id" as any, organizationId);
+      toast.success("Purchase recorded"); setIsPurchaseDialogOpen(false); resetPurchaseForm(); fetchData();
+    } catch (error) { console.error("Error recording purchase:", error); toast.error("Failed to record purchase"); }
   };
 
   const handleUsageSubmit = async () => {
-    if (!organizationId) {
-      toast.error("Organization context is required before recording inventory usage");
-      return;
-    }
-
+    if (!organizationId) { toast.error("Organization context required"); return; }
     try {
       const item = items.find(i => i.id === usageForm.item_id);
-      if (!item) {
-        toast.error("Item not found");
-        return;
-      }
-
-      if (usageForm.quantity > item.current_stock) {
-        toast.error("Insufficient stock");
-        return;
-      }
-
-      const total_cost = usageForm.quantity * item.unit_price;
-      const { error } = await supabase.from("inventory_usage").insert({
-        ...usageForm,
-        organization_id: organizationId,
-        unit_cost: item.unit_price,
-        total_cost,
-        recorded_by: user?.id,
-      });
+      if (!item) { toast.error("Item not found"); return; }
+      if (usageForm.quantity > item.current_stock) { toast.error("Insufficient stock"); return; }
+      const { error } = await supabase.from("inventory_usage").insert({ ...usageForm, organization_id: organizationId, unit_cost: item.unit_price, total_cost: usageForm.quantity * item.unit_price, recorded_by: user?.id });
       if (error) throw error;
-
-      // Update stock
-      await supabase
-        .from("inventory_items")
-        .update({ current_stock: item.current_stock - usageForm.quantity })
-        .eq("id", usageForm.item_id)
-        .eq("organization_id" as any, organizationId);
-
-      toast.success("Usage recorded successfully");
-      setIsUsageDialogOpen(false);
-      resetUsageForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error recording usage:", error);
-      toast.error("Failed to record usage");
-    }
+      await supabase.from("inventory_items").update({ current_stock: item.current_stock - usageForm.quantity }).eq("id", usageForm.item_id).eq("organization_id" as any, organizationId);
+      toast.success("Usage recorded"); setIsUsageDialogOpen(false); resetUsageForm(); fetchData();
+    } catch (error) { console.error("Error recording usage:", error); toast.error("Failed to record usage"); }
   };
 
   const handleMaintenanceSubmit = async () => {
-    if (!organizationId) {
-      toast.error("Organization context is required before scheduling maintenance");
-      return;
-    }
-
+    if (!organizationId) { toast.error("Organization context required"); return; }
     try {
-      const { error } = await supabase.from("equipment_maintenance").insert({
-        ...maintenanceForm,
-        cost: maintenanceForm.cost || null,
-        organization_id: organizationId,
-        performed_by: user?.id,
-      });
+      const { error } = await supabase.from("equipment_maintenance").insert({ ...maintenanceForm, cost: maintenanceForm.cost || null, organization_id: organizationId, performed_by: user?.id });
       if (error) throw error;
-      toast.success("Maintenance scheduled successfully");
-      setIsMaintenanceDialogOpen(false);
-      resetMaintenanceForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error scheduling maintenance:", error);
-      toast.error("Failed to schedule maintenance");
-    }
+      toast.success("Maintenance scheduled"); setIsMaintenanceDialogOpen(false); resetMaintenanceForm(); fetchData();
+    } catch (error) { console.error("Error scheduling maintenance:", error); toast.error("Failed to schedule maintenance"); }
   };
 
   const handleCategorySubmit = async () => {
-    if (!organizationId) {
-      toast.error("Organization context is required before creating categories");
-      return;
-    }
-
+    if (!organizationId) { toast.error("Organization context required"); return; }
     try {
-      const { error } = await supabase.from("inventory_categories").insert({
-        ...categoryForm,
-        organization_id: organizationId,
-      });
+      const { error } = await supabase.from("inventory_categories").insert({ ...categoryForm, organization_id: organizationId });
       if (error) throw error;
-      toast.success("Category added successfully");
-      setIsCategoryDialogOpen(false);
-      resetCategoryForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error adding category:", error);
-      toast.error("Failed to add category");
-    }
+      toast.success("Category added"); setIsCategoryDialogOpen(false); resetCategoryForm(); fetchData();
+    } catch (error) { console.error("Error adding category:", error); toast.error("Failed to add category"); }
   };
 
   const handleDeleteItem = async (id: string) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
-    if (!organizationId) {
-      toast.error("Organization context is required before deleting inventory items");
-      return;
-    }
+    if (!organizationId) { toast.error("Organization context required"); return; }
     try {
-      const { error } = await supabase
-        .from("inventory_items")
-        .delete()
-        .eq("id", id)
-        .eq("organization_id" as any, organizationId);
-      if (error) throw error;
-      toast.success("Item deleted successfully");
-      fetchData();
-    } catch (error) {
-      console.error("Error deleting item:", error);
-      toast.error("Failed to delete item");
-    }
+      const { error } = await supabase.from("inventory_items").delete().eq("id", id).eq("organization_id" as any, organizationId);
+      if (error) throw error; toast.success("Item deleted"); fetchData();
+    } catch (error) { console.error("Error deleting item:", error); toast.error("Failed to delete item"); }
   };
 
   const openEditItem = (item: InventoryItem) => {
     setEditingItem(item);
-    setItemForm({
-      name: item.name,
-      description: item.description || "",
-      type: item.type,
-      sku: item.sku || "",
-      unit: item.unit,
-      current_stock: item.current_stock,
-      min_stock_level: item.min_stock_level,
-      unit_price: item.unit_price,
-      supplier: item.supplier || "",
-      location: item.location || "",
-      category_id: item.category_id || "",
-    });
+    setItemForm({ name: item.name, description: item.description || "", type: item.type, sku: item.sku || "", unit: item.unit, current_stock: item.current_stock, min_stock_level: item.min_stock_level, unit_price: item.unit_price, supplier: item.supplier || "", location: item.location || "", category_id: item.category_id || "" });
     setIsItemDialogOpen(true);
   };
 
-  const resetItemForm = () => {
-    setItemForm({
-      name: "",
-      description: "",
-      type: "supply",
-      sku: "",
-      unit: "pcs",
-      current_stock: 0,
-      min_stock_level: 0,
-      unit_price: 0,
-      supplier: "",
-      location: "",
-      category_id: "",
-    });
-  };
-
-  const resetPurchaseForm = () => {
-    setPurchaseForm({
-      item_id: "",
-      quantity: 0,
-      unit_cost: 0,
-      supplier: "",
-      invoice_number: "",
-      purchase_date: format(new Date(), "yyyy-MM-dd"),
-      notes: "",
-    });
-    setPurchaseBarcode("");
-    setPurchaseBarcodeStatus({ type: "idle", message: "" });
-  };
-
-  const resetUsageForm = () => {
-    setUsageForm({
-      item_id: "",
-      quantity: 0,
-      usage_date: format(new Date(), "yyyy-MM-dd"),
-      notes: "",
-    });
-  };
-
-  const resetMaintenanceForm = () => {
-    setMaintenanceForm({
-      item_id: "",
-      maintenance_type: "",
-      scheduled_date: format(new Date(), "yyyy-MM-dd"),
-      cost: 0,
-      vendor: "",
-      notes: "",
-      status: "scheduled",
-    });
-  };
-
-  const resetCategoryForm = () => {
-    setCategoryForm({
-      name: "",
-      type: "supply",
-      description: "",
-    });
-  };
-
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "scheduled":
-        return <Badge className="bg-blue-100 text-blue-700">Scheduled</Badge>;
-      case "in_progress":
-        return <Badge className="bg-yellow-100 text-yellow-700">In Progress</Badge>;
-      case "completed":
-        return <Badge className="bg-green-100 text-green-700">Completed</Badge>;
-      case "cancelled":
-        return <Badge className="bg-gray-100 text-gray-700">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    const map: Record<string, JSX.Element> = {
+      scheduled: <Badge className="bg-blue-100 text-blue-700">Scheduled</Badge>,
+      in_progress: <Badge className="bg-yellow-100 text-yellow-700">In Progress</Badge>,
+      completed: <Badge className="bg-green-100 text-green-700">Completed</Badge>,
+      cancelled: <Badge className="bg-gray-100 text-gray-700">Cancelled</Badge>,
+    };
+    return map[status] || <Badge variant="outline">{status}</Badge>;
   };
-
-  const normalizeBarcode = (value: string) => value.trim().toLowerCase();
 
   const handlePurchaseBarcodeLookup = (rawCode: string) => {
     const code = rawCode.trim();
-
-    if (!code) {
-      setPurchaseBarcodeStatus({ type: "idle", message: "" });
-      return;
-    }
-
-    const matchedItem = items.find((item) => normalizeBarcode(item.sku || "") === normalizeBarcode(code));
-
-    if (!matchedItem) {
-      setPurchaseForm((current) => ({ ...current, item_id: "" }));
-      setPurchaseBarcodeStatus({
-        type: "not_found",
-        message: "Barcode not registered. Add the item once, then future scans will auto-fill it.",
-      });
-      return;
-    }
-
-    setPurchaseForm((current) => ({
-      ...current,
-      item_id: matchedItem.id,
-      supplier: current.supplier || matchedItem.supplier || "",
-      unit_cost: current.unit_cost || matchedItem.unit_price || 0,
-    }));
-    setPurchaseBarcode(matchedItem.sku || code);
-    setPurchaseBarcodeStatus({
-      type: "matched",
-      message: `${matchedItem.name}${matchedItem.supplier ? ` from ${matchedItem.supplier}` : ""} selected.`,
-    });
-
-    window.setTimeout(() => {
-      purchaseQuantityInputRef.current?.focus();
-      purchaseQuantityInputRef.current?.select();
-    }, 0);
+    if (!code) { setPurchaseBarcodeStatus({ type: "idle", message: "" }); return; }
+    const matched = items.find(i => (i.sku || "").trim().toLowerCase() === code.toLowerCase());
+    if (!matched) { setPurchaseForm(c => ({ ...c, item_id: "" })); setPurchaseBarcodeStatus({ type: "not_found", message: "Barcode not registered. Add the item once, then future scans will auto-fill it." }); return; }
+    setPurchaseForm(c => ({ ...c, item_id: matched.id, supplier: c.supplier || matched.supplier || "", unit_cost: c.unit_cost || matched.unit_price || 0 }));
+    setPurchaseBarcode(matched.sku || code);
+    setPurchaseBarcodeStatus({ type: "matched", message: `${matched.name}${matched.supplier ? ` from ${matched.supplier}` : ""} selected.` });
+    window.setTimeout(() => { purchaseQuantityInputRef.current?.focus(); purchaseQuantityInputRef.current?.select(); }, 0);
   };
 
   const openNewItemFromBarcode = () => {
-    const code = purchaseBarcode.trim();
     setEditingItem(null);
-    setItemForm({
-      name: "",
-      description: "",
-      type: "supply",
-      sku: code,
-      unit: "pcs",
-      current_stock: 0,
-      min_stock_level: 0,
-      unit_price: 0,
-      supplier: "",
-      location: "",
-      category_id: "",
-    });
+    setItemForm({ name: "", description: "", type: "supply", sku: purchaseBarcode.trim(), unit: "pcs", current_stock: 0, min_stock_level: 0, unit_price: 0, supplier: "", location: "", category_id: "" });
     setIsItemDialogOpen(true);
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-pulse text-muted-foreground">Loading inventory...</div>
-      </div>
-    );
+    return <div className="flex items-center justify-center py-12"><div className="animate-pulse text-muted-foreground">Loading inventory...</div></div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Items</p>
-                <p className="text-2xl font-bold">{totalItems}</p>
-              </div>
-              <Package className="h-8 w-8 text-blue-500/50" />
-            </div>
-          </CardContent>
-        </Card>
+      <InventorySummary totalItems={items.length} totalValue={totalValue} lowStockItems={lowStockItems} totalPurchases={totalPurchases} />
 
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Stock Value</p>
-                <p className="text-2xl font-bold">₹{totalValue.toLocaleString()}</p>
-              </div>
-              <IndianRupee className="h-8 w-8 text-green-500/50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Low Stock Items</p>
-                <p className="text-2xl font-bold">{lowStockItems.length}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-amber-500/50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Purchases</p>
-                <p className="text-2xl font-bold">₹{totalPurchases.toLocaleString()}</p>
-              </div>
-              <ShoppingCart className="h-8 w-8 text-purple-500/50" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => { setEditingItem(null); resetItemForm(); setIsItemDialogOpen(true); }} className="bg-clinical-navy hover:bg-clinical-navy/90"><Plus className="h-4 w-4 mr-2" />Add Item</Button>
+        <Button variant="outline" onClick={() => { resetPurchaseForm(); setIsPurchaseDialogOpen(true); }}><ShoppingCart className="h-4 w-4 mr-2" />Record Purchase</Button>
+        <Button variant="outline" onClick={() => { resetUsageForm(); setIsUsageDialogOpen(true); }}><TrendingDown className="h-4 w-4 mr-2" />Record Usage</Button>
+        <Button variant="outline" onClick={() => { resetMaintenanceForm(); setIsMaintenanceDialogOpen(true); }}><Wrench className="h-4 w-4 mr-2" />Schedule Maintenance</Button>
+        <Button variant="outline" onClick={() => { resetCategoryForm(); setIsCategoryDialogOpen(true); }}><Settings className="h-4 w-4 mr-2" />Add Category</Button>
+        <Button variant="outline" onClick={() => exportToExcel("inventory", [
+          { key: "name", label: "Name" }, { key: "type", label: "Type" }, { key: "sku", label: "SKU" },
+          { key: "unit", label: "Unit" }, { key: "current_stock", label: "Stock" },
+          { key: "min_stock_level", label: "Min Level" }, { key: "unit_price", label: "Unit Price" },
+          { key: "supplier", label: "Supplier" }, { key: "location", label: "Location" },
+        ], items)}>
+          <FileSpreadsheet className="h-4 w-4 mr-2" />Export
+        </Button>
       </div>
 
-      {/* Low Stock Alert */}
-      {lowStockItems.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-amber-700">
-              <AlertTriangle className="h-5 w-5" />
-              Low Stock Alert
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {lowStockItems.map(item => (
-                <Badge key={item.id} variant="outline" className="border-amber-500 text-amber-700">
-                  {item.name}: {item.current_stock} {item.unit}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-          <TabsList>
-            <TabsTrigger value="items" className="gap-2">
-              <Box className="h-4 w-4" />
-              Items
-            </TabsTrigger>
-            <TabsTrigger value="purchases" className="gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              Purchases
-            </TabsTrigger>
-            <TabsTrigger value="usage" className="gap-2">
-              <TrendingDown className="h-4 w-4" />
-              Usage
-            </TabsTrigger>
-            <TabsTrigger value="maintenance" className="gap-2">
-              <Wrench className="h-4 w-4" />
-              Maintenance
-            </TabsTrigger>
-            <TabsTrigger value="alerts" className="gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Alerts
-              {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0)).length > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
-                  {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0)).length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="items">Inventory Items</TabsTrigger>
+          <TabsTrigger value="purchases">Purchases</TabsTrigger>
+          <TabsTrigger value="usage">Usage</TabsTrigger>
+          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+          <TabsTrigger value="alerts">Low Stock Alerts</TabsTrigger>
+        </TabsList>
 
-          <div className="flex gap-2">
-            {activeTab === "items" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  exportToExcel("inventory", [
-                    { key: "name", label: "Item Name" },
-                    { key: "sku", label: "SKU" },
-                    { key: "category_name", label: "Category" },
-                    { key: "type", label: "Type" },
-                    { key: "unit", label: "Unit" },
-                    { key: "current_stock", label: "Current Stock" },
-                    { key: "min_stock_level", label: "Min Stock Level" },
-                    { key: "unit_price", label: "Unit Price (₹)" },
-                    { key: "supplier", label: "Supplier" },
-                    { key: "location", label: "Location" },
-                    { key: "is_active", label: "Active" },
-                  ], filteredItems.map(item => ({
-                    ...item,
-                    category_name: item.category?.name ?? "",
-                    is_active: item.is_active ? "Yes" : "No",
-                  })))
-                }
-              >
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Categories
-            </Button>
-            {activeTab === "items" && (
-              <Button size="sm" onClick={() => { resetItemForm(); setEditingItem(null); setIsItemDialogOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            )}
-            {activeTab === "purchases" && (
-              <Button size="sm" onClick={() => { resetPurchaseForm(); setIsPurchaseDialogOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Record Purchase
-              </Button>
-            )}
-            {activeTab === "usage" && (
-              <Button size="sm" onClick={() => { resetUsageForm(); setIsUsageDialogOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Record Usage
-              </Button>
-            )}
-            {activeTab === "maintenance" && (
-              <Button size="sm" onClick={() => { resetMaintenanceForm(); setIsMaintenanceDialogOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Schedule Maintenance
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Items Tab */}
-        <TabsContent value="items">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Label htmlFor="inventory-search" className="sr-only">
-                    Search inventory items
-                  </Label>
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="inventory-search"
-                    name="inventory_search"
-                    placeholder="Search items..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                    autoComplete="off"
-                  />
-                </div>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Filter by type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="supply">Supplies</SelectItem>
-                    <SelectItem value="equipment">Equipment</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-center">Stock</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pagedItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          {item.sku && <p className="text-xs text-muted-foreground">Barcode: {item.sku}</p>}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">{item.type}</Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {item.category?.name || "-"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={item.current_stock <= item.min_stock_level ? "text-red-600 font-semibold" : ""}>
-                          {item.current_stock} {item.unit}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">₹{item.unit_price.toLocaleString()}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.supplier || "-"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEditItem(item)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.id)} className="text-red-600">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredItems.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No items found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
-              <DataPagination
-                total={filteredItems.length}
-                page={safePage}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={setPageSize}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="items" className="mt-4 space-y-4">
+          <InventoryFilters searchQuery={searchQuery} onSearchChange={setSearchQuery} typeFilter={typeFilter} onTypeFilterChange={setTypeFilter} />
+          <InventoryItemsTable pagedItems={pagedItems} filteredItems={filteredItems} currentPage={safePage} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }} onEditItem={openEditItem} onDeleteItem={handleDeleteItem} />
         </TabsContent>
 
-        {/* Purchases Tab */}
-        <TabsContent value="purchases">
-          <Card>
-            <CardHeader>
-              <CardTitle>Purchase History</CardTitle>
-              <CardDescription>Track all inventory purchases from vendors</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-center">Quantity</TableHead>
-                    <TableHead className="text-right">Unit Cost</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Invoice #</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {purchases.map((purchase) => (
-                    <TableRow key={purchase.id}>
-                      <TableCell>{formatAppDate(purchase.purchase_date)}</TableCell>
-                      <TableCell className="font-medium">{purchase.item?.name || "-"}</TableCell>
-                      <TableCell className="text-center">{purchase.quantity}</TableCell>
-                      <TableCell className="text-right">₹{purchase.unit_cost.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-semibold">₹{purchase.total_cost.toLocaleString()}</TableCell>
-                      <TableCell className="text-muted-foreground">{purchase.supplier || "-"}</TableCell>
-                      <TableCell className="font-mono text-muted-foreground">{purchase.invoice_number || "-"}</TableCell>
-                    </TableRow>
-                  ))}
-                  {purchases.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No purchases recorded
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Usage Tab */}
-        <TabsContent value="usage">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage History</CardTitle>
-              <CardDescription>Track inventory consumption and costs</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-center">Quantity</TableHead>
-                    <TableHead className="text-right">Unit Cost</TableHead>
-                    <TableHead className="text-right">Total Cost</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {usages.map((usage) => (
-                    <TableRow key={usage.id}>
-                      <TableCell>{formatAppDate(usage.usage_date)}</TableCell>
-                      <TableCell className="font-medium">{usage.item?.name || "-"}</TableCell>
-                      <TableCell className="text-center">{usage.quantity}</TableCell>
-                      <TableCell className="text-right">₹{(usage.unit_cost || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-semibold">₹{(usage.total_cost || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-muted-foreground">{usage.notes || "-"}</TableCell>
-                    </TableRow>
-                  ))}
-                  {usages.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No usage recorded
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Maintenance Tab */}
-        <TabsContent value="maintenance">
-          <Card>
-            <CardHeader>
-              <CardTitle>Equipment Maintenance</CardTitle>
-              <CardDescription>Schedule and track equipment maintenance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Equipment</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Scheduled Date</TableHead>
-                    <TableHead>Completed Date</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead>Vendor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {maintenances.map((maintenance) => (
-                    <TableRow key={maintenance.id}>
-                      <TableCell className="font-medium">{maintenance.item?.name || "-"}</TableCell>
-                      <TableCell>{maintenance.maintenance_type}</TableCell>
-                      <TableCell>{maintenance.scheduled_date ? formatAppDate(maintenance.scheduled_date) : "-"}</TableCell>
-                      <TableCell>{maintenance.completed_date ? formatAppDate(maintenance.completed_date) : "-"}</TableCell>
-                      <TableCell className="text-center">{getStatusBadge(maintenance.status)}</TableCell>
-                      <TableCell className="text-right">{maintenance.cost ? `₹${maintenance.cost.toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-muted-foreground">{maintenance.vendor || "-"}</TableCell>
-                    </TableRow>
-                  ))}
-                  {maintenances.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No maintenance records
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Alerts Tab */}
-        <TabsContent value="alerts">
-          <div className="space-y-4">
-            {/* Low Stock Alerts */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-amber-500" />
-                      Low Stock Alerts
-                    </CardTitle>
-                    <CardDescription>Items below minimum stock level</CardDescription>
-                  </div>
-                  <Badge variant="destructive">
-                    {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active).length} items
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {items.filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active).length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>All items are well stocked!</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead>Item Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="text-right">Current Stock</TableHead>
-                        <TableHead className="text-right">Min Level</TableHead>
-                        <TableHead className="text-right">Deficit</TableHead>
-                        <TableHead>Supplier</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {items
-                        .filter(item => (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active)
-                        .sort((a, b) => {
-                          const aDeficit = (a.min_stock_level || 0) - (a.current_stock || 0);
-                          const bDeficit = (b.min_stock_level || 0) - (b.current_stock || 0);
-                          return bDeficit - aDeficit;
-                        })
-                        .map((item) => {
-                          const deficit = (item.min_stock_level || 0) - (item.current_stock || 0);
-                          const isOutOfStock = (item.current_stock || 0) === 0;
-                          return (
-                            <TableRow key={item.id} className={isOutOfStock ? "bg-red-50 dark:bg-red-950/20" : "bg-amber-50 dark:bg-amber-950/20"}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  {isOutOfStock && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                                  {item.name}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {item.category ? (
-                                  <Badge variant="outline">{item.category.name}</Badge>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <span className={isOutOfStock ? "font-bold text-red-600" : "font-medium text-amber-600"}>
-                                  {item.current_stock || 0} {item.unit}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right text-muted-foreground">
-                                {item.min_stock_level || 0} {item.unit}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Badge variant={isOutOfStock ? "destructive" : "outline"} className="font-semibold">
-                                  {deficit} {item.unit}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {item.supplier || "—"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setPurchaseForm({
-                                      item_id: item.id,
-                                      quantity: Math.max(deficit, 10),
-                                      unit_cost: item.unit_price || 0,
-                                      supplier: item.supplier || "",
-                                      invoice_number: "",
-                                      purchase_date: new Date().toISOString().split('T')[0],
-                                      notes: `Auto-suggested reorder for low stock`,
-                                    });
-                                    setIsPurchaseDialogOpen(true);
-                                  }}
-                                >
-                                  <ShoppingCart className="h-3.5 w-3.5 mr-1" />
-                                  Reorder
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                    </TableBody>
-                  </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Stock Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-red-100">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-red-600">
-                        {items.filter(item => (item.current_stock || 0) === 0 && item.is_active).length}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Out of Stock</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-100">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-amber-600">
-                        {items.filter(item => (item.current_stock || 0) > 0 && (item.current_stock || 0) <= (item.min_stock_level || 0) && item.is_active).length}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Low Stock</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-100">
-                      <Package className="h-4 w-4 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-green-600">
-                        {items.filter(item => (item.current_stock || 0) > (item.min_stock_level || 0) && item.is_active).length}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Well Stocked</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
+        <TabsContent value="purchases" className="mt-4"><PurchasesTable purchases={purchases} /></TabsContent>
+        <TabsContent value="usage" className="mt-4"><UsageTable usages={usages} /></TabsContent>
+        <TabsContent value="maintenance" className="mt-4"><MaintenanceTable maintenances={maintenances} getStatusBadge={getStatusBadge} /></TabsContent>
+        <TabsContent value="alerts" className="mt-4"><AlertsTable items={lowStockItems} onReorder={(item) => { resetPurchaseForm(); setPurchaseForm(f => ({ ...f, item_id: item.id })); setIsPurchaseDialogOpen(true); }} /></TabsContent>
       </Tabs>
 
-      {/* Add/Edit Item Dialog */}
-      <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingItem ? "Edit Item" : "Add New Item"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-name">Name *</Label>
-                <Input
-                  id="inventory-item-name"
-                  name="name"
-                  value={itemForm.name}
-                  onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                  placeholder="Item name"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-type">Type *</Label>
-                <Select name="type" value={itemForm.type} onValueChange={(v) => setItemForm({ ...itemForm, type: v })}>
-                  <SelectTrigger id="inventory-item-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="supply">Supply</SelectItem>
-                    <SelectItem value="equipment">Equipment</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-sku">Barcode / SKU</Label>
-                <Input
-                  id="inventory-item-sku"
-                  name="sku"
-                  value={itemForm.sku}
-                  onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
-                  placeholder="Scan or enter barcode"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-category">Category</Label>
-                <Select name="category_id" value={itemForm.category_id} onValueChange={(v) => setItemForm({ ...itemForm, category_id: v })}>
-                  <SelectTrigger id="inventory-item-category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.filter(c => c.type === itemForm.type).map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-unit">Unit</Label>
-                <Input
-                  id="inventory-item-unit"
-                  name="unit"
-                  value={itemForm.unit}
-                  onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-                  placeholder="pcs, ml, etc"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-current-stock">Current Stock</Label>
-                <Input
-                  id="inventory-item-current-stock"
-                  name="current_stock"
-                  type="number"
-                  value={itemForm.current_stock}
-                  onChange={(e) => setItemForm({ ...itemForm, current_stock: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-min-stock-level">Min Stock Level</Label>
-                <Input
-                  id="inventory-item-min-stock-level"
-                  name="min_stock_level"
-                  type="number"
-                  value={itemForm.min_stock_level}
-                  onChange={(e) => setItemForm({ ...itemForm, min_stock_level: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-unit-price">Unit Price (₹)</Label>
-                <Input
-                  id="inventory-item-unit-price"
-                  name="unit_price"
-                  type="number"
-                  value={itemForm.unit_price}
-                  onChange={(e) => setItemForm({ ...itemForm, unit_price: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="inventory-item-supplier">Supplier</Label>
-                <Input
-                  id="inventory-item-supplier"
-                  name="supplier"
-                  value={itemForm.supplier}
-                  onChange={(e) => setItemForm({ ...itemForm, supplier: e.target.value })}
-                  placeholder="Supplier name"
-                  autoComplete="organization"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="inventory-item-location">Location</Label>
-              <Input
-                id="inventory-item-location"
-                name="location"
-                value={itemForm.location}
-                onChange={(e) => setItemForm({ ...itemForm, location: e.target.value })}
-                placeholder="Storage location"
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="inventory-item-description">Description</Label>
-              <Textarea
-                id="inventory-item-description"
-                name="description"
-                value={itemForm.description}
-                onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
-                placeholder="Item description"
-                autoComplete="off"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsItemDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleItemSubmit}>{editingItem ? "Update" : "Add"} Item</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Purchase Dialog */}
-      <Dialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Purchase</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Scan Barcode / SKU</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={purchaseBarcode}
-                  onChange={(e) => {
-                    setPurchaseBarcode(e.target.value);
-                    setPurchaseBarcodeStatus({ type: "idle", message: "" });
-                    setPurchaseForm((current) => ({ ...current, item_id: "" }));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handlePurchaseBarcodeLookup(purchaseBarcode);
-                    }
-                  }}
-                  onBlur={() => {
-                    if (purchaseBarcode.trim()) {
-                      handlePurchaseBarcodeLookup(purchaseBarcode);
-                    }
-                  }}
-                  placeholder="Scan barcode here"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handlePurchaseBarcodeLookup(purchaseBarcode)}
-                >
-                  Find Item
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Most USB barcode scanners type into this field and press Enter automatically.
-              </p>
-              {purchaseBarcodeStatus.type !== "idle" && (
-                <div
-                  className={`rounded-lg border px-3 py-2 text-sm ${
-                    purchaseBarcodeStatus.type === "matched"
-                      ? "border-green-200 bg-green-50 text-green-700"
-                      : "border-amber-200 bg-amber-50 text-amber-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span>{purchaseBarcodeStatus.message}</span>
-                    {purchaseBarcodeStatus.type === "not_found" && purchaseBarcode.trim() && (
-                      <Button type="button" variant="outline" size="sm" onClick={openNewItemFromBarcode}>
-                        Add Item
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Item *</Label>
-              <Select value={purchaseForm.item_id} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, item_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items.map(item => (
-                    <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {selectedPurchaseItem && (
-              <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-3">
-                <div>
-                  <p className="text-muted-foreground">Item</p>
-                  <p className="font-medium">{selectedPurchaseItem.name}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Supplier</p>
-                  <p className="font-medium">{selectedPurchaseItem.supplier || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Current Stock</p>
-                  <p className="font-medium">
-                    {selectedPurchaseItem.current_stock} {selectedPurchaseItem.unit}
-                  </p>
-                </div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Quantity *</Label>
-                <Input
-                  ref={purchaseQuantityInputRef}
-                  type="number"
-                  value={purchaseForm.quantity}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Unit Cost (₹) *</Label>
-                <Input
-                  type="number"
-                  value={purchaseForm.unit_cost}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, unit_cost: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Supplier</Label>
-                <Input
-                  value={purchaseForm.supplier}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Invoice Number</Label>
-                <Input
-                  value={purchaseForm.invoice_number}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Purchase Date *</Label>
-              <DateInput
-                value={purchaseForm.purchase_date}
-                onChange={(value) => setPurchaseForm({ ...purchaseForm, purchase_date: value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={purchaseForm.notes}
-                onChange={(e) => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
-              />
-            </div>
-            {purchaseForm.quantity > 0 && purchaseForm.unit_cost > 0 && (
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Total Cost</p>
-                <p className="text-xl font-bold">₹{(purchaseForm.quantity * purchaseForm.unit_cost).toLocaleString()}</p>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPurchaseDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handlePurchaseSubmit}>Record Purchase</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Usage Dialog */}
-      <Dialog open={isUsageDialogOpen} onOpenChange={setIsUsageDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Usage</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Item *</Label>
-              <Select value={usageForm.item_id} onValueChange={(v) => setUsageForm({ ...usageForm, item_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items.map(item => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} (Stock: {item.current_stock} {item.unit})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Quantity *</Label>
-                <Input
-                  type="number"
-                  value={usageForm.quantity}
-                  onChange={(e) => setUsageForm({ ...usageForm, quantity: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Usage Date *</Label>
-                <DateInput
-                  value={usageForm.usage_date}
-                  onChange={(value) => setUsageForm({ ...usageForm, usage_date: value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={usageForm.notes}
-                onChange={(e) => setUsageForm({ ...usageForm, notes: e.target.value })}
-                placeholder="e.g., Used for patient test, routine check, etc."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUsageDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleUsageSubmit}>Record Usage</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Maintenance Dialog */}
-      <Dialog open={isMaintenanceDialogOpen} onOpenChange={setIsMaintenanceDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Schedule Maintenance</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Equipment *</Label>
-              <Select value={maintenanceForm.item_id} onValueChange={(v) => setMaintenanceForm({ ...maintenanceForm, item_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select equipment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {equipmentItems.map(item => (
-                    <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Maintenance Type *</Label>
-                <Input
-                  value={maintenanceForm.maintenance_type}
-                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_type: e.target.value })}
-                  placeholder="e.g., Calibration, Service"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Scheduled Date *</Label>
-                <DateInput
-                  value={maintenanceForm.scheduled_date}
-                  onChange={(value) => setMaintenanceForm({ ...maintenanceForm, scheduled_date: value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Estimated Cost (₹)</Label>
-                <Input
-                  type="number"
-                  value={maintenanceForm.cost}
-                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, cost: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Vendor</Label>
-                <Input
-                  value={maintenanceForm.vendor}
-                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, vendor: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={maintenanceForm.notes}
-                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, notes: e.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMaintenanceDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleMaintenanceSubmit}>Schedule</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Category Dialog */}
-      <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Category</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Category Name *</Label>
-              <Input
-                value={categoryForm.name}
-                onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                placeholder="Category name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type *</Label>
-              <Select value={categoryForm.type} onValueChange={(v) => setCategoryForm({ ...categoryForm, type: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="supply">Supply</SelectItem>
-                  <SelectItem value="equipment">Equipment</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea
-                value={categoryForm.description}
-                onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCategoryDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCategorySubmit}>Add Category</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <InventoryFormDialog isOpen={isItemDialogOpen} onOpenChange={setIsItemDialogOpen} editingItem={editingItem} itemForm={itemForm} onItemFormChange={setItemForm} categories={categories} onSubmit={handleItemSubmit} />
+      <PurchaseDialog isOpen={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} purchaseForm={purchaseForm} onPurchaseFormChange={setPurchaseForm} purchaseBarcode={purchaseBarcode} onPurchaseBarcodeChange={setPurchaseBarcode} purchaseBarcodeStatus={purchaseBarcodeStatus} onBarcodeLookup={handlePurchaseBarcodeLookup} onOpenNewItemFromBarcode={openNewItemFromBarcode} items={items} selectedPurchaseItem={selectedPurchaseItem} onSubmit={handlePurchaseSubmit} purchaseQuantityInputRef={purchaseQuantityInputRef} />
+      <UsageDialog isOpen={isUsageDialogOpen} onOpenChange={setIsUsageDialogOpen} usageForm={usageForm} onUsageFormChange={setUsageForm} items={items} onSubmit={handleUsageSubmit} />
+      <MaintenanceDialog isOpen={isMaintenanceDialogOpen} onOpenChange={setIsMaintenanceDialogOpen} maintenanceForm={maintenanceForm} onMaintenanceFormChange={setMaintenanceForm} equipmentItems={equipmentItems} onSubmit={handleMaintenanceSubmit} />
+      <CategoryDialog isOpen={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen} categoryForm={categoryForm} onCategoryFormChange={setCategoryForm} onSubmit={handleCategorySubmit} />
     </div>
   );
 };
