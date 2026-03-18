@@ -31,6 +31,8 @@ const PlatformCustomers = lazy(() => import("./pages/PlatformCustomers"));
 const PlatformCustomerDetail = lazy(() => import("./pages/PlatformCustomerDetail"));
 const PlatformSettings = lazy(() => import("./pages/PlatformSettings"));
 const PlatformCoupons = lazy(() => import("./pages/PlatformCoupons"));
+const PlatformRevenue = lazy(() => import("./pages/PlatformRevenue"));
+const PlatformAuditLog = lazy(() => import("./pages/PlatformAuditLog"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -93,6 +95,10 @@ const App = () => (
                       <Route path="/platform/settings/" element={<PlatformSettings />} />
                       <Route path="/platform/coupons" element={<PlatformCoupons />} />
                       <Route path="/platform/coupons/" element={<PlatformCoupons />} />
+                      <Route path="/platform/revenue" element={<PlatformRevenue />} />
+                      <Route path="/platform/revenue/" element={<PlatformRevenue />} />
+                      <Route path="/platform/audit-log" element={<PlatformAuditLog />} />
+                      <Route path="/platform/audit-log/" element={<PlatformAuditLog />} />
                       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>

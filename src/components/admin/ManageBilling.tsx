@@ -1,28 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { 
-  Plus, Search, Eye, Receipt, CreditCard, Banknote,
-  IndianRupee, Calendar, User, FileText, Printer,
-  CheckCircle, Clock, XCircle, Filter, Download, Edit2, ChevronDown, FileSpreadsheet
+import {
+  Eye, Receipt, CreditCard, Banknote,
+  IndianRupee, Printer,
+  CheckCircle, Clock, XCircle, Edit2,
 } from "lucide-react";
-import { exportToExcel } from "@/lib/exportToExcel";
-import { DateInput } from "@/components/ui/date-input";
-import { DataPagination } from "@/components/ui/data-pagination";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -32,33 +19,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -66,7 +31,11 @@ import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { AbdmCareContextButton } from "@/components/admin/AbdmCareContextButton";
+import BillingSummary from "@/components/admin/billing/BillingSummary";
+import BillingFilters from "@/components/admin/billing/BillingFilters";
+import BillingTable from "@/components/admin/billing/BillingTable";
+import BillingFormDialog from "@/components/admin/billing/BillingFormDialog";
+import BillingPaymentDialog from "@/components/admin/billing/BillingPaymentDialog";
 
 interface Invoice {
   id: string;
@@ -1342,577 +1311,95 @@ const ManageBilling = () => {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-sm">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100">
-                <IndianRupee className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Total Revenue</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <IndianRupee className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">₹{todayRevenue.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Today's Revenue</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-100">
-                <Clock className="h-4 w-4 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">₹{pendingAmount.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Pending Amount</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-violet-100">
-                <Receipt className="h-4 w-4 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{invoices.length}</p>
-                <p className="text-xs text-muted-foreground">Total Invoices</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <BillingSummary
+        totalRevenue={totalRevenue}
+        todayRevenue={todayRevenue}
+        pendingAmount={pendingAmount}
+        totalInvoices={invoices.length}
+      />
 
       {/* Header with search and filters */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative max-w-sm">
-            <Label htmlFor="billing-search" className="sr-only">
-              Search invoices
-            </Label>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="billing-search"
-              name="billing_search"
-              placeholder="Search invoices..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 w-full sm:w-80"
-              autoComplete="off"
-            />
-          </div>
-          <Tabs value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)} className="w-auto">
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="partial">Partial</TabsTrigger>
-              <TabsTrigger value="paid">Paid</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <DateInput
-            id="billing-date-from"
-            value={dateFrom}
-            onChange={setDateFrom}
-            placeholder="From date"
-            className="w-[150px]"
-            showFormatHint
-          />
-          <DateInput
-            id="billing-date-to"
-            value={dateTo}
-            onChange={setDateTo}
-            placeholder="To date"
-            className="w-[150px]"
-            showFormatHint
-          />
-          {(dateFrom || dateTo) && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => { setDateFrom(""); setDateTo(""); }}
-              className="text-muted-foreground"
-            >
-              Clear dates ×
-            </Button>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              exportToExcel("invoices", [
-                { key: "invoice_number", label: "Invoice #" },
-                { key: "patient_name", label: "Patient" },
-                { key: "patient_phone", label: "Phone" },
-                { key: "final_amount", label: "Amount (₹)" },
-                { key: "paid_amount", label: "Paid (₹)" },
-                { key: "balance", label: "Balance (₹)" },
-                { key: "payment_status", label: "Status" },
-                { key: "payment_method", label: "Payment Method" },
-                { key: "created_at", label: "Date" },
-              ], filteredInvoices.map(inv => ({
-                ...inv,
-                patient_name: inv.patient?.full_name ?? "",
-                patient_phone: inv.patient?.phone ?? "",
-                balance: inv.final_amount - inv.paid_amount,
-                created_at: inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-IN") : "",
-              })))
-            }
-          >
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-clinical-navy hover:bg-clinical-navy/90">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Invoice
-          </Button>
-        </div>
-      </div>
+      <BillingFilters
+        search={search}
+        onSearchChange={setSearch}
+        filterStatus={filterStatus}
+        onFilterStatusChange={setFilterStatus}
+        dateFrom={dateFrom}
+        onDateFromChange={setDateFrom}
+        dateTo={dateTo}
+        onDateToChange={setDateTo}
+        filteredInvoices={filteredInvoices}
+        onCreateInvoice={() => setIsCreateDialogOpen(true)}
+      />
 
       {/* Invoices Table */}
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Patient</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right">Paid</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">Loading...</TableCell>
-                </TableRow>
-              ) : filteredInvoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No invoices found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pagedInvoices.map((invoice) => (
-                  <TableRow key={invoice.id} className="hover:bg-muted/30">
-                    <TableCell className="font-mono font-medium">{invoice.invoice_number}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{invoice.patient?.full_name}</p>
-                        <p className="text-xs text-muted-foreground">{invoice.patient?.patient_id}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">₹{invoice.final_amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">₹{invoice.paid_amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-center">{getStatusBadge(invoice.payment_status)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatAppDate(invoice.created_at)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        {invoice.patient?.abha_address && organizationId && (
-                          <AbdmCareContextButton
-                            organizationId={organizationId}
-                            patientId={invoice.patient_id}
-                            invoiceId={invoice.id}
-                            careContextReference={invoice.invoice_number || invoice.id}
-                            careContextDisplay={`Invoice ${invoice.invoice_number} — ${invoice.patient?.full_name}`}
-                            abhaAddress={invoice.patient?.abha_address ?? null}
-                            initialLinked={linkedInvoiceIds.has(invoice.id)}
-                          />
-                        )}
-                        {invoice.payment_status !== "paid" && (
-                          <Button
-                            size="sm"
-                            onClick={() => openPaymentDialog(invoice)}
-                            className="gap-1"
-                          >
-                            <CreditCard className="h-3.5 w-3.5" />
-                            Pay
-                          </Button>
-                        )}
-                        {(isAdmin || invoice.payment_status !== "paid") && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => openEditDialog(invoice)}
-                            title={invoice.payment_status === "paid" ? "Edit Invoice (Admin Only)" : "Edit Invoice"}
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={async () => {
-                            setSelectedInvoice(await enrichInvoiceDiscountAudit(invoice));
-                            setPayments([]);
-                            setBillingAuditLogs([]);
-                            await fetchInvoiceItems(invoice.id);
-                            await fetchPayments(invoice.id);
-                            await fetchBillingAudit(invoice.id);
-                            setIsDetailsOpen(true);
-                          }}
-                          title="View Details"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          </div>
-          <DataPagination
-            total={filteredInvoices.length}
-            page={safePage}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
-        </CardContent>
-      </Card>
+      <BillingTable
+        loading={loading}
+        pagedInvoices={pagedInvoices}
+        filteredInvoices={filteredInvoices}
+        isAdmin={isAdmin}
+        organizationId={organizationId}
+        linkedInvoiceIds={linkedInvoiceIds}
+        safePage={safePage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        onOpenPaymentDialog={openPaymentDialog}
+        onOpenEditDialog={openEditDialog}
+        onViewDetails={async (invoice) => {
+          setSelectedInvoice(await enrichInvoiceDiscountAudit(invoice));
+          setPayments([]);
+          setBillingAuditLogs([]);
+          await fetchInvoiceItems(invoice.id);
+          await fetchPayments(invoice.id);
+          await fetchBillingAudit(invoice.id);
+          setIsDetailsOpen(true);
+        }}
+      />
 
       {/* Create Invoice Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" />
-              Create New Invoice
-            </DialogTitle>
-            <DialogDescription>
-              Select a patient, choose billable tests, adjust pricing if needed, and create a new invoice.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 flex-1 overflow-y-auto">
-            <div className="space-y-2">
-              <Label htmlFor="invoice-patient-select">Select Patient</Label>
-              <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="invoice-patient-select"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={patientSearchOpen}
-                    className="w-full justify-between"
-                  >
-                    {selectedPatient
-                      ? `${selectedPatient.full_name} (${selectedPatient.patient_id})`
-                      : "Choose a patient..."}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                  <Command>
-                    <Label htmlFor="invoice-patient-search" className="sr-only">
-                      Search patient
-                    </Label>
-                    <CommandInput 
-                      id="invoice-patient-search"
-                      name="invoice_patient_search"
-                      placeholder="Search by name, ID, or phone..." 
-                      value={patientSearchQuery}
-                      onValueChange={setPatientSearchQuery}
-                      autoComplete="off"
-                    />
-                    <CommandList>
-                      <CommandEmpty>No patient found.</CommandEmpty>
-                      <CommandGroup>
-                        {filteredPatients.map((patient) => (
-                          <CommandItem
-                            key={patient.id}
-                            value={patient.id}
-                            onSelect={() => {
-                              setSelectedPatientId(patient.id);
-                              setPatientSearchOpen(false);
-                              setPatientSearchQuery("");
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">{patient.full_name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {patient.patient_id} • {patient.phone}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {selectedPatientId && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium leading-none">Select Tests to Invoice</p>
-                  {patientTests.length > 0 && (
-                    <div className="text-xs text-muted-foreground">
-                      {patientTests.filter(t => t.invoice_status !== "paid").length} available • {" "}
-                      {patientTests.filter(t => t.invoice_status === "paid").length} already paid
-                    </div>
-                  )}
-                </div>
-                <div className="border rounded-lg max-h-48 overflow-y-auto">
-                  {patientTests.length === 0 ? (
-                    <p className="text-sm text-muted-foreground p-4 text-center">No tests found for this patient</p>
-                  ) : (
-                    patientTests.map((test) => {
-                      const isPaidInvoiced = test.invoice_status === "paid";
-                      const isUnpaidInvoiced = test.invoice_status === "unpaid";
-                      const isAlreadyInvoiced = isPaidInvoiced || isUnpaidInvoiced;
-                      
-                      return (
-                        <div 
-                          key={test.id} 
-                          className={`flex items-center gap-3 p-3 border-b last:border-b-0 hover:bg-muted/50 ${
-                            isPaidInvoiced ? "opacity-60 bg-muted/30" : ""
-                          }`}
-                        >
-                          <Checkbox
-                            checked={selectedTestIds.has(test.id)}
-                            onCheckedChange={(checked) => {
-                              if (isPaidInvoiced) {
-                                toast.error(`This test is already invoiced and paid (Invoice: ${test.invoice_number}). Cannot create duplicate invoice.`);
-                                return;
-                              }
-                              const newSet = new Set(selectedTestIds);
-                              if (checked) {
-                                newSet.add(test.id);
-                              } else {
-                                newSet.delete(test.id);
-                              }
-                              setSelectedTestIds(newSet);
-                            }}
-                            disabled={isPaidInvoiced}
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{test.test_name}</p>
-                              {isPaidInvoiced && (
-                                <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                                  Paid (INV: {test.invoice_number})
-                                </Badge>
-                              )}
-                              {isUnpaidInvoiced && (
-                                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                                  Unpaid Invoice ({test.invoice_number})
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {formatAppDate(test.test_date)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">₹</span>
-                            <Label htmlFor={`invoice-test-price-${test.id}`} className="sr-only">
-                              Price for {test.test_name}
-                            </Label>
-                            <Input
-                              id={`invoice-test-price-${test.id}`}
-                              name={`invoice_test_price_${test.id}`}
-                              type="number"
-                              value={getTestPrice(test.id)}
-                              onChange={(e) => updateTestPrice(test.id, Number(e.target.value))}
-                              className="w-24 h-8 text-right"
-                              min={0}
-                              disabled={isPaidInvoiced}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="invoice-subtotal">Subtotal</Label>
-                <Input id="invoice-subtotal" name="invoice_subtotal" value={`₹${calculateTotal().toLocaleString()}`} disabled />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="invoice-discount">Discount</Label>
-                <Input 
-                  id="invoice-discount"
-                  name="invoice_discount"
-                  type="number" 
-                  value={discount} 
-                  onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-                  placeholder="0"
-                  min={0}
-                  max={calculateTotal()}
-                />
-              </div>
-            </div>
-
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold">Total Amount</span>
-                <span className="text-2xl font-bold">
-                  ₹{(calculateTotal() - clampDiscount(discount, calculateTotal())).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="invoice-notes">Notes (optional)</Label>
-              <Textarea 
-                id="invoice-notes"
-                name="invoice_notes"
-                value={notes} 
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional notes..."
-                autoComplete="off"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleCreateInvoice} 
-              disabled={isSubmitting || selectedTestIds.size === 0}
-            >
-              {isSubmitting ? "Creating..." : "Create Invoice"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BillingFormDialog
+        isOpen={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        filteredPatients={filteredPatients}
+        selectedPatientId={selectedPatientId}
+        onPatientSelect={setSelectedPatientId}
+        patientSearchOpen={patientSearchOpen}
+        onPatientSearchOpenChange={setPatientSearchOpen}
+        patientSearchQuery={patientSearchQuery}
+        onPatientSearchQueryChange={setPatientSearchQuery}
+        selectedPatient={selectedPatient}
+        patientTests={patientTests}
+        selectedTestIds={selectedTestIds}
+        onTestSelectionChange={setSelectedTestIds}
+        getTestPrice={getTestPrice}
+        updateTestPrice={updateTestPrice}
+        calculateTotal={calculateTotal}
+        clampDiscount={clampDiscount}
+        discount={discount}
+        onDiscountChange={setDiscount}
+        notes={notes}
+        onNotesChange={setNotes}
+        isSubmitting={isSubmitting}
+        onSubmit={handleCreateInvoice}
+      />
 
       {/* Record Payment Dialog */}
-      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Record Payment
-            </DialogTitle>
-            <DialogDescription>
-              Record a payment against the selected invoice and capture the payment method and reference details.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedInvoice && (
-            <div className="space-y-4">
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Invoice #{selectedInvoice.invoice_number}</p>
-                <p className="font-medium">{selectedInvoice.patient?.full_name}</p>
-                <div className="flex justify-between mt-2">
-                  <span>Outstanding:</span>
-                  <span className="font-bold">
-                    ₹{(selectedInvoice.final_amount - selectedInvoice.paid_amount).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="payment-amount">Payment Amount</Label>
-                <Input 
-                  id="payment-amount"
-                  name="payment_amount"
-                  type="number" 
-                  value={paymentAmount} 
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="payment-method">Payment Method</Label>
-                <Select name="payment_method" value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger id="payment-method">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">
-                      <div className="flex items-center gap-2">
-                        <Banknote className="h-4 w-4" /> Cash
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="upi">
-                      <div className="flex items-center gap-2">
-                        <IndianRupee className="h-4 w-4" /> UPI
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="card">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" /> Card
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {paymentMethod !== "cash" && (
-                <div className="space-y-2">
-                  <Label htmlFor="transaction-id">Transaction ID</Label>
-                  <Input 
-                    id="transaction-id"
-                    name="transaction_id"
-                    value={transactionId} 
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="Enter transaction reference"
-                    autoComplete="off"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="payment-notes">Notes (optional)</Label>
-                <Textarea 
-                  id="payment-notes"
-                  name="payment_notes"
-                  value={paymentNotes} 
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  placeholder="Any payment notes..."
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRecordPayment} disabled={isSubmitting}>
-              {isSubmitting ? "Recording..." : "Record Payment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BillingPaymentDialog
+        isOpen={isPaymentDialogOpen}
+        onOpenChange={setIsPaymentDialogOpen}
+        selectedInvoice={selectedInvoice}
+        paymentAmount={paymentAmount}
+        onPaymentAmountChange={setPaymentAmount}
+        paymentMethod={paymentMethod}
+        onPaymentMethodChange={setPaymentMethod}
+        transactionId={transactionId}
+        onTransactionIdChange={setTransactionId}
+        paymentNotes={paymentNotes}
+        onPaymentNotesChange={setPaymentNotes}
+        isSubmitting={isSubmitting}
+        onSubmit={handleRecordPayment}
+      />
 
       {/* Edit Invoice Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

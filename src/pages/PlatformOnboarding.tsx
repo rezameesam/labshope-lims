@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { toast } from "sonner";
 
 type PlatformOnboardingRequest = {
@@ -98,6 +99,7 @@ const planClass: Record<string, string> = {
 
 const PlatformOnboarding = () => {
   const { user } = useAuth();
+  const { logAction } = useAuditLog();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<PlatformOnboardingRequest[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -417,6 +419,7 @@ const PlatformOnboarding = () => {
 
   const updateStatus = async (requestId: string, status: PlatformOnboardingRequest["status"]) => {
     await updateRequest(requestId, { status }, "Onboarding request updated.");
+    void logAction("status_change", "onboarding_request", requestId, { status });
   };
 
   const assignToCurrentUser = async (requestId: string) => {
@@ -487,6 +490,12 @@ const PlatformOnboarding = () => {
     }
 
     toast.success(response.already_provisioned ? "Organization already provisioned." : "Organization provisioned.");
+    if (!response.already_provisioned) {
+      void logAction("provision", "onboarding_request", requestId, {
+        organization_id: response.organization_id,
+        owner_email: response.owner_email,
+      });
+    }
     setProvisioningId(null);
   };
 

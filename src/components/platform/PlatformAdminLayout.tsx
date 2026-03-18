@@ -3,9 +3,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   Building2,
   ClipboardList,
+  CreditCard,
   LayoutDashboard,
   LogOut,
   Menu,
+  ScrollText,
   Settings,
   ShieldCheck,
   Tag,
@@ -57,6 +59,17 @@ const NAV_SECTIONS = [
     ],
   },
   {
+    title: "Revenue",
+    items: [
+      {
+        label: "Revenue",
+        description: "MRR and plan breakdown",
+        href: "/platform/revenue",
+        icon: CreditCard,
+      },
+    ],
+  },
+  {
     title: "System",
     items: [
       {
@@ -70,6 +83,12 @@ const NAV_SECTIONS = [
         description: "Discount codes",
         href: "/platform/coupons",
         icon: Tag,
+      },
+      {
+        label: "Audit Log",
+        description: "Platform action trail",
+        href: "/platform/audit-log",
+        icon: ScrollText,
       },
     ],
   },
