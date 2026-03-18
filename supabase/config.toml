@@ -1,21 +1,17 @@
 project_id = "pxsutovdzppoyyfrbeaw"
 
-[functions.create-first-admin]
+# ── Public endpoints (no JWT required) ──────────────────────────
+# Login / auth flows
+[functions.patient-login]
 verify_jwt = false
 
-[functions.create-employee]
+[functions.employee-login]
 verify_jwt = false
 
-[functions.send-email]
+[functions.patient-request-password-reset]
 verify_jwt = false
 
-[functions.create-razorpay-order]
-verify_jwt = false
-
-[functions.razorpay-webhook]
-verify_jwt = false
-
-[functions.sync-api-keys]
+[functions.patient-reset-password]
 verify_jwt = false
 
 [functions.send-otp]
@@ -24,46 +20,8 @@ verify_jwt = false
 [functions.verify-otp]
 verify_jwt = false
 
-[functions.patient-login]
-verify_jwt = false
-
-[functions.employee-login]
-verify_jwt = false
-
-[functions.patient-set-password]
-verify_jwt = true
-
-[functions.patient-update-address]
-verify_jwt = true
-
-[functions.patient-request-password-reset]
-verify_jwt = false
-
-[functions.patient-reset-password]
-verify_jwt = false
-
-[functions.patient-admin-reset-password]
-verify_jwt = false
-
-[functions.log-visitor]
-verify_jwt = false
-
-[functions.send-whatsapp]
-verify_jwt = false
-
-[functions.whatsapp-webhook]
-verify_jwt = false
-
-[functions.employee-admin-reset-password]
-verify_jwt = false
-
+# Public forms
 [functions.submit-booking-request]
-verify_jwt = false
-
-[functions.provision-organization]
-verify_jwt = false
-
-[functions.check-onboarding-subdomain]
 verify_jwt = false
 
 [functions.submit-demo-request]
@@ -72,35 +30,99 @@ verify_jwt = false
 [functions.submit-onboarding-request]
 verify_jwt = false
 
-[functions.provision-onboarding-request]
+[functions.validate-coupon]
 verify_jwt = false
 
-[functions.abdm-scan-share]
+[functions.check-onboarding-subdomain]
 verify_jwt = false
 
+[functions.log-visitor]
+verify_jwt = false
+
+# Initial setup (one-time)
+[functions.create-first-admin]
+verify_jwt = false
+
+# Webhooks (called by external services)
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+# ABDM callbacks (called by ABDM gateway)
 [functions.abdm-profile-share]
 verify_jwt = false
 
 [functions.abdm-on-share]
 verify_jwt = false
 
-[functions.abdm-enroll-abha]
-verify_jwt = false
+# ── Protected endpoints (JWT required) ─────────────────────────
+# Patient actions (authenticated)
+[functions.patient-set-password]
+verify_jwt = true
 
-[functions.abdm-link-care-context]
-verify_jwt = false
+[functions.patient-update-address]
+verify_jwt = true
 
-[functions.abdm-running-token]
-verify_jwt = false
+# Admin actions
+[functions.create-employee]
+verify_jwt = true
 
-[functions.validate-coupon]
-verify_jwt = false
+[functions.employee-admin-reset-password]
+verify_jwt = true
 
-[functions.create-plan-upgrade-order]
-verify_jwt = false
+[functions.patient-admin-reset-password]
+verify_jwt = true
 
-[functions.confirm-plan-upgrade]
-verify_jwt = false
+# Platform admin actions
+[functions.provision-onboarding-request]
+verify_jwt = true
+
+[functions.provision-organization]
+verify_jwt = true
+
+[functions.platform-impersonate-org]
+verify_jwt = true
+
+[functions.check-domain-dns]
+verify_jwt = true
+
+[functions.register-pages-domain]
+verify_jwt = true
+
+[functions.sync-api-keys]
+verify_jwt = true
+
+# Payment flows (authenticated)
+[functions.create-razorpay-order]
+verify_jwt = true
 
 [functions.confirm-razorpay-payment]
-verify_jwt = false
+verify_jwt = true
+
+[functions.create-plan-upgrade-order]
+verify_jwt = true
+
+[functions.confirm-plan-upgrade]
+verify_jwt = true
+
+# Messaging (internal, authenticated)
+[functions.send-email]
+verify_jwt = true
+
+[functions.send-whatsapp]
+verify_jwt = true
+
+# ABDM actions (authenticated staff)
+[functions.abdm-scan-share]
+verify_jwt = true
+
+[functions.abdm-enroll-abha]
+verify_jwt = true
+
+[functions.abdm-link-care-context]
+verify_jwt = true
+
+[functions.abdm-running-token]
+verify_jwt = true
