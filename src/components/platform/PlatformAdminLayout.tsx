@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { platformBranding } from "@/lib/platformBranding";
 import { useAuth } from "@/hooks/useAuth";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { NotificationBell } from "@/components/platform/NotificationBell";
 
 const NAV_SECTIONS = [
   {
@@ -131,9 +132,12 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
     <div className="overflow-hidden rounded-[28px] bg-slate-950 text-slate-100 shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Platform Admin
+        <div className="flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Platform Admin
+          </div>
+          <NotificationBell />
         </div>
         <h1 className="mt-4 font-heading text-2xl font-bold tracking-tight text-white">
           {platformBranding.productName}

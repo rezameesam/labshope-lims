@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
+import { useNotificationTrigger } from "@/hooks/useNotificationTrigger";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +87,7 @@ const DEFAULT_COUNTS: PlatformCounts = {
 
 const PlatformDashboard = () => {
   const navigate = useNavigate();
+  const { createNotification } = useNotificationTrigger();
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<PlatformCounts>(DEFAULT_COUNTS);
   const [recentLeads, setRecentLeads] = useState<PlatformLead[]>([]);
@@ -236,12 +238,38 @@ const PlatformDashboard = () => {
 
     const channel = supabase
       .channel("platform-dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "platform_demo_requests" }, () => {
-        void loadDashboard();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "platform_onboarding_requests" }, () => {
-        void loadDashboard();
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "platform_demo_requests" },
+        (payload: { eventType: string; new: Record<string, unknown> }) => {
+          void loadDashboard();
+          if (payload.eventType === "INSERT") {
+            const row = payload.new;
+            void createNotification({
+              title: "New demo request",
+              description: `${String(row.full_name ?? "Someone")} from ${String(row.lab_name ?? "a lab")} submitted a demo request.`,
+              type: "lead",
+              link: "/platform/leads",
+            });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "platform_onboarding_requests" },
+        (payload: { eventType: string; new: Record<string, unknown> }) => {
+          void loadDashboard();
+          if (payload.eventType === "INSERT") {
+            const row = payload.new;
+            void createNotification({
+              title: "New onboarding request",
+              description: `${String(row.organization_name ?? "An organization")} submitted an onboarding request.`,
+              type: "onboarding",
+              link: "/platform/onboarding",
+            });
+          }
+        }
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "organizations" }, () => {
         void loadDashboard();
       })
@@ -250,7 +278,7 @@ const PlatformDashboard = () => {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadDashboard]);
+  }, [loadDashboard, createNotification]);
 
   const attentionItems = useMemo(
     () =>
