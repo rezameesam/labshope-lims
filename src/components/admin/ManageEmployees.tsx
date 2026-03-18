@@ -396,11 +396,15 @@ const ManageEmployees = () => {
     if (mode === "set" && customResetPassword.length < 6) { toast.error("Min 6 characters"); return; }
     setResetLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Must be signed in");
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/employee-admin-reset-password`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ employee_id: selectedEmployee.id, reset_base_url: `${window.location.origin}/staff/reset-password`, mode, ...(mode === "set" ? { custom_password: customResetPassword } : {}) }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed");
+      const { data: result, error: fnError } = await supabase.functions.invoke("employee-admin-reset-password", {
+        body: {
+          employee_id: selectedEmployee.id,
+          reset_base_url: `${window.location.origin}/staff/reset-password`,
+          mode,
+          ...(mode === "set" ? { custom_password: customResetPassword } : {}),
+        },
+      });
+      if (fnError) throw fnError;
       if (mode === "temp") toast.success(`Temporary password: ${result.temp_password}`);
       else if (mode === "set") toast.success("Custom password set");
       else toast.success("Reset link sent");
