@@ -80,16 +80,26 @@ serve(async (req: Request): Promise<Response> => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: roleData, error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
+    const { data: platformAdminData } = await supabaseAdmin
+      .from("platform_admins")
+      .select("user_id")
       .eq("user_id", userData.user.id)
-      .eq("role", "admin")
-      .single();
+      .maybeSingle();
+
+    const isPlatformAdmin = Boolean(platformAdminData?.user_id);
+
+    const { data: roleData, error: roleError } = isPlatformAdmin
+      ? { data: { role: "admin" }, error: null }
+      : await supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userData.user.id)
+          .eq("role", "admin")
+          .single();
 
     if (roleError || !roleData) {
       return new Response(
-        JSON.stringify({ error: "Only admins can reset employee passwords." }),
+        JSON.stringify({ error: "Only organization admins or platform admins can reset employee passwords." }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -131,13 +141,15 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { data: organizationAccess } = await supabaseAdmin
-      .from("organization_users")
-      .select("organization_id")
-      .eq("user_id", userData.user.id)
-      .eq("organization_id", employeeRecord.organization_id)
-      .eq("is_active", true)
-      .limit(1);
+    const { data: organizationAccess } = isPlatformAdmin
+      ? { data: [{ organization_id: employeeRecord.organization_id }] }
+      : await supabaseAdmin
+          .from("organization_users")
+          .select("organization_id")
+          .eq("user_id", userData.user.id)
+          .eq("organization_id", employeeRecord.organization_id)
+          .eq("is_active", true)
+          .limit(1);
 
     if (!organizationAccess || organizationAccess.length === 0) {
       return new Response(
