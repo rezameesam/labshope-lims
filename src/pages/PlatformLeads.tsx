@@ -5,7 +5,6 @@ import PlatformRoute from "@/components/platform/PlatformRoute";
 import { formatAppDateTime } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { DataPagination } from "@/components/ui/data-pagination";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -23,35 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-
-type PlatformLead = {
-  id: string;
-  created_at: string;
-  updated_at: string | null;
-  full_name: string;
-  lab_name: string;
-  email: string;
-  phone: string;
-  city: string | null;
-  branch_count: number | null;
-  notes: string | null;
-  status_notes: string | null;
-  status: string;
-  contacted_at: string | null;
-  qualified_at: string | null;
-  closed_at: string | null;
-  assigned_to: string | null;
-  assigned_at: string | null;
-  next_follow_up_at: string | null;
-  hostname: string | null;
-  page_path: string | null;
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-};
+import {
+  usePlatformLeads,
+  useUpdatePlatformLead,
+  useConvertLeadToOnboarding,
+  type PlatformLead,
+} from "@/hooks/queries/usePlatformLeads";
 
 type ConvertDialogData = {
   organization_name: string;
@@ -78,8 +56,10 @@ const PAGE_SIZE = 20;
 
 const PlatformLeads = () => {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [leads, setLeads] = useState<PlatformLead[]>([]);
+  const { data: leads = [], isLoading: loading, refetch } = usePlatformLeads();
+  const updateLeadMutation = useUpdatePlatformLead();
+  const convertMutation = useConvertLeadToOnboarding();
+
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [draftStatusNotes, setDraftStatusNotes] = useState<Record<string, string>>({});
   const [draftFollowUpAt, setDraftFollowUpAt] = useState<Record<string, string>>({});
@@ -87,7 +67,6 @@ const PlatformLeads = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [page, setPage] = useState(1);
 
-  // Convert to onboarding dialog state
   const [convertLead, setConvertLead] = useState<PlatformLead | null>(null);
   const [convertData, setConvertData] = useState<ConvertDialogData>({
     organization_name: "",
@@ -98,18 +77,35 @@ const PlatformLeads = () => {
     branch_count: 1,
     selected_plan: "starter",
   });
-  const [converting, setConverting] = useState(false);
+
+  const converting = convertMutation.isPending;
+
+  // Initialize draft states for newly loaded leads without overwriting uncommitted edits
+  useEffect(() => {
+    setDraftStatusNotes((current) => {
+      const next = { ...current };
+      for (const lead of leads) {
+        if (!(lead.id in next)) {
+          next[lead.id] = lead.status_notes || "";
+        }
+      }
+      return next;
+    });
+    setDraftFollowUpAt((current) => {
+      const next = { ...current };
+      for (const lead of leads) {
+        if (!(lead.id in next)) {
+          next[lead.id] = toDateTimeLocalValue(lead.next_follow_up_at);
+        }
+      }
+      return next;
+    });
+  }, [leads]);
 
   const toDateTimeLocalValue = (value: string | null) => {
-    if (!value) {
-      return "";
-    }
-
+    if (!value) return "";
     const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-      return "";
-    }
-
+    if (Number.isNaN(parsed.getTime())) return "";
     const year = parsed.getFullYear();
     const month = String(parsed.getMonth() + 1).padStart(2, "0");
     const day = String(parsed.getDate()).padStart(2, "0");
@@ -119,47 +115,10 @@ const PlatformLeads = () => {
   };
 
   const fromDateTimeLocalValue = (value: string) => {
-    if (!value) {
-      return null;
-    }
-
+    if (!value) return null;
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   };
-
-  const loadLeads = async () => {
-    setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from("platform_demo_requests")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error("Error loading platform demo requests:", error);
-      toast.error("Failed to load demo requests.");
-    } else {
-      const nextLeads = (data || []) as PlatformLead[];
-      setLeads(nextLeads);
-      setDraftStatusNotes(
-        nextLeads.reduce<Record<string, string>>((accumulator, lead) => {
-          accumulator[lead.id] = lead.status_notes || "";
-          return accumulator;
-        }, {}),
-      );
-      setDraftFollowUpAt(
-        nextLeads.reduce<Record<string, string>>((accumulator, lead) => {
-          accumulator[lead.id] = toDateTimeLocalValue(lead.next_follow_up_at);
-          return accumulator;
-        }, {}),
-      );
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    void loadLeads();
-  }, []);
 
   const metrics = useMemo(() => {
     const newCount = leads.filter((lead) => lead.status === "new").length;
@@ -168,19 +127,11 @@ const PlatformLeads = () => {
     ).length;
     const assignedToMeCount = leads.filter((lead) => lead.assigned_to === user?.id).length;
     const dueFollowUpsCount = leads.filter((lead) => {
-      if (!lead.next_follow_up_at) {
-        return false;
-      }
+      if (!lead.next_follow_up_at) return false;
       return new Date(lead.next_follow_up_at).getTime() <= Date.now();
     }).length;
 
-    return {
-      total: leads.length,
-      newCount,
-      attributedCount,
-      assignedToMeCount,
-      dueFollowUpsCount,
-    };
+    return { total: leads.length, newCount, attributedCount, assignedToMeCount, dueFollowUpsCount };
   }, [leads, user?.id]);
 
   const filteredLeads = useMemo(() => {
@@ -189,36 +140,16 @@ const PlatformLeads = () => {
     return leads.filter((lead) => {
       const matchesSearch =
         !normalizedSearch ||
-        [
-          lead.full_name,
-          lead.lab_name,
-          lead.email,
-          lead.phone,
-          lead.city,
-          lead.utm_source,
-          lead.utm_campaign,
-        ]
+        [lead.full_name, lead.lab_name, lead.email, lead.phone, lead.city, lead.utm_source, lead.utm_campaign]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(normalizedSearch));
 
-      if (!matchesSearch) {
-        return false;
-      }
-
-      if (quickFilter === "new") {
-        return lead.status === "new";
-      }
-
-      if (quickFilter === "mine") {
-        return lead.assigned_to === user?.id;
-      }
-
+      if (!matchesSearch) return false;
+      if (quickFilter === "new") return lead.status === "new";
+      if (quickFilter === "mine") return lead.assigned_to === user?.id;
       if (quickFilter === "due") {
-        return Boolean(
-          lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() <= Date.now(),
-        );
+        return Boolean(lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() <= Date.now());
       }
-
       return true;
     });
   }, [leads, quickFilter, searchTerm, user?.id]);
@@ -237,28 +168,10 @@ const PlatformLeads = () => {
     }
 
     const headers = [
-      "created_at",
-      "status",
-      "full_name",
-      "lab_name",
-      "email",
-      "phone",
-      "city",
-      "branch_count",
-      "hostname",
-      "page_path",
-      "utm_source",
-      "utm_medium",
-      "utm_campaign",
-      "updated_at",
-      "contacted_at",
-      "qualified_at",
-      "closed_at",
-      "assigned_to",
-      "assigned_at",
-      "next_follow_up_at",
-      "status_notes",
-      "notes",
+      "created_at", "status", "full_name", "lab_name", "email", "phone", "city",
+      "branch_count", "hostname", "page_path", "utm_source", "utm_medium", "utm_campaign",
+      "updated_at", "contacted_at", "qualified_at", "closed_at", "assigned_to",
+      "assigned_at", "next_follow_up_at", "status_notes", "notes",
     ];
 
     const rows = filteredLeads.map((lead) =>
@@ -281,38 +194,25 @@ const PlatformLeads = () => {
 
   const updateLead = async (
     leadId: string,
-    updates: Partial<Pick<PlatformLead, "status" | "status_notes" | "assigned_to" | "next_follow_up_at">>,
+    updates: Parameters<typeof updateLeadMutation.mutateAsync>[0]["updates"],
     successMessage: string,
   ) => {
     setUpdatingLeadId(leadId);
-    const { data, error } = await (supabase as any)
-      .from("platform_demo_requests")
-      .update(updates)
-      .eq("id", leadId)
-      .select("*")
-      .single();
-    const nextLead = data || null;
-
-    if (error) {
-      console.error("Error updating platform lead:", error);
-      toast.error("Failed to update lead.");
-    } else {
-      setLeads((current) =>
-        current.map((lead) => (lead.id === leadId ? { ...lead, ...(nextLead || updates) } : lead)),
-      );
-      if (nextLead?.status_notes !== undefined) {
-        setDraftStatusNotes((current) => ({
-          ...current,
-          [leadId]: nextLead.status_notes || "",
-        }));
+    try {
+      const updated = await updateLeadMutation.mutateAsync({ leadId, updates });
+      // Sync draft state from the server response
+      if (updated.status_notes !== undefined) {
+        setDraftStatusNotes((current) => ({ ...current, [leadId]: updated.status_notes || "" }));
       }
-      if (nextLead?.next_follow_up_at !== undefined) {
+      if (updated.next_follow_up_at !== undefined) {
         setDraftFollowUpAt((current) => ({
           ...current,
-          [leadId]: toDateTimeLocalValue(nextLead.next_follow_up_at),
+          [leadId]: toDateTimeLocalValue(updated.next_follow_up_at),
         }));
       }
       toast.success(successMessage);
+    } catch {
+      toast.error("Failed to update lead.");
     }
     setUpdatingLeadId(null);
   };
@@ -322,18 +222,11 @@ const PlatformLeads = () => {
   };
 
   const saveStatusNotes = async (leadId: string) => {
-    await updateLead(
-      leadId,
-      { status_notes: draftStatusNotes[leadId] || "" },
-      "Follow-up notes saved.",
-    );
+    await updateLead(leadId, { status_notes: draftStatusNotes[leadId] || "" }, "Follow-up notes saved.");
   };
 
   const assignToCurrentUser = async (leadId: string) => {
-    if (!user?.id) {
-      return;
-    }
-
+    if (!user?.id) return;
     await updateLead(leadId, { assigned_to: user.id }, "Lead assigned.");
   };
 
@@ -360,10 +253,8 @@ const PlatformLeads = () => {
 
   const handleConvertToOnboarding = async () => {
     if (!convertLead) return;
-    setConverting(true);
-    const { error } = await (supabase as any)
-      .from("platform_onboarding_requests")
-      .insert({
+    try {
+      await convertMutation.mutateAsync({
         organization_name: convertData.organization_name,
         owner_full_name: convertData.owner_full_name,
         owner_email: convertData.owner_email,
@@ -371,21 +262,15 @@ const PlatformLeads = () => {
         city: convertData.city,
         branch_count: convertData.branch_count,
         selected_plan: convertData.selected_plan,
-        setup_mode: "assisted",
-        status: "reviewing",
         utm_source: convertLead.utm_source,
         utm_medium: convertLead.utm_medium,
         utm_campaign: convertLead.utm_campaign,
       });
-
-    if (error) {
-      console.error("Error creating onboarding request:", error);
-      toast.error("Failed to create onboarding request.");
-    } else {
       toast.success("Onboarding request created.");
       setConvertLead(null);
+    } catch {
+      toast.error("Failed to create onboarding request.");
     }
-    setConverting(false);
   };
 
   const isFollowUpOverdue = (next_follow_up_at: string | null): boolean => {
@@ -409,7 +294,7 @@ const PlatformLeads = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => void loadLeads()} disabled={loading}>
+            <Button variant="outline" onClick={() => void refetch()} disabled={loading}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
@@ -446,7 +331,9 @@ const PlatformLeads = () => {
         <div className="mt-8 rounded-3xl border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-1 flex-col gap-4 sm:flex-row">
+              <label htmlFor="leads-search" className="sr-only">Search leads</label>
               <Input
+                id="leads-search"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search by lead, lab, email, phone, city, or campaign"

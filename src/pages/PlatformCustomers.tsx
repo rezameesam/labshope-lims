@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, ExternalLink, Globe2, Loader2, RefreshCw, Search, Users } from "lucide-react";
+import { Building2, ExternalLink, Globe2, RefreshCw, Search } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/skeleton-card";
 import { SkeletonTable } from "@/components/ui/skeleton-table";
 import PlatformRoute from "@/components/platform/PlatformRoute";
@@ -11,108 +11,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/integrations/supabase/client";
 import { formatAppDateTime } from "@/lib/date";
+import {
+  usePlatformCustomers,
+  isFullyConnected,
+  type CustomerRecord,
+} from "@/hooks/queries/usePlatformCustomers";
 import { toast } from "sonner";
-
-type OrganizationRow = {
-  id: string;
-  slug: string;
-  display_name: string;
-  status: string;
-  created_at: string;
-};
-
-type OrganizationDomain = {
-  id: string;
-  organization_id: string;
-  domain: string;
-  is_primary: boolean;
-  verified_at: string | null;
-};
-
-type OrganizationSettingRow = {
-  organization_id: string;
-  setting_key: string;
-  setting_value: string | null;
-};
-
-type OnboardingRow = {
-  id: string;
-  organization_name: string;
-  selected_plan: "starter" | "growth" | "premium";
-  setup_mode: "self_serve" | "assisted";
-  provisioned_organization_id: string | null;
-  custom_domain: string | null;
-  status: string;
-  created_at: string;
-};
-
-type AggregateRow = {
-  organization_id: string | null;
-};
-
-type PaymentAggregateRow = {
-  organization_id: string | null;
-  amount: number | null;
-};
-
-type OrgHealth = {
-  email: boolean;
-  whatsapp: boolean;
-  payment: boolean;
-  domain: boolean;
-  abdm: boolean;
-};
-
-type CustomerRecord = {
-  id: string;
-  slug: string;
-  displayName: string;
-  status: string;
-  createdAt: string;
-  selectedPlan: "starter" | "growth" | "premium" | "unassigned";
-  setupMode: "self_serve" | "assisted" | "unknown";
-  onboardingStatus: string | null;
-  primaryDomain: string | null;
-  fallbackDomain: string | null;
-  customDomainConnected: boolean;
-  customDomainPending: boolean;
-  labsCount: number;
-  patientsCount: number;
-  invoicesCount: number;
-  paymentsTotal: number;
-  onboardingRequestId: string | null;
-  health: OrgHealth;
-};
-
-function getOrgHealth(
-  orgId: string,
-  settingsMap: Map<string, Map<string, string>>,
-  domains: OrganizationDomain[],
-): OrgHealth {
-  const s = settingsMap.get(orgId) || new Map<string, string>();
-  return {
-    email: !!(
-      s.get("resend_api_key") ||
-      s.get("sendgrid_api_key") ||
-      s.get("mailjet_api_key") ||
-      s.get("mailgun_api_key")
-    ),
-    whatsapp: !!(s.get("whatsapp_phone_number_id")),
-    payment: !!(s.get("razorpay_key_id")),
-    domain: domains.some(
-      (d) => d.organization_id === orgId && d.verified_at && d.is_primary,
-    ),
-    abdm: !!(
-      s.get("abdm_enabled") === "true" &&
-      s.get("abdm_hip_id")?.trim() &&
-      s.get("abdm_facility_id")?.trim() &&
-      s.get("abdm_client_id")?.trim() &&
-      s.get("abdm_client_secret")?.trim()
-    ),
-  };
-}
 
 const planOptions = ["all", "starter", "growth", "premium", "unassigned"] as const;
 type PlanFilter = (typeof planOptions)[number];
@@ -122,10 +27,6 @@ type StatusFilter = (typeof statusOptions)[number];
 
 const healthOptions = ["all", "fully_connected", "has_issues"] as const;
 type HealthFilter = (typeof healthOptions)[number];
-
-function isFullyConnected(health: OrgHealth): boolean {
-  return health.email && health.whatsapp && health.payment && health.domain && health.abdm;
-}
 
 function getPlanBadgeClass(plan: CustomerRecord["selectedPlan"]): string {
   switch (plan) {
@@ -144,8 +45,7 @@ function getPlanBadgeClass(plan: CustomerRecord["selectedPlan"]): string {
 
 const PlatformCustomers = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const { data: customers = [], isLoading: loading, refetch, error } = usePlatformCustomers();
   const [searchTerm, setSearchTerm] = useState("");
   const [planFilter, setPlanFilter] = useState<PlanFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -153,182 +53,17 @@ const PlatformCustomers = () => {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
 
-  const loadCustomers = async () => {
-    setLoading(true);
-
-    const [
-      organizationsResult,
-      domainsResult,
-      onboardingResult,
-      labsResult,
-      patientsResult,
-      invoicesResult,
-      paymentsResult,
-    ] = await Promise.all([
-      (supabase as any)
-        .from("organizations")
-        .select("id, slug, display_name, status, created_at")
-        .order("created_at", { ascending: false }),
-      (supabase as any)
-        .from("organization_domains")
-        .select("id, organization_id, domain, is_primary, verified_at"),
-      (supabase as any)
-        .from("platform_onboarding_requests")
-        .select("id, organization_name, selected_plan, setup_mode, provisioned_organization_id, custom_domain, status, created_at")
-        .not("provisioned_organization_id", "is", null)
-        .order("created_at", { ascending: false }),
-      (supabase as any).from("labs").select("organization_id"),
-      (supabase as any).from("patients").select("organization_id"),
-      (supabase as any).from("invoices").select("organization_id"),
-      (supabase as any).from("payments").select("organization_id, amount"),
-    ]);
-
-    if (
-      organizationsResult.error ||
-      domainsResult.error ||
-      onboardingResult.error ||
-      labsResult.error ||
-      patientsResult.error ||
-      invoicesResult.error ||
-      paymentsResult.error
-    ) {
-      console.error("Error loading platform customers:", {
-        organizationsError: organizationsResult.error,
-        domainsError: domainsResult.error,
-        onboardingError: onboardingResult.error,
-        labsError: labsResult.error,
-        patientsError: patientsResult.error,
-        invoicesError: invoicesResult.error,
-        paymentsError: paymentsResult.error,
-      });
-      toast.error("Failed to load platform customers.");
-      setLoading(false);
-      return;
-    }
-
-    const organizations = (organizationsResult.data || []) as OrganizationRow[];
-    const domains = (domainsResult.data || []) as OrganizationDomain[];
-    const onboarding = (onboardingResult.data || []) as OnboardingRow[];
-    const labs = (labsResult.data || []) as AggregateRow[];
-    const patients = (patientsResult.data || []) as AggregateRow[];
-    const invoices = (invoicesResult.data || []) as AggregateRow[];
-    const payments = (paymentsResult.data || []) as PaymentAggregateRow[];
-
-    // Fetch organization_settings for all orgs in one query
-    const orgIds = organizations.map((o) => o.id);
-    let allSettings: OrganizationSettingRow[] = [];
-    if (orgIds.length > 0) {
-      const { data: settingsData } = await (supabase as any)
-        .from("organization_settings")
-        .select("organization_id, setting_key, setting_value")
-        .in("organization_id", orgIds);
-      allSettings = (settingsData || []) as OrganizationSettingRow[];
-    }
-
-    // Build settingsMap: Map<orgId, Map<key, value>>
-    const settingsMap = new Map<string, Map<string, string>>();
-    for (const row of allSettings) {
-      if (!row.organization_id) continue;
-      if (!settingsMap.has(row.organization_id)) {
-        settingsMap.set(row.organization_id, new Map<string, string>());
-      }
-      if (row.setting_value != null) {
-        settingsMap.get(row.organization_id)!.set(row.setting_key, row.setting_value);
-      }
-    }
-
-    const countByOrganization = (rows: AggregateRow[]) =>
-      rows.reduce<Record<string, number>>((accumulator, row) => {
-        if (!row.organization_id) {
-          return accumulator;
-        }
-        accumulator[row.organization_id] = (accumulator[row.organization_id] || 0) + 1;
-        return accumulator;
-      }, {});
-
-    const paymentsByOrganization = payments.reduce<Record<string, number>>((accumulator, row) => {
-      if (!row.organization_id) {
-        return accumulator;
-      }
-      accumulator[row.organization_id] = (accumulator[row.organization_id] || 0) + Number(row.amount || 0);
-      return accumulator;
-    }, {});
-
-    const latestOnboardingByOrganization = onboarding.reduce<Record<string, OnboardingRow>>((accumulator, row) => {
-      if (!row.provisioned_organization_id || accumulator[row.provisioned_organization_id]) {
-        return accumulator;
-      }
-      accumulator[row.provisioned_organization_id] = row;
-      return accumulator;
-    }, {});
-
-    const labsCount = countByOrganization(labs);
-    const patientsCount = countByOrganization(patients);
-    const invoicesCount = countByOrganization(invoices);
-
-    const nextCustomers = organizations.map((organization) => {
-      const organizationDomains = domains.filter((domain) => domain.organization_id === organization.id);
-      const primaryDomain = organizationDomains.find((domain) => domain.is_primary) || null;
-      const fallbackDomain =
-        organizationDomains.find((domain) => !domain.is_primary) ||
-        organizationDomains.find((domain) => domain.domain.endsWith(".localhost")) ||
-        null;
-      const onboardingRequest = latestOnboardingByOrganization[organization.id] || null;
-      const hasCustomPrimaryDomain = Boolean(primaryDomain && !primaryDomain.domain.endsWith(".localhost"));
-
-      // Resolve plan: prefer organization_settings plan_tier, fallback to onboarding request
-      const settingsForOrg = settingsMap.get(organization.id);
-      const planTierFromSettings = settingsForOrg?.get("plan_tier") as CustomerRecord["selectedPlan"] | undefined;
-      const resolvedPlan: CustomerRecord["selectedPlan"] =
-        planTierFromSettings && ["starter", "growth", "premium"].includes(planTierFromSettings)
-          ? planTierFromSettings
-          : onboardingRequest?.selected_plan || "unassigned";
-
-      const health = getOrgHealth(organization.id, settingsMap, domains);
-
-      return {
-        id: organization.id,
-        slug: organization.slug,
-        displayName: organization.display_name,
-        status: organization.status,
-        createdAt: organization.created_at,
-        selectedPlan: resolvedPlan,
-        setupMode: onboardingRequest?.setup_mode || "unknown",
-        onboardingStatus: onboardingRequest?.status || null,
-        primaryDomain: primaryDomain?.domain || null,
-        fallbackDomain: fallbackDomain?.domain || null,
-        customDomainConnected: Boolean(hasCustomPrimaryDomain && primaryDomain?.verified_at),
-        customDomainPending: Boolean(hasCustomPrimaryDomain && !primaryDomain?.verified_at),
-        labsCount: labsCount[organization.id] || 0,
-        patientsCount: patientsCount[organization.id] || 0,
-        invoicesCount: invoicesCount[organization.id] || 0,
-        paymentsTotal: paymentsByOrganization[organization.id] || 0,
-        onboardingRequestId: onboardingRequest?.id || null,
-        health,
-      } satisfies CustomerRecord;
-    });
-
-    setCustomers(nextCustomers);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    void loadCustomers();
-  }, []);
+  if (error) {
+    toast.error("Failed to load platform customers.");
+  }
 
   const metrics = useMemo(() => {
-    const connected = customers.filter((customer) => customer.customDomainConnected).length;
-    const pendingDns = customers.filter((customer) => customer.customDomainPending).length;
-    const selfServe = customers.filter((customer) => customer.setupMode === "self_serve").length;
-    const fullyConnected = customers.filter((customer) => isFullyConnected(customer.health)).length;
+    const connected = customers.filter((c) => c.customDomainConnected).length;
+    const pendingDns = customers.filter((c) => c.customDomainPending).length;
+    const selfServe = customers.filter((c) => c.setupMode === "self_serve").length;
+    const fullyConnected = customers.filter((c) => isFullyConnected(c.health)).length;
 
-    return {
-      total: customers.length,
-      connected,
-      pendingDns,
-      selfServe,
-      fullyConnected,
-    };
+    return { total: customers.length, connected, pendingDns, selfServe, fullyConnected };
   }, [customers]);
 
   const filteredCustomers = useMemo(() => {
@@ -341,39 +76,16 @@ const PlatformCustomers = () => {
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(normalizedSearch));
 
-      if (!matchesSearch) {
-        return false;
-      }
-
-      if (planFilter !== "all" && customer.selectedPlan !== planFilter) {
-        return false;
-      }
-
-      if (statusFilter === "connected") {
-        return customer.customDomainConnected;
-      }
-
-      if (statusFilter === "pending_dns") {
-        return customer.customDomainPending;
-      }
-
-      if (statusFilter === "fallback_only") {
-        return !customer.customDomainConnected && !customer.customDomainPending;
-      }
-
-      if (healthFilter === "fully_connected") {
-        return isFullyConnected(customer.health);
-      }
-
-      if (healthFilter === "has_issues") {
-        return !isFullyConnected(customer.health);
-      }
-
+      if (!matchesSearch) return false;
+      if (planFilter !== "all" && customer.selectedPlan !== planFilter) return false;
+      if (statusFilter === "connected") return customer.customDomainConnected;
+      if (statusFilter === "pending_dns") return customer.customDomainPending;
+      if (statusFilter === "fallback_only") return !customer.customDomainConnected && !customer.customDomainPending;
+      if (healthFilter === "fully_connected") return isFullyConnected(customer.health);
+      if (healthFilter === "has_issues") return !isFullyConnected(customer.health);
       return true;
     });
   }, [customers, planFilter, searchTerm, statusFilter, healthFilter]);
-
-  useEffect(() => { setPage(1); }, [searchTerm, planFilter, statusFilter, healthFilter]);
 
   const pagedCustomers = useMemo(
     () => filteredCustomers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -414,7 +126,7 @@ const PlatformCustomers = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" onClick={() => void loadCustomers()}>
+                  <Button variant="outline" onClick={() => void refetch()}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh
                   </Button>
@@ -461,6 +173,7 @@ const PlatformCustomers = () => {
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_180px_180px]">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <label htmlFor="customer-search" className="sr-only">Search customers</label>
                   <Input
                     id="customer-search"
                     name="customer-search"
