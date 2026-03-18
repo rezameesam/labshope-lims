@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Download, ExternalLink, Loader2, RefreshCw, Rocket, Save, UserCheck } from "lucide-react";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { formatAppDateTime } from "@/lib/date";
@@ -7,54 +8,19 @@ import { DataPagination } from "@/components/ui/data-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { toast } from "sonner";
-
-type PlatformOnboardingRequest = {
-  id: string;
-  created_at: string;
-  updated_at: string | null;
-  status: "new" | "reviewing" | "approved" | "closed";
-  status_notes: string | null;
-  assigned_to: string | null;
-  assigned_at: string | null;
-  next_follow_up_at: string | null;
-  reviewing_at: string | null;
-  approved_at: string | null;
-  closed_at: string | null;
-  resolved_slug: string | null;
-  resolved_domain: string | null;
-  resolved_access_domain: string | null;
-  provisioned_organization_id: string | null;
-  provisioned_lab_id: string | null;
-  provisioned_owner_user_id: string | null;
-  provisioned_by: string | null;
-  provisioned_at: string | null;
-  provisioning_error: string | null;
-  selected_plan: "starter" | "growth" | "premium";
-  setup_mode: "self_serve" | "assisted";
-  organization_name: string;
-  primary_lab_name: string | null;
-  owner_full_name: string;
-  owner_email: string;
-  owner_phone: string;
-  city: string | null;
-  custom_domain: string | null;
-  branch_count: number;
-  preferred_subdomain: string | null;
-  go_live_target: string | null;
-  needs_data_import: boolean;
-  needs_white_label: boolean;
-  notes: string | null;
-  coupon_code: string | null;
-  hostname: string | null;
-  page_path: string | null;
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-};
+import {
+  usePlatformOnboarding,
+  useUpdateOnboardingRequest,
+  useProvisionOnboardingRequest,
+  useToggleDomainVerification,
+  PLATFORM_ONBOARDING_QUERY_KEY,
+  type PlatformOnboardingRequest,
+  type PlatformDomainRecord,
+  type OnboardingRequestUpdates,
+} from "@/hooks/queries/usePlatformOnboarding";
 
 type ProvisioningResult = {
   organization_id: string;
@@ -70,14 +36,6 @@ type ProvisioningResult = {
   staff_login_url: string;
   patient_login_url: string;
   booking_url: string;
-};
-
-type PlatformDomainRecord = {
-  id: string;
-  organization_id: string;
-  domain: string;
-  is_primary: boolean;
-  verified_at: string | null;
 };
 
 const statusOptions: PlatformOnboardingRequest["status"][] = ["new", "reviewing", "approved", "closed"];
@@ -100,12 +58,22 @@ const planClass: Record<string, string> = {
 const PlatformOnboarding = () => {
   const { user } = useAuth();
   const { logAction } = useAuditLog();
-  const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<PlatformOnboardingRequest[]>([]);
+  const queryClient = useQueryClient();
+
+  // Data via React Query
+  const { data: onboardingData, isLoading: loading } = usePlatformOnboarding();
+  const requests = onboardingData?.requests ?? [];
+  const organizationDomains = onboardingData?.organizationDomains ?? {};
+
+  // Mutations
+  const updateMutation = useUpdateOnboardingRequest();
+  const provisionMutation = useProvisionOnboardingRequest();
+  const toggleDomainMutation = useToggleDomainVerification();
+
+  // UI-only state
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
   const [provisioningResults, setProvisioningResults] = useState<Record<string, ProvisioningResult>>({});
-  const [organizationDomains, setOrganizationDomains] = useState<Record<string, PlatformDomainRecord[]>>({});
   const [draftStatusNotes, setDraftStatusNotes] = useState<Record<string, string>>({});
   const [draftFollowUpAt, setDraftFollowUpAt] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState("");
@@ -167,69 +135,24 @@ const PlatformOnboarding = () => {
     };
   };
 
-  const loadRequests = async () => {
-    setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from("platform_onboarding_requests")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error("Error loading onboarding requests:", error);
-      toast.error("Failed to load onboarding requests.");
-    } else {
-      const nextRequests = (data || []) as PlatformOnboardingRequest[];
-      const provisionedOrganizationIds = Array.from(
-        new Set(
-          nextRequests
-            .map((request) => request.provisioned_organization_id)
-            .filter((value): value is string => Boolean(value))
-        )
-      );
-
-      if (provisionedOrganizationIds.length > 0) {
-        const { data: domainsData, error: domainsError } = await (supabase as any)
-          .from("organization_domains")
-          .select("id, organization_id, domain, is_primary, verified_at")
-          .in("organization_id", provisionedOrganizationIds);
-
-        if (domainsError) {
-          console.error("Error loading organization domains for onboarding requests:", domainsError);
-        } else {
-          const nextDomains = ((domainsData || []) as PlatformDomainRecord[]).reduce<Record<string, PlatformDomainRecord[]>>(
-            (accumulator, domain) => {
-              accumulator[domain.organization_id] = [...(accumulator[domain.organization_id] || []), domain];
-              return accumulator;
-            },
-            {},
-          );
-          setOrganizationDomains(nextDomains);
-        }
-      } else {
-        setOrganizationDomains({});
-      }
-
-      setRequests(nextRequests);
-      setDraftStatusNotes(
-        nextRequests.reduce<Record<string, string>>((accumulator, request) => {
-          accumulator[request.id] = request.status_notes || "";
-          return accumulator;
-        }, {}),
-      );
-      setDraftFollowUpAt(
-        nextRequests.reduce<Record<string, string>>((accumulator, request) => {
-          accumulator[request.id] = toDateTimeLocalValue(request.next_follow_up_at);
-          return accumulator;
-        }, {}),
-      );
-    }
-    setLoading(false);
-  };
-
+  // Initialize draft fields for newly loaded requests (preserves in-progress edits)
   useEffect(() => {
-    void loadRequests();
-  }, []);
+    if (!requests.length) return;
+    setDraftStatusNotes((current) => {
+      const next = { ...current };
+      for (const r of requests) {
+        if (!(r.id in next)) next[r.id] = r.status_notes ?? "";
+      }
+      return next;
+    });
+    setDraftFollowUpAt((current) => {
+      const next = { ...current };
+      for (const r of requests) {
+        if (!(r.id in next)) next[r.id] = toDateTimeLocalValue(r.next_follow_up_at);
+      }
+      return next;
+    });
+  }, [requests]);
 
   const metrics = useMemo(() => {
     const newCount = requests.filter((request) => request.status === "new").length;
@@ -379,42 +302,24 @@ const PlatformOnboarding = () => {
 
   const updateRequest = async (
     requestId: string,
-    updates: Partial<
-      Pick<
-        PlatformOnboardingRequest,
-        "status" | "status_notes" | "assigned_to" | "next_follow_up_at"
-      >
-    >,
+    updates: OnboardingRequestUpdates,
     successMessage: string,
   ) => {
     setUpdatingId(requestId);
-    const { data, error } = await (supabase as any)
-      .from("platform_onboarding_requests")
-      .update(updates)
-      .eq("id", requestId)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error updating onboarding request:", error);
-      toast.error("Failed to update onboarding request.");
-    } else {
-      setRequests((current) => current.map((request) => (request.id === requestId ? data : request)));
-      if (data?.status_notes !== undefined) {
-        setDraftStatusNotes((current) => ({
-          ...current,
-          [requestId]: data.status_notes || "",
-        }));
+    try {
+      const updated = await updateMutation.mutateAsync({ requestId, updates });
+      if ("status_notes" in updates) {
+        setDraftStatusNotes((c) => ({ ...c, [requestId]: updated.status_notes ?? "" }));
       }
-      if (data?.next_follow_up_at !== undefined) {
-        setDraftFollowUpAt((current) => ({
-          ...current,
-          [requestId]: toDateTimeLocalValue(data.next_follow_up_at),
-        }));
+      if ("next_follow_up_at" in updates) {
+        setDraftFollowUpAt((c) => ({ ...c, [requestId]: toDateTimeLocalValue(updated.next_follow_up_at) }));
       }
       toast.success(successMessage);
+    } catch {
+      toast.error("Failed to update onboarding request.");
+    } finally {
+      setUpdatingId(null);
     }
-    setUpdatingId(null);
   };
 
   const updateStatus = async (requestId: string, status: PlatformOnboardingRequest["status"]) => {
@@ -448,55 +353,48 @@ const PlatformOnboarding = () => {
 
   const provisionRequest = async (requestId: string) => {
     setProvisioningId(requestId);
-    const { data, error } = await supabase.functions.invoke("provision-onboarding-request", {
-      body: { request_id: requestId },
-    });
+    try {
+      const data = await provisionMutation.mutateAsync(requestId);
+      const response = (data || {}) as Partial<ProvisioningResult> & { error?: string; already_provisioned?: boolean };
 
-    if (error) {
-      console.error("Error provisioning onboarding request:", error);
+      if (response.error) {
+        toast.error(response.error);
+        return;
+      }
+
+      if (!response.already_provisioned && response.temporary_password) {
+        setProvisioningResults((current) => ({
+          ...current,
+          [requestId]: {
+            organization_id: response.organization_id || "",
+            lab_id: response.lab_id || "",
+            owner_user_id: response.owner_user_id || "",
+            organization_slug: response.organization_slug || null,
+            primary_domain: response.primary_domain || null,
+            access_domain: response.access_domain || response.primary_domain || null,
+            owner_email: response.owner_email || "",
+            temporary_password: response.temporary_password,
+            owner_notification_status: response.owner_notification_status || "skipped",
+            launch_url: response.launch_url || "",
+            staff_login_url: response.staff_login_url || "",
+            patient_login_url: response.patient_login_url || "",
+            booking_url: response.booking_url || "",
+          },
+        }));
+      }
+
+      toast.success(response.already_provisioned ? "Organization already provisioned." : "Organization provisioned.");
+      if (!response.already_provisioned) {
+        void logAction("provision", "onboarding_request", requestId, {
+          organization_id: response.organization_id,
+          owner_email: response.owner_email,
+        });
+      }
+    } catch (error: any) {
       toast.error(error.message || "Failed to provision organization.");
+    } finally {
       setProvisioningId(null);
-      return;
     }
-
-    const response = (data || {}) as Partial<ProvisioningResult> & { error?: string; already_provisioned?: boolean };
-    if (response.error) {
-      toast.error(response.error);
-      setProvisioningId(null);
-      return;
-    }
-
-    await loadRequests();
-
-    if (!response.already_provisioned && response.temporary_password) {
-      setProvisioningResults((current) => ({
-        ...current,
-        [requestId]: {
-          organization_id: response.organization_id || "",
-          lab_id: response.lab_id || "",
-          owner_user_id: response.owner_user_id || "",
-          organization_slug: response.organization_slug || null,
-          primary_domain: response.primary_domain || null,
-          access_domain: response.access_domain || response.primary_domain || null,
-          owner_email: response.owner_email || "",
-          temporary_password: response.temporary_password,
-          owner_notification_status: response.owner_notification_status || "skipped",
-          launch_url: response.launch_url || "",
-          staff_login_url: response.staff_login_url || "",
-          patient_login_url: response.patient_login_url || "",
-          booking_url: response.booking_url || "",
-        },
-      }));
-    }
-
-    toast.success(response.already_provisioned ? "Organization already provisioned." : "Organization provisioned.");
-    if (!response.already_provisioned) {
-      void logAction("provision", "onboarding_request", requestId, {
-        organization_id: response.organization_id,
-        owner_email: response.owner_email,
-      });
-    }
-    setProvisioningId(null);
   };
 
   const toggleDomainVerification = async (request: PlatformOnboardingRequest) => {
@@ -515,27 +413,13 @@ const PlatformOnboarding = () => {
 
     setUpdatingDomainId(request.id);
     try {
-      const nextVerifiedAt = domainRecord.verified_at ? null : new Date().toISOString();
-      const { error } = await (supabase as any)
-        .from("organization_domains")
-        .update({ verified_at: nextVerifiedAt })
-        .eq("id", domainRecord.id)
-        .eq("organization_id", request.provisioned_organization_id);
-
-      if (error) {
-        throw error;
-      }
-
-      setOrganizationDomains((current) => ({
-        ...current,
-        [request.provisioned_organization_id!]: (current[request.provisioned_organization_id!] || []).map((domain) =>
-          domain.id === domainRecord.id ? { ...domain, verified_at: nextVerifiedAt } : domain
-        ),
-      }));
-
-      toast.success(nextVerifiedAt ? "Custom domain marked live." : "Custom domain moved back to pending.");
+      const result = await toggleDomainMutation.mutateAsync({
+        domainRecordId: domainRecord.id,
+        organizationId: request.provisioned_organization_id,
+        currentVerifiedAt: domainRecord.verified_at,
+      });
+      toast.success(result.nextVerifiedAt ? "Custom domain marked live." : "Custom domain moved back to pending.");
     } catch (error: any) {
-      console.error("Error updating onboarding request domain status:", error);
       toast.error(error.message || "Failed to update custom domain status.");
     } finally {
       setUpdatingDomainId(null);
@@ -556,7 +440,10 @@ const PlatformOnboarding = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => void loadRequests()}>
+            <Button
+              variant="outline"
+              onClick={() => void queryClient.invalidateQueries({ queryKey: PLATFORM_ONBOARDING_QUERY_KEY })}
+            >
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
@@ -762,7 +649,7 @@ const PlatformOnboarding = () => {
                           if (!dnsGuide) {
                             return (
                               <p className="mt-2 text-muted-foreground">
-                                Keep the fallback launch domain active until the customer’s DNS is connected.
+                                Keep the fallback launch domain active until the customer's DNS is connected.
                               </p>
                             );
                           }

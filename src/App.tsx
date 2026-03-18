@@ -54,6 +54,12 @@ const App = () => (
               <OrganizationProvider>
                 <PatientAuthProvider>
                   <CookieConsent />
+                  <a
+                    href="#main-content"
+                    className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-ring focus:outline-none"
+                  >
+                    Skip to main content
+                  </a>
                   <Suspense
                     fallback={
                       <div className="min-h-screen flex items-center justify-center bg-background">

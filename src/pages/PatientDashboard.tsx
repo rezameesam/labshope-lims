@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { format, formatDistanceToNow } from "date-fns";
 import {
-  Activity,
   AlertCircle,
   CalendarClock,
-  CheckCircle2,
   ClipboardList,
-  Clock,
   Droplet,
   FileText,
   FlaskConical,

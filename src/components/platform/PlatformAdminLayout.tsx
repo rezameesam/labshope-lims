@@ -163,6 +163,8 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
                   <button
                     key={item.label}
                     type="button"
+                    aria-label={item.label}
+                    aria-current={active ? "page" : undefined}
                     onClick={() => { navigate(item.href); onNavClick?.(); }}
                     className={`w-full rounded-2xl px-3 py-2.5 text-left transition ${
                       active
@@ -207,6 +209,7 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
             type="button"
             onClick={() => void handleSignOut()}
             title="Sign out"
+            aria-label="Sign out"
             className="rounded-xl p-2 text-slate-500 transition hover:bg-white/8 hover:text-slate-200"
           >
             <LogOut className="h-4 w-4" />
@@ -244,7 +247,7 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
             {navContent()}
           </aside>
 
-          <main className="space-y-6 dark:text-slate-50">{children}</main>
+          <main id="main-content" role="main" className="space-y-6 dark:text-slate-50">{children}</main>
         </div>
       </div>
     </div>
