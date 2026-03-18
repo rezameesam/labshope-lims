@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -44,31 +44,32 @@ import { initiateRazorpayPayment } from "@/services/razorpayService";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import ManageEmployees from "@/components/admin/ManageEmployees";
-import ManagePatients from "@/components/admin/ManagePatients";
-import ManageTests from "@/components/admin/ManageTests";
-import ManageBilling from "@/components/admin/ManageBilling";
-import ManageInventory from "@/components/admin/ManageInventory";
-import ManageTestCatalog from "@/components/admin/ManageTestCatalog";
-import ManageTestPackages from "@/components/admin/ManageTestPackages";
-import ManageDoctors from "@/components/admin/ManageDoctors";
-import ManageTestTemplates from "@/components/admin/ManageTestTemplates";
-import ManageReminders from "@/components/admin/ManageReminders";
-import ManageLabs from "@/components/admin/ManageLabs";
-import ManageCollectionCenters from "@/components/admin/ManageCollectionCenters";
 import LabSelector from "@/components/admin/LabSelector";
-import DashboardOverview from "@/components/admin/DashboardOverview";
-import FinancialReports from "@/components/admin/FinancialReports";
-import ManageRoles from "@/components/admin/ManageRoles";
-import NotificationSettings from "@/components/admin/NotificationSettings";
-import SystemSettings from "@/components/admin/SystemSettings";
-import NoticeBoard from "@/components/admin/NoticeBoard";
-import ActiveSessions from "@/components/account/ActiveSessions";
-import ManageVisitorLogs from "@/components/admin/ManageVisitorLogs";
-import ManageBookingRequests from "@/components/admin/ManageBookingRequests";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
-import AdminQuickSetup from "@/components/admin/AdminQuickSetup";
 import AdminErrorBoundary from "@/components/admin/AdminErrorBoundary";
+
+const ManageEmployees = lazy(() => import("@/components/admin/ManageEmployees"));
+const ManagePatients = lazy(() => import("@/components/admin/ManagePatients"));
+const ManageTests = lazy(() => import("@/components/admin/ManageTests"));
+const ManageBilling = lazy(() => import("@/components/admin/ManageBilling"));
+const ManageInventory = lazy(() => import("@/components/admin/ManageInventory"));
+const ManageTestCatalog = lazy(() => import("@/components/admin/ManageTestCatalog"));
+const ManageTestPackages = lazy(() => import("@/components/admin/ManageTestPackages"));
+const ManageDoctors = lazy(() => import("@/components/admin/ManageDoctors"));
+const ManageTestTemplates = lazy(() => import("@/components/admin/ManageTestTemplates"));
+const ManageReminders = lazy(() => import("@/components/admin/ManageReminders"));
+const ManageLabs = lazy(() => import("@/components/admin/ManageLabs"));
+const ManageCollectionCenters = lazy(() => import("@/components/admin/ManageCollectionCenters"));
+const DashboardOverview = lazy(() => import("@/components/admin/DashboardOverview"));
+const FinancialReports = lazy(() => import("@/components/admin/FinancialReports"));
+const ManageRoles = lazy(() => import("@/components/admin/ManageRoles"));
+const NotificationSettings = lazy(() => import("@/components/admin/NotificationSettings"));
+const SystemSettings = lazy(() => import("@/components/admin/SystemSettings"));
+const NoticeBoard = lazy(() => import("@/components/admin/NoticeBoard"));
+const ActiveSessions = lazy(() => import("@/components/account/ActiveSessions"));
+const ManageVisitorLogs = lazy(() => import("@/components/admin/ManageVisitorLogs"));
+const ManageBookingRequests = lazy(() => import("@/components/admin/ManageBookingRequests"));
+const AdminQuickSetup = lazy(() => import("@/components/admin/AdminQuickSetup"));
 
 type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
 
@@ -565,6 +566,13 @@ const AdminDashboard = () => {
 
         {/* Content */}
         <div className="p-6">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-clinical-navy" />
+              </div>
+            }
+          >
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 10 }}
@@ -620,6 +628,7 @@ const AdminDashboard = () => {
             {activeTab === "notifications" && hasRole("admin") && <AdminErrorBoundary tabName="Notifications"><NotificationSettings /></AdminErrorBoundary>}
             {activeTab === "system-settings" && hasRole("admin") && <AdminErrorBoundary tabName="System Settings"><SystemSettings /></AdminErrorBoundary>}
           </motion.div>
+          </Suspense>
         </div>
       </main>
 
