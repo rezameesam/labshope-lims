@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Loader2, Plus, Tag, XCircle } from "lucide-react";
-import PlatformAdminLayout from "@/components/platform/PlatformAdminLayout";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import PlatformRoute from "@/components/platform/PlatformRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -81,8 +79,6 @@ function formatDate(iso: string | null) {
 }
 
 export default function PlatformCoupons() {
-  const { isPlatformAdmin, loading } = usePlatformAdmin();
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [coupons, setCoupons] = useState<CouponCode[]>([]);
@@ -97,12 +93,6 @@ export default function PlatformCoupons() {
   });
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
-
-  useEffect(() => {
-    if (!loading && !isPlatformAdmin) {
-      navigate("/platform/login", { replace: true });
-    }
-  }, [loading, isPlatformAdmin, navigate]);
 
   const fetchCoupons = async () => {
     setFetching(true);
@@ -120,10 +110,8 @@ export default function PlatformCoupons() {
   };
 
   useEffect(() => {
-    if (isPlatformAdmin) {
-      void fetchCoupons();
-    }
-  }, [isPlatformAdmin]);
+    void fetchCoupons();
+  }, []);
 
   const sortedCoupons = useMemo(() => {
     return [...coupons].sort((a, b) => {
@@ -230,18 +218,8 @@ export default function PlatformCoupons() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <div className="animate-pulse text-slate-400 text-sm">Loading…</div>
-      </div>
-    );
-  }
-
-  if (!isPlatformAdmin) return null;
-
   return (
-    <PlatformAdminLayout>
+    <PlatformRoute>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -544,6 +522,6 @@ export default function PlatformCoupons() {
           </form>
         </DialogContent>
       </Dialog>
-    </PlatformAdminLayout>
+    </PlatformRoute>
   );
 }

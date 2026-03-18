@@ -18,15 +18,13 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import PlatformAdminLayout from "@/components/platform/PlatformAdminLayout";
+import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { formatAppDateTime } from "@/lib/date";
 import { toast } from "sonner";
 
@@ -130,8 +128,6 @@ const PLAN_FEATURES: Record<PlanTier, string> = {
 const PlatformCustomerDetail = () => {
   const navigate = useNavigate();
   const { orgId = "" } = useParams();
-  const { user, loading: authLoading, isStaff } = useAuth();
-  const { loading: platformAdminLoading, isPlatformAdmin } = usePlatformAdmin();
   const [loading, setLoading] = useState(true);
   const [organization, setOrganization] = useState<OrganizationRow | null>(null);
   const [domains, setDomains] = useState<DomainRow[]>([]);
@@ -147,18 +143,6 @@ const PlatformCustomerDetail = () => {
   const [savingPlan, setSavingPlan] = useState(false);
   const [resolvedPlan, setResolvedPlan] = useState<PlanTier>("starter");
   const [accessingOrg, setAccessingOrg] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/platform/login", { replace: true });
-    }
-  }, [authLoading, navigate, user]);
-
-  useEffect(() => {
-    if (!authLoading && user && !isStaff) {
-      navigate("/", { replace: true });
-    }
-  }, [authLoading, isStaff, navigate, user]);
 
   const loadDetails = async () => {
     if (!orgId) {
@@ -319,12 +303,12 @@ const PlatformCustomerDetail = () => {
   };
 
   useEffect(() => {
-    if (authLoading || platformAdminLoading || !user || !isStaff || !isPlatformAdmin || !orgId) {
+    if (!orgId) {
       return;
     }
 
     void loadDetails();
-  }, [authLoading, isPlatformAdmin, isStaff, orgId, platformAdminLoading, user]);
+  }, [orgId]);
 
   const primaryDomain = useMemo(
     () => domains.find((domain) => domain.is_primary) || null,
@@ -418,21 +402,15 @@ const PlatformCustomerDetail = () => {
     }
   };
 
-  if (authLoading || platformAdminLoading || loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const currentPlan: PlanTier = resolvedPlan;
 
-  if (!user || !isStaff || !isPlatformAdmin) {
-    return null;
-  }
-
-  if (!organization) {
-    return (
-      <PlatformAdminLayout>
+  return (
+    <PlatformRoute>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : !organization ? (
         <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>Customer not found</CardTitle>
@@ -445,14 +423,7 @@ const PlatformCustomerDetail = () => {
             </Button>
           </CardContent>
         </Card>
-      </PlatformAdminLayout>
-    );
-  }
-
-  const currentPlan: PlanTier = resolvedPlan;
-
-  return (
-    <PlatformAdminLayout>
+      ) : (
       <div className="space-y-6">
           <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <CardHeader className="pb-5">
@@ -958,7 +929,8 @@ const PlatformCustomerDetail = () => {
             </Card>
           </div>
         </div>
-    </PlatformAdminLayout>
+      )}
+    </PlatformRoute>
   );
 };
 

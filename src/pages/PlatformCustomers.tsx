@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, ExternalLink, Globe2, Loader2, RefreshCw, Search, Users } from "lucide-react";
-import PlatformAdminLayout from "@/components/platform/PlatformAdminLayout";
+import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { formatAppDateTime } from "@/lib/date";
 import { toast } from "sonner";
 
@@ -144,8 +142,6 @@ function getPlanBadgeClass(plan: CustomerRecord["selectedPlan"]): string {
 
 const PlatformCustomers = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading, isStaff } = useAuth();
-  const { loading: platformAdminLoading, isPlatformAdmin } = usePlatformAdmin();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -154,18 +150,6 @@ const PlatformCustomers = () => {
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/platform/login", { replace: true });
-    }
-  }, [authLoading, navigate, user]);
-
-  useEffect(() => {
-    if (!authLoading && user && !isStaff) {
-      navigate("/", { replace: true });
-    }
-  }, [authLoading, isStaff, navigate, user]);
 
   const loadCustomers = async () => {
     setLoading(true);
@@ -327,12 +311,8 @@ const PlatformCustomers = () => {
   };
 
   useEffect(() => {
-    if (authLoading || platformAdminLoading || !user || !isStaff || !isPlatformAdmin) {
-      return;
-    }
-
     void loadCustomers();
-  }, [authLoading, isPlatformAdmin, isStaff, platformAdminLoading, user]);
+  }, []);
 
   const metrics = useMemo(() => {
     const connected = customers.filter((customer) => customer.customDomainConnected).length;
@@ -398,7 +378,7 @@ const PlatformCustomers = () => {
     [filteredCustomers, page],
   );
 
-  if (authLoading || platformAdminLoading || loading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -406,12 +386,8 @@ const PlatformCustomers = () => {
     );
   }
 
-  if (!user || !isStaff || !isPlatformAdmin) {
-    return null;
-  }
-
   return (
-    <PlatformAdminLayout>
+    <PlatformRoute>
       <TooltipProvider>
         <div className="space-y-6">
           <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
@@ -699,7 +675,7 @@ const PlatformCustomers = () => {
           </Card>
         </div>
       </TooltipProvider>
-    </PlatformAdminLayout>
+    </PlatformRoute>
   );
 };
 

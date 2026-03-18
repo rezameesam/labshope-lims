@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { AlertCircle, CalendarClock, Download, Loader2, RefreshCw, Save, UserCheck, Users, Zap } from "lucide-react";
-import PlatformAdminLayout from "@/components/platform/PlatformAdminLayout";
+import PlatformRoute from "@/components/platform/PlatformRoute";
 import { formatAppDateTime } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { toast } from "sonner";
 
 type PlatformLead = {
@@ -78,9 +76,7 @@ const leadStatusClass: Record<string, string> = {
 const PAGE_SIZE = 20;
 
 const PlatformLeads = () => {
-  const navigate = useNavigate();
-  const { user, loading: authLoading, isStaff } = useAuth();
-  const { loading: platformAdminLoading, isPlatformAdmin } = usePlatformAdmin();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState<PlatformLead[]>([]);
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
@@ -130,18 +126,6 @@ const PlatformLeads = () => {
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   };
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/platform/login", { replace: true });
-    }
-  }, [authLoading, navigate, user]);
-
-  useEffect(() => {
-    if (!authLoading && user && !isStaff) {
-      navigate("/", { replace: true });
-    }
-  }, [authLoading, isStaff, navigate, user]);
-
   const loadLeads = async () => {
     setLoading(true);
     const { data, error } = await (supabase as any)
@@ -173,12 +157,8 @@ const PlatformLeads = () => {
   };
 
   useEffect(() => {
-    if (authLoading || platformAdminLoading || !user || !isStaff || !isPlatformAdmin) {
-      return;
-    }
-
     void loadLeads();
-  }, [authLoading, isPlatformAdmin, isStaff, platformAdminLoading, user]);
+  }, []);
 
   const metrics = useMemo(() => {
     const newCount = leads.filter((lead) => lead.status === "new").length;
@@ -412,41 +392,8 @@ const PlatformLeads = () => {
     return new Date(next_follow_up_at).getTime() <= Date.now();
   };
 
-  if (authLoading || platformAdminLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-subtle-gradient">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user || !isStaff) {
-    return null;
-  }
-
-  if (!isPlatformAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-subtle-gradient px-6">
-        <div className="max-w-xl rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
-          <h1 className="font-heading text-3xl font-bold text-foreground">Platform access required</h1>
-          <p className="mt-4 text-muted-foreground">
-            This page is reserved for platform admins who review root-site demo leads.
-          </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <Button variant="outline" onClick={() => navigate("/admin")}>
-              Back to Admin
-            </Button>
-            <Button variant="clinical" onClick={() => navigate("/")}>
-              Back to Home
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <PlatformAdminLayout>
+    <PlatformRoute>
       <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-6 shadow-sm lg:px-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -828,7 +775,7 @@ const PlatformLeads = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PlatformAdminLayout>
+    </PlatformRoute>
   );
 };
 

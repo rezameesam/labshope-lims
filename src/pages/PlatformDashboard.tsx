@@ -10,15 +10,24 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import PlatformAdminLayout from "@/components/platform/PlatformAdminLayout";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { formatAppDateTime } from "@/lib/date";
 
 type PlatformCounts = {
@@ -94,10 +103,11 @@ const onboardingFilterOptions = [
   { value: "dns", label: "DNS" },
 ] as const;
 
+type LeadChartPoint = { date: string; leads: number };
+type PlanChartPoint = { plan: string; count: number };
+
 const PlatformDashboard = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading, isStaff } = useAuth();
-  const { loading: platformAdminLoading, isPlatformAdmin } = usePlatformAdmin();
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<PlatformCounts>(DEFAULT_COUNTS);
   const [recentLeads, setRecentLeads] = useState<PlatformLead[]>([]);
@@ -105,26 +115,15 @@ const PlatformDashboard = () => {
   const [recentTenants, setRecentTenants] = useState<TenantCard[]>([]);
   const [tenantSearch, setTenantSearch] = useState("");
   const [onboardingFilter, setOnboardingFilter] = useState<"all" | "approved" | "self_serve" | "dns">("all");
+  const [leadsChartData, setLeadsChartData] = useState<LeadChartPoint[]>([]);
+  const [planChartData, setPlanChartData] = useState<PlanChartPoint[]>([]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/platform/login", { replace: true });
-    }
-  }, [authLoading, navigate, user]);
-
-  useEffect(() => {
-    if (!authLoading && user && !isStaff) {
-      navigate("/", { replace: true });
-    }
-  }, [authLoading, isStaff, navigate, user]);
-
-  useEffect(() => {
-    if (authLoading || platformAdminLoading || !user || !isStaff || !isPlatformAdmin) {
-      return;
-    }
-
     const loadDashboard = async () => {
       setLoading(true);
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const [
         organizationsResult,
@@ -134,6 +133,8 @@ const PlatformDashboard = () => {
         recentOnboardingResult,
         domainsResult,
         recentOrganizationsResult,
+        leadsChartResult,
+        planChartResult,
       ] = await Promise.all([
         (supabase as any).from("organizations").select("id", { count: "exact", head: true }),
         (supabase as any)
@@ -162,6 +163,14 @@ const PlatformDashboard = () => {
           .select("id, slug, display_name, status, created_at")
           .order("created_at", { ascending: false })
           .limit(6),
+        (supabase as any)
+          .from("platform_demo_requests")
+          .select("created_at")
+          .gte("created_at", thirtyDaysAgo.toISOString())
+          .order("created_at", { ascending: true }),
+        (supabase as any)
+          .from("platform_onboarding_requests")
+          .select("selected_plan"),
       ]);
 
       const onboardingRows = ((onboardingResult.data || []) as Array<{
@@ -214,6 +223,34 @@ const PlatformDashboard = () => {
         provisionedTenants: onboardingRows.filter((row) => Boolean(row.provisioned_organization_id)).length,
         selfServeRequests: onboardingRows.filter((row) => row.setup_mode === "self_serve").length,
       });
+      // Build leads-over-time chart: fill all 30 days even if count is 0
+      const leadsRaw = (leadsChartResult.data || []) as Array<{ created_at: string }>;
+      const leadsByDate: Record<string, number> = {};
+      for (const row of leadsRaw) {
+        const day = row.created_at.slice(0, 10);
+        leadsByDate[day] = (leadsByDate[day] || 0) + 1;
+      }
+      const leadsChartPoints: LeadChartPoint[] = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        leadsChartPoints.push({ date: label, leads: leadsByDate[key] || 0 });
+      }
+      setLeadsChartData(leadsChartPoints);
+
+      // Build onboarding-by-plan chart
+      const planRaw = (planChartResult.data || []) as Array<{ selected_plan: string }>;
+      const planCounts: Record<string, number> = {};
+      for (const row of planRaw) {
+        const plan = row.selected_plan || "unknown";
+        planCounts[plan] = (planCounts[plan] || 0) + 1;
+      }
+      setPlanChartData(
+        Object.entries(planCounts).map(([plan, count]) => ({ plan, count })).sort((a, b) => b.count - a.count),
+      );
+
       setRecentLeads((recentLeadsResult.data || []) as PlatformLead[]);
       setRecentOnboarding((recentOnboardingResult.data || []) as PlatformOnboardingRequest[]);
       setRecentTenants(tenantCards);
@@ -221,7 +258,7 @@ const PlatformDashboard = () => {
     };
 
     void loadDashboard();
-  }, [authLoading, isPlatformAdmin, isStaff, navigate, platformAdminLoading, user]);
+  }, []);
 
   const metricCards = useMemo(
     () => [
@@ -359,7 +396,7 @@ const PlatformDashboard = () => {
     [counts.activeLeads, counts.onboardingRequests, counts.pendingDns],
   );
 
-  if (authLoading || platformAdminLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -367,12 +404,8 @@ const PlatformDashboard = () => {
     );
   }
 
-  if (!user || !isStaff || !isPlatformAdmin) {
-    return null;
-  }
-
   return (
-    <PlatformAdminLayout>
+    <PlatformRoute>
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -408,6 +441,88 @@ const PlatformDashboard = () => {
             </div>
           );
         })}
+      </div>
+
+      {/* Trend charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Trend</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">Leads — last 30 days</h3>
+          <div className="mt-5 h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={leadsChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="leadsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={6}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
+                  cursor={{ stroke: "#cbd5e1", strokeWidth: 1 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="leads"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fill="url(#leadsGrad)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#10b981" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Breakdown</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">Onboarding by plan</h3>
+          <div className="mt-5 h-52">
+            {planChartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                No onboarding data yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={planChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis
+                    dataKey="plan"
+                    tick={{ fontSize: 12, fill: "#64748b" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
+                    cursor={{ fill: "#f1f5f9" }}
+                  />
+                  <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
       </div>
 
             <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -704,7 +819,7 @@ const PlatformDashboard = () => {
                 </Card>
               </div>
             </section>
-    </PlatformAdminLayout>
+    </PlatformRoute>
   );
 };
 
