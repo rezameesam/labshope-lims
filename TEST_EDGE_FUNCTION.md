@@ -7,7 +7,7 @@
 
 ## Important: Make Sure Code is Deployed
 
-The code in your local file has the Buffer fix, but you need to make sure it's deployed to Supabase. In Lovable:
+The code in your local file has the Buffer fix, but you need to make sure it's deployed to Supabase. In the previous platform:
 
 1. Check if the "Refactor Buffer import in send-email..." task is completed
 2. Make sure the Edge Function is redeployed with the latest code

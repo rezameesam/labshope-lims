@@ -69,7 +69,7 @@ We've replaced nodemailer with REST API-based email services that work perfectly
 
 4. **Deploy/Update the Edge Function**
    - The function is already updated in `supabase/functions/send-email/index.ts`
-   - If using Lovable, copy the updated code to the Edge Function in Supabase Dashboard
+   - If using the previous platform, copy the updated code to the Edge Function in Supabase Dashboard
    - Or deploy via CLI: `supabase functions deploy send-email`
 
 5. **Test It**

@@ -36,13 +36,13 @@ supabase functions deploy create-first-admin
 
 ---
 
-## Option 2: Export/Import Data from Lovable
+## Option 2: Export/Import Data from the previous platform
 
-If you have existing employees in Lovable Cloud:
+If you have existing employees in the previous platform Cloud:
 
-### Export from Lovable
+### Export from the previous platform
 
-1. Go to **Lovable project** → **Cloud** → **Database**
+1. Go to **the previous platform project** → **Cloud** → **Database**
 2. Export these tables as CSV:
    - `employees` (critical - needed to log in)
    - `user_roles` (critical - role assignments)

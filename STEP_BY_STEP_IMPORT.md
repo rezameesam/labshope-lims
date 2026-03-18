@@ -48,7 +48,7 @@ You have 3 employees that need auth users:
 
 5. **Generate employees SQL**:
    ```bash
-   python3 create_employees_from_csv.py ~/Downloads/Lovable_Data_Exported/employees-export-2025-12-31_20-31-39.csv --generate-sql
+   python3 create_employees_from_csv.py ~/Downloads/the previous platform_Data_Exported/employees-export-2025-12-31_20-31-39.csv --generate-sql
    ```
 
    This creates `import_employees.sql`

@@ -92,7 +92,7 @@ After creating the admin:
 
 ## If You Have Existing Employees Data
 
-If you exported `employees` table from Lovable:
+If you exported `employees` table from the previous platform:
 
 1. Import the CSV to Supabase
 2. For each employee, you need to:

@@ -2,7 +2,7 @@
 
 The `node:buffer` import doesn't work in Supabase Edge Functions. Use `npm:buffer` instead.
 
-## Updated Code (Copy this to Lovable):
+## Updated Code (Copy this to the previous platform):
 
 ```typescript
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -116,7 +116,7 @@ Changed from:
 To:
 - `import { Buffer } from "npm:buffer@6.0.3";` ✅ (works in Supabase Edge Functions)
 
-## Prompt for Lovable
+## Prompt for the previous platform
 
 ```
 The send-email Edge Function still has "Buffer is not defined" error. The node:buffer import doesn't work in Supabase. Please update it to use npm:buffer@6.0.3 instead. Replace the entire function with the code from FINAL_BUFFER_FIX.md

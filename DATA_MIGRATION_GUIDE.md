@@ -1,18 +1,18 @@
-# Data Migration Guide - Lovable Cloud to Supabase
+# Data Migration Guide - the previous platform Cloud to Supabase
 
 ## Overview
 
-You need to export data from Lovable Cloud and import it to your new Supabase instance to:
+You need to export data from the previous platform Cloud and import it to your new Supabase instance to:
 - Have user accounts to log in
 - Preserve all existing data (patients, tests, invoices, etc.)
 
 ---
 
-## Step 1: Export Data from Lovable Cloud
+## Step 1: Export Data from the previous platform Cloud
 
-### Access Lovable Cloud Database
+### Access the previous platform Cloud Database
 
-1. Go to your **Lovable project**
+1. Go to your **the previous platform project**
 2. Navigate to **Cloud** → **Database**
 3. You'll see all your tables
 
@@ -44,7 +44,7 @@ For each table that has data, follow these steps:
 17. **`inventory`** - Inventory items (if exists)
 18. **`role_permissions`** - Custom role permissions (if exists)
 
-### How to Export from Lovable
+### How to Export from the previous platform
 
 For each table:
 1. Click on the table name
@@ -53,7 +53,7 @@ For each table:
 4. Save the file with a descriptive name (e.g., `employees.csv`, `patients.csv`)
 5. Repeat for all tables with data
 
-**Note:** If Lovable doesn't have a direct export option:
+**Note:** If the previous platform doesn't have a direct export option:
 - You might need to use Supabase Dashboard on the old project
 - Or use SQL queries to export data
 
@@ -227,8 +227,8 @@ VALUES (
 
 ## Quick Checklist
 
-- [ ] Export `employees` table from Lovable
-- [ ] Export `user_roles` table from Lovable
+- [ ] Export `employees` table from the previous platform
+- [ ] Export `user_roles` table from the previous platform
 - [ ] Export all other tables with data
 - [ ] Import base tables first (labs, doctors, etc.)
 - [ ] Import `employees` table

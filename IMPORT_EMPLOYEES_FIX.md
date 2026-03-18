@@ -2,7 +2,7 @@
 
 ## The Problem
 
-Your `employees` CSV has `user_id` values that reference `auth.users(id)` from Lovable. These don't exist in your new Supabase instance.
+Your `employees` CSV has `user_id` values that reference `auth.users(id)` from the previous platform. These don't exist in your new Supabase instance.
 
 ## Solution: Two-Step Process
 

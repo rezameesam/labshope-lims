@@ -4,7 +4,7 @@
 
 Instead of `npm:buffer@6.0.3`, use Deno's built-in Node.js compatibility layer from `std/node`.
 
-## Updated Code for Lovable
+## Updated Code for the previous platform
 
 ```typescript
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -133,7 +133,7 @@ import { Buffer } from "https://deno.land/std@0.168.0/node/buffer.ts";
 - Works with Supabase Edge Functions
 - No npm package dependencies
 
-## Prompt for Lovable
+## Prompt for the previous platform
 
 ```
 The send-email Edge Function is still getting "Buffer is not defined" error. Please update it to use Deno's std/node Buffer polyfill instead of npm:buffer. Replace the Buffer import with:

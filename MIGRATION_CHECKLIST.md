@@ -43,7 +43,7 @@
 - [ ] Test user login
 
 ### Step 7: Storage
-- [ ] Export files from Lovable storage
+- [ ] Export files from the previous platform storage
 - [ ] Create buckets in Supabase
 - [ ] Upload files to Supabase storage
 

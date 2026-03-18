@@ -103,7 +103,7 @@ VALUES ('<user_id>', 'collector');
 
 ## Migration Instructions
 
-Run the migration file in Lovable:
+Run the migration file in the previous platform:
 ```sql
 -- See: supabase/migrations/20251231000000_add_collector_role.sql
 ```

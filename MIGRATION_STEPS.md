@@ -1,4 +1,4 @@
-# Complete Migration Guide - Lovable to Supabase
+# Complete Migration Guide - the previous platform to Supabase
 
 ## Your Supabase Project
 - **Project ID:** `pxsutovdzppoyyfrbeaw`
@@ -79,9 +79,9 @@ supabase db diff
 
 ## Step 5: Export and Import Data
 
-### Export from Lovable Cloud:
+### Export from the previous platform Cloud:
 
-1. Go to your **Lovable project** → **Cloud** → **Database**
+1. Go to your **the previous platform project** → **Cloud** → **Database**
 2. For each table with data:
    - Click on the table name
    - Click **Export CSV** (or similar export option)
@@ -127,7 +127,7 @@ supabase db diff
 
 ### Check Current Auth Setup:
 
-1. In your **Lovable project**, check what auth providers are enabled:
+1. In your **the previous platform project**, check what auth providers are enabled:
    - Go to **Cloud** → **Authentication** → **Providers**
    - Note which providers are enabled (Email, Google, GitHub, etc.)
 
@@ -145,7 +145,7 @@ supabase db diff
 - Enable it
 - Add your **Client ID** and **Client Secret**
 - Update **Redirect URLs** in your OAuth app settings:
-  - Old: `https://[old-lovable-project].supabase.co/auth/v1/callback`
+  - Old: `https://[old-the previous platform-project].supabase.co/auth/v1/callback`
   - New: `https://pxsutovdzppoyyfrbeaw.supabase.co/auth/v1/callback`
 
 **Important:**
@@ -157,9 +157,9 @@ supabase db diff
 
 ## Step 7: Migrate Storage Files
 
-### Export from Lovable:
+### Export from the previous platform:
 
-1. Go to **Lovable project** → **Cloud** → **Storage**
+1. Go to **the previous platform project** → **Cloud** → **Storage**
 2. For each storage bucket:
    - Click on the bucket
    - Download all files (or use bulk download if available)
@@ -307,7 +307,7 @@ Value: IRM Clinic
 
 ## Next Steps After Migration
 
-1. ✅ Update `.env` file in Lovable (already done)
+1. ✅ Update `.env` file in the previous platform (already done)
 2. ✅ Update `supabase/config.toml` (already done)
 3. ⏳ Run migrations (Step 4)
 4. ⏳ Export/import data (Step 5)

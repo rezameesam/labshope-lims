@@ -9,9 +9,9 @@
 
 ---
 
-## Step 1: Update Environment Variables in Lovable
+## Step 1: Update Environment Variables in the previous platform
 
-1. Go to your **Lovable project** → **Code**
+1. Go to your **the previous platform project** → **Code**
 2. Open the `.env` file
 3. Update these values:
 
@@ -27,7 +27,7 @@ VITE_SUPABASE_URL="https://pxsutovdzppoyyfrbeaw.supabase.co"
 
 ## Step 2: Update Supabase Config (if exists)
 
-1. In your Lovable project, go to **Code**
+1. In your the previous platform project, go to **Code**
 2. Locate `supabase/config.toml` file (if it exists)
 3. Update:
 
@@ -328,7 +328,7 @@ Value: IRM Clinic
 
 ## Step 6: Test Email Sending
 
-1. Go to your app (Lovable preview or deployed version)
+1. Go to your app (the previous platform preview or deployed version)
 2. Navigate to **Admin Dashboard** → **Notifications** tab
 3. Enter your email address
 4. Click **"Send Test Email"**
@@ -372,7 +372,7 @@ If you have migration files in `supabase/migrations/`:
 
 ## Summary Checklist
 
-- [ ] Updated `.env` file in Lovable with new Supabase credentials
+- [ ] Updated `.env` file in the previous platform with new Supabase credentials
 - [ ] Updated `supabase/config.toml` (if exists)
 - [ ] Created `send-email` Edge Function in Supabase
 - [ ] Copied new code (no nodemailer) to Edge Function

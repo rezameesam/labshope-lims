@@ -2,7 +2,7 @@
 
 The issue is that Buffer needs to be available in multiple global scopes for nodemailer to work.
 
-## Updated Code (Copy to Lovable):
+## Updated Code (Copy to the previous platform):
 
 ```typescript
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";

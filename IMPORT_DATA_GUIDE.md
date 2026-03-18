@@ -77,13 +77,13 @@ If Supabase doesn't recognize semicolon delimiter:
 
 ```bash
 # Convert semicolon to comma for a file
-sed 's/;/,/g' ~/Downloads/Lovable_Data_Exported/employees-export-2025-12-31_20-31-39.csv > employees.csv
+sed 's/;/,/g' ~/Downloads/the previous platform_Data_Exported/employees-export-2025-12-31_20-31-39.csv > employees.csv
 ```
 
 Or use this script to convert all files:
 
 ```bash
-cd ~/Downloads/Lovable_Data_Exported
+cd ~/Downloads/the previous platform_Data_Exported
 for file in *.csv; do
   sed 's/;/,/g' "$file" > "../irmclinic_data/${file%-export-*}.csv"
 done

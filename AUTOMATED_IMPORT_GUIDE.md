@@ -1,6 +1,6 @@
 # Automated SQL Import Guide
 
-This guide explains how to use the automated import scripts to import your data from Lovable to Supabase.
+This guide explains how to use the automated import scripts to import your data from the previous platform to Supabase.
 
 ## 📋 Available Scripts
 

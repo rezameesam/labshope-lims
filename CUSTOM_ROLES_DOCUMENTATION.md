@@ -169,6 +169,6 @@ Future enhancement: Add UI to assign roles from the employee management page.
 
 Run the migration file: `supabase/migrations/20251231000001_create_custom_roles.sql`
 
-See `LOVABLE_MIGRATION_PROMPT.md` for the complete SQL.
+See the migration files for the complete SQL.
 
 

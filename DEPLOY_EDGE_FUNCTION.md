@@ -10,9 +10,9 @@ If you can authenticate with Supabase CLI, I can help deploy directly.
 3. Link project: `supabase link --project-ref lkxvaqwqpuwhdscxzxud`
 4. Then I can deploy the function and set secrets
 
-## Option 2: Through Lovable (Current Setup)
+## Option 2: Through the previous platform (Current Setup)
 
-Since your project is on Lovable, you need to give Lovable prompts to:
+Since your project is on the previous platform, you need to give the previous platform prompts to:
 1. Update the Edge Function code
 2. Set the secrets
 
@@ -37,6 +37,6 @@ With your credentials, I can:
 
 **Tell me which option you prefer:**
 1. Set up Supabase CLI and I'll help deploy
-2. Continue using Lovable prompts (I'll prepare the code)
+2. Continue using the previous platform prompts (I'll prepare the code)
 3. Manual deployment via Supabase Dashboard (I'll prepare instructions)
 

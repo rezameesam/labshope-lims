@@ -33,7 +33,7 @@
 
 ### Database Migration
 - Migration file created: `supabase/migrations/20251230000004_create_multi_lab_support.sql`
-- Ready to be executed in Lovable
+- Ready to be executed in the previous platform
 
 ## 🔄 Components That Need Lab Filtering
 
@@ -139,7 +139,7 @@ const data = {
 
 ## 🎯 Next Steps
 
-1. **Run Migration in Lovable**
+1. **Run Migration in the previous platform**
    - Use the prompt provided in the implementation plan
    - Verify tables are created
    - Check default lab exists
