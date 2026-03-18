@@ -16,6 +16,7 @@ interface CreateEmployeeRequest {
   department?: string;
   role: "admin" | "employee" | "collector";
   lab_id?: string | null;
+  organization_id?: string | null;
 }
 
 const mapOrganizationRole = (role: CreateEmployeeRequest["role"]) =>
@@ -66,52 +67,70 @@ serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Check if calling user is admin
-    const { data: roleData, error: roleCheckError } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
+    // Check if calling user is a platform admin (superadmin bypass)
+    const { data: platformAdminData } = await supabaseAdmin
+      .from("platform_admins")
+      .select("user_id")
       .eq("user_id", callingUser.id)
-      .eq("role", "admin")
-      .single();
+      .maybeSingle();
 
-    if (roleCheckError || !roleData) {
-      return new Response(
-        JSON.stringify({ error: "Only admins can create employees" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    const isPlatformAdmin = Boolean(platformAdminData?.user_id);
+
+    let callerOrganizationIds: Set<string>;
+    let callerPrimaryOrganizationId: string | null;
+
+    if (isPlatformAdmin) {
+      console.log("Platform admin access granted:", callingUser.email);
+      // Platform admins can create employees in any org — org access is validated via lab_id below
+      callerOrganizationIds = new Set<string>(); // will be populated after lab resolution
+      callerPrimaryOrganizationId = null;
+    } else {
+      // Check if calling user is org admin
+      const { data: roleData, error: roleCheckError } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callingUser.id)
+        .eq("role", "admin")
+        .single();
+
+      if (roleCheckError || !roleData) {
+        return new Response(
+          JSON.stringify({ error: "Only admins can create employees" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: callerOrganizations, error: callerOrganizationsError } = await supabaseAdmin
+        .from("organization_users")
+        .select("organization_id, is_primary")
+        .eq("user_id", callingUser.id)
+        .eq("is_active", true)
+        .order("is_primary", { ascending: false });
+
+      if (callerOrganizationsError) {
+        return new Response(
+          JSON.stringify({ error: "Unable to determine admin organization access" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      callerOrganizationIds = new Set(
+        (callerOrganizations || [])
+          .map((row: { organization_id?: string | null }) => row.organization_id || null)
+          .filter((value): value is string => !!value)
       );
+
+      if (callerOrganizationIds.size === 0) {
+        return new Response(
+          JSON.stringify({ error: "Admin is not linked to an active organization" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      callerPrimaryOrganizationId = (callerOrganizations || [])[0]?.organization_id || null;
     }
 
-    const { data: callerOrganizations, error: callerOrganizationsError } = await supabaseAdmin
-      .from("organization_users")
-      .select("organization_id, is_primary")
-      .eq("user_id", callingUser.id)
-      .eq("is_active", true)
-      .order("is_primary", { ascending: false });
-
-    if (callerOrganizationsError) {
-      return new Response(
-        JSON.stringify({ error: "Unable to determine admin organization access" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const callerOrganizationIds = new Set(
-      (callerOrganizations || [])
-        .map((row: { organization_id?: string | null }) => row.organization_id || null)
-        .filter((value): value is string => !!value)
-    );
-
-    if (callerOrganizationIds.size === 0) {
-      return new Response(
-        JSON.stringify({ error: "Admin is not linked to an active organization" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const callerPrimaryOrganizationId =
-      (callerOrganizations || [])[0]?.organization_id || null;
-
-    const { email, password, full_name, phone, designation, department, role, lab_id }: CreateEmployeeRequest = await req.json();
+    const { email, password, full_name, phone, designation, department, role, lab_id, organization_id: requestedOrgId }: CreateEmployeeRequest = await req.json();
 
     if (!email || !password || !full_name || !role) {
       return new Response(
@@ -145,14 +164,23 @@ serve(async (req: Request) => {
 
       targetOrganizationId = lab.organization_id || null;
 
-      if (!targetOrganizationId || !callerOrganizationIds.has(targetOrganizationId)) {
+      // Platform admins can access any org; regular admins must own the org
+      if (!isPlatformAdmin && (!targetOrganizationId || !callerOrganizationIds.has(targetOrganizationId))) {
         return new Response(
           JSON.stringify({ error: "You do not have access to the selected lab" }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      // For platform admins, populate callerOrganizationIds with the resolved org
+      if (isPlatformAdmin && targetOrganizationId) {
+        callerOrganizationIds.add(targetOrganizationId);
+      }
     } else {
-      const { data: callerPrimaryLab } = await supabaseAdmin
+      // For platform admins with no lab_id, resolve via requestedOrgId first
+      const fallbackOrgId = isPlatformAdmin ? (requestedOrgId || null) : callerPrimaryOrganizationId;
+
+      const { data: callerPrimaryLab } = isPlatformAdmin ? { data: null } : await supabaseAdmin
         .from("lab_users")
         .select("lab_id, lab:labs(organization_id)")
         .eq("user_id", callingUser.id)
@@ -160,7 +188,7 @@ serve(async (req: Request) => {
         .limit(1)
         .maybeSingle();
 
-      if (callerPrimaryLab?.lab_id) {
+      if (!isPlatformAdmin && callerPrimaryLab?.lab_id) {
         targetLabId = callerPrimaryLab.lab_id;
         targetOrganizationId = (callerPrimaryLab.lab as { organization_id?: string | null } | null)?.organization_id || null;
       } else {
@@ -168,7 +196,7 @@ serve(async (req: Request) => {
           .from("labs")
           .select("id, organization_id")
           .eq("lab_code", "LAB001")
-          .eq("organization_id", callerPrimaryOrganizationId)
+          .eq("organization_id", fallbackOrgId)
           .limit(1)
           .maybeSingle();
 
@@ -183,7 +211,7 @@ serve(async (req: Request) => {
               name: "Main Laboratory",
               type: "main",
               is_active: true,
-              organization_id: callerPrimaryOrganizationId,
+              organization_id: fallbackOrgId,
             })
             .select("id, organization_id")
             .single();
@@ -194,7 +222,7 @@ serve(async (req: Request) => {
               .from("labs")
               .select("id, organization_id")
               .eq("lab_code", "LAB001")
-              .eq("organization_id", callerPrimaryOrganizationId)
+              .eq("organization_id", fallbackOrgId)
               .limit(1)
               .maybeSingle();
             targetLabId = retryLab?.id || null;
@@ -214,11 +242,16 @@ serve(async (req: Request) => {
       );
     }
 
-    if (!targetOrganizationId || !callerOrganizationIds.has(targetOrganizationId)) {
+    if (!isPlatformAdmin && (!targetOrganizationId || !callerOrganizationIds.has(targetOrganizationId))) {
       return new Response(
         JSON.stringify({ error: "Resolved organization is not accessible to this admin" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Ensure platform admin callerOrganizationIds is populated for downstream checks
+    if (isPlatformAdmin && targetOrganizationId) {
+      callerOrganizationIds.add(targetOrganizationId);
     }
 
     // Check if user already exists only after target tenant access is fully resolved.

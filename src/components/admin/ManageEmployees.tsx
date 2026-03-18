@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -85,6 +86,7 @@ const ManageEmployees = () => {
   const employeeEmailPlaceholder = `employee@${getWebsiteHostname(branding.website)}`;
   const { currentLab } = useLab();
   const { user, hasRole } = useAuth();
+  const isAdmin = hasRole("admin");
 
   // Data state
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -181,6 +183,33 @@ const ManageEmployees = () => {
     return data.signedUrl;
   };
 
+  const getFunctionErrorMessage = async (error: unknown) => {
+    if (error instanceof FunctionsHttpError) {
+      const response = error.context as Response | undefined;
+      if (response) {
+        try {
+          const payload = await response.clone().json();
+          if (typeof payload?.error === "string" && payload.error.trim()) return payload.error;
+          if (typeof payload?.message === "string" && payload.message.trim()) return payload.message;
+        } catch {
+          try {
+            const text = await response.clone().text();
+            if (text.trim()) return text;
+          } catch {
+            // Ignore body parsing failures and fall back to the wrapper message below.
+          }
+        }
+      }
+    }
+
+    if (error instanceof FunctionsRelayError || error instanceof FunctionsFetchError) {
+      return error.message;
+    }
+
+    if (error instanceof Error && error.message) return error.message;
+    return "Failed to add employee";
+  };
+
   // ── Data fetching ──
   const fetchEmployees = useCallback(async () => {
     try {
@@ -190,7 +219,7 @@ const ManageEmployees = () => {
       const platformAdminUserIds: string[] = (platformAdminsData || []).map((row: { user_id: string }) => row.user_id);
 
       let employeesQuery = supabase.from("employees").select("*").eq("organization_id" as any, organizationId).order("created_at", { ascending: false });
-      if (currentLab?.id) employeesQuery = (employeesQuery as any).eq("lab_id", currentLab.id);
+      if (currentLab?.id && !isAdmin) employeesQuery = (employeesQuery as any).eq("lab_id", currentLab.id);
       if (platformAdminUserIds.length > 0) employeesQuery = (employeesQuery as any).not("user_id", "in", `(${platformAdminUserIds.join(",")})`);
 
       const { data: employeesData, error: employeesError } = await employeesQuery;
@@ -229,7 +258,7 @@ const ManageEmployees = () => {
       });
     } catch (error) { console.error("Error fetching employees:", error); toast.error("Failed to fetch employees"); }
     finally { setLoading(false); }
-  }, [organizationId, currentLab?.id]);
+  }, [organizationId, currentLab?.id, isAdmin]);
 
   const fetchCustomRoles = useCallback(async () => {
     try {
@@ -289,17 +318,17 @@ const ManageEmployees = () => {
     setIsSubmitting(true);
     let created: { id: string; user_id: string } | null = null;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("You must be logged in");
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ email: formData.email, password: formData.password, full_name: formData.full_name, phone: formData.phone || null, designation: formData.designation || null, department: formData.department || null, role: formData.role, lab_id: currentLab?.id || null }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create employee");
+      const { data: result, error: fnError } = await supabase.functions.invoke("create-employee", {
+        body: { email: formData.email, password: formData.password, full_name: formData.full_name, phone: formData.phone || null, designation: formData.designation || null, department: formData.department || null, role: formData.role, lab_id: currentLab?.id || null, organization_id: organizationId },
+      });
+      if (fnError) throw fnError;
       if (result.employee_row_id && result.user_id) { created = { id: result.employee_row_id, user_id: result.user_id }; await saveEmployeeIdentity(created, formData); }
       toast.success(`Employee ${formData.full_name} added successfully`);
       setIsDialogOpen(false); setFormData(createEmptyFormData()); await fetchEmployees();
-    } catch (error: any) {
-      if (created) { toast.error(`Created but private details failed: ${error.message}`); setIsDialogOpen(false); setFormData(createEmptyFormData()); await fetchEmployees(); }
-      else toast.error(error.message || "Failed to add employee");
+    } catch (error: unknown) {
+      const errorMessage = await getFunctionErrorMessage(error);
+      if (created) { toast.error(`Created but private details failed: ${errorMessage}`); setIsDialogOpen(false); setFormData(createEmptyFormData()); await fetchEmployees(); }
+      else toast.error(errorMessage);
     } finally { setIsSubmitting(false); }
   };
 

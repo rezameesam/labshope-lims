@@ -65,9 +65,9 @@ verify_jwt = true
 [functions.patient-update-address]
 verify_jwt = true
 
-# Admin actions
+# Admin actions (function does its own auth internally)
 [functions.create-employee]
-verify_jwt = true
+verify_jwt = false
 
 [functions.employee-admin-reset-password]
 verify_jwt = true
