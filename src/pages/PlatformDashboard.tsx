@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton-card";
+import { SkeletonTable } from "@/components/ui/skeleton-table";
 import { useNotificationTrigger } from "@/hooks/useNotificationTrigger";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
@@ -339,9 +341,16 @@ const PlatformDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PlatformRoute>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+          <SkeletonTable rows={6} columns={5} />
+        </div>
+      </PlatformRoute>
     );
   }
 

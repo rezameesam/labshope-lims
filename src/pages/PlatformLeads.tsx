@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CalendarClock, Download, Loader2, RefreshCw, Save, UserCheck, Users, Zap } from "lucide-react";
+import { SkeletonTable } from "@/components/ui/skeleton-table";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { formatAppDateTime } from "@/lib/date";
 import { Button } from "@/components/ui/button";
@@ -478,9 +479,7 @@ const PlatformLeads = () => {
 
         <div className="mt-6 rounded-3xl border border-border bg-card shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center px-6 py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <SkeletonTable rows={5} columns={4} className="rounded-none border-0 shadow-none" />
           ) : filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">

@@ -18,6 +18,7 @@ import { platformBranding } from "@/lib/platformBranding";
 import { useAuth } from "@/hooks/useAuth";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { NotificationBell } from "@/components/platform/NotificationBell";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const NAV_SECTIONS = [
   {
@@ -201,6 +202,7 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
             </p>
             <p className="mt-0.5 text-[11px] text-slate-500">Operator account</p>
           </div>
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => void handleSignOut()}
@@ -215,7 +217,7 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
       {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-4 py-3 xl:hidden">
         <span className="font-heading text-sm font-bold text-white">{platformBranding.productName}</span>
@@ -242,7 +244,7 @@ const PlatformAdminLayout = ({ children }: PlatformAdminLayoutProps) => {
             {navContent()}
           </aside>
 
-          <main className="space-y-6">{children}</main>
+          <main className="space-y-6 dark:text-slate-50">{children}</main>
         </div>
       </div>
     </div>

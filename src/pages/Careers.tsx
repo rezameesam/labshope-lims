@@ -9,6 +9,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import PlatformCareersPage from "@/components/platform/PlatformCareersPage";
 import { usePublicPageMode } from "@/hooks/usePublicPageMode";
 import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
+import { platformBranding } from "@/lib/platformBranding";
 
 const applicationLink = "https://forms.gle/KRNCJz9TfzCgkaKE9";
 
@@ -45,7 +46,18 @@ const Careers = () => {
   }
 
   if (platformMode) {
-    return <PlatformCareersPage />;
+    return (
+      <>
+        <Helmet>
+          <title>{`Careers | ${platformBranding.productName}`}</title>
+          <meta name="description" content={`Join the ${platformBranding.companyName} team. Explore career opportunities at a growing healthcare technology company.`} />
+          <meta property="og:title" content={`Careers | ${platformBranding.productName}`} />
+          <meta property="og:description" content={`Join the ${platformBranding.companyName} team. Explore career opportunities at a growing healthcare technology company.`} />
+          <meta property="og:type" content="website" />
+        </Helmet>
+        <PlatformCareersPage />
+      </>
+    );
   }
 
   const reasonsToApply = [
@@ -57,10 +69,10 @@ const Careers = () => {
     <>
       <Helmet>
         <title>{`Work With Us | ${branding.displayName}`}</title>
-        <meta
-          name="description"
-          content={`Apply to join ${branding.displayName}. We welcome qualified lab technician diploma and degree holders for full-time, part-time, and flexible opportunities.`}
-        />
+        <meta name="description" content={`Apply to join ${branding.displayName}. We welcome qualified lab technician diploma and degree holders for full-time, part-time, and flexible opportunities.`} />
+        <meta property="og:title" content={`Work With Us | ${branding.displayName}`} />
+        <meta property="og:description" content={`Apply to join ${branding.displayName}. We welcome DMLT, BMLT, MLT, and related diploma/degree holders for flexible opportunities.`} />
+        <meta property="og:type" content="website" />
       </Helmet>
 
       <div className="min-h-screen bg-background">

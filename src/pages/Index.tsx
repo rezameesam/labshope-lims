@@ -11,6 +11,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import ProductLandingPage from "@/components/platform/ProductLandingPage";
 import { usePublicPageMode } from "@/hooks/usePublicPageMode";
 import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
+import { platformBranding } from "@/lib/platformBranding";
 
 const Index = () => {
   const location = useLocation();
@@ -48,17 +49,28 @@ const Index = () => {
   }
 
   if (platformMode) {
-    return <ProductLandingPage />;
+    return (
+      <>
+        <Helmet>
+          <title>{`${platformBranding.productName} — ${platformBranding.tagline}`}</title>
+          <meta name="description" content={platformBranding.tagline} />
+          <meta property="og:title" content={`${platformBranding.productName} — ${platformBranding.tagline}`} />
+          <meta property="og:description" content={platformBranding.tagline} />
+          <meta property="og:type" content="website" />
+        </Helmet>
+        <ProductLandingPage />
+      </>
+    );
   }
 
   return (
     <>
       <Helmet>
         <title>{`${branding.displayName} | Trusted Diagnostic Centre${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}`}</title>
-        <meta
-          name="description"
-          content={`${branding.displayName} - ${branding.description}`}
-        />
+        <meta name="description" content={`${branding.displayName} - ${branding.description}`} />
+        <meta property="og:title" content={`${branding.displayName} | Trusted Diagnostic Centre`} />
+        <meta property="og:description" content={`${branding.displayName} - ${branding.description}`} />
+        <meta property="og:type" content="website" />
       </Helmet>
       
       <div className="min-h-screen bg-background">

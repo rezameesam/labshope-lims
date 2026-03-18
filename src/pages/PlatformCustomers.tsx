@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, ExternalLink, Globe2, Loader2, RefreshCw, Search, Users } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton-card";
+import { SkeletonTable } from "@/components/ui/skeleton-table";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -380,9 +382,16 @@ const PlatformCustomers = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PlatformRoute>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+          <SkeletonTable rows={8} columns={6} />
+        </div>
+      </PlatformRoute>
     );
   }
 

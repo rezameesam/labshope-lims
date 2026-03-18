@@ -68,6 +68,7 @@ import ManageVisitorLogs from "@/components/admin/ManageVisitorLogs";
 import ManageBookingRequests from "@/components/admin/ManageBookingRequests";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import AdminQuickSetup from "@/components/admin/AdminQuickSetup";
+import AdminErrorBoundary from "@/components/admin/AdminErrorBoundary";
 
 type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
 
@@ -570,48 +571,54 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === "overview" && <DashboardOverview onNavigate={(tab) => setDashboardTab(tab as TabType)} />}
-            {activeTab === "quick-setup" && hasRole("admin") && <AdminQuickSetup onNavigate={(tab) => setDashboardTab(tab as TabType)} />}
+            {activeTab === "overview" && <AdminErrorBoundary tabName="Overview"><DashboardOverview onNavigate={(tab) => setDashboardTab(tab as TabType)} /></AdminErrorBoundary>}
+            {activeTab === "quick-setup" && hasRole("admin") && <AdminErrorBoundary tabName="Quick Setup"><AdminQuickSetup onNavigate={(tab) => setDashboardTab(tab as TabType)} /></AdminErrorBoundary>}
             {activeTab === "notice-board" && (
-              <NoticeBoard
-                onNavigate={(tab) => setDashboardTab(tab as TabType)}
-                onStatsChange={(count) =>
-                  setSidebarCounts((current) => ({ ...current, noticeBoard: count }))
-                }
-              />
+              <AdminErrorBoundary tabName="Notice Board">
+                <NoticeBoard
+                  onNavigate={(tab) => setDashboardTab(tab as TabType)}
+                  onStatsChange={(count) =>
+                    setSidebarCounts((current) => ({ ...current, noticeBoard: count }))
+                  }
+                />
+              </AdminErrorBoundary>
             )}
             {activeTab === "booking-requests" && (
-              <ManageBookingRequests
-                onCountChange={(count) =>
-                  setSidebarCounts((current) => ({ ...current, bookingRequests: count }))
-                }
-              />
+              <AdminErrorBoundary tabName="Booking Requests">
+                <ManageBookingRequests
+                  onCountChange={(count) =>
+                    setSidebarCounts((current) => ({ ...current, bookingRequests: count }))
+                  }
+                />
+              </AdminErrorBoundary>
             )}
-            {activeTab === "employees" && hasRole("admin") && <ManageEmployees />}
+            {activeTab === "employees" && hasRole("admin") && <AdminErrorBoundary tabName="Employees"><ManageEmployees /></AdminErrorBoundary>}
             {activeTab === "patients" && (
-              <ManagePatients
-                onAssignTests={(patient) => {
-                  setSelectedPatientForTests(patient);
-                  setDashboardTab("tests");
-                }}
-              />
+              <AdminErrorBoundary tabName="Patients">
+                <ManagePatients
+                  onAssignTests={(patient) => {
+                    setSelectedPatientForTests(patient);
+                    setDashboardTab("tests");
+                  }}
+                />
+              </AdminErrorBoundary>
             )}
-            {activeTab === "tests" && <ManageTests preselectedPatient={selectedPatientForTests} />}
-            {activeTab === "test-catalog" && <ManageTestCatalog />}
-            {activeTab === "test-packages" && <ManageTestPackages />}
-            {activeTab === "test-templates" && <ManageTestTemplates />}
-            {activeTab === "billing" && <ManageBilling />}
-            {activeTab === "inventory" && <ManageInventory />}
-            {activeTab === "doctors" && <ManageDoctors />}
-            {activeTab === "reminders" && <ManageReminders />}
-            {activeTab === "labs" && <ManageLabs />}
-            {activeTab === "collection-centers" && <ManageCollectionCenters />}
-            {activeTab === "reports" && <FinancialReports />}
-            {activeTab === "roles" && hasRole("admin") && <ManageRoles />}
-            {activeTab === "security" && <ActiveSessions />}
-            {activeTab === "visitor-logs" && hasRole("admin") && <ManageVisitorLogs />}
-            {activeTab === "notifications" && hasRole("admin") && <NotificationSettings />}
-            {activeTab === "system-settings" && hasRole("admin") && <SystemSettings />}
+            {activeTab === "tests" && <AdminErrorBoundary tabName="Patient Tests"><ManageTests preselectedPatient={selectedPatientForTests} /></AdminErrorBoundary>}
+            {activeTab === "test-catalog" && <AdminErrorBoundary tabName="Test Catalog"><ManageTestCatalog /></AdminErrorBoundary>}
+            {activeTab === "test-packages" && <AdminErrorBoundary tabName="Test Packages"><ManageTestPackages /></AdminErrorBoundary>}
+            {activeTab === "test-templates" && <AdminErrorBoundary tabName="Templates"><ManageTestTemplates /></AdminErrorBoundary>}
+            {activeTab === "billing" && <AdminErrorBoundary tabName="Billing"><ManageBilling /></AdminErrorBoundary>}
+            {activeTab === "inventory" && <AdminErrorBoundary tabName="Inventory"><ManageInventory /></AdminErrorBoundary>}
+            {activeTab === "doctors" && <AdminErrorBoundary tabName="Doctors"><ManageDoctors /></AdminErrorBoundary>}
+            {activeTab === "reminders" && <AdminErrorBoundary tabName="Reminders"><ManageReminders /></AdminErrorBoundary>}
+            {activeTab === "labs" && <AdminErrorBoundary tabName="Labs"><ManageLabs /></AdminErrorBoundary>}
+            {activeTab === "collection-centers" && <AdminErrorBoundary tabName="Collection Centers"><ManageCollectionCenters /></AdminErrorBoundary>}
+            {activeTab === "reports" && <AdminErrorBoundary tabName="Reports"><FinancialReports /></AdminErrorBoundary>}
+            {activeTab === "roles" && hasRole("admin") && <AdminErrorBoundary tabName="Roles & Permissions"><ManageRoles /></AdminErrorBoundary>}
+            {activeTab === "security" && <AdminErrorBoundary tabName="Security"><ActiveSessions /></AdminErrorBoundary>}
+            {activeTab === "visitor-logs" && hasRole("admin") && <AdminErrorBoundary tabName="Visitor Logs"><ManageVisitorLogs /></AdminErrorBoundary>}
+            {activeTab === "notifications" && hasRole("admin") && <AdminErrorBoundary tabName="Notifications"><NotificationSettings /></AdminErrorBoundary>}
+            {activeTab === "system-settings" && hasRole("admin") && <AdminErrorBoundary tabName="System Settings"><SystemSettings /></AdminErrorBoundary>}
           </motion.div>
         </div>
       </main>
