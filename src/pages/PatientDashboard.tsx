@@ -1,52 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, formatDistanceToNow } from "date-fns";
-import {
-  AlertCircle,
-  CalendarClock,
-  ClipboardList,
-  Droplet,
-  FileText,
-  FlaskConical,
-  GitBranch,
-  HeartPulse,
-  Lock,
-  LogOut,
-  Mail,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  User,
-} from "lucide-react";
+import { ClipboardList, FileText, FlaskConical, GitBranch, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { usePatientAuth } from "@/hooks/usePatientAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { formatAppDate, formatAppDateTimeWithMeridiem } from "@/lib/date";
+import { formatAppDate } from "@/lib/date";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import TestResultsTable from "@/components/patient/TestResultsTable";
 import BillingPortal from "@/components/patient/BillingPortal";
 import PatientHistoryTimeline from "@/components/patient/PatientHistoryTimeline";
-import PatientActiveSessions from "@/components/patient/PatientActiveSessions";
 import PatientBookTestRequest from "@/components/patient/PatientBookTestRequest";
-import PasswordRequirements from "@/components/patient/PasswordRequirements";
 import PageErrorBoundary from "@/components/PageErrorBoundary";
-import { formatPhoneForDisplay } from "@/lib/phone";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { validatePatientPassword } from "@/lib/patientSecurity";
+import { PatientHeader } from "@/components/patient/dashboard/PatientHeader";
+import { PatientWelcomeBanner } from "@/components/patient/dashboard/PatientWelcomeBanner";
+import { PatientStatsCards } from "@/components/patient/dashboard/PatientStatsCards";
+import { PatientQuickActions } from "@/components/patient/dashboard/PatientQuickActions";
+import { PatientProfileTab } from "@/components/patient/dashboard/PatientProfileTab";
+import { PatientSecurityTab } from "@/components/patient/dashboard/PatientSecurityTab";
 
 interface PatientTest {
   id: string;
@@ -75,45 +50,12 @@ interface PatientTest {
   created_at: string;
   result_entered_by: string | null;
   entered_by_name?: string;
-  labs?: {
-    id: string;
-    name: string;
-    lab_code: string;
-  } | null;
-  collection_centers?: {
-    id: string;
-    name: string;
-    code: string;
-  } | null;
+  labs?: { id: string; name: string; lab_code: string } | null;
+  collection_centers?: { id: string; name: string; code: string } | null;
 }
 
-const formatTimestamp = (value?: string | null) => {
-  if (!value) {
-    return "Not available";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Not available";
-  }
-
-  return `${formatAppDateTimeWithMeridiem(parsed)} (${formatDistanceToNow(parsed, { addSuffix: true })})`;
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) {
-    return "Not provided";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Not provided";
-  }
-
-  return formatAppDate(parsed);
-};
-
 const MAX_PATIENT_ADDRESS_LENGTH = 250;
+
 const patientTabTriggerClassName =
   "h-14 w-full cursor-pointer flex-row items-center justify-center gap-2.5 rounded-2xl border border-border/70 bg-background/85 px-4 text-center text-sm font-semibold leading-none text-clinical-navy/75 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-clinical-navy/20 hover:bg-background hover:text-clinical-navy hover:shadow-md data-[state=active]:border-clinical-navy data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg md:h-16 md:text-base";
 
@@ -137,9 +79,7 @@ const PatientDashboard = () => {
   const [updatingAddress, setUpdatingAddress] = useState(false);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      navigate("/auth/patient");
-    }
+    if (!loading && !isAuthenticated) navigate("/auth/patient");
   }, [loading, isAuthenticated, navigate]);
 
   useEffect(() => {
@@ -147,178 +87,88 @@ const PatientDashboard = () => {
   }, [patient?.address]);
 
   const refreshDues = useCallback(async () => {
-    if (!patient?.id) {
-      setCheckingDues(false);
-      return;
-    }
-
+    if (!patient?.id) { setCheckingDues(false); return; }
     try {
-      let invoicesQuery = supabase
+      let query = supabase
         .from("invoices")
         .select("final_amount, paid_amount, payment_status")
         .eq("patient_id", patient.id);
-
-      const resolvedOrganizationId = patient.organization_id || null;
-      if (resolvedOrganizationId) {
-        invoicesQuery = invoicesQuery.eq("organization_id" as any, resolvedOrganizationId);
-      }
-
-      const { data: invoices, error } = await invoicesQuery;
-
+      if (patient.organization_id) query = query.eq("organization_id" as any, patient.organization_id);
+      const { data: invoices, error } = await query;
       if (error) throw error;
-
-      const totalBilled = invoices?.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0) || 0;
-      const totalPaid = invoices?.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0) || 0;
-      const outstanding = totalBilled - totalPaid;
-
-      setHasOutstandingDues(outstanding > 0);
-      setOutstandingAmount(Math.max(0, outstanding));
-    } catch (error) {
-      console.error("Error checking outstanding dues:", error);
+      const billed = invoices?.reduce((s, i) => s + (Number(i.final_amount) || 0), 0) || 0;
+      const paid = invoices?.reduce((s, i) => s + (Number(i.paid_amount) || 0), 0) || 0;
+      setHasOutstandingDues(billed - paid > 0);
+      setOutstandingAmount(Math.max(0, billed - paid));
+    } catch (err) {
+      console.error("Error checking outstanding dues:", err);
     } finally {
       setCheckingDues(false);
     }
   }, [patient?.id, patient?.organization_id]);
 
   useEffect(() => {
-    const fetchTests = async () => {
-      if (!patient?.id) return;
+    if (!patient?.id) return;
 
+    const fetchTests = async () => {
       try {
-        let data;
-        let error;
+        let data: any[] | null = null;
+        let error: any = null;
 
         try {
-          let testsQuery = supabase
+          let q = supabase
             .from("patient_tests")
-            .select(`
-              *,
-              labs (
-                id,
-                name,
-                lab_code
-              ),
-              collection_centers (
-                id,
-                name,
-                code
-              )
-            `)
+            .select("*, labs(id,name,lab_code), collection_centers(id,name,code)")
             .eq("patient_id", patient.id);
+          if (patient.organization_id) q = q.eq("organization_id" as any, patient.organization_id);
+          const res = await q.order("created_at", { ascending: false });
+          data = res.data; error = res.error;
 
-          if (patient.organization_id) {
-            testsQuery = testsQuery.eq("organization_id" as any, patient.organization_id);
-          }
-
-          const result = await testsQuery.order("created_at", { ascending: false });
-
-          data = result.data;
-          error = result.error;
-
-          if (
-            error &&
-            (error.code === "PGRST116" ||
-              error.code === "PGRST201" ||
-              error.code === "42P01" ||
-              error.message?.includes("Could not find") ||
-              error.message?.includes("relationship"))
-          ) {
-            let basicQuery = supabase
-              .from("patient_tests")
-              .select("*")
-              .eq("patient_id", patient.id);
-
-            if (patient.organization_id) {
-              basicQuery = basicQuery.eq("organization_id" as any, patient.organization_id);
-            }
-
-            const basicResult = await basicQuery.order("created_at", { ascending: false });
-            data = basicResult.data;
-            error = basicResult.error;
+          if (error && (error.code === "PGRST116" || error.code === "PGRST201" || error.code === "42P01" ||
+            error.message?.includes("Could not find") || error.message?.includes("relationship"))) {
+            let bq = supabase.from("patient_tests").select("*").eq("patient_id", patient.id);
+            if (patient.organization_id) bq = bq.eq("organization_id" as any, patient.organization_id);
+            const br = await bq.order("created_at", { ascending: false });
+            data = br.data; error = br.error;
           }
         } catch {
-          let basicQuery = supabase
-            .from("patient_tests")
-            .select("*")
-            .eq("patient_id", patient.id);
-
-          if (patient.organization_id) {
-            basicQuery = basicQuery.eq("organization_id" as any, patient.organization_id);
-          }
-
-          const basicResult = await basicQuery.order("created_at", { ascending: false });
-          data = basicResult.data;
-          error = basicResult.error;
+          let bq = supabase.from("patient_tests").select("*").eq("patient_id", patient.id);
+          if (patient.organization_id) bq = bq.eq("organization_id" as any, patient.organization_id);
+          const br = await bq.order("created_at", { ascending: false });
+          data = br.data; error = br.error;
         }
 
         if (error) throw error;
 
-        const testsWithEmployees = await Promise.all(
+        const withEmployees = await Promise.all(
           (data || []).map(async (test: any) => {
-            const testWithEmployee = { ...test };
-            if (test.result_entered_by) {
-              const { data: empData, error: empError } = await supabase
-                .from("employees")
-                .select("full_name")
-                .eq("user_id", test.result_entered_by)
-                .maybeSingle();
-              if (!empError && empData?.full_name) {
-                testWithEmployee.entered_by_name = empData.full_name;
-              }
-            }
-            return testWithEmployee;
+            if (!test.result_entered_by) return test;
+            const { data: emp } = await supabase
+              .from("employees").select("full_name").eq("user_id", test.result_entered_by).maybeSingle();
+            return emp?.full_name ? { ...test, entered_by_name: emp.full_name } : test;
           }),
         );
-
-        setTests(testsWithEmployees);
-      } catch (error) {
-        console.error("Error fetching tests:", error);
+        setTests(withEmployees);
+      } catch (err) {
+        console.error("Error fetching tests:", err);
         toast.error("Failed to load test results");
       } finally {
         setTestsLoading(false);
       }
     };
 
-    if (patient?.id) {
-      void fetchTests();
-      void refreshDues();
-    }
+    void fetchTests();
+    void refreshDues();
   }, [patient?.id, patient?.organization_id, refreshDues]);
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!currentPassword || !newPassword) {
-      toast.error("Please enter your current and new password");
-      return;
-    }
-
-    const passwordValidationMessage = validatePatientPassword(newPassword);
-    if (passwordValidationMessage) {
-      toast.error(passwordValidationMessage);
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-
-    setUpdatingPassword(true);
-    const { error } = await setPassword(currentPassword, newPassword);
-    setUpdatingPassword(false);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("Password updated successfully. Other sessions have been signed out.");
-    setPasswordDialogOpen(false);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-  };
+  const pendingTests = useMemo(() => tests.filter((t) => t.status === "pending" || t.status === "processing"), [tests]);
+  const completedTests = useMemo(() => tests.filter((t) => t.status === "completed"), [tests]);
+  const abnormalTests = useMemo(() => tests.filter((t) => t.is_abnormal), [tests]);
+  const mostRecentReportUrl = useMemo(() => completedTests.find((t) => t.report_url)?.report_url ?? null, [completedTests]);
+  const lastVisitDate = useMemo(() => {
+    if (!tests.length) return null;
+    return formatAppDate(new Date(tests[0].created_at));
+  }, [tests]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -326,39 +176,35 @@ const PatientDashboard = () => {
     navigate("/auth/patient");
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword) { toast.error("Please enter your current and new password"); return; }
+    const msg = validatePatientPassword(newPassword);
+    if (msg) { toast.error(msg); return; }
+    if (newPassword !== confirmPassword) { toast.error("Passwords do not match"); return; }
+    setUpdatingPassword(true);
+    const { error } = await setPassword(currentPassword, newPassword);
+    setUpdatingPassword(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Password updated successfully. Other sessions have been signed out.");
+    setPasswordDialogOpen(false);
+    setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+  };
+
   const handleAddressUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const trimmedAddress = addressInput.trim();
-    if (!trimmedAddress) {
-      toast.error("Please enter your address");
-      return;
+    const trimmed = addressInput.trim();
+    if (!trimmed) { toast.error("Please enter your address"); return; }
+    if (trimmed.length > MAX_PATIENT_ADDRESS_LENGTH) {
+      toast.error(`Address must be ${MAX_PATIENT_ADDRESS_LENGTH} characters or fewer`); return;
     }
-
-    if (trimmedAddress.length > MAX_PATIENT_ADDRESS_LENGTH) {
-      toast.error(`Address must be ${MAX_PATIENT_ADDRESS_LENGTH} characters or fewer`);
-      return;
-    }
-
     setUpdatingAddress(true);
-    const { error } = await updateAddress(trimmedAddress);
+    const { error } = await updateAddress(trimmed);
     setUpdatingAddress(false);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
+    if (error) { toast.error(error.message); return; }
     toast.success("Address updated successfully");
     setAddressDialogOpen(false);
   };
-
-  const pendingTests = useMemo(
-    () => tests.filter((test) => test.status === "pending" || test.status === "processing"),
-    [tests],
-  );
-  const completedTests = useMemo(() => tests.filter((test) => test.status === "completed"), [tests]);
-  const abnormalTests = useMemo(() => tests.filter((test) => test.is_abnormal), [tests]);
 
   if (loading) {
     return (
@@ -382,12 +228,8 @@ const PatientDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex gap-3">
-            <Button variant="outline" onClick={() => navigate("/auth/patient")}>
-              Back to Login
-            </Button>
-            <Button onClick={() => window.location.reload()}>
-              Retry
-            </Button>
+            <Button variant="outline" onClick={() => navigate("/auth/patient")}>Back to Login</Button>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
           </CardContent>
         </Card>
       </div>
@@ -396,201 +238,74 @@ const PatientDashboard = () => {
 
   return (
     <div className="min-h-screen bg-subtle-gradient">
-      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-11 w-11 rounded-2xl border border-border bg-card p-1" />
-            <div>
-              <h1 className="font-heading text-lg font-semibold text-clinical-navy">Patient Portal</h1>
-              <p className="text-xs text-muted-foreground">{branding.displayName}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground md:flex">
-              <Phone className="h-4 w-4" />
-              <span>{formatPhoneForDisplay(patient.phone)}</span>
-            </div>
-            <Button variant="outline" size="sm" onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </Button>
-          </div>
-        </div>
-      </header>
+      <PatientHeader
+        branding={branding}
+        patient={patient}
+        lastVisitDate={lastVisitDate}
+        onSignOut={handleSignOut}
+      />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-          <Card className="overflow-hidden rounded-[28px] border border-primary-foreground/10 bg-hero-gradient text-primary-foreground shadow-sm">
-            <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
-              <div>
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14 border border-white/10 bg-white/10">
-                    <AvatarFallback className="bg-white/90 text-lg font-semibold text-primary">
-                      {patient.full_name?.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h2 className="font-heading text-2xl font-semibold text-primary-foreground">{patient.full_name}</h2>
-                    <p className="mt-1 text-sm text-primary-foreground/80">
-                      Patient ID {patient.patient_id} • {formatPhoneForDisplay(patient.phone)}
-                    </p>
-                  </div>
-                </div>
+        <PatientWelcomeBanner
+          patientName={patient.full_name}
+          patientId={patient.patient_id}
+          phone={patient.phone}
+          lastPasswordChange={patient.last_password_change}
+          completedCount={completedTests.length}
+          pendingCount={pendingTests.length}
+          outstandingAmount={outstandingAmount}
+          checkingDues={checkingDues}
+          onViewResults={() => setActiveTab("results")}
+          onBookTest={() => setActiveTab("book")}
+          onUpdateProfile={() => setActiveTab("account")}
+          onDownloadReports={() => mostRecentReportUrl ? window.open(mostRecentReportUrl, "_blank") : setActiveTab("results")}
+        />
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Reports ready</p>
-                    <p className="mt-2 text-2xl font-semibold text-primary-foreground">{completedTests.length}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-wide text-primary-foreground/70">In progress</p>
-                    <p className="mt-2 text-2xl font-semibold text-primary-foreground">{pendingTests.length}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Outstanding</p>
-                    <p className="mt-2 text-2xl font-semibold text-primary-foreground">
-                      {checkingDues ? "Checking..." : `Rs. ${outstandingAmount.toFixed(2)}`}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        <PatientStatsCards
+          totalTests={tests.length}
+          completedTests={completedTests.length}
+          pendingTests={pendingTests.length}
+          abnormalTests={abnormalTests.length}
+        />
 
-              <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
-                <div>
-                  <p className="text-sm font-medium text-primary-foreground">Quick actions</p>
-                  <p className="mt-1 text-sm text-primary-foreground/75">
-                    Start with reports, then use billing or account settings only when needed.
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                  <Button className="w-full bg-white text-clinical-navy hover:bg-white/90" onClick={() => setActiveTab("results")}>
-                    View Results
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
-                    onClick={() => setActiveTab("account")}
-                  >
-                    Account Settings
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
-                    onClick={() => setActiveTab("book")}
-                  >
-                    Book Test
-                  </Button>
-                </div>
-                <div className="text-xs text-primary-foreground/70">
-                  Last password change: {formatTimestamp(patient.last_password_change)}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.section>
-
-        <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: "Total Tests",
-              value: tests.length,
-              icon: FlaskConical,
-              tone: "text-cyan-700 bg-cyan-50 border-cyan-200",
-            },
-            {
-              label: "Completed Reports",
-              value: completedTests.length,
-              icon: CheckCircle2,
-              tone: "text-emerald-700 bg-emerald-50 border-emerald-200",
-            },
-            {
-              label: "Pending / Processing",
-              value: pendingTests.length,
-              icon: Clock,
-              tone: "text-amber-700 bg-amber-50 border-amber-200",
-            },
-            {
-              label: "Abnormal Results",
-              value: abnormalTests.length,
-              icon: Activity,
-              tone: "text-rose-700 bg-rose-50 border-rose-200",
-            },
-          ].map((card, index) => (
-            <motion.div
-              key={card.label}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.06 * index }}
-            >
-              <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                <CardContent className="flex items-center justify-between p-5">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{card.label}</p>
-                    <p className="mt-2 text-3xl font-semibold text-clinical-navy">{card.value}</p>
-                  </div>
-                  <div className={`rounded-2xl border p-3 ${card.tone}`}>
-                    <card.icon className="h-6 w-6" />
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </section>
+        <PatientQuickActions
+          onBookTest={() => setActiveTab("book")}
+          onViewResults={() => setActiveTab("results")}
+          onBilling={() => setActiveTab("billing")}
+          mostRecentReportUrl={mostRecentReportUrl}
+        />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-[24px] border border-border bg-muted/40 p-3 shadow-sm md:grid-cols-5">
-            <TabsTrigger
-              value="results"
-              className={patientTabTriggerClassName}
-            >
-              <FileText className="h-4 w-4 shrink-0" />
-              <span className="leading-none">Results</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="billing"
-              className={patientTabTriggerClassName}
-            >
-              <FlaskConical className="h-4 w-4 shrink-0" />
-              <span className="leading-none">Billing</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="book"
-              className={patientTabTriggerClassName}
-            >
-              <ClipboardList className="h-4 w-4 shrink-0" />
-              <span className="leading-none">Book Test</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="timeline"
-              className={patientTabTriggerClassName}
-            >
-              <GitBranch className="h-4 w-4 shrink-0" />
-              <span className="leading-none">Timeline</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="account"
-              className={patientTabTriggerClassName}
-            >
-              <ShieldCheck className="h-4 w-4 shrink-0" />
-              <span className="leading-none">Account</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="grid h-auto min-w-max w-full grid-cols-5 gap-2 rounded-[24px] border border-border bg-muted/40 p-3 shadow-sm md:min-w-0">
+              <TabsTrigger value="results" className={patientTabTriggerClassName}>
+                <FileText className="h-4 w-4 shrink-0" />
+                <span className="leading-none">Results</span>
+              </TabsTrigger>
+              <TabsTrigger value="billing" className={patientTabTriggerClassName}>
+                <FlaskConical className="h-4 w-4 shrink-0" />
+                <span className="leading-none">Billing</span>
+              </TabsTrigger>
+              <TabsTrigger value="book" className={patientTabTriggerClassName}>
+                <ClipboardList className="h-4 w-4 shrink-0" />
+                <span className="leading-none">Book Test</span>
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className={patientTabTriggerClassName}>
+                <GitBranch className="h-4 w-4 shrink-0" />
+                <span className="leading-none">Timeline</span>
+              </TabsTrigger>
+              <TabsTrigger value="account" className={patientTabTriggerClassName}>
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+                <span className="leading-none">Account</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="results">
-            <PageErrorBoundary
-              title="Results could not be loaded"
-              description="The results view hit an unexpected error. You can retry or switch to another portal section."
-            >
+            <PageErrorBoundary title="Results could not be loaded" description="The results view hit an unexpected error. You can retry or switch to another portal section.">
               <TestResultsTable
-                tests={tests}
-                patient={{
-                  full_name: patient.full_name,
-                  patient_id: patient.patient_id,
-                  phone: patient.phone,
-                  gender: patient.gender,
-                  date_of_birth: patient.date_of_birth,
-                  blood_group: patient.blood_group,
-                }}
+                tests={tests as any}
+                patient={{ full_name: patient.full_name, patient_id: patient.patient_id, phone: patient.phone, gender: patient.gender, date_of_birth: patient.date_of_birth, blood_group: patient.blood_group }}
                 patientDbId={patient.id}
                 patientOrganizationId={patient.organization_id}
                 loading={testsLoading}
@@ -599,11 +314,28 @@ const PatientDashboard = () => {
             </PageErrorBoundary>
           </TabsContent>
 
+          <TabsContent value="billing">
+            <PageErrorBoundary title="Billing could not be loaded" description="The billing view hit an unexpected error. You can retry without leaving the portal.">
+              <BillingPortal
+                patientId={patient.id}
+                organizationId={patient.organization_id}
+                patientName={patient.full_name}
+                patientPhone={patient.phone}
+                onPaymentStatusChange={() => { setCheckingDues(true); void refreshDues(); }}
+              />
+            </PageErrorBoundary>
+          </TabsContent>
+
+          <TabsContent value="book">
+            <PageErrorBoundary title="Booking form could not be loaded" description="The booking request form hit an unexpected error. You can retry without leaving the portal.">
+              <PatientBookTestRequest
+                patient={{ id: patient.id, full_name: patient.full_name, phone: patient.phone, email: patient.email, address: patient.address, organization_id: patient.organization_id }}
+              />
+            </PageErrorBoundary>
+          </TabsContent>
+
           <TabsContent value="timeline">
-            <PageErrorBoundary
-              title="Timeline could not be loaded"
-              description="The timeline view hit an unexpected error. You can retry or use the other portal sections."
-            >
+            <PageErrorBoundary title="Timeline could not be loaded" description="The timeline view hit an unexpected error. You can retry or use the other portal sections.">
               <PatientHistoryTimeline
                 tests={tests}
                 hasOutstandingDues={hasOutstandingDues}
@@ -613,300 +345,35 @@ const PatientDashboard = () => {
             </PageErrorBoundary>
           </TabsContent>
 
-          <TabsContent value="billing">
-            <PageErrorBoundary
-              title="Billing could not be loaded"
-              description="The billing view hit an unexpected error. You can retry without leaving the portal."
-            >
-              <BillingPortal
-                patientId={patient.id}
-                organizationId={patient.organization_id}
-                patientName={patient.full_name}
-                patientPhone={patient.phone}
-                onPaymentStatusChange={() => {
-                  setCheckingDues(true);
-                  void refreshDues();
-                }}
-              />
-            </PageErrorBoundary>
-          </TabsContent>
-
           <TabsContent value="account">
             <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-              <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Personal information
-                  </CardTitle>
-                  <CardDescription>Your details currently stored in the patient record.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  {[
-                    { icon: User, label: "Full Name", value: patient.full_name, tone: "text-foreground" },
-                    { icon: Phone, label: "Phone Number", value: formatPhoneForDisplay(patient.phone), tone: "text-foreground" },
-                    { icon: Mail, label: "Email", value: patient.email || "Not provided", tone: "text-foreground" },
-                    { icon: Droplet, label: "Blood Group", value: patient.blood_group || "Not specified", tone: "text-primary" },
-                    { icon: User, label: "Gender", value: patient.gender || "Not specified", tone: "text-foreground" },
-                    { icon: CalendarClock, label: "Date of Birth", value: formatDate(patient.date_of_birth), tone: "text-foreground" },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-border bg-muted/40 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-xl bg-white p-2 shadow-sm">
-                          <item.icon className={`h-5 w-5 ${item.tone}`} />
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                          <p className="mt-1 font-medium text-foreground">{item.value}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="rounded-2xl border border-border bg-muted/40 p-4 md:col-span-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-xl bg-white p-2 shadow-sm">
-                          <MapPin className="h-5 w-5 text-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Address</p>
-                          <p className="mt-1 font-medium text-foreground">{patient.address || "Not provided"}</p>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setAddressDialogOpen(true)}>
-                        Edit Address
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-6">
-                <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5" />
-                      Security
-                    </CardTitle>
-                    <CardDescription>Key account controls and session protection.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
-                      <p className="font-medium text-clinical-navy">Last password change</p>
-                      <p className="mt-1">{formatTimestamp(patient.last_password_change)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
-                      <p className="font-medium">Password standard</p>
-                      <p className="mt-2 leading-6">
-                        Use any password you prefer, as long as it has at least 6 characters.
-                      </p>
-                    </div>
-                    <div className="space-y-3 text-sm text-foreground">
-                      <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
-                        <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                        <p>After a password change, your other signed-in sessions are revoked automatically.</p>
-                      </div>
-                      <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
-                        <AlertCircle className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                        <p>Use the patient portal only for the patient or an authorized caregiver.</p>
-                      </div>
-                    </div>
-                    <Button variant="outline" className="w-full gap-2" onClick={() => setPasswordDialogOpen(true)}>
-                      <Lock className="h-4 w-4" />
-                      Change Password
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Support and updates</CardTitle>
-                    <CardDescription>Contact the laboratory for record corrections or help with access.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-foreground">
-                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-primary">
-                      <p className="font-medium">Need to update your personal details?</p>
-                      <p className="mt-2 leading-6 text-primary/90">
-                        You can update your address here. Contact our clinic team for phone number, email, or demographic changes.
-                      </p>
-                    </div>
-                    <p>{`Phone: ${branding.primaryPhone}`}</p>
-                    <p>{`Email: ${branding.email}`}</p>
-                  </CardContent>
-                </Card>
-
-                {(patient.abha_number || patient.abha_address) && (
-                  <Card className="rounded-3xl border border-border bg-card shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <HeartPulse className="h-5 w-5 text-emerald-600" />
-                        ABHA / Health ID
-                      </CardTitle>
-                      <CardDescription>Your Ayushman Bharat Health Account details.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                      {patient.abha_number && (
-                        <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">ABHA Number</p>
-                          <p className="mt-1 font-mono font-medium text-foreground">{patient.abha_number}</p>
-                        </div>
-                      )}
-                      {patient.abha_address && (
-                        <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">ABHA Address</p>
-                          <p className="mt-1 font-mono font-medium text-foreground">{patient.abha_address}</p>
-                        </div>
-                      )}
-                      {patient.abdm_last_verified_at && (
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                          <p className="text-xs uppercase tracking-wide text-emerald-700">Last verified</p>
-                          <p className="mt-1 font-medium text-emerald-800">
-                            {formatAppDate(patient.abdm_last_verified_at)}
-                            {patient.abdm_source && (
-                              <span className="ml-2 text-xs text-emerald-600 capitalize">
-                                via {patient.abdm_source.replace(/_/g, " ")}
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                <PatientActiveSessions />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="book">
-            <PageErrorBoundary
-              title="Booking form could not be loaded"
-              description="The booking request form hit an unexpected error. You can retry without leaving the portal."
-            >
-              <PatientBookTestRequest
-                patient={{
-                  id: patient.id,
-                  full_name: patient.full_name,
-                  phone: patient.phone,
-                  email: patient.email,
-                  address: patient.address,
-                  organization_id: patient.organization_id,
-                }}
+              <PatientProfileTab
+                patient={patient}
+                addressInput={addressInput}
+                setAddressInput={setAddressInput}
+                addressDialogOpen={addressDialogOpen}
+                setAddressDialogOpen={setAddressDialogOpen}
+                onAddressUpdate={handleAddressUpdate}
+                updatingAddress={updatingAddress}
               />
-            </PageErrorBoundary>
+              <PatientSecurityTab
+                patient={patient}
+                branding={branding}
+                passwordDialogOpen={passwordDialogOpen}
+                setPasswordDialogOpen={setPasswordDialogOpen}
+                currentPassword={currentPassword}
+                setCurrentPassword={setCurrentPassword}
+                newPassword={newPassword}
+                setNewPassword={setNewPassword}
+                confirmPassword={confirmPassword}
+                setConfirmPassword={setConfirmPassword}
+                updatingPassword={updatingPassword}
+                onChangePassword={handleChangePassword}
+              />
+            </div>
           </TabsContent>
         </Tabs>
       </main>
-
-      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5" />
-              Change Password
-            </DialogTitle>
-            <DialogDescription>
-              Update your portal password. Saving this will sign out your other active sessions.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <Input
-                id="currentPassword"
-                name="current_password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                name="new_password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirm_password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
-
-            <PasswordRequirements password={newPassword} />
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setPasswordDialogOpen(false)} disabled={updatingPassword}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={updatingPassword}>
-                {updatingPassword ? "Updating..." : "Update Password"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={addressDialogOpen} onOpenChange={setAddressDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Update Address
-            </DialogTitle>
-            <DialogDescription>
-              Keep your address up to date for home collection requests and patient record accuracy.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleAddressUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="patient-address">Address</Label>
-              <textarea
-                id="patient-address"
-                name="patient_address"
-                value={addressInput}
-                onChange={(e) => setAddressInput(e.target.value.slice(0, MAX_PATIENT_ADDRESS_LENGTH))}
-                rows={4}
-                className="flex min-h-[112px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                autoComplete="street-address"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                {addressInput.length}/{MAX_PATIENT_ADDRESS_LENGTH} characters
-              </p>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAddressDialogOpen(false)} disabled={updatingAddress}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={updatingAddress}>
-                {updatingAddress ? "Saving..." : "Save Address"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <footer className="mt-12 border-t border-border bg-card/70">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground sm:px-6 md:flex-row lg:px-8">
