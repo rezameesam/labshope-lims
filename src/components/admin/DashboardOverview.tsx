@@ -12,8 +12,6 @@ import {
   ArrowDownRight,
   DollarSign,
   CreditCard,
-  AlertCircle,
-  Bell
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,9 +42,13 @@ interface Stats {
   tests: number;
   pendingTests: number;
   completedToday: number;
+  testsYesterday: number;
+  newPatientsToday: number;
+  newPatientsYesterday: number;
   newPatientsThisWeek: number;
   totalRevenue: number;
   revenueToday: number;
+  revenueYesterday: number;
   revenueThisWeek: number;
   revenueThisMonth: number;
   outstandingDues: number;
@@ -97,9 +99,13 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
     tests: 0,
     pendingTests: 0,
     completedToday: 0,
+    testsYesterday: 0,
+    newPatientsToday: 0,
+    newPatientsYesterday: 0,
     newPatientsThisWeek: 0,
     totalRevenue: 0,
     revenueToday: 0,
+    revenueYesterday: 0,
     revenueThisWeek: 0,
     revenueThisMonth: 0,
     outstandingDues: 0,
@@ -121,19 +127,11 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
       if (!organization?.id) {
         setStats({
-          employees: 0,
-          patients: 0,
-          tests: 0,
-          pendingTests: 0,
-          completedToday: 0,
-          newPatientsThisWeek: 0,
-          totalRevenue: 0,
-          revenueToday: 0,
-          revenueThisWeek: 0,
-          revenueThisMonth: 0,
-          outstandingDues: 0,
-          paidInvoices: 0,
-          pendingInvoices: 0,
+          employees: 0, patients: 0, tests: 0, pendingTests: 0,
+          completedToday: 0, testsYesterday: 0, newPatientsToday: 0, newPatientsYesterday: 0,
+          newPatientsThisWeek: 0, totalRevenue: 0, revenueToday: 0, revenueYesterday: 0,
+          revenueThisWeek: 0, revenueThisMonth: 0, outstandingDues: 0,
+          paidInvoices: 0, pendingInvoices: 0,
         });
         setRecentTests([]);
         setTestTrends([]);
@@ -146,8 +144,8 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
       try {
         const today = new Date();
+        const yesterday = subDays(today, 1);
         const weekAgo = subDays(today, 7);
-
         const monthAgo = subDays(today, 30);
         let employeesQuery = supabase.from("employees").select("id", { count: "exact", head: true });
         let patientsQuery = supabase.from("patients").select("id", { count: "exact", head: true });
@@ -166,6 +164,26 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           .from("patients")
           .select("id", { count: "exact", head: true })
           .gte("created_at", weekAgo.toISOString());
+        let newPatientsTodayQuery = supabase
+          .from("patients")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startOfDay(today).toISOString())
+          .lte("created_at", endOfDay(today).toISOString());
+        let newPatientsYesterdayQuery = supabase
+          .from("patients")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startOfDay(yesterday).toISOString())
+          .lte("created_at", endOfDay(yesterday).toISOString());
+        let testsYesterdayQuery = supabase
+          .from("patient_tests")
+          .select("id", { count: "exact", head: true })
+          .gte("test_date", startOfDay(yesterday).toISOString().split('T')[0])
+          .lte("test_date", endOfDay(yesterday).toISOString().split('T')[0]);
+        let invoicesYesterdayQuery = supabase
+          .from("invoices")
+          .select("id, paid_amount")
+          .gte("created_at", startOfDay(yesterday).toISOString())
+          .lte("created_at", endOfDay(yesterday).toISOString());
         let recentTestsQuery = supabase
           .from("patient_tests")
           .select(`
@@ -213,33 +231,21 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         invoicesTodayQuery = invoicesTodayQuery.eq("organization_id" as any, organization.id);
         invoicesWeekQuery = invoicesWeekQuery.eq("organization_id" as any, organization.id);
         invoicesMonthQuery = invoicesMonthQuery.eq("organization_id" as any, organization.id);
+        newPatientsTodayQuery = newPatientsTodayQuery.eq("organization_id" as any, organization.id);
+        newPatientsYesterdayQuery = newPatientsYesterdayQuery.eq("organization_id" as any, organization.id);
+        testsYesterdayQuery = testsYesterdayQuery.eq("organization_id" as any, organization.id);
+        invoicesYesterdayQuery = invoicesYesterdayQuery.eq("organization_id" as any, organization.id);
 
         const [
-          employeesRes, 
-          patientsRes, 
-          testsRes, 
-          pendingRes,
-          completedTodayRes,
-          newPatientsRes,
-          recentTestsRes,
-          inProgressRes,
-          allInvoicesRes,
-          invoicesTodayRes,
-          invoicesWeekRes,
-          invoicesMonthRes,
+          employeesRes, patientsRes, testsRes, pendingRes,
+          completedTodayRes, newPatientsRes, recentTestsRes, inProgressRes,
+          allInvoicesRes, invoicesTodayRes, invoicesWeekRes, invoicesMonthRes,
+          newPatientsTodayRes, newPatientsYesterdayRes, testsYesterdayRes, invoicesYesterdayRes,
         ] = await Promise.all([
-          employeesQuery,
-          patientsQuery,
-          testsQuery,
-          pendingTestsQuery,
-          completedTodayQuery,
-          newPatientsQuery,
-          recentTestsQuery,
-          inProgressQuery,
-          allInvoicesQuery,
-          invoicesTodayQuery,
-          invoicesWeekQuery,
-          invoicesMonthQuery,
+          employeesQuery, patientsQuery, testsQuery, pendingTestsQuery,
+          completedTodayQuery, newPatientsQuery, recentTestsQuery, inProgressQuery,
+          allInvoicesQuery, invoicesTodayQuery, invoicesWeekQuery, invoicesMonthQuery,
+          newPatientsTodayQuery, newPatientsYesterdayQuery, testsYesterdayQuery, invoicesYesterdayQuery,
         ]);
 
         // Calculate financial stats
@@ -341,15 +347,21 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         }
         setRevenueTrends(revenueTrendsData);
 
+        const revenueYesterday = (invoicesYesterdayRes.data || []).reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+
         setStats({
           employees: employeesRes.count || 0,
           patients: patientsRes.count || 0,
           tests: testsRes.count || 0,
           pendingTests: pendingRes.count || 0,
           completedToday: completedTodayRes.count || 0,
+          testsYesterday: testsYesterdayRes.count || 0,
+          newPatientsToday: newPatientsTodayRes.count || 0,
+          newPatientsYesterday: newPatientsYesterdayRes.count || 0,
           newPatientsThisWeek: newPatientsRes.count || 0,
           totalRevenue,
           revenueToday,
+          revenueYesterday,
           revenueThisWeek,
           revenueThisMonth,
           outstandingDues: Math.max(0, outstandingDues),
@@ -402,35 +414,52 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
     fetchStats();
   }, [organization?.id, organizationLoading]);
 
+  const todayDate = format(new Date(), "EEEE, MMM d");
+
+  const testsChange = stats.completedToday - stats.testsYesterday;
+  const patientsChange = stats.newPatientsToday - stats.newPatientsYesterday;
+  const revenueChange = stats.revenueToday - stats.revenueYesterday;
+
   const statCards = [
     {
-      title: "Total Revenue",
-      value: stats.totalRevenue,
-      subtitle: `₹${stats.revenueThisMonth.toLocaleString()} this month`,
+      title: "Tests Today",
+      value: stats.completedToday,
+      subtitle: testsChange === 0
+        ? `Same as yesterday (${stats.testsYesterday})`
+        : testsChange > 0
+        ? `↑ ${testsChange} more than yesterday`
+        : `↓ ${Math.abs(testsChange)} fewer than yesterday`,
+      icon: ClipboardList,
+      trend: testsChange > 0 ? "up" : testsChange < 0 ? "down" : null,
+      color: "from-blue-500 to-blue-600",
+      iconBg: "bg-blue-500/10",
+      iconColor: "text-blue-500",
+    },
+    {
+      title: "Revenue Today",
+      value: stats.revenueToday,
+      subtitle: revenueChange === 0
+        ? `Same as yesterday`
+        : revenueChange > 0
+        ? `↑ ₹${revenueChange.toLocaleString()} more than yesterday`
+        : `↓ ₹${Math.abs(revenueChange).toLocaleString()} less than yesterday`,
       icon: DollarSign,
-      trend: "up",
+      trend: revenueChange > 0 ? "up" : revenueChange < 0 ? "down" : null,
       color: "from-green-500 to-green-600",
       iconBg: "bg-green-500/10",
       iconColor: "text-green-500",
       format: (val: number) => `₹${val.toLocaleString()}`,
     },
     {
-      title: "Outstanding Dues",
-      value: stats.outstandingDues,
-      subtitle: `${stats.pendingInvoices} unpaid invoices`,
-      icon: CreditCard,
-      trend: stats.outstandingDues > 0 ? "down" : null,
-      color: "from-red-500 to-red-600",
-      iconBg: "bg-red-500/10",
-      iconColor: "text-red-500",
-      format: (val: number) => `₹${val.toLocaleString()}`,
-    },
-    {
-      title: "Total Patients",
-      value: stats.patients,
-      subtitle: `+${stats.newPatientsThisWeek} this week`,
+      title: "New Patients Today",
+      value: stats.newPatientsToday,
+      subtitle: patientsChange === 0
+        ? `Same as yesterday (${stats.newPatientsYesterday})`
+        : patientsChange > 0
+        ? `↑ ${patientsChange} more than yesterday`
+        : `↓ ${Math.abs(patientsChange)} fewer than yesterday`,
       icon: UserPlus,
-      trend: "up",
+      trend: patientsChange > 0 ? "up" : patientsChange < 0 ? "down" : null,
       color: "from-emerald-500 to-emerald-600",
       iconBg: "bg-emerald-500/10",
       iconColor: "text-emerald-500",
@@ -438,7 +467,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
     {
       title: "Pending Tests",
       value: stats.pendingTests,
-      subtitle: "Awaiting results",
+      subtitle: `${stats.outstandingDues > 0 ? `₹${stats.outstandingDues.toLocaleString()} outstanding dues` : "All dues cleared"}`,
       icon: Activity,
       trend: stats.pendingTests > 5 ? "down" : null,
       color: "from-amber-500 to-amber-600",
@@ -462,6 +491,13 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Today's date header */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Calendar className="h-4 w-4" />
+        <span>{todayDate}</span>
+        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">Today's Stats</span>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card) => (
