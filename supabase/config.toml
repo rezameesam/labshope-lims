@@ -109,7 +109,7 @@ verify_jwt = true
 
 # Messaging (internal, authenticated)
 [functions.send-email]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-whatsapp]
 verify_jwt = true

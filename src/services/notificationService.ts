@@ -24,6 +24,9 @@ export interface NotificationOptions {
   patientId?: string;
   reminderId?: string;
   branding?: Partial<NotificationBranding>;
+  /** Caller-supplied JWT access token. When provided, used directly for Edge
+   *  Function auth instead of relying on supabase.auth.getSession(). */
+  accessToken?: string;
 }
 
 export interface NotificationResult {
@@ -93,24 +96,6 @@ const NOTIFICATION_TEMPLATE_DEFAULTS = {
     "Dear {patient_name},\n\nWe have received your payment of ₹{amount}{invoice_suffix}.\n\nYou can now view and download your test reports from {business_name}:\n{portal_url}\n\nThank you!",
 } as const;
 
-async function getFunctionAuthHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  if (publishableKey) {
-    headers.apikey = publishableKey;
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
-  }
-
-  return headers;
-}
-
 /**
  * Send email notification using Supabase Edge Function (server-side)
  * This calls the send-email Edge Function which uses nodemailer on the server
@@ -120,7 +105,8 @@ async function sendEmail(
   subject: string,
   htmlContent: string,
   textContent?: string,
-  patientId?: string
+  patientId?: string,
+  callerAccessToken?: string
 ): Promise<NotificationResult> {
   try {
     // Get Supabase URL from environment variables
@@ -134,27 +120,60 @@ async function sendEmail(
       };
     }
 
-    const headers = await getFunctionAuthHeaders();
+    // Resolve auth token: prefer caller-supplied token, then the active user
+    // session, and finally a refresh attempt. Do not fall back to the anon
+    // publishable key as a Bearer token; it is not a JWT and will be rejected.
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    let resolvedToken = callerAccessToken;
+    if (!resolvedToken) {
+      const { data: { session } } = await supabase.auth.getSession();
+      resolvedToken = session?.access_token;
+    }
 
-    // Call the Supabase Edge Function
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        to,
-        subject,
-        htmlContent,
-        textContent,
-        patientId,
-      }),
-    });
+    if (!resolvedToken) {
+      const { data: refreshedSessionData, error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError) {
+        resolvedToken = refreshedSessionData.session?.access_token;
+      }
+    }
 
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
+    if (!resolvedToken) {
       return {
         success: false,
-        error: result.error || 'Failed to send email',
+        error: "You must be signed in with a valid session to send test emails.",
+        method: 'email',
+      };
+    }
+
+    const requestBody = JSON.stringify({ to, subject, htmlContent, textContent, patientId });
+    const sendRequest = async (token: string) =>
+      fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'apikey': anonKey,
+        },
+        body: requestBody,
+      });
+
+    let rawResponse = await sendRequest(resolvedToken);
+
+    if (rawResponse.status === 401) {
+      const { data: refreshedSessionData, error: refreshError } = await supabase.auth.refreshSession();
+      const refreshedToken = refreshError ? null : refreshedSessionData.session?.access_token;
+      if (refreshedToken) {
+        rawResponse = await sendRequest(refreshedToken);
+      }
+    }
+
+    const result = rawResponse.ok ? await rawResponse.json() : null;
+    const invokeError = rawResponse.ok ? null : { message: `HTTP ${rawResponse.status}` };
+
+    if (invokeError || !result?.success) {
+      return {
+        success: false,
+        error: result?.error || invokeError?.message || 'Failed to send email',
         method: 'email',
       };
     }
@@ -238,39 +257,21 @@ async function sendWhatsApp(
       };
     }
 
-    const headers = await getFunctionAuthHeaders();
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
+    const { data: result, error: invokeError } = await supabase.functions.invoke('send-whatsapp', {
+      body: {
         to,
         message,
         patientId,
         ...(templateName ? { type: "template", templateName, templateParams: [message] } : {}),
-      }),
+      },
     });
 
-    let result: any = {};
-    try {
-      result = await response.json();
-    } catch {
-      result = {};
-    }
-
-    if (!response.ok || !result.success) {
-      if (response.status === 401) {
-        return {
-          success: false,
-          error: "Unauthorized to call WhatsApp service. Please sign in again and retry.",
-          method: "whatsapp",
-        };
-      }
-      const message = result.error || "Failed to send WhatsApp message";
-      const hint = result.hint ? ` ${result.hint}` : "";
+    if (invokeError || !result?.success) {
+      const errMsg = result?.error || invokeError?.message || "Failed to send WhatsApp message";
+      const hint = result?.hint ? ` ${result.hint}` : "";
       return {
         success: false,
-        error: `${message}${hint}`,
+        error: `${errMsg}${hint}`,
         method: "whatsapp",
       };
     }
@@ -624,7 +625,8 @@ export async function sendNotification(
       options.subject || 'Notification',
       emailHtml,
       emailText,
-      options.patientId
+      options.patientId,
+      options.accessToken
     );
     results.push(emailResult);
   }

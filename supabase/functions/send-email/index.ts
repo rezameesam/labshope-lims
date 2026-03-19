@@ -53,7 +53,8 @@ async function authorizeRequest(
     },
   });
 
-  const { data: authData, error: authError } = await authClient.auth.getUser();
+  const token = authHeader.replace("Bearer ", "");
+  const { data: authData, error: authError } = await authClient.auth.getUser(token);
   if (authError || !authData.user) {
     throw new Response(
       JSON.stringify({ error: "Invalid authentication token" }),
