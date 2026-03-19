@@ -46,7 +46,7 @@ const PatientAuth = () => {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      navigate("/patient/dashboard");
+      navigate("/patient/dashboard", { replace: true });
     }
   }, [loading, isAuthenticated, navigate]);
 

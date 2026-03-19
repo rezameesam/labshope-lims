@@ -79,7 +79,7 @@ const PatientDashboard = () => {
   const [updatingAddress, setUpdatingAddress] = useState(false);
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) navigate("/auth/patient");
+    if (!loading && !isAuthenticated) navigate("/auth/patient", { replace: true });
   }, [loading, isAuthenticated, navigate]);
 
   useEffect(() => {
