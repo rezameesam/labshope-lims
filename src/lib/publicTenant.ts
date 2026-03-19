@@ -13,10 +13,7 @@ export const getPublicSlugCandidate = (hostname: string | null) => {
 
   if (hostname.endsWith(".localhost")) {
     const candidate = hostname.slice(0, -".localhost".length);
-    // Allow a dev override: VITE_DEV_ORG_SLUG lets you use a short hostname
-    // like irm.localhost while mapping to the real org slug (e.g. irmclinic).
-    const devSlugOverride = import.meta.env.VITE_DEV_ORG_SLUG?.trim();
-    return devSlugOverride || candidate || null;
+    return candidate || null;
   }
 
   const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
@@ -55,10 +52,6 @@ export const isPlatformHostname = (hostname: string | null) => {
 export const isDefinitelyPlatformHostname = (hostname: string | null) => {
   if (!hostname) return true;
   if (hostname === "localhost" || hostname === "127.0.0.1") return true;
-  // Any *.localhost subdomain is a dev environment — treat as platform host
-  // so the app falls back to the logged-in user's org instead of showing
-  // "Tenant Not Found" when the slug doesn't match a DB entry.
-  if (hostname.endsWith(".localhost")) return true;
 
   const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
   if (configuredBaseDomain && hostname === configuredBaseDomain) return true;
