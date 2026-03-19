@@ -5,6 +5,7 @@ declare global {
     turnstile?: {
       render: (element: HTMLElement, options: Record<string, unknown>) => string;
       reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
     };
   }
 }
@@ -37,7 +38,7 @@ const Turnstile = ({ siteKey, onVerify, onExpire, action }: TurnstileProps) => {
   useEffect(() => {
     const container = containerRef.current;
     const hostname = window.location.hostname;
-    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
     const isPrivateIp = /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
       /^192\.168\.\d+\.\d+$/.test(hostname) ||
       /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname);
@@ -94,7 +95,9 @@ const Turnstile = ({ siteKey, onVerify, onExpire, action }: TurnstileProps) => {
 
     return () => {
       if (widgetIdRef.current && window.turnstile) {
-        window.turnstile.reset(widgetIdRef.current);
+        // Use remove() instead of reset() so Turnstile fully tears down the
+        // widget — prevents the "already rendered" warning on StrictMode remount.
+        try { window.turnstile.remove(widgetIdRef.current); } catch { /* ignore */ }
         if (activeWidgetId === widgetIdRef.current) {
           activeWidgetId = null;
           activeContainer = null;
