@@ -28,6 +28,8 @@ export function ResultsFilter({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          id="results-search"
+          name="results_search"
           placeholder="Search by test name..."
           value={searchQuery}
           onChange={(e) => onSearchQueryChange(e.target.value)}
@@ -36,12 +38,12 @@ export function ResultsFilter({
       </div>
       <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
         <div className="space-y-1">
-          <Label className="text-xs">From Date</Label>
-          <DateInput value={startDate} onChange={onStartDateChange} className="w-full sm:w-40" />
+          <Label htmlFor="results-from-date" className="text-xs">From Date</Label>
+          <DateInput id="results-from-date" value={startDate} onChange={onStartDateChange} className="w-full sm:w-40" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">To Date</Label>
-          <DateInput value={endDate} onChange={onEndDateChange} className="w-full sm:w-40" />
+          <Label htmlFor="results-to-date" className="text-xs">To Date</Label>
+          <DateInput id="results-to-date" value={endDate} onChange={onEndDateChange} className="w-full sm:w-40" />
         </div>
         {(startDate || endDate) && (
           <Button variant="ghost" size="sm" onClick={onClearDates} className="w-full sm:w-auto">
