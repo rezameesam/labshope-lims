@@ -257,10 +257,10 @@ const ManageBilling = () => {
 
     try {
       // Try to fetch with lab/collection center joins, fallback to basic query if it fails
-      let data, error;
-      
+      let data: Invoice[] | null = null;
+      let error: any = null;
       try {
-        let query = supabase
+        const result = await (supabase as any)
           .from("invoices")
           .select(`
             *,
@@ -276,45 +276,38 @@ const ManageBilling = () => {
               code
             )
           `)
-          .order("created_at", { ascending: false });
-
-        query = query.eq("organization_id" as any, organizationId);
-
-        const result = await query;
+          .order("created_at", { ascending: false })
+          .eq("organization_id" as any, organizationId);
         
-        data = result.data;
+        data = (result.data as unknown as Invoice[] | null) ?? null;
         error = result.error;
         
         // If join fails due to missing tables/columns, fallback to basic query
         if (error && (error.code === "PGRST116" || error.code === "42P01" || error.message?.includes("Could not find") || error.message?.includes("relation") || error.code === "400")) {
-          let basicQuery = supabase
+          const basicResult = await (supabase as any)
             .from("invoices")
             .select(`
               *,
               patient:patients(full_name, patient_id, phone, abha_address)
             `)
-            .order("created_at", { ascending: false });
-
-          basicQuery = basicQuery.eq("organization_id" as any, organizationId);
-
-          const basicResult = await basicQuery;
-          data = basicResult.data;
+            .order("created_at", { ascending: false })
+            .eq("organization_id" as any, organizationId);
+          
+          data = (basicResult.data as unknown as Invoice[] | null) ?? null;
           error = basicResult.error;
         }
       } catch (err: any) {
         // If join fails, try basic query
-        let basicQuery = supabase
+        const basicResult = await (supabase as any)
           .from("invoices")
           .select(`
             *,
             patient:patients(full_name, patient_id, phone, abha_address)
           `)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .eq("organization_id" as any, organizationId);
 
-        basicQuery = basicQuery.eq("organization_id" as any, organizationId);
-
-        const basicResult = await basicQuery;
-        data = basicResult.data;
+        data = (basicResult.data as unknown as Invoice[] | null) ?? null;
         error = basicResult.error;
       }
 
@@ -327,7 +320,7 @@ const ManageBilling = () => {
         .filter((inv) => inv.patient?.abha_address)
         .map((inv) => inv.id);
       if (invoiceIds.length > 0) {
-        const { data: linkData } = await supabase
+        const { data: linkData } = await (supabase as any)
           .from("abdm_care_context_links" as any)
           .select("invoice_id")
           .eq("organization_id" as any, organizationId)
@@ -516,7 +509,7 @@ const ManageBilling = () => {
     }
 
     try {
-      let query = supabase
+      let query: any = (supabase as any)
         .from("patient_tests")
         .select(`
           id, test_name, test_date, status, test_id,
@@ -545,14 +538,11 @@ const ManageBilling = () => {
         if (invoiceItemsData && invoiceItemsData.length > 0) {
           // Get invoice payment statuses
           const invoiceIds = Array.from(new Set(invoiceItemsData.map(item => item.invoice_id)));
-          let invoicesQuery = supabase
+          const { data: invoicesData } = await (supabase as any)
             .from("invoices")
             .select("id, invoice_number, payment_status, final_amount, paid_amount")
-            .in("id", invoiceIds);
-
-          invoicesQuery = invoicesQuery.eq("organization_id" as any, organizationId);
-
-          const { data: invoicesData } = await invoicesQuery;
+            .in("id", invoiceIds)
+            .eq("organization_id" as any, organizationId);
 
           // Create maps for quick lookup
           const testToInvoiceMap = new Map<string, string>();
@@ -805,7 +795,7 @@ const ManageBilling = () => {
       const newPaidAmount = selectedInvoice.paid_amount + paymentAmount;
       const newStatus = newPaidAmount >= selectedInvoice.final_amount ? "paid" : "partial";
       
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from("invoices")
         .update({
           paid_amount: newPaidAmount,
@@ -952,7 +942,7 @@ const ManageBilling = () => {
       }
 
       // Update invoice totals
-      const { error: invoiceError } = await supabase
+      const { error: invoiceError } = await (supabase as any)
         .from("invoices")
         .update({
           total_amount: newTotal,
@@ -975,7 +965,7 @@ const ManageBilling = () => {
       // Refresh invoice details if open
       if (isDetailsOpen && selectedInvoice) {
         try {
-          const result = await supabase
+          const result = await (supabase as any)
             .from("invoices")
             .select(`
               *,
@@ -994,18 +984,27 @@ const ManageBilling = () => {
             .eq("id", selectedInvoice.id)
             .eq("organization_id" as any, organizationId)
             .single();
-          
+
           if (!result.error && result.data) {
-            // Handle case where collection_centers might be an error object
             const invoiceData = result.data as any;
-            if (invoiceData.collection_centers && typeof invoiceData.collection_centers === 'object' && 'error' in invoiceData.collection_centers) {
+            if (
+              invoiceData.collection_centers &&
+              typeof invoiceData.collection_centers === "object" &&
+              "error" in invoiceData.collection_centers
+            ) {
               invoiceData.collection_centers = null;
             }
+
             setSelectedInvoice(await enrichInvoiceDiscountAudit(invoiceData as Invoice));
             await fetchBillingAudit(selectedInvoice.id);
-          } else if (result.error && (result.error.code === "PGRST116" || result.error.code === "42P01" || result.error.message?.includes("Could not find") || result.error.code === "400")) {
-            // Fallback to basic query
-            const basicResult = await supabase
+          } else if (
+            result.error &&
+            (result.error.code === "PGRST116" ||
+              result.error.code === "42P01" ||
+              result.error.message?.includes("Could not find") ||
+              result.error.code === "400")
+          ) {
+            const basicResult = await (supabase as any)
               .from("invoices")
               .select(`
                 *,
@@ -1014,9 +1013,10 @@ const ManageBilling = () => {
               .eq("id", selectedInvoice.id)
               .eq("organization_id" as any, organizationId)
               .single();
-            
+
             if (!basicResult.error && basicResult.data) {
-              setSelectedInvoice(await enrichInvoiceDiscountAudit(basicResult.data as Invoice));
+              const basicInvoice = basicResult.data as unknown as Invoice;
+              setSelectedInvoice(await enrichInvoiceDiscountAudit(basicInvoice));
               await fetchBillingAudit(selectedInvoice.id);
             }
           }

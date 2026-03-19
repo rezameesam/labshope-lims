@@ -113,7 +113,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       };
 
       // Fetch pending tests
-      let testsQuery = supabase
+      let testsQuery = (supabase as any)
         .from("patient_tests")
         .select(`
           id,
@@ -165,7 +165,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       }
 
       // Fetch upcoming and overdue reminders
-      let remindersQuery = supabase
+      let remindersQuery = (supabase as any)
         .from("patient_reminders")
         .select(`
           id,
@@ -214,7 +214,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       }
 
       // Fetch pending invoices
-      let invoicesQuery = supabase
+      let invoicesQuery = (supabase as any)
         .from("invoices")
         .select(`
           id,

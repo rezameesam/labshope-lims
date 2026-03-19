@@ -78,6 +78,17 @@ type PatientSummary = {
   created_at: string;
 };
 
+type BookingRequestExportRow = Record<string, unknown> & {
+  request_date: string;
+  requester_name: string;
+  requester_phone: string;
+  requester_email: string;
+  tests_requested: string;
+  status: string;
+  lab_name: string;
+  notes: string;
+};
+
 const STATUS_OPTIONS = [
   { value: "all", label: "All Statuses" },
   { value: "new", label: "New" },
@@ -154,7 +165,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
 
     setLoading(true);
     try {
-      let query = supabase
+      let query = (supabase as any)
         .from("booking_requests")
         .select(`
           *,
@@ -289,7 +300,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       return;
     }
 
-    let query = supabase
+    let query = (supabase as any)
       .from("patients")
       .select("id, patient_id, full_name, phone, address, email, created_at")
       .in("phone", variants)
@@ -341,7 +352,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
     setSearchingPatients(true);
     try {
       const sanitized = query.replace(/,/g, " ");
-      let patientQuery = supabase
+      let patientQuery = (supabase as any)
         .from("patients")
         .select("id, patient_id, full_name, phone, address, email, created_at")
         .eq("is_active", true)
@@ -392,7 +403,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("booking_requests")
         .update({ status: reviewStatus })
         .eq("id", selectedRequest.id)
@@ -429,7 +440,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         converted_by: user?.id || null,
       } satisfies Database["public"]["Tables"]["booking_requests"]["Update"];
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("booking_requests")
         .update(updates)
         .eq("id", selectedRequest.id)
@@ -474,7 +485,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         normalizePhoneNumber(selectedRequest.phone, DEFAULT_COUNTRY_CODE) || selectedRequest.phone;
       const phoneVariants = getPhoneLookupVariants(normalizedPhone, DEFAULT_COUNTRY_CODE);
 
-      let duplicateQuery = supabase
+      let duplicateQuery = (supabase as any)
         .from("patients")
         .select("id, patient_id, full_name, phone, address, email, created_at")
         .in("phone", phoneVariants)
@@ -496,7 +507,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       }
 
       const patientId = generatePatientId();
-      const patientInsert: Database["public"]["Tables"]["patients"]["Insert"] = {
+      const patientInsert = {
         patient_id: patientId,
         full_name: selectedRequest.full_name,
         phone: normalizedPhone,
@@ -508,7 +519,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         created_by: user?.id || null,
       };
 
-      const { data: createdPatient, error: createError } = await supabase
+      const { data: createdPatient, error: createError } = await (supabase as any)
         .from("patients")
         .insert(patientInsert)
         .select("id, patient_id, full_name, phone, address, email, created_at")
@@ -578,7 +589,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  exportToExcel("booking_requests", [
+                  exportToExcel<BookingRequestExportRow>("booking_requests", [
                     { key: "request_date", label: "Date" },
                     { key: "requester_name", label: "Name" },
                     { key: "requester_phone", label: "Phone" },
@@ -587,10 +598,15 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                     { key: "status", label: "Status" },
                     { key: "lab_name", label: "Lab" },
                     { key: "notes", label: "Notes" },
-                  ], filteredRequests.map(r => ({
-                    ...r,
+                  ], filteredRequests.map((r): BookingRequestExportRow => ({
                     request_date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-IN") : "",
+                    requester_name: r.full_name || "",
+                    requester_phone: r.phone || "",
+                    requester_email: r.email || "",
+                    tests_requested: r.test_details || "",
+                    status: r.status || "",
                     lab_name: r.labs?.name ?? "",
+                    notes: r.notes || "",
                   })))
                 }
               >

@@ -701,7 +701,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         return;
       }
 
-      let query = supabase
+      let query = (supabase as any)
         .from("patients")
         .select(`
           *,
@@ -744,7 +744,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         return;
       }
 
-      let query = supabase
+      let query = (supabase as any)
         .from("labs")
         .select("id, name, lab_code")
         .eq("is_active", true)
@@ -775,7 +775,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         return;
       }
 
-      let query = supabase
+      let query = (supabase as any)
         .from("collection_centers")
         .select("id, name, code, lab_id")
         .eq("is_active", true)
@@ -806,7 +806,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("patient_tests")
         .select(`
           id,
@@ -878,7 +878,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
 
     try {
-      const query = supabase
+      const query = (supabase as any)
         .from("invoices")
         .select("final_amount, paid_amount")
         .eq("patient_id", patientId)
@@ -943,7 +943,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         throw error;
       }
 
-      setAbdmProfileShares((data || []) as AbdmProfileShare[]);
+      setAbdmProfileShares((data || []) as unknown as AbdmProfileShare[]);
     } catch (error) {
       console.error("Error fetching ABDM profile shares:", error);
       setAbdmProfileShares([]);
@@ -996,15 +996,12 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const phoneLookupVariants = getPhoneLookupVariants(normalizedPhone, formData.country_code);
 
       // Check for existing patients with the same phone number
-      let duplicateCheckQuery = supabase
+      const { data: existingPatients, error: checkError } = await (supabase as any)
         .from("patients")
         .select("id, patient_id, full_name, phone, date_of_birth, gender, email, address, blood_group, is_active, created_at")
         .in("phone", phoneLookupVariants)
-        .eq("is_active", true);
-
-      duplicateCheckQuery = duplicateCheckQuery.eq("organization_id" as any, organizationId);
-
-      const { data: existingPatients, error: checkError } = await duplicateCheckQuery;
+        .eq("is_active", true)
+        .eq("organization_id", organizationId);
 
       if (checkError) throw checkError;
 
@@ -1132,7 +1129,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const hasAbdmIdentity = Boolean(abhaNumber || abhaAddress);
       const abdmStatus = hasAbdmIdentity ? formData.abdm_link_status || "linked" : "unlinked";
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("patients")
         .update({
           full_name: formData.full_name,
@@ -1158,8 +1155,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           lab_id: formData.lab_id || null,
           collection_center_id: formData.collection_center_id || null,
         })
-        .eq("id", selectedPatient.id)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: selectedPatient.id, organization_id: organizationId });
 
       if (error) throw error;
 
@@ -1285,7 +1281,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("patients")
         .select(`
           *,
@@ -1300,8 +1296,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
             code
           )
         `)
-        .eq("id", share.matched_patient_id)
-        .eq("organization_id" as any, organizationId)
+        .match({ id: share.matched_patient_id, organization_id: organizationId })
         .maybeSingle();
 
       if (error) {
@@ -1326,7 +1321,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setMatchShareLoading(true);
     try {
       // Update the profile share to mark it as matched
-      const { error: shareError } = await supabase
+      const { error: shareError } = await (supabase as any)
         .from("abdm_profile_shares" as any)
         .update({ matched_patient_id: patient.id, request_status: "matched" })
         .eq("id", share.id)
@@ -1341,7 +1336,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       abhaUpdate.abdm_source = "abha_linked";
       abhaUpdate.abdm_last_verified_at = new Date().toISOString();
 
-      const { error: patientError } = await supabase
+      const { error: patientError } = await (supabase as any)
         .from("patients")
         .update(abhaUpdate as any)
         .eq("id", patient.id)
@@ -1533,11 +1528,10 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("patients")
         .update({ is_active: !patient.is_active })
-        .eq("id", patient.id)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: patient.id, organization_id: organizationId });
 
       if (error) throw error;
       toast.success(`Patient ${patient.is_active ? 'deactivated' : 'activated'} successfully`);

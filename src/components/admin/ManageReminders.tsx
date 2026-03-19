@@ -174,7 +174,7 @@ const ManageReminders = () => {
 
     setLoading(true);
     try {
-      let remindersQuery = supabase
+      let remindersQuery = (supabase as any)
         .from("patient_reminders")
         .select("*")
         .order("reminder_date", { ascending: true });
@@ -190,7 +190,7 @@ const ManageReminders = () => {
       const remindersWithPatients = await Promise.all(
         (remindersData || []).map(async (rem) => {
           if (rem.patient_id) {
-            let patientQuery = supabase
+            let patientQuery = (supabase as any)
               .from("patients")
               .select("full_name, patient_id, phone")
               .eq("id", rem.patient_id);
@@ -216,7 +216,7 @@ const ManageReminders = () => {
       setReminders(remindersWithPatients);
 
       // Fetch all patients for dropdown
-      let patientsQuery = supabase
+      let patientsQuery = (supabase as any)
         .from("patients")
         .select("id, full_name, patient_id, phone")
         .eq("is_active", true)
@@ -325,16 +325,15 @@ const ManageReminders = () => {
       };
 
       if (editingReminder) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("patient_reminders")
           .update(reminderData)
-          .eq("id", editingReminder.id)
-          .eq("organization_id" as any, organizationId);
+          .match({ id: editingReminder.id, organization_id: organizationId });
 
         if (error) throw error;
         toast.success("Reminder updated successfully");
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("patient_reminders")
           .insert(reminderData);
 
@@ -359,11 +358,10 @@ const ManageReminders = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("patient_reminders")
         .delete()
-        .eq("id", reminderToDelete)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: reminderToDelete, organization_id: organizationId });
 
       if (error) throw error;
 
@@ -432,14 +430,13 @@ const ManageReminders = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("patient_reminders")
         .update({
           is_completed: true,
           completed_at: new Date().toISOString(),
         })
-        .eq("id", reminderId)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: reminderId, organization_id: organizationId });
 
       if (error) throw error;
       toast.success("Reminder marked as completed");

@@ -102,7 +102,7 @@ const BillingPaymentDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="payment-method">Payment Method</Label>
+              <p className="text-sm font-medium leading-none">Payment Method</p>
               <Select name="payment_method" value={paymentMethod} onValueChange={onPaymentMethodChange}>
                 <SelectTrigger id="payment-method">
                   <SelectValue />

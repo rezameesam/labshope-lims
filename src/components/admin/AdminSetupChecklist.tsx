@@ -125,33 +125,33 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
 
     try {
       const [employeesResponse, testsResponse, templatesResponse, settingsResponse, domainsResponse] = await Promise.all([
-        supabase
+        (supabase as any)
           .from("employees")
           .select("id", { count: "exact", head: true })
           .eq("organization_id" as any, organization.id),
-        supabase
+        (supabase as any)
           .from("tests")
           .select("id", { count: "exact", head: true })
           .eq("organization_id" as any, organization.id),
-        supabase
+        (supabase as any)
           .from("test_templates")
           .select("id", { count: "exact", head: true })
           .eq("organization_id" as any, organization.id),
-        supabase
+        (supabase as any)
           .from("organization_settings" as any)
           .select("setting_key, setting_value")
           .eq("organization_id", organization.id)
           .in("setting_key", settingKeys),
-        supabase
+        (supabase as any)
           .from("organization_domains" as any)
           .select("domain, is_primary, verified_at")
           .eq("organization_id", organization.id),
       ]);
 
       const settingsMap = Object.fromEntries(
-        (((settingsResponse.data as { setting_key: string; setting_value: string | null }[] | null) || []).map(
+        ((((settingsResponse.data as unknown as { setting_key: string; setting_value: string | null }[] | null) || []).map(
           (setting) => [setting.setting_key, setting.setting_value || ""]
-        ))
+        )))
       );
 
       setMetrics({
@@ -159,7 +159,7 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
         tests: testsResponse.count || 0,
         templates: templatesResponse.count || 0,
         settings: settingsMap,
-        domains: ((domainsResponse.data as ChecklistMetrics["domains"] | null) || []),
+        domains: ((domainsResponse.data as unknown as ChecklistMetrics["domains"] | null) || []),
       });
     } catch (error) {
       console.error("Error loading admin setup checklist:", error);

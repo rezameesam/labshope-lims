@@ -15,6 +15,7 @@ interface OrganizationRecord {
   primary_phone: string | null;
   billing_email: string | null;
   logo_url: string | null;
+  favicon_url: string | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -46,6 +47,7 @@ interface OrganizationBranding {
   website: string;
   addressLines: string[];
   logoUrl: string;
+  faviconUrl: string;
   establishedYear: string;
   reportTagline: string;
   reportFooterNote: string;
@@ -74,6 +76,7 @@ const DEFAULT_BRANDING: OrganizationBranding = {
   website: "https://example.com",
   addressLines: ["Laboratory Address", "City, State", "Postal Code"],
   logoUrl: fallbackLogo,
+  faviconUrl: "/favicon.png",
   establishedYear: "2000",
   reportTagline: "Quality Healthcare Services",
   reportFooterNote: "This is a computer-generated report.",
@@ -178,6 +181,7 @@ const deriveBranding = (
       organization?.logo_url ||
       import.meta.env.VITE_PUBLIC_LOGO_URL ||
       DEFAULT_BRANDING.logoUrl,
+    faviconUrl: organization?.favicon_url || DEFAULT_BRANDING.faviconUrl,
     establishedYear,
     reportTagline: settingsMap.get("report_tagline") || DEFAULT_BRANDING.reportTagline,
     reportFooterNote: settingsMap.get("report_footer_note") || DEFAULT_BRANDING.reportFooterNote,
@@ -247,6 +251,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
               primary_phone,
               billing_email,
               logo_url,
+              favicon_url,
               metadata
             )
           `)
@@ -267,7 +272,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         if (!resolvedOrganization && organizationId) {
           const { data: organizationData, error: organizationError } = await supabase
             .from("organizations" as any)
-            .select("id, slug, display_name, legal_name, status, primary_email, primary_phone, billing_email, logo_url, metadata")
+            .select("id, slug, display_name, legal_name, status, primary_email, primary_phone, billing_email, logo_url, favicon_url, metadata")
             .eq("id", organizationId)
             .maybeSingle();
 
@@ -299,9 +304,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       if (!resolvedOrganization && organizationId) {
         const { data: organizationData, error: organizationError } = await supabase
           .from("organizations" as any)
-          .select("id, slug, display_name, legal_name, status, primary_email, primary_phone, billing_email, logo_url, metadata")
-          .eq("id", organizationId)
-          .maybeSingle();
+            .select("id, slug, display_name, legal_name, status, primary_email, primary_phone, billing_email, logo_url, favicon_url, metadata")
+            .eq("id", organizationId)
+            .maybeSingle();
 
         if (!organizationError && organizationData) {
           resolvedOrganization = organizationData as OrganizationRecord;
@@ -370,6 +375,20 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     void fetchOrganization();
   }, [fetchOrganization]);
+
+  useEffect(() => {
+    const branding = deriveBranding(organization, primaryLab, organizationSettings);
+    const faviconHref = branding.faviconUrl || DEFAULT_BRANDING.faviconUrl;
+    if (!faviconHref || typeof document === "undefined") {
+      return;
+    }
+
+    document
+      .querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="shortcut icon"]')
+      .forEach((link) => {
+        link.href = faviconHref;
+      });
+  }, [organization, primaryLab, organizationSettings]);
 
   return (
     <OrganizationContext.Provider

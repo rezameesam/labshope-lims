@@ -117,7 +117,7 @@ const BillingFormDialog = ({
 
         <div className="space-y-4 flex-1 overflow-y-auto">
           <div className="space-y-2">
-            <Label htmlFor="invoice-patient-select">Select Patient</Label>
+            <p className="text-sm font-medium leading-none">Select Patient</p>
             <Popover open={patientSearchOpen} onOpenChange={onPatientSearchOpenChange}>
               <PopoverTrigger asChild>
                 <Button
@@ -135,12 +135,9 @@ const BillingFormDialog = ({
               </PopoverTrigger>
               <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                 <Command>
-                  <Label htmlFor="invoice-patient-search" className="sr-only">
-                    Search patient
-                  </Label>
                   <CommandInput
-                    id="invoice-patient-search"
                     name="invoice_patient_search"
+                    aria-label="Search patient"
                     placeholder="Search by name, ID, or phone..."
                     value={patientSearchQuery}
                     onValueChange={onPatientSearchQueryChange}

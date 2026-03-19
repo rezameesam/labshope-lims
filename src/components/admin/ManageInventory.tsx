@@ -21,6 +21,15 @@ interface InventoryPurchase { id: string; item_id: string; quantity: number; uni
 interface InventoryUsage { id: string; item_id: string; patient_test_id: string | null; quantity: number; unit_cost: number | null; total_cost: number | null; usage_date: string; notes: string | null; item?: InventoryItem; }
 interface EquipmentMaintenance { id: string; item_id: string; maintenance_type: string; scheduled_date: string | null; completed_date: string | null; cost: number | null; vendor: string | null; notes: string | null; status: string; item?: InventoryItem; }
 
+const attachInventoryItem = <T extends { item_id: string }>(
+  rows: T[],
+  itemMap: Map<string, InventoryItem>,
+): Array<T & { item?: InventoryItem }> =>
+  rows.map((row) => ({
+    ...row,
+    item: itemMap.get(row.item_id),
+  }));
+
 const ManageInventory = () => {
   const { user } = useAuth();
   const { organization, loading: organizationLoading } = useOrganization();
@@ -64,14 +73,17 @@ const ManageInventory = () => {
     if (!organizationId) { setItems([]); setCategories([]); setPurchases([]); setUsages([]); setMaintenances([]); setLoading(false); return; }
     try {
       const [itemsRes, categoriesRes] = await Promise.all([
-        supabase.from("inventory_items").select("*").eq("organization_id" as any, organizationId).order("name"),
-        supabase.from("inventory_categories").select("*").eq("organization_id" as any, organizationId).order("name"),
+        (supabase as any).from("inventory_items").select("*").eq("organization_id" as any, organizationId).order("name"),
+        (supabase as any).from("inventory_categories").select("*").eq("organization_id" as any, organizationId).order("name"),
       ]);
       if (itemsRes.error) throw itemsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
 
-      const categoryMap = new Map(categoriesRes.data?.map(c => [c.id, c]) || []);
-      const itemsWithCategories = (itemsRes.data || []).map(item => ({ ...item, category: item.category_id ? categoryMap.get(item.category_id) : undefined }));
+      const categoryMap = new Map<string, InventoryCategory>((categoriesRes.data || []).map((category: InventoryCategory) => [category.id, category]));
+      const itemsWithCategories: InventoryItem[] = ((itemsRes.data || []) as InventoryItem[]).map((item) => ({
+        ...item,
+        category: item.category_id ? categoryMap.get(item.category_id) : undefined,
+      }));
       const itemIds = itemsWithCategories.map(i => i.id);
 
       let purchasesData: InventoryPurchase[] = [], usagesData: InventoryUsage[] = [], maintenancesData: EquipmentMaintenance[] = [];
@@ -82,17 +94,17 @@ const ManageInventory = () => {
           supabase.from("equipment_maintenance").select("*").in("item_id", itemIds).order("scheduled_date", { ascending: false }),
         ]);
         if (pRes.error) throw pRes.error; if (uRes.error) throw uRes.error; if (mRes.error) throw mRes.error;
-        purchasesData = (pRes.data || []) as InventoryPurchase[];
-        usagesData = (uRes.data || []) as InventoryUsage[];
-        maintenancesData = (mRes.data || []) as EquipmentMaintenance[];
+        purchasesData = ((pRes.data || []) as InventoryPurchase[]).map((purchase) => ({ ...purchase }));
+        usagesData = ((uRes.data || []) as InventoryUsage[]).map((usage) => ({ ...usage }));
+        maintenancesData = ((mRes.data || []) as EquipmentMaintenance[]).map((maintenance) => ({ ...maintenance }));
       }
 
       const itemMap = new Map(itemsWithCategories.map(i => [i.id, i]));
       setItems(itemsWithCategories);
-      setCategories(categoriesRes.data || []);
-      setPurchases(purchasesData.map(p => ({ ...p, item: itemMap.get(p.item_id) })));
-      setUsages(usagesData.map(u => ({ ...u, item: itemMap.get(u.item_id) })));
-      setMaintenances(maintenancesData.map(m => ({ ...m, item: itemMap.get(m.item_id) })));
+      setCategories((categoriesRes.data || []) as InventoryCategory[]);
+      setPurchases(attachInventoryItem(purchasesData, itemMap));
+      setUsages(attachInventoryItem(usagesData, itemMap));
+      setMaintenances(attachInventoryItem(maintenancesData, itemMap));
     } catch (error) { console.error("Error fetching inventory data:", error); toast.error("Failed to load inventory data"); }
     finally { setLoading(false); }
   }, [organizationId]);
@@ -140,7 +152,7 @@ const ManageInventory = () => {
     if (!organizationId) { toast.error("Organization context required"); return; }
     try {
       if (editingItem) {
-        const { error } = await supabase.from("inventory_items").update({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null }).eq("id", editingItem.id).eq("organization_id" as any, organizationId);
+        const { error } = await (supabase as any).from("inventory_items").update({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null }).eq("id", editingItem.id).eq("organization_id" as any, organizationId);
         if (error) throw error; toast.success("Item updated");
       } else {
         const { error } = await supabase.from("inventory_items").insert({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null });
@@ -157,7 +169,7 @@ const ManageInventory = () => {
       const { error } = await supabase.from("inventory_purchases").insert({ ...purchaseForm, organization_id: organizationId, total_cost, purchased_by: user?.id });
       if (error) throw error;
       const item = items.find(i => i.id === purchaseForm.item_id);
-      if (item) await supabase.from("inventory_items").update({ current_stock: item.current_stock + purchaseForm.quantity }).eq("id", purchaseForm.item_id).eq("organization_id" as any, organizationId);
+      if (item) await (supabase as any).from("inventory_items").update({ current_stock: item.current_stock + purchaseForm.quantity }).match({ id: purchaseForm.item_id, organization_id: organizationId });
       toast.success("Purchase recorded"); setIsPurchaseDialogOpen(false); resetPurchaseForm(); fetchData();
     } catch (error) { console.error("Error recording purchase:", error); toast.error("Failed to record purchase"); }
   };
@@ -170,7 +182,7 @@ const ManageInventory = () => {
       if (usageForm.quantity > item.current_stock) { toast.error("Insufficient stock"); return; }
       const { error } = await supabase.from("inventory_usage").insert({ ...usageForm, organization_id: organizationId, unit_cost: item.unit_price, total_cost: usageForm.quantity * item.unit_price, recorded_by: user?.id });
       if (error) throw error;
-      await supabase.from("inventory_items").update({ current_stock: item.current_stock - usageForm.quantity }).eq("id", usageForm.item_id).eq("organization_id" as any, organizationId);
+      await (supabase as any).from("inventory_items").update({ current_stock: item.current_stock - usageForm.quantity }).match({ id: usageForm.item_id, organization_id: organizationId });
       toast.success("Usage recorded"); setIsUsageDialogOpen(false); resetUsageForm(); fetchData();
     } catch (error) { console.error("Error recording usage:", error); toast.error("Failed to record usage"); }
   };
@@ -197,7 +209,7 @@ const ManageInventory = () => {
     if (!confirm("Are you sure you want to delete this item?")) return;
     if (!organizationId) { toast.error("Organization context required"); return; }
     try {
-      const { error } = await supabase.from("inventory_items").delete().eq("id", id).eq("organization_id" as any, organizationId);
+      const { error } = await (supabase as any).from("inventory_items").delete().match({ id, organization_id: organizationId });
       if (error) throw error; toast.success("Item deleted"); fetchData();
     } catch (error) { console.error("Error deleting item:", error); toast.error("Failed to delete item"); }
   };
@@ -255,7 +267,7 @@ const ManageInventory = () => {
           { key: "unit", label: "Unit" }, { key: "current_stock", label: "Stock" },
           { key: "min_stock_level", label: "Min Level" }, { key: "unit_price", label: "Unit Price" },
           { key: "supplier", label: "Supplier" }, { key: "location", label: "Location" },
-        ], items)}>
+        ], items as unknown as Record<string, unknown>[])}>
           <FileSpreadsheet className="h-4 w-4 mr-2" />Export
         </Button>
       </div>

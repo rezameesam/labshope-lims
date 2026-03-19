@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { ArrowRight, CalendarDays, CreditCard, FileText, Layers3, Loader2, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,13 @@ import Turnstile from "@/components/ui/turnstile";
 import { toast } from "sonner";
 import { getPlatformMarketingParams } from "@/lib/platformMarketing";
 import { getPlatformPageTitle, platformBranding } from "@/lib/platformBranding";
+
+const demoHighlights: Array<{ title: string; icon: LucideIcon }> = [
+  { title: "Patients", icon: Users },
+  { title: "Billing", icon: CreditCard },
+  { title: "Reports", icon: FileText },
+  { title: "Branches", icon: Layers3 },
+];
 
 const PlatformBookDemoPage = () => {
   const contactEmail = platformBranding.contactEmail;
@@ -118,12 +126,7 @@ const PlatformBookDemoPage = () => {
                 See how the platform handles patient management, tests, billing, reports, reminders, and multi-branch operations for diagnostic labs.
               </p>
               <div className="mt-10 grid gap-4 sm:grid-cols-2">
-                {[
-                  ["Patients", Users],
-                  ["Billing", CreditCard],
-                  ["Reports", FileText],
-                  ["Branches", Layers3],
-                ].map(([title, Icon]) => (
+                {demoHighlights.map(({ title, icon: Icon }) => (
                   <div key={title} className="rounded-2xl border border-border bg-card p-5">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-clinical-blue-light text-clinical-blue">
                       <Icon className="h-5 w-5" />

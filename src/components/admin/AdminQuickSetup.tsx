@@ -269,16 +269,16 @@ const AdminQuickSetup = ({ onNavigate }: AdminQuickSetupProps) => {
       }
 
       const settingsMap = new Map<string, string>(
-        (((settingsData as { setting_key: string; setting_value: string | null }[] | null) || []).map((item) => [
+        ((((settingsData as unknown as { setting_key: string; setting_value: string | null }[] | null) || []).map((item) => [
           item.setting_key,
           item.setting_value || "",
-        ]))
+        ])))
       );
       const primaryLabSettings =
         primaryLab?.settings && typeof primaryLab.settings === "object"
           ? (primaryLab.settings as Record<string, unknown>)
           : {};
-      const domains = ((domainsData as OrganizationDomainRecord[] | null) || []);
+      const domains = ((domainsData as unknown as OrganizationDomainRecord[] | null) || []);
       setDomainRecords(domains);
       const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase() || "labshope.com";
       const expectedFallbackDomain = organization.slug
@@ -325,7 +325,7 @@ const AdminQuickSetup = ({ onNavigate }: AdminQuickSetupProps) => {
     } finally {
       setLoading(false);
     }
-  }, [organization?.id, organization?.display_name, organization?.logo_url, organizationLoading, primaryLab]);
+  }, [organization?.id, organization?.display_name, organization?.logo_url, organization?.slug, organizationLoading, primaryLab]);
 
   useEffect(() => {
     void populateForm();
@@ -438,7 +438,7 @@ const AdminQuickSetup = ({ onNavigate }: AdminQuickSetupProps) => {
         })
         .eq("id", organization.id);
 
-      const labUpdate = supabase
+      const labUpdate = (supabase as any)
         .from("labs")
         .update({
           name: formData.labName.trim(),

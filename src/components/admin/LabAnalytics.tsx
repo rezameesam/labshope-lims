@@ -103,7 +103,7 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
       }
 
       // Fetch test statistics
-      let query = supabase
+      let query = (supabase as any)
         .from("patient_tests")
         .select("id, status, test_name, created_at, patients!inner(full_name, patient_id)")
         .eq("lab_id", labId);

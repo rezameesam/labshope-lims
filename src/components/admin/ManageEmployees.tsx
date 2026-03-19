@@ -218,7 +218,7 @@ const ManageEmployees = () => {
       const { data: platformAdminsData } = await (supabase as any).from("platform_admins").select("user_id");
       const platformAdminUserIds: string[] = (platformAdminsData || []).map((row: { user_id: string }) => row.user_id);
 
-      let employeesQuery = supabase.from("employees").select("*").eq("organization_id" as any, organizationId).order("created_at", { ascending: false });
+      let employeesQuery = (supabase as any).from("employees").select("*").eq("organization_id" as any, organizationId).order("created_at", { ascending: false });
       if (currentLab?.id && !isAdmin) employeesQuery = (employeesQuery as any).eq("lab_id", currentLab.id);
       if (platformAdminUserIds.length > 0) employeesQuery = (employeesQuery as any).not("user_id", "in", `(${platformAdminUserIds.join(",")})`);
 
@@ -339,7 +339,7 @@ const ManageEmployees = () => {
     let updated = false;
     try {
       const payload = hasRole("admin") ? { full_name: editFormData.full_name, phone: editFormData.phone || null, designation: editFormData.designation || null, department: editFormData.department || null } : { phone: editFormData.phone || null };
-      const { error } = await supabase.from("employees").update(payload).eq("id", selectedEmployee.id).eq("organization_id" as any, organizationId);
+      const { error } = await (supabase as any).from("employees").update(payload).match({ id: selectedEmployee.id, organization_id: organizationId });
       if (error) throw error;
       updated = true;
       if (hasRole("admin") && canViewEmployeeIdentity(selectedEmployee)) await saveEmployeeIdentity(selectedEmployee, editFormData);
@@ -354,7 +354,7 @@ const ManageEmployees = () => {
     if (!selectedEmployee || !organizationId) return;
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("employees").update({ is_active: false }).eq("id", selectedEmployee.id).eq("organization_id" as any, organizationId);
+      const { error } = await (supabase as any).from("employees").update({ is_active: false }).match({ id: selectedEmployee.id, organization_id: organizationId });
       if (error) throw error;
       toast.success("Employee deactivated"); setIsDeleteDialogOpen(false); setSelectedEmployee(null); fetchEmployees();
     } catch (error: any) { toast.error(error.message || "Failed to deactivate"); }
@@ -364,7 +364,7 @@ const ManageEmployees = () => {
   const toggleEmployeeStatus = async (employee: Employee) => {
     if (!organizationId) { toast.error("Organization context required"); return; }
     try {
-      const { error } = await supabase.from("employees").update({ is_active: !employee.is_active }).eq("id", employee.id).eq("organization_id" as any, organizationId);
+      const { error } = await (supabase as any).from("employees").update({ is_active: !employee.is_active }).match({ id: employee.id, organization_id: organizationId });
       if (error) throw error;
       toast.success(`Employee ${employee.is_active ? "deactivated" : "activated"}`); fetchEmployees();
     } catch { toast.error("Failed to update status"); }

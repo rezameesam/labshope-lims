@@ -336,7 +336,7 @@ const ManageTestTemplates = () => {
 
     setLoading(true);
     try {
-      const templatesQuery = supabase
+      const templatesQuery = (supabase as any)
         .from("test_templates")
         .select("*")
         .eq("organization_id" as any, organizationId)
@@ -482,11 +482,10 @@ const ManageTestTemplates = () => {
       };
 
       if (editingTemplate) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("test_templates")
           .update(payload)
-          .eq("id", editingTemplate.id)
-          .eq("organization_id" as any, organizationId);
+          .match({ id: editingTemplate.id, organization_id: organizationId });
 
         if (error) throw error;
         toast.success("Template updated successfully");
@@ -516,11 +515,10 @@ const ManageTestTemplates = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("test_templates")
         .delete()
-        .eq("id", templateToDelete)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: templateToDelete, organization_id: organizationId });
 
       if (error) throw error;
 

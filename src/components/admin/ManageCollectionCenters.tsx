@@ -104,7 +104,7 @@ const ManageCollectionCenters = () => {
   const fetchCenters = useCallback(async () => {
     setLoading(true);
     try {
-      let query = supabase
+      let query = (supabase as any)
         .from("collection_centers")
         .select(`
           *,
@@ -203,7 +203,7 @@ const ManageCollectionCenters = () => {
       };
 
       if (editingCenter) {
-        let updateQuery = supabase
+        let updateQuery = (supabase as any)
           .from("collection_centers")
           .update(centerData)
           .eq("id", editingCenter.id)
@@ -236,11 +236,10 @@ const ManageCollectionCenters = () => {
     if (!centerToDelete || !organizationId) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("collection_centers")
         .delete()
-        .eq("id", centerToDelete)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: centerToDelete, organization_id: organizationId });
 
       if (error) throw error;
 

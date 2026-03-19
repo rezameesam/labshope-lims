@@ -303,7 +303,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
     setLoading(true);
     try {
-      let testsQuery = supabase
+      let testsQuery = (supabase as any)
         .from("patient_tests")
         .select(`
           id, patient_id, test_name, test_date, status, result, result_value, result_unit, result_items, registry_serial,
@@ -335,7 +335,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
       testsQuery = testsQuery.eq("organization_id" as any, organizationId);
 
-      let patientsQuery: any = supabase
+      let patientsQuery: any = (supabase as any)
         .from("patients")
         .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
         .eq("is_active", true)
@@ -345,29 +345,29 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         patientsQuery = patientsQuery.eq("created_by", user.id);
       }
 
-      const templatesQuery = supabase
+      const templatesQuery = (supabase as any)
         .from("test_templates")
         .select("id, name, is_default")
         .eq("organization_id" as any, organizationId)
         .order("name");
 
-      const categoriesQuery = supabase
+      const categoriesQuery = (supabase as any)
         .from("test_categories")
         .select("id, name")
         .eq("organization_id", organizationId);
 
-      const catalogQuery = supabase
+      const catalogQuery = (supabase as any)
         .from("tests")
         .select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max")
         .eq("organization_id", organizationId);
 
-      const packagesQuery = supabase
+      const packagesQuery = (supabase as any)
         .from("test_packages")
         .select("id, name, price, discount_percentage, is_active")
         .eq("is_active", true)
         .eq("organization_id", organizationId);
 
-      const doctorsQuery = supabase
+      const doctorsQuery = (supabase as any)
         .from("doctors")
         .select("id, name, specialization, commission_percentage")
         .eq("is_active", true)
@@ -380,7 +380,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         catalogQuery,
         doctorsQuery,
         packagesQuery,
-        supabase.from("test_package_tests").select("package_id, test_id"),
+        (supabase as any).from("test_package_tests").select("package_id, test_id"),
         templatesQuery,
       ]);
 
@@ -410,7 +410,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .filter((t) => t.status === "completed" && (t.patients as any)?.abha_address)
         .map((t) => t.id);
       if (completedTestIds.length > 0) {
-        const { data: linkData } = await supabase
+        const { data: linkData } = await (supabase as any)
           .from("abdm_care_context_links" as any)
           .select("patient_test_id")
           .eq("organization_id" as any, organizationId)
@@ -459,7 +459,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("labs")
         .select("id, name, lab_code")
         .eq("is_active", true)
@@ -487,7 +487,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("collection_centers")
         .select("id, name, code, lab_id")
         .eq("is_active", true)
@@ -945,7 +945,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         updateData.result_entered_at = new Date().toISOString();
       }
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("patient_tests")
         .update(updateData)
         .eq("id", selectedTest.id)

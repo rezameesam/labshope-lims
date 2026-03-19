@@ -78,6 +78,14 @@ interface Lab {
   parent_lab?: Lab[];
 }
 
+const normalizeLabSettings = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return null;
+};
+
 const getLabAbdmSettings = (lab: Pick<Lab, "settings">) => {
   const settings =
     lab.settings && typeof lab.settings === "object"
@@ -133,7 +141,7 @@ const ManageLabs = () => {
     setLoading(true);
     try {
       // First check if labs table exists by trying a simple query
-      let query = supabase
+      let query = (supabase as any)
         .from("labs")
         .select("*")
         .order("name");
@@ -156,10 +164,16 @@ const ManageLabs = () => {
 
       // If we have data, try to fetch parent lab relationships
       if (labsData && labsData.length > 0) {
+        const normalizedLabs: Lab[] = labsData.map((lab: any) => ({
+          ...lab,
+          settings: normalizeLabSettings(lab.settings),
+          parent_lab: [],
+        }));
+
         // Map parent lab info manually since foreign key relationship might not work
-        const labsWithParent = labsData.map((lab) => {
+        const labsWithParent: Lab[] = normalizedLabs.map((lab) => {
           if (lab.parent_lab_id) {
-            const parentLab = labsData.find((l) => l.id === lab.parent_lab_id);
+            const parentLab = normalizedLabs.find((candidate) => candidate.id === lab.parent_lab_id);
             return {
               ...lab,
               parent_lab: parentLab ? [parentLab] : [],
@@ -268,11 +282,10 @@ const ManageLabs = () => {
       };
 
       if (editingLab) {
-        let updateQuery = supabase
+        let updateQuery = (supabase as any)
           .from("labs")
           .update(labData)
-          .eq("id", editingLab.id)
-          .eq("organization_id" as any, organizationId);
+          .match({ id: editingLab.id, organization_id: organizationId });
         const { error } = await updateQuery;
 
         if (error) throw error;
@@ -302,11 +315,10 @@ const ManageLabs = () => {
     if (!labToDelete || !organizationId) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("labs")
         .delete()
-        .eq("id", labToDelete)
-        .eq("organization_id" as any, organizationId);
+        .match({ id: labToDelete, organization_id: organizationId });
 
       if (error) throw error;
 

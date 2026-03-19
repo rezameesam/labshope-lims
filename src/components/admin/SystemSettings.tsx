@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Settings, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle2, MessageCircle, Smartphone, ShieldCheck, ExternalLink } from "lucide-react";
+import { Settings, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle2, MessageCircle, Smartphone, ShieldCheck, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -633,6 +633,9 @@ const GENERAL_SETTING_TEMPLATES: SystemSetting[] = [
 ];
 
 const CATEGORY_ORDER = ["payment", "email", "whatsapp", "sms", "abdm", "other"];
+const ORGANIZATION_BRANDING_BUCKET = "organization-branding";
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const MAX_FAVICON_BYTES = 512 * 1024;
 
 const sortSettings = (settings: ScopedSetting[]) =>
   [...settings].sort((a, b) => {
@@ -737,12 +740,13 @@ const getProviderHelpLink = (settingKey: string) => {
 
 const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {}) => {
   const { user } = useAuth();
-  const { organization, branding } = useOrganization();
+  const { organization, branding, refreshOrganization } = useOrganization();
   const [settings, setSettings] = useState<ScopedSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [brandingUploadState, setBrandingUploadState] = useState<{ logo: boolean; favicon: boolean }>({ logo: false, favicon: false });
   const [testingAbdm, setTestingAbdm] = useState(false);
   const [abdmTestResult, setAbdmTestResult] = useState<{ success: boolean; tokenType?: string | null; error?: string | null } | null>(null);
   // In platformMode, always operate on system_settings (no org scope) regardless of user's org membership
@@ -879,6 +883,84 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
       ...prev,
       [key]: !prev[key],
     }));
+  };
+
+  const getFileExtension = (file: File) => {
+    const fromName = file.name.split(".").pop()?.toLowerCase();
+    if (fromName) return fromName;
+    if (file.type === "image/png") return "png";
+    if (file.type === "image/webp") return "webp";
+    if (file.type === "image/svg+xml") return "svg";
+    if (file.type === "image/x-icon" || file.type === "image/vnd.microsoft.icon") return "ico";
+    return "jpg";
+  };
+
+  const validateBrandingAsset = (file: File, kind: "logo" | "favicon") => {
+    const allowedTypes =
+      kind === "logo"
+        ? ["image/jpeg", "image/png", "image/webp", "image/svg+xml"]
+        : ["image/png", "image/webp", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon"];
+    const maxBytes = kind === "logo" ? MAX_LOGO_BYTES : MAX_FAVICON_BYTES;
+
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error(kind === "logo" ? "Logo must be JPG, PNG, WebP, or SVG" : "Favicon must be PNG, WebP, SVG, or ICO");
+    }
+
+    if (file.size > maxBytes) {
+      throw new Error(kind === "logo" ? "Logo must be 2 MB or smaller" : "Favicon must be 512 KB or smaller");
+    }
+  };
+
+  const uploadBrandingAsset = async (file: File, kind: "logo" | "favicon") => {
+    if (!organization?.id) {
+      throw new Error("Organization context is required");
+    }
+
+    validateBrandingAsset(file, kind);
+    setBrandingUploadState((prev) => ({ ...prev, [kind]: true }));
+
+    try {
+      const extension = getFileExtension(file);
+      const path = `${organization.id}/${kind}-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from(ORGANIZATION_BRANDING_BUCKET)
+        .upload(path, file, {
+          upsert: true,
+          contentType: file.type,
+          cacheControl: "3600",
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from(ORGANIZATION_BRANDING_BUCKET).getPublicUrl(path);
+      const field = kind === "logo" ? "logo_url" : "favicon_url";
+      const { error: updateError } = await supabase
+        .from("organizations" as any)
+        .update({ [field]: data.publicUrl })
+        .eq("id", organization.id);
+
+      if (updateError) throw updateError;
+
+      await refreshOrganization();
+      toast.success(`${kind === "logo" ? "Logo" : "Favicon"} updated`);
+    } finally {
+      setBrandingUploadState((prev) => ({ ...prev, [kind]: false }));
+    }
+  };
+
+  const handleBrandingAssetSelection = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    kind: "logo" | "favicon",
+  ) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      await uploadBrandingAsset(file, kind);
+    } catch (error: any) {
+      toast.error(error.message || `Failed to upload ${kind}`);
+    }
   };
 
   const handleTestAbdmCredentials = async () => {
@@ -1415,6 +1497,65 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
                 <p className="text-muted-foreground text-center py-8">No other settings configured</p>
               ) : (
                 <div className="space-y-4">
+                  {useOrganizationScope && organization ? (
+                    <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Logo and favicon</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Upload brand assets for this workspace. The logo is used across the lab portal and the favicon updates the browser tab icon.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-3 rounded-lg border bg-background p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border bg-muted">
+                              {organization.logo_url ? (
+                                <img src={organization.logo_url} alt={`${branding.displayName} logo`} className="h-full w-full object-contain" />
+                              ) : (
+                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">Logo</p>
+                              <p className="text-xs text-muted-foreground">JPG, PNG, WebP, or SVG up to 2 MB</p>
+                            </div>
+                          </div>
+                          <Input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                            onChange={(event) => void handleBrandingAssetSelection(event, "logo")}
+                            disabled={brandingUploadState.logo}
+                          />
+                          {brandingUploadState.logo ? <p className="text-xs text-muted-foreground">Uploading logo...</p> : null}
+                          <p className="text-xs text-muted-foreground break-all">{organization.logo_url || "No logo uploaded yet"}</p>
+                        </div>
+
+                        <div className="space-y-3 rounded-lg border bg-background p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border bg-muted">
+                              {organization.favicon_url ? (
+                                <img src={organization.favicon_url} alt={`${branding.displayName} favicon`} className="h-8 w-8 object-contain" />
+                              ) : (
+                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">Favicon</p>
+                              <p className="text-xs text-muted-foreground">PNG, WebP, SVG, or ICO up to 512 KB</p>
+                            </div>
+                          </div>
+                          <Input
+                            type="file"
+                            accept="image/png,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,.ico"
+                            onChange={(event) => void handleBrandingAssetSelection(event, "favicon")}
+                            disabled={brandingUploadState.favicon}
+                          />
+                          {brandingUploadState.favicon ? <p className="text-xs text-muted-foreground">Uploading favicon...</p> : null}
+                          <p className="text-xs text-muted-foreground break-all">{organization.favicon_url || "No favicon uploaded yet"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   {getSettingsByCategory("other").map((setting) => (
                     <div key={setting.id} className="space-y-2">
                       <Label htmlFor={setting.setting_key}>{setting.label}</Label>

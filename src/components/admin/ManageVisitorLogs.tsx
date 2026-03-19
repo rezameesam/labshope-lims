@@ -149,7 +149,7 @@ const ManageVisitorLogs = () => {
         throw error;
       }
 
-      setLogs((data || []) as VisitorLog[]);
+      setLogs((data || []) as unknown as VisitorLog[]);
       setTotalRows(count || 0);
     } catch (error: any) {
       console.error("Error fetching visitor logs:", error);

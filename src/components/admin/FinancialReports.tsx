@@ -128,7 +128,7 @@ const FinancialReports = () => {
       const endDate = period === "all" ? new Date() : endOfDay(today);
 
       // Fetch invoices
-      let invoicesQuery = supabase
+      let invoicesQuery = (supabase as any)
         .from("invoices")
         .select(`
           id,

@@ -32,7 +32,7 @@ const SendPromotion = () => {
         return;
       }
 
-      const query = supabase
+      const query = (supabase as any)
         .from("patients")
         .select("id, full_name, email, phone")
         .eq("is_active", true)

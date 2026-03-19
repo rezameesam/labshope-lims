@@ -117,14 +117,11 @@ const ManageDoctors = () => {
     setLoading(true);
     try {
       // Fetch doctors
-      let doctorsQuery = supabase
+      const { data: doctorsData, error: doctorsError } = await (supabase as any)
         .from("doctors")
         .select("*")
-        .order("name");
-
-      doctorsQuery = doctorsQuery.eq("organization_id" as any, organizationId);
-
-      const { data: doctorsData, error: doctorsError } = await doctorsQuery;
+        .order("name")
+        .eq("organization_id" as any, organizationId);
 
       if (doctorsError) throw doctorsError;
       const scopedDoctors = doctorsData || [];
@@ -138,7 +135,7 @@ const ManageDoctors = () => {
         return;
       }
 
-      const { data: referralsData, error: referralsError } = await supabase
+      const { data: referralsData, error: referralsError } = await (supabase as any)
         .from("doctor_referrals")
         .select(`
           *,
@@ -154,14 +151,12 @@ const ManageDoctors = () => {
       const referralsWithPatients = await Promise.all(
         (referralsData || []).map(async (ref) => {
           if (ref.patient_id) {
-            let patientQuery = supabase
+            const { data: patientData } = await (supabase as any)
               .from("patients")
               .select("full_name, patient_id")
-              .eq("id", ref.patient_id);
-
-            patientQuery = patientQuery.eq("organization_id" as any, organizationId);
-
-            const { data: patientData } = await patientQuery.single();
+              .eq("id", ref.patient_id)
+              .eq("organization_id" as any, organizationId)
+              .single();
 
             return {
               ...ref,
@@ -255,7 +250,7 @@ const ManageDoctors = () => {
       };
 
       if (editingDoctor) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("doctors")
           .update(doctorData)
           .eq("id", editingDoctor.id)
@@ -264,7 +259,7 @@ const ManageDoctors = () => {
         if (error) throw error;
         toast.success("Doctor updated successfully");
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("doctors")
           .insert(doctorData);
 
@@ -289,7 +284,7 @@ const ManageDoctors = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("doctors")
         .delete()
         .eq("id", doctorToDelete)
@@ -314,7 +309,7 @@ const ManageDoctors = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("doctor_referrals")
         .update({ commission_paid: true })
         .eq("id", referralId)

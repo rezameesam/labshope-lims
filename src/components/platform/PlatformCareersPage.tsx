@@ -1,10 +1,29 @@
 import { Helmet } from "react-helmet-async";
 import { ArrowRight, BriefcaseBusiness, Building2, ShieldCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import PlatformSiteFooter from "@/components/platform/PlatformSiteFooter";
 import PlatformSiteHeader from "@/components/platform/PlatformSiteHeader";
 import { getPlatformPageTitle, platformBranding } from "@/lib/platformBranding";
+
+const careerTracks: Array<{ title: string; body: string; icon: LucideIcon }> = [
+  {
+    title: "Product And Engineering",
+    body: "Work on patient flows, billing, reports, and multi-tenant product systems.",
+    icon: Building2,
+  },
+  {
+    title: "Customer Success",
+    body: "Help labs get onboarded, configured, and successful in daily operations.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Operations And Growth",
+    body: "Support onboarding, documentation, sales prep, and customer rollout workflows.",
+    icon: BriefcaseBusiness,
+  },
+];
 
 const PlatformCareersPage = () => {
   const contactEmail = platformBranding.contactEmail;
@@ -51,11 +70,7 @@ const PlatformCareersPage = () => {
 
         <section className="container mx-auto px-4 py-16 lg:px-8 lg:py-20">
           <div className="grid gap-6 md:grid-cols-3">
-            {[
-              ["Product And Engineering", "Work on patient flows, billing, reports, and multi-tenant product systems.", Building2],
-              ["Customer Success", "Help labs get onboarded, configured, and successful in daily operations.", ShieldCheck],
-              ["Operations And Growth", "Support onboarding, documentation, sales prep, and customer rollout workflows.", BriefcaseBusiness],
-            ].map(([title, body, Icon]) => (
+            {careerTracks.map(({ title, body, icon: Icon }) => (
               <article key={title} className="rounded-3xl border border-border bg-card p-6 shadow-sm">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-blue-light text-clinical-blue">
                   <Icon className="h-6 w-6" />

@@ -147,44 +147,44 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         const yesterday = subDays(today, 1);
         const weekAgo = subDays(today, 7);
         const monthAgo = subDays(today, 30);
-        let employeesQuery = supabase.from("employees").select("id", { count: "exact", head: true });
-        let patientsQuery = supabase.from("patients").select("id", { count: "exact", head: true });
-        let testsQuery = supabase.from("patient_tests").select("id", { count: "exact", head: true });
-        let pendingTestsQuery = supabase
+        let employeesQuery = (supabase as any).from("employees").select("id", { count: "exact", head: true });
+        let patientsQuery = (supabase as any).from("patients").select("id", { count: "exact", head: true });
+        let testsQuery = (supabase as any).from("patient_tests").select("id", { count: "exact", head: true });
+        let pendingTestsQuery = (supabase as any)
           .from("patient_tests")
           .select("id", { count: "exact", head: true })
           .eq("status", "pending");
-        let completedTodayQuery = supabase
+        let completedTodayQuery = (supabase as any)
           .from("patient_tests")
           .select("id", { count: "exact", head: true })
           .eq("status", "completed")
           .gte("updated_at", startOfDay(today).toISOString())
           .lte("updated_at", endOfDay(today).toISOString());
-        let newPatientsQuery = supabase
+        let newPatientsQuery = (supabase as any)
           .from("patients")
           .select("id", { count: "exact", head: true })
           .gte("created_at", weekAgo.toISOString());
-        let newPatientsTodayQuery = supabase
+        let newPatientsTodayQuery = (supabase as any)
           .from("patients")
           .select("id", { count: "exact", head: true })
           .gte("created_at", startOfDay(today).toISOString())
           .lte("created_at", endOfDay(today).toISOString());
-        let newPatientsYesterdayQuery = supabase
+        let newPatientsYesterdayQuery = (supabase as any)
           .from("patients")
           .select("id", { count: "exact", head: true })
           .gte("created_at", startOfDay(yesterday).toISOString())
           .lte("created_at", endOfDay(yesterday).toISOString());
-        let testsYesterdayQuery = supabase
+        let testsYesterdayQuery = (supabase as any)
           .from("patient_tests")
           .select("id", { count: "exact", head: true })
           .gte("test_date", startOfDay(yesterday).toISOString().split('T')[0])
           .lte("test_date", endOfDay(yesterday).toISOString().split('T')[0]);
-        let invoicesYesterdayQuery = supabase
+        let invoicesYesterdayQuery = (supabase as any)
           .from("invoices")
           .select("id, paid_amount")
           .gte("created_at", startOfDay(yesterday).toISOString())
           .lte("created_at", endOfDay(yesterday).toISOString());
-        let recentTestsQuery = supabase
+        let recentTestsQuery = (supabase as any)
           .from("patient_tests")
           .select(`
             id,
@@ -198,23 +198,23 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           `)
           .order("created_at", { ascending: false })
           .limit(5);
-        let inProgressQuery = supabase
+        let inProgressQuery = (supabase as any)
           .from("patient_tests")
           .select("id", { count: "exact", head: true })
           .eq("status", "in_progress");
-        let allInvoicesQuery = supabase
+        let allInvoicesQuery = (supabase as any)
           .from("invoices")
           .select("id, final_amount, paid_amount, payment_status, created_at");
-        let invoicesTodayQuery = supabase
+        let invoicesTodayQuery = (supabase as any)
           .from("invoices")
           .select("id, final_amount, paid_amount")
           .gte("created_at", startOfDay(today).toISOString())
           .lte("created_at", endOfDay(today).toISOString());
-        let invoicesWeekQuery = supabase
+        let invoicesWeekQuery = (supabase as any)
           .from("invoices")
           .select("id, final_amount, paid_amount")
           .gte("created_at", weekAgo.toISOString());
-        let invoicesMonthQuery = supabase
+        let invoicesMonthQuery = (supabase as any)
           .from("invoices")
           .select("id, final_amount, paid_amount")
           .gte("created_at", monthAgo.toISOString());
@@ -288,7 +288,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           | null = [];
 
         if (invoiceIds.length > 0) {
-          const { data } = await supabase
+          const { data } = await (supabase as any)
             .from("invoice_items")
             .select("test_name, amount")
             .in("invoice_id", invoiceIds)
@@ -322,7 +322,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         const revenueTrendsData: RevenueTrend[] = [];
         for (let i = 6; i >= 0; i--) {
           const date = subDays(today, i);
-          let dayInvoicesQuery = supabase
+          let dayInvoicesQuery = (supabase as any)
             .from("invoices")
             .select("final_amount, paid_amount")
             .gte("created_at", startOfDay(date).toISOString())
@@ -386,7 +386,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
         const trends: TestTrend[] = [];
         for (let i = 6; i >= 0; i--) {
           const date = subDays(today, i);
-          let dayTestsQuery = supabase
+          let dayTestsQuery = (supabase as any)
             .from("patient_tests")
             .select("id", { count: "exact", head: true })
             .gte("test_date", startOfDay(date).toISOString().split('T')[0])
