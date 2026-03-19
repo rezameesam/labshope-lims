@@ -55,6 +55,10 @@ export const isPlatformHostname = (hostname: string | null) => {
 export const isDefinitelyPlatformHostname = (hostname: string | null) => {
   if (!hostname) return true;
   if (hostname === "localhost" || hostname === "127.0.0.1") return true;
+  // Any *.localhost subdomain is a dev environment — treat as platform host
+  // so the app falls back to the logged-in user's org instead of showing
+  // "Tenant Not Found" when the slug doesn't match a DB entry.
+  if (hostname.endsWith(".localhost")) return true;
 
   const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
   if (configuredBaseDomain && hostname === configuredBaseDomain) return true;
