@@ -13,7 +13,10 @@ export const getPublicSlugCandidate = (hostname: string | null) => {
 
   if (hostname.endsWith(".localhost")) {
     const candidate = hostname.slice(0, -".localhost".length);
-    return candidate || null;
+    // Allow a dev override: VITE_DEV_ORG_SLUG lets you use a short hostname
+    // like irm.localhost while mapping to the real org slug (e.g. irmclinic).
+    const devSlugOverride = import.meta.env.VITE_DEV_ORG_SLUG?.trim();
+    return devSlugOverride || candidate || null;
   }
 
   const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
