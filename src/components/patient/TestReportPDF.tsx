@@ -215,6 +215,23 @@ const getSampleCollectionDate = (
   return datedTests[0].createdAt;
 };
 
+const getResolvedReportDate = (reportDate: string, sampleCollectionDate?: string) => {
+  const parsedReportDate = parseISO(reportDate);
+  const parsedSampleCollectionDate = sampleCollectionDate ? parseISO(sampleCollectionDate) : null;
+
+  if (!isValid(parsedReportDate)) {
+    return sampleCollectionDate || reportDate;
+  }
+
+  if (!parsedSampleCollectionDate || !isValid(parsedSampleCollectionDate)) {
+    return reportDate;
+  }
+
+  return parsedReportDate.getTime() >= parsedSampleCollectionDate.getTime()
+    ? reportDate
+    : sampleCollectionDate || reportDate;
+};
+
 const addReportWatermark = async (doc: jsPDF, options: ReportOptions, logoSource: string) => {
   if (options.includeWatermark === false) {
     return;
@@ -320,6 +337,7 @@ const resolveReportTemplate = async (
 export const generateTestReportPDF = async (data: ReportData) => {
   try {
     const doc = new jsPDF();
+  const resolvedReportDate = getResolvedReportDate(data.test_date, data.sample_collection_date);
   const pageWidth = doc.internal.pageSize.getWidth();
   const options = data.options || { includeHeader: true, includeFooter: true, includeWatermark: true };
   const branding = resolveReportBranding(data.branding);
@@ -334,7 +352,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
     phone: formatPhoneForDisplay(data.patient.phone),
     test_name: data.tests.length === 1 ? data.tests[0].test_name : "Multiple Tests",
     test_date: formatAppDate(data.test_date),
-    report_date: formatAppDate(new Date()),
+    report_date: formatAppDate(resolvedReportDate),
     lab_name: data.lab_name || branding.name,
     lab_code: data.lab_code || "",
     collection_center: data.collection_center_code || data.collection_center_name || "",
@@ -451,7 +469,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
   doc.setFont("helvetica", "bold");
   doc.text("Report Date:", col2X, patientInfoY + 21);
   doc.setFont("helvetica", "normal");
-  doc.text(formatAppDate(data.test_date), rightColumnValueX, patientInfoY + 21);
+  doc.text(formatAppDate(resolvedReportDate), rightColumnValueX, patientInfoY + 21);
   
   // Registry and collection center info (if available)
   let infoY = patientInfoY + 35; // start after the report date row
@@ -816,7 +834,7 @@ export const generateTestReportPDF = async (data: ReportData) => {
     await addReportWatermark(doc, options, branding.logoUrl);
 
     // Save the PDF
-    const fileName = `${data.patient.patient_id}_${format(new Date(data.test_date), "yyyy-MM-dd")}_report.pdf`;
+    const fileName = `${data.patient.patient_id}_${format(new Date(resolvedReportDate), "yyyy-MM-dd")}_report.pdf`;
     doc.save(fileName);
   } catch (error) {
     console.error("Error generating PDF:", error);

@@ -28,7 +28,15 @@ const EmployeeAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { signIn, user, loading: authLoading, isStaff, isCollector, staffPasswordResetRequired } = useAuth();
+  const {
+    signIn,
+    verifyTwoFactor,
+    user,
+    loading: authLoading,
+    isStaff,
+    isCollector,
+    staffPasswordResetRequired,
+  } = useAuth();
   const { branding } = useOrganization();
   const { loading: publicModeLoading, platformMode, invalidTenantHost, hostname } = usePublicPageMode();
   const [email, setEmail] = useState("");
@@ -38,13 +46,17 @@ const EmployeeAuth = () => {
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [twoFactorDialogOpen, setTwoFactorDialogOpen] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
+  const [pendingMaskedEmail, setPendingMaskedEmail] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState("");
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
   const staffEmailPlaceholder = `staff@${getWebsiteHostname(branding.website)}`;
   const requestedNext = searchParams.get("next");
   const platformAdminLoginMode =
     location.pathname === "/platform/login" || searchParams.get("platform") === "1";
-
   const getResetPath = (firstLoginFlow?: string | null, fallbackCollector = false) => {
     const nextPath =
       firstLoginFlow === "self_serve_owner"
@@ -83,17 +95,21 @@ const EmployeeAuth = () => {
     }
 
     setIsLoading(true);
+    const result = await signIn(
+      email.trim(),
+      password,
+      captchaToken,
+    );
     const {
       error,
       isStaff: signedInStaff,
       isCollector: signedInCollector,
       requiresPasswordReset,
       firstLoginFlow,
-    } = await signIn(
-      email.trim(),
-      password,
-      captchaToken,
-    );
+      requiresTwoFactor,
+      challengeId,
+      maskedEmail,
+    } = result;
     setIsLoading(false);
 
     if (error) {
@@ -105,12 +121,65 @@ const EmployeeAuth = () => {
       return;
     }
 
+    if (requiresTwoFactor) {
+      setPendingChallengeId(challengeId || null);
+      setPendingMaskedEmail(maskedEmail || email.trim());
+      setTwoFactorCode("");
+      setTwoFactorDialogOpen(true);
+      toast.info("Enter the verification code sent to your email.");
+      return;
+    }
+
     toast.success("Signed in successfully!");
     if (signedInStaff) {
       navigate(
         requiresPasswordReset
           ? getResetPath(firstLoginFlow, signedInCollector)
           : requestedNext || (platformAdminLoginMode ? "/platform" : signedInCollector ? "/collector" : "/admin")
+      );
+    } else {
+      toast.error("Your account does not have staff access.");
+    }
+  };
+
+  const handleVerifyTwoFactor = async () => {
+    if (!pendingChallengeId) {
+      toast.error("Two-factor challenge is missing. Please sign in again.");
+      setTwoFactorDialogOpen(false);
+      return;
+    }
+
+    if (!/^\d{6}$/.test(twoFactorCode.trim())) {
+      toast.error("Enter the 6-digit code from your email.");
+      return;
+    }
+
+    setTwoFactorLoading(true);
+    const {
+      error,
+      isStaff: verifiedStaff,
+      isCollector: verifiedCollector,
+      requiresPasswordReset,
+      firstLoginFlow,
+    } = await verifyTwoFactor(email.trim(), password, pendingChallengeId, twoFactorCode.trim());
+    setTwoFactorLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setTwoFactorDialogOpen(false);
+    setPendingChallengeId(null);
+    setPendingMaskedEmail(null);
+    setTwoFactorCode("");
+
+    toast.success("Signed in successfully!");
+    if (verifiedStaff) {
+      navigate(
+        requiresPasswordReset
+          ? getResetPath(firstLoginFlow, verifiedCollector)
+          : requestedNext || (platformAdminLoginMode ? "/platform" : verifiedCollector ? "/collector" : "/admin")
       );
     } else {
       toast.error("Your account does not have staff access.");
@@ -383,6 +452,36 @@ const EmployeeAuth = () => {
             </Button>
             <Button onClick={handleForgotPassword} disabled={forgotLoading}>
               {forgotLoading ? "Sending..." : "Send Reset Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={twoFactorDialogOpen} onOpenChange={setTwoFactorDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email verification required</DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code sent to {pendingMaskedEmail || "your email"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="staff-email-otp">Email OTP</Label>
+            <Input
+              id="staff-email-otp"
+              inputMode="numeric"
+              maxLength={6}
+              value={twoFactorCode}
+              onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Enter 6-digit code"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTwoFactorDialogOpen(false)} disabled={twoFactorLoading}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleVerifyTwoFactor()} disabled={twoFactorLoading}>
+              {twoFactorLoading ? "Verifying..." : "Verify and Sign In"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -37,6 +37,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedPackageGroups, setExpandedPackageGroups] = useState<Set<string>>(new Set());
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const [isPrintOptionsOpen, setIsPrintOptionsOpen] = useState(false);
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<"date" | "category" | "status" | "package">("date");
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true });
@@ -157,19 +158,49 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
   }, [dateFilteredTests, groupBy]);
 
   const toggleRow = (id: string) => {
-    setExpandedRows(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
   const togglePackageGroup = (groupId: string) => {
-    setExpandedPackageGroups(prev => { const next = new Set(prev); next.has(groupId) ? next.delete(groupId) : next.add(groupId); return next; });
+    setExpandedPackageGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
   };
   const toggleTestSelection = (testId: string) => {
-    setSelectedTestIds(prev => { const next = new Set(prev); next.has(testId) ? next.delete(testId) : next.add(testId); return next; });
+    setSelectedTestIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(testId)) {
+        next.delete(testId);
+      } else {
+        next.add(testId);
+      }
+      return next;
+    });
   };
   const toggleAllInGroup = (groupTests: TestResult[]) => {
     const allSelected = groupTests.every(t => selectedTestIds.has(t.id));
     setSelectedTestIds(prev => {
       const next = new Set(prev);
-      groupTests.forEach(t => allSelected ? next.delete(t.id) : next.add(t.id));
+      groupTests.forEach((t) => {
+        if (allSelected) {
+          next.delete(t.id);
+        } else {
+          next.add(t.id);
+        }
+      });
       return next;
     });
   };
@@ -221,7 +252,11 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
       if (dateFilteredTests.length === 0) { toast.error("No completed tests to download"); return; }
       try {
         const ok = await callPDF(dateFilteredTests, options, getEnteredByLabel(dateFilteredTests));
-        ok ? toast.success("Report downloaded successfully") : toast.error("Failed to generate report");
+        if (ok) {
+          toast.success("Report downloaded successfully");
+        } else {
+          toast.error("Failed to generate report");
+        }
       } catch (e: any) { toast.error("Failed to generate report: " + (e.message || "Unknown error")); }
     });
   };
@@ -242,7 +277,11 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
     checkDues(async () => {
       try {
         const ok = await callPDF([test], undefined, test.entered_by_name);
-        ok ? toast.success("Report downloaded successfully") : toast.error("Failed to generate report");
+        if (ok) {
+          toast.success("Report downloaded successfully");
+        } else {
+          toast.error("Failed to generate report");
+        }
       } catch (e: any) { toast.error("Failed to generate report: " + (e.message || "Unknown error")); }
     });
   };

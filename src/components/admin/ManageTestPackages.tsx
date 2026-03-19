@@ -323,6 +323,28 @@ const ManageTestPackages = () => {
     }
   };
 
+  const handleTogglePackageStatus = async (pkg: TestPackage) => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating packages");
+      return;
+    }
+
+    try {
+      const { error } = await (supabase as any)
+        .from("test_packages")
+        .update({ is_active: !pkg.is_active })
+        .match({ id: pkg.id, organization_id: organizationId });
+
+      if (error) throw error;
+
+      toast.success(`Package ${pkg.is_active ? "disabled" : "enabled"} successfully`);
+      void fetchData();
+    } catch (error) {
+      console.error("Error updating package status:", error);
+      toast.error("Failed to update package status");
+    }
+  };
+
   const toggleTestSelection = (testId: string) => {
     setPackageForm((prev) => ({
       ...prev,
@@ -453,6 +475,13 @@ const ManageTestPackages = () => {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => void handleTogglePackageStatus(pkg)}
+                          >
+                            {pkg.is_active ? "Disable" : "Enable"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openEditDialog(pkg)}
                           >
                             <Edit className="h-4 w-4" />
@@ -532,6 +561,22 @@ const ManageTestPackages = () => {
                     <IndianRupee className="h-4 w-4 text-muted-foreground" />
                     <span className="font-semibold">{calculatePackagePrice().toLocaleString()}</span>
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="package-is-active">Status</Label>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="package-is-active"
+                    checked={packageForm.is_active}
+                    onCheckedChange={(checked) =>
+                      setPackageForm({ ...packageForm, is_active: checked as boolean })
+                    }
+                  />
+                  <Label htmlFor="package-is-active" className="font-normal cursor-pointer">
+                    Active
+                  </Label>
                 </div>
               </div>
 

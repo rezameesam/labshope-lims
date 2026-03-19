@@ -3,6 +3,7 @@ import { format, parseISO, isAfter, subMonths } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
 import { Calendar, TrendingUp, TrendingDown, Minus, FlaskConical, CheckCircle2, AlertCircle, Activity } from "lucide-react";
 import { formatAppDate } from "@/lib/date";
 import {
@@ -12,7 +13,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   Legend,
 } from "recharts";
 
@@ -253,8 +253,7 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
                     <h4 className="font-medium">{testName}</h4>
                     {getTrendIcon(testName)}
                   </div>
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <StableResponsiveChart className="h-[200px] min-w-0">
                       <LineChart data={data}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                         <XAxis
@@ -284,8 +283,7 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
                           activeDot={{ r: 6 }}
                         />
                       </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                  </StableResponsiveChart>
                 </div>
               ))}
             </div>

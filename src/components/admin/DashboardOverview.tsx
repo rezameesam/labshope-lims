@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
 import { formatAppDate } from "@/lib/date";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
@@ -28,7 +29,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   BarChart,
   Bar,
   PieChart,
@@ -546,8 +546,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <StableResponsiveChart className="h-[250px] min-w-0">
                 <AreaChart data={revenueTrends}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -599,8 +598,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
                     name="Paid"
                   />
                 </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            </StableResponsiveChart>
             <div className="flex justify-center gap-4 mt-4">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-green-500" />
@@ -666,8 +664,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <StableResponsiveChart className="h-[250px] min-w-0">
               <BarChart data={testTrends}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis 
@@ -694,8 +691,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
                   radius={[8, 8, 0, 0]}
                 />
               </BarChart>
-            </ResponsiveContainer>
-          </div>
+          </StableResponsiveChart>
         </CardContent>
       </Card>
 

@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
@@ -37,7 +38,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   BarChart,
   Bar,
 } from "recharts";
@@ -386,8 +386,7 @@ const FinancialReports = () => {
           <CardDescription>Daily revenue breakdown</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <StableResponsiveChart className="h-[300px] min-w-0">
               <AreaChart data={dailyRevenue}>
                 <defs>
                   <linearGradient id="colorBilled" x1="0" y1="0" x2="0" y2="1">
@@ -439,8 +438,7 @@ const FinancialReports = () => {
                   name="Paid"
                 />
               </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          </StableResponsiveChart>
           <div className="flex justify-center gap-4 mt-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-green-500" />

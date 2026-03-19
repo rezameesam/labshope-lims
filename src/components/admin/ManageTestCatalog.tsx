@@ -6,6 +6,7 @@ import {
 import { exportToExcel } from "@/lib/exportToExcel";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +65,7 @@ interface Test {
   normal_range_max: number | null;
   normal_range_text: string | null;
   sample_type: string | null;
+  is_active: boolean | null;
   created_at: string;
 }
 
@@ -99,6 +101,7 @@ const ManageTestCatalog = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -106,8 +109,10 @@ const ManageTestCatalog = () => {
   const [testToDelete, setTestToDelete] = useState<Test | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testIdColumnExists, setTestIdColumnExists] = useState<boolean | null>(null);
+  const [testStatusColumnExists, setTestStatusColumnExists] = useState<boolean | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
 
   // Test form state
   const [testForm, setTestForm] = useState({
@@ -122,6 +127,7 @@ const ManageTestCatalog = () => {
     normal_range_text: "",
     panel_items: [] as PanelItemInput[],
     sample_type: "Blood",
+    is_active: true,
   });
 
   // Category form state
@@ -145,6 +151,23 @@ const ManageTestCatalog = () => {
       }
     } catch (err) {
       setTestIdColumnExists(false);
+    }
+  };
+
+  const checkTestStatusColumn = async () => {
+    try {
+      const { error } = await supabase
+        .from("tests")
+        .select("is_active")
+        .limit(1);
+
+      if (error && (error.code === "PGRST204" || error.message?.includes("is_active"))) {
+        setTestStatusColumnExists(false);
+      } else {
+        setTestStatusColumnExists(true);
+      }
+    } catch {
+      setTestStatusColumnExists(false);
     }
   };
 
@@ -222,6 +245,7 @@ const ManageTestCatalog = () => {
     void fetchTests();
     void fetchCategories();
     void checkTestIdColumn();
+    void checkTestStatusColumn();
   }, [fetchCategories, fetchTests, organizationId, organizationLoading]);
 
   const resetTestForm = () => {
@@ -237,6 +261,7 @@ const ManageTestCatalog = () => {
       normal_range_text: "",
       panel_items: [],
       sample_type: "Blood",
+      is_active: true,
     });
     setSelectedTest(null);
   };
@@ -355,6 +380,7 @@ const ManageTestCatalog = () => {
         normal_range_text: test.normal_range_text || "",
         panel_items: [],
         sample_type: test.sample_type || "Blood",
+        is_active: test.is_active ?? true,
       });
     } else {
       resetTestForm();
@@ -503,6 +529,7 @@ const ManageTestCatalog = () => {
         normal_range_text: testForm.normal_range_text.trim() || null,
         panel_items: panelItems.length > 0 ? panelItems : null,
         sample_type: testForm.sample_type || "Blood",
+        is_active: testForm.is_active,
       };
 
       // Only include test_id if it's not null (to avoid UNIQUE constraint issues with null)
@@ -610,6 +637,94 @@ const ManageTestCatalog = () => {
     }
   };
 
+  const handleToggleTestStatus = async (test: Test) => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating tests");
+      return;
+    }
+
+    if (testStatusColumnExists === false) {
+      toast.error("Migration required: tests.is_active column is missing");
+      return;
+    }
+
+    try {
+      const { error } = await (supabase as any)
+        .from("tests")
+        .update({ is_active: !(test.is_active ?? true) })
+        .match({ id: test.id, organization_id: organizationId });
+
+      if (error) throw error;
+
+      toast.success(`Test ${(test.is_active ?? true) ? "disabled" : "enabled"} successfully`);
+      void fetchTests();
+    } catch (error: any) {
+      console.error("Error updating test status:", error);
+      toast.error(error.message || "Failed to update test status");
+    }
+  };
+
+  const handleToggleTestSelection = (testId: string) => {
+    setSelectedTestIds((current) =>
+      current.includes(testId)
+        ? current.filter((id) => id !== testId)
+        : [...current, testId]
+    );
+  };
+
+  const handleToggleAllFilteredTests = () => {
+    const filteredIds = filteredTests.map((test) => test.id);
+    const allSelected =
+      filteredIds.length > 0 && filteredIds.every((id) => selectedTestIds.includes(id));
+
+    setSelectedTestIds((current) => {
+      if (allSelected) {
+        return current.filter((id) => !filteredIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...filteredIds]));
+    });
+  };
+
+  const handleBulkUpdateTestStatus = async (isActive: boolean) => {
+    if (!organizationId) {
+      toast.error("Organization context is required before updating tests");
+      return;
+    }
+
+    if (testStatusColumnExists === false) {
+      toast.error("Migration required: tests.is_active column is missing");
+      return;
+    }
+
+    if (selectedTestIds.length === 0) {
+      toast.error("Select at least one test first");
+      return;
+    }
+
+    try {
+      const { error } = await (supabase as any)
+        .from("tests")
+        .update({ is_active: isActive })
+        .in("id", selectedTestIds)
+        .eq("organization_id", organizationId);
+
+      if (error) throw error;
+
+      toast.success(`Selected tests ${isActive ? "enabled" : "disabled"} successfully`);
+      setSelectedTestIds([]);
+      void fetchTests();
+    } catch (error: any) {
+      console.error("Error updating selected tests:", error);
+      if (error?.code === "PGRST204" || error?.message?.includes("is_active")) {
+        setTestStatusColumnExists(false);
+        toast.error("Database migration required before test enable/disable can be used");
+        return;
+      }
+      toast.error(error.message || "Failed to update selected tests");
+    }
+  };
+
   const updatePanelItem = (index: number, field: keyof PanelItemInput, value: string) => {
     setTestForm((prev) => {
       const updated = prev.panel_items.map((item, itemIndex) =>
@@ -642,8 +757,12 @@ const ManageTestCatalog = () => {
       test.category?.name.toLowerCase().includes(searchLower);
     
     const matchesCategory = filterCategory === "all" || test.category_id === filterCategory;
-    
-    return matchesSearch && matchesCategory;
+    const matchesStatus =
+      filterStatus === "all" ||
+      (filterStatus === "active" && (test.is_active ?? true)) ||
+      (filterStatus === "inactive" && !(test.is_active ?? true));
+
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredTests.length / pageSize));
@@ -654,13 +773,19 @@ const ManageTestCatalog = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterCategory]);
+  }, [search, filterCategory, filterStatus]);
 
   useEffect(() => {
     if (currentPage !== safePage) {
       setCurrentPage(safePage);
     }
   }, [currentPage, safePage]);
+
+  useEffect(() => {
+    setSelectedTestIds((current) =>
+      current.filter((id) => tests.some((test) => test.id === id))
+    );
+  }, [tests]);
 
   return (
     <div className="space-y-6">
@@ -762,8 +887,8 @@ const ManageTestCatalog = () => {
                 <Tag className="h-4 w-4 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{categories.length}</p>
-                <p className="text-xs text-muted-foreground">Categories</p>
+                <p className="text-2xl font-bold">{tests.filter((test) => test.is_active ?? true).length}</p>
+                <p className="text-xs text-muted-foreground">Active Tests</p>
               </div>
             </div>
           </CardContent>
@@ -773,6 +898,19 @@ const ManageTestCatalog = () => {
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-100">
                 <DollarSign className="h-4 w-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{tests.filter((test) => !(test.is_active ?? true)).length}</p>
+                <p className="text-xs text-muted-foreground">Inactive Tests</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-100">
+                <DollarSign className="h-4 w-4 text-blue-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold">
@@ -788,7 +926,39 @@ const ManageTestCatalog = () => {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                {selectedTestIds.length > 0
+                  ? `${selectedTestIds.length} test(s) selected`
+                  : "Select tests to enable or disable them in bulk"}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedTestIds.length === 0 || testStatusColumnExists === false}
+                  onClick={() => void handleBulkUpdateTestStatus(true)}
+                >
+                  Enable Selected
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedTestIds.length === 0 || testStatusColumnExists === false}
+                  onClick={() => void handleBulkUpdateTestStatus(false)}
+                >
+                  Disable Selected
+                </Button>
+              </div>
+            </div>
+            {testStatusColumnExists === false ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Test enable/disable requires the `tests.is_active` migration to be applied.
+              </div>
+            ) : null}
             <div className="relative flex-1">
               <Label htmlFor="test-catalog-search" className="sr-only">
                 Search test catalog
@@ -804,19 +974,31 @@ const ManageTestCatalog = () => {
                 autoComplete="off"
               />
             </div>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -828,31 +1010,49 @@ const ManageTestCatalog = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={
+                      filteredTests.length > 0 &&
+                      filteredTests.every((test) => selectedTestIds.includes(test.id))
+                    }
+                    onCheckedChange={() => handleToggleAllFilteredTests()}
+                    aria-label="Select all filtered tests"
+                  />
+                </TableHead>
                 <TableHead>Test ID</TableHead>
                 <TableHead>Test Name</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead>Sample Type</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     Loading tests...
                   </TableCell>
                 </TableRow>
               ) : filteredTests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No tests found
                   </TableCell>
                 </TableRow>
               ) : (
                 pagedTests.map((test) => (
                   <TableRow key={test.id} className="hover:bg-muted/30">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedTestIds.includes(test.id)}
+                        onCheckedChange={() => handleToggleTestSelection(test.id)}
+                        aria-label={`Select ${test.name}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       {test.test_id ? (
                         <Badge variant="outline" className="font-mono">
@@ -893,6 +1093,11 @@ const ManageTestCatalog = () => {
                     </TableCell>
                     <TableCell>
                       {test.sample_type || <span className="text-muted-foreground text-sm">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={(test.is_active ?? true) ? "default" : "secondary"}>
+                        {(test.is_active ?? true) ? "Active" : "Inactive"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -950,7 +1155,7 @@ const ManageTestCatalog = () => {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="test_id">Test ID / Code</Label>
                 <div className="flex gap-2">
@@ -1040,8 +1245,8 @@ const ManageTestCatalog = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="price">Price (₹)</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (₹)</Label>
                 <Input
                   id="price"
                   type="number"
@@ -1051,8 +1256,24 @@ const ManageTestCatalog = () => {
                   onChange={(e) => setTestForm({ ...testForm, price: e.target.value })}
                   placeholder="0.00"
                 />
+                </div>
               </div>
-            </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="test-is-active">Status</Label>
+                <div className="flex items-center space-x-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="test-is-active"
+                    checked={testForm.is_active}
+                    onChange={(e) => setTestForm({ ...testForm, is_active: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="test-is-active" className="font-normal cursor-pointer">
+                    Active
+                  </Label>
+                </div>
+              </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

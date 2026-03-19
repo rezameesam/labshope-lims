@@ -24,6 +24,22 @@ interface AuthContextType {
     isCollector?: boolean;
     requiresPasswordReset?: boolean;
     firstLoginFlow?: string | null;
+    requiresTwoFactor?: boolean;
+    challengeId?: string | null;
+    maskedEmail?: string | null;
+  }>;
+  verifyTwoFactor: (
+    email: string,
+    password: string,
+    challengeId: string,
+    otp: string,
+  ) => Promise<{
+    error: Error | null;
+    roles?: UserRole[];
+    isStaff?: boolean;
+    isCollector?: boolean;
+    requiresPasswordReset?: boolean;
+    firstLoginFlow?: string | null;
   }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -124,6 +140,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  const completeSessionFromLoginResult = async (result: any) => {
+    const accessToken = result.session?.access_token;
+    const refreshToken = result.session?.refresh_token;
+    if (!accessToken || !refreshToken) {
+      return { error: new Error("Authentication session was not returned.") };
+    }
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (sessionError) {
+      return { error: sessionError as Error };
+    }
+
+    const nextSession = sessionData.session ?? null;
+    setSession(nextSession);
+    setUser(nextSession?.user ?? null);
+
+    if (!nextSession?.user) {
+      setRoles([]);
+      setStaffPasswordResetRequired(false);
+      return { error: null };
+    }
+
+    const nextRoles = Array.isArray(result.roles)
+      ? (result.roles as UserRole[])
+      : await fetchUserRoles(nextSession.user.id);
+
+    setRoles(nextRoles);
+    const requiresPasswordReset = Boolean(nextSession.user.user_metadata?.must_change_password);
+    setStaffPasswordResetRequired(requiresPasswordReset);
+
+    return {
+      error: null,
+      roles: nextRoles,
+      isStaff: nextRoles.some((role) => role === "admin" || role === "employee" || role === "collector"),
+      isCollector:
+        nextRoles.includes("collector") &&
+        !nextRoles.includes("admin") &&
+        !nextRoles.includes("employee"),
+      requiresPasswordReset,
+      firstLoginFlow: typeof result.first_login_flow === "string" ? result.first_login_flow : null,
+    };
+  };
+
   const signIn = async (email: string, password: string, turnstileToken: string) => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -145,50 +208,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return { error: new Error(result.error || "Login failed") };
       }
 
-      const accessToken = result.session?.access_token;
-      const refreshToken = result.session?.refresh_token;
-      if (!accessToken || !refreshToken) {
-        return { error: new Error("Authentication session was not returned.") };
+      if (result.requires_two_factor) {
+        return {
+          error: null,
+          requiresTwoFactor: true,
+          challengeId: typeof result.challenge_id === "string" ? result.challenge_id : null,
+          maskedEmail: typeof result.masked_email === "string" ? result.masked_email : null,
+        };
       }
 
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
+      return await completeSessionFromLoginResult(result);
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const verifyTwoFactor = async (email: string, password: string, challengeId: string, otp: string) => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/employee-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          otp,
+          challenge_id: challengeId,
+          organization_slug: isDefinitelyPlatformHostname(getPublicHostname()) ? null : getPublicSlugCandidate(getPublicHostname()),
+        }),
       });
 
-      if (sessionError) {
-        return { error: sessionError as Error };
+      const result = await response.json();
+      if (!response.ok) {
+        return { error: new Error(result.error || "Two-factor verification failed") };
       }
 
-      const nextSession = sessionData.session ?? null;
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-
-      if (!nextSession?.user) {
-        setRoles([]);
-        setStaffPasswordResetRequired(false);
-        return { error: null };
-      }
-
-      const nextRoles = Array.isArray(result.roles)
-        ? (result.roles as UserRole[])
-        : await fetchUserRoles(nextSession.user.id);
-
-      setRoles(nextRoles);
-      const requiresPasswordReset = Boolean(nextSession.user.user_metadata?.must_change_password);
-      setStaffPasswordResetRequired(requiresPasswordReset);
-
-      return {
-        error: null,
-        roles: nextRoles,
-        isStaff: nextRoles.some((role) => role === "admin" || role === "employee" || role === "collector"),
-        isCollector:
-          nextRoles.includes("collector") &&
-          !nextRoles.includes("admin") &&
-          !nextRoles.includes("employee"),
-        requiresPasswordReset,
-        firstLoginFlow: typeof result.first_login_flow === "string" ? result.first_login_flow : null,
-      };
+      return await completeSessionFromLoginResult(result);
     } catch (error) {
       return { error: error as Error };
     }
@@ -317,6 +374,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         roles,
         staffPasswordResetRequired,
         signIn,
+        verifyTwoFactor,
         signUp,
         signOut,
         hasRole,

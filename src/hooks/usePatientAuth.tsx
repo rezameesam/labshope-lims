@@ -54,10 +54,11 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
+    let bootstrapRequestId = 0;
 
-    const loadPatientForUser = async (userId: string | null) => {
+    const loadPatientForUser = async (userId: string | null, requestId: number) => {
       if (!userId) {
-        if (isMounted) {
+        if (isMounted && requestId === bootstrapRequestId) {
           setPatient(null);
         }
         return;
@@ -70,7 +71,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("is_active", true)
         .maybeSingle();
 
-      if (!isMounted) return;
+      if (!isMounted || requestId !== bootstrapRequestId) return;
 
       if (data && !error) {
         const patientData = data as unknown as Patient;
@@ -84,17 +85,26 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const loadPatientForUserWithTimeout = async (userId: string | null) => {
+      const requestId = ++bootstrapRequestId;
+      let timeoutId: number | null = null;
+
       try {
         await Promise.race([
-          loadPatientForUser(userId),
+          loadPatientForUser(userId, requestId),
           new Promise<void>((_, reject) =>
-            window.setTimeout(() => reject(new Error("Patient session bootstrap timed out")), 5000),
+            {
+              timeoutId = window.setTimeout(() => reject(new Error("Patient session bootstrap timed out")), 10000);
+            },
           ),
         ]);
       } catch (error) {
-        console.warn("Patient bootstrap fallback triggered:", error);
-        if (isMounted) {
+        if (isMounted && requestId === bootstrapRequestId) {
+          console.warn("Patient bootstrap fallback triggered:", error);
           setPatient(null);
+        }
+      } finally {
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
         }
       }
     };

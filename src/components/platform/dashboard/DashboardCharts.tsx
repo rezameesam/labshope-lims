@@ -4,11 +4,11 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
 
 type LeadChartPoint = { date: string; leads: number };
 type PlanChartPoint = { plan: string; count: number };
@@ -23,8 +23,7 @@ export const DashboardCharts = ({ leadsChartData, planChartData }: Props) => (
     <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Trend</p>
       <h3 className="mt-1 text-lg font-semibold text-slate-950">Leads — last 30 days</h3>
-      <div className="mt-5 h-52">
-        <ResponsiveContainer width="100%" height="100%">
+      <StableResponsiveChart className="mt-5 h-52 min-w-0">
           <AreaChart data={leadsChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="leadsGrad" x1="0" y1="0" x2="0" y2="1">
@@ -60,8 +59,7 @@ export const DashboardCharts = ({ leadsChartData, planChartData }: Props) => (
               activeDot={{ r: 4, fill: "#10b981" }}
             />
           </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      </StableResponsiveChart>
     </div>
 
     <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -73,7 +71,7 @@ export const DashboardCharts = ({ leadsChartData, planChartData }: Props) => (
             No onboarding data yet
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <StableResponsiveChart className="h-full min-w-0">
             <BarChart data={planChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
               <XAxis
@@ -94,7 +92,7 @@ export const DashboardCharts = ({ leadsChartData, planChartData }: Props) => (
               />
               <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={56} />
             </BarChart>
-          </ResponsiveContainer>
+          </StableResponsiveChart>
         )}
       </div>
     </div>

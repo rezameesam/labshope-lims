@@ -359,6 +359,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       const catalogQuery = (supabase as any)
         .from("tests")
         .select("id, test_id, name, price, category_id, unit, normal_range_text, normal_range_min, normal_range_max")
+        .eq("is_active", true)
         .eq("organization_id", organizationId);
 
       const packagesQuery = (supabase as any)

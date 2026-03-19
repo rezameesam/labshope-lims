@@ -4,6 +4,8 @@ import { Monitor, LogOut, ShieldCheck, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,11 +37,17 @@ const formatTimestamp = (value: string | null | undefined) => {
 };
 
 const ActiveSessions = () => {
-  const { currentSessionId, signOut } = useAuth();
+  const { currentSessionId, signOut, user } = useAuth();
   const [sessions, setSessions] = useState<EmployeeSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionSessionId, setActionSessionId] = useState<string | null>(null);
   const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [staffEmail, setStaffEmail] = useState<string>("");
+  const [twoFactorEmailEnabled, setTwoFactorEmailEnabled] = useState(false);
+  const [twoFactorLoading, setTwoFactorLoading] = useState(true);
+  const [twoFactorSaving, setTwoFactorSaving] = useState(false);
+  const [twoFactorSupported, setTwoFactorSupported] = useState(true);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -64,6 +72,80 @@ const ActiveSessions = () => {
   useEffect(() => {
     void loadSessions();
   }, [loadSessions]);
+
+  const loadTwoFactorSettings = useCallback(async () => {
+    if (!user?.id) {
+      setEmployeeId(null);
+      setStaffEmail("");
+      setTwoFactorEmailEnabled(false);
+      setTwoFactorLoading(false);
+      return;
+    }
+
+    try {
+      setTwoFactorLoading(true);
+      const { data, error } = await (supabase as any)
+        .from("employees")
+        .select("id, email, two_factor_email_enabled")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === "PGRST204" || String(error.message || "").includes("two_factor_email_enabled")) {
+          setTwoFactorSupported(false);
+          return;
+        }
+        throw error;
+      }
+
+      setEmployeeId(data?.id || null);
+      setStaffEmail(data?.email || "");
+      setTwoFactorEmailEnabled(data?.two_factor_email_enabled === true);
+      setTwoFactorSupported(true);
+    } catch (error: any) {
+      console.error("Failed to load 2FA settings:", error);
+      toast.error(error?.message || "Failed to load two-factor settings");
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadTwoFactorSettings();
+  }, [loadTwoFactorSettings]);
+
+  const handleToggleTwoFactor = async (checked: boolean) => {
+    if (!employeeId || !user?.id) {
+      toast.error("Your staff account could not be resolved.");
+      return;
+    }
+
+    try {
+      setTwoFactorSaving(true);
+      const { error } = await (supabase as any)
+        .from("employees")
+        .update({ two_factor_email_enabled: checked })
+        .eq("id", employeeId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        if (error.code === "PGRST204" || String(error.message || "").includes("two_factor_email_enabled")) {
+          setTwoFactorSupported(false);
+          toast.error("Database migration required before email 2FA can be enabled.");
+          return;
+        }
+        throw error;
+      }
+
+      setTwoFactorEmailEnabled(checked);
+      toast.success(`Email two-factor authentication ${checked ? "enabled" : "disabled"}.`);
+    } catch (error: any) {
+      console.error("Failed to update 2FA settings:", error);
+      toast.error(error?.message || "Failed to update two-factor settings");
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
 
   const hasOtherSessions = useMemo(
     () => sessions.some((session) => !session.is_current),
@@ -191,6 +273,48 @@ const ActiveSessions = () => {
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Two-Factor Authentication</CardTitle>
+          <CardDescription>
+            When enabled, you must enter a one-time code sent to your staff email after your password.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!twoFactorSupported ? (
+            <p className="text-sm text-amber-700">
+              Email 2FA is not available yet because the required database migration has not been applied.
+            </p>
+          ) : twoFactorLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading security settings...
+            </div>
+          ) : !staffEmail ? (
+            <p className="text-sm text-muted-foreground">
+              Add a staff email address to your employee record before enabling email OTP.
+            </p>
+          ) : (
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="staff-email-2fa"
+                checked={twoFactorEmailEnabled}
+                disabled={twoFactorSaving}
+                onCheckedChange={(checked) => void handleToggleTwoFactor(checked === true)}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="staff-email-2fa" className="cursor-pointer">
+                  Require email OTP for future sign-ins
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Verification emails will be sent to <span className="font-medium">{staffEmail}</span>.
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
