@@ -12,6 +12,14 @@ export const getConfiguredBaseDomain = () =>
 export const getConfiguredPlatformHostname = () =>
   import.meta.env.VITE_PLATFORM_HOSTNAME?.trim().toLowerCase() || null;
 
+const matchesHostnameOrWwwAlias = (hostname: string | null, configuredHostname: string | null) => {
+  if (!hostname || !configuredHostname) {
+    return false;
+  }
+
+  return hostname === configuredHostname || hostname === `www.${configuredHostname}`;
+};
+
 export const getPublicSlugCandidate = (hostname: string | null) => {
   if (!hostname) {
     return null;
@@ -41,12 +49,12 @@ export const isPlatformHostname = (hostname: string | null) => {
   }
 
   const configuredBaseDomain = getConfiguredBaseDomain();
-  if (configuredBaseDomain && hostname === configuredBaseDomain) {
+  if (matchesHostnameOrWwwAlias(hostname, configuredBaseDomain)) {
     return true;
   }
 
   const platformHostname = getConfiguredPlatformHostname();
-  if (platformHostname && hostname === platformHostname) {
+  if (matchesHostnameOrWwwAlias(hostname, platformHostname)) {
     return true;
   }
 
@@ -60,22 +68,22 @@ export const isDefinitelyPlatformHostname = (hostname: string | null) => {
   if (hostname === "localhost" || hostname === "127.0.0.1") return true;
 
   const configuredBaseDomain = getConfiguredBaseDomain();
-  if (configuredBaseDomain && hostname === configuredBaseDomain) return true;
+  if (matchesHostnameOrWwwAlias(hostname, configuredBaseDomain)) return true;
 
   const platformHostname = getConfiguredPlatformHostname();
-  if (platformHostname && hostname === platformHostname) return true;
+  if (matchesHostnameOrWwwAlias(hostname, platformHostname)) return true;
 
   return false;
 };
 
 export const isMarketingHostname = (hostname: string | null) => {
   const configuredBaseDomain = getConfiguredBaseDomain();
-  return Boolean(configuredBaseDomain && hostname === configuredBaseDomain);
+  return matchesHostnameOrWwwAlias(hostname, configuredBaseDomain);
 };
 
 export const isOperationsHostname = (hostname: string | null) => {
   const platformHostname = getConfiguredPlatformHostname();
-  return Boolean(platformHostname && hostname === platformHostname);
+  return matchesHostnameOrWwwAlias(hostname, platformHostname);
 };
 
 const buildAbsoluteUrl = (hostname: string | null, path = "/") => {
