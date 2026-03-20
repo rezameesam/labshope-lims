@@ -87,11 +87,25 @@ const normalizeLabSettings = (value: unknown): Record<string, unknown> | null =>
   return null;
 };
 
+const getLabSettingsObject = (lab: Pick<Lab, "settings">) => (
+  lab.settings && typeof lab.settings === "object"
+    ? (lab.settings as Record<string, unknown>)
+    : {}
+);
+
+const parseOptionalCoordinate = (value: unknown): string => {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? String(parsed) : "";
+  }
+  return "";
+};
+
 const getLabAbdmSettings = (lab: Pick<Lab, "settings">) => {
-  const settings =
-    lab.settings && typeof lab.settings === "object"
-      ? (lab.settings as Record<string, unknown>)
-      : {};
+  const settings = getLabSettingsObject(lab);
 
   return {
     enabled:
@@ -102,6 +116,15 @@ const getLabAbdmSettings = (lab: Pick<Lab, "settings">) => {
           : false,
     facilityId:
       typeof settings.abdm_facility_id === "string" ? settings.abdm_facility_id : "",
+  };
+};
+
+const getLabLocationSettings = (lab: Pick<Lab, "settings">) => {
+  const settings = getLabSettingsObject(lab);
+
+  return {
+    latitude: parseOptionalCoordinate(settings.map_latitude),
+    longitude: parseOptionalCoordinate(settings.map_longitude),
   };
 };
 
@@ -138,6 +161,8 @@ const ManageLabs = () => {
     email: "",
     abdm_enabled: false,
     abdm_facility_id: "",
+    map_latitude: "",
+    map_longitude: "",
     is_active: true,
   });
 
@@ -227,6 +252,8 @@ const ManageLabs = () => {
       email: "",
       abdm_enabled: false,
       abdm_facility_id: "",
+      map_latitude: "",
+      map_longitude: "",
       is_active: true,
     });
     setEditingLab(null);
@@ -235,6 +262,7 @@ const ManageLabs = () => {
   const openEditDialog = (lab: Lab) => {
     setEditingLab(lab);
     const abdmSettings = getLabAbdmSettings(lab);
+    const locationSettings = getLabLocationSettings(lab);
     setLabForm({
       lab_code: lab.lab_code,
       name: lab.name,
@@ -248,6 +276,8 @@ const ManageLabs = () => {
       email: lab.email || "",
       abdm_enabled: abdmSettings.enabled,
       abdm_facility_id: abdmSettings.facilityId,
+      map_latitude: locationSettings.latitude,
+      map_longitude: locationSettings.longitude,
       is_active: lab.is_active,
     });
     setIsDialogOpen(true);
@@ -269,6 +299,21 @@ const ManageLabs = () => {
     }
 
     try {
+      const latitudeRaw = labForm.map_latitude.trim();
+      const longitudeRaw = labForm.map_longitude.trim();
+      const latitude = latitudeRaw ? Number(latitudeRaw) : null;
+      const longitude = longitudeRaw ? Number(longitudeRaw) : null;
+
+      if (latitudeRaw && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) {
+        toast.error("Latitude must be between -90 and 90");
+        return;
+      }
+
+      if (longitudeRaw && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) {
+        toast.error("Longitude must be between -180 and 180");
+        return;
+      }
+
       const labData = {
         lab_code: labForm.lab_code.trim().toUpperCase(),
         organization_id: organizationId,
@@ -285,6 +330,8 @@ const ManageLabs = () => {
           ...(editingLab?.settings && typeof editingLab.settings === "object" ? editingLab.settings : {}),
           abdm_enabled: labForm.abdm_enabled,
           abdm_facility_id: labForm.abdm_facility_id.trim() || null,
+          map_latitude: latitude,
+          map_longitude: longitude,
         },
         is_active: labForm.is_active,
       };
@@ -798,6 +845,31 @@ const ManageLabs = () => {
                   placeholder="Pincode"
                   autoComplete="postal-code"
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="map_latitude">Map Latitude</Label>
+                <Input
+                  id="map_latitude"
+                  name="map_latitude"
+                  value={labForm.map_latitude}
+                  onChange={(e) => setLabForm({ ...labForm, map_latitude: e.target.value })}
+                  placeholder="e.g. 34.0837"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Optional. Range: -90 to 90</p>
+              </div>
+              <div>
+                <Label htmlFor="map_longitude">Map Longitude</Label>
+                <Input
+                  id="map_longitude"
+                  name="map_longitude"
+                  value={labForm.map_longitude}
+                  onChange={(e) => setLabForm({ ...labForm, map_longitude: e.target.value })}
+                  placeholder="e.g. 74.7973"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Optional. Range: -180 to 180</p>
               </div>
             </div>
 

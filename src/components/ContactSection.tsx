@@ -6,8 +6,20 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 const ContactSection = () => {
   const { branding, primaryLab } = useOrganization();
 
-  // Generate Google Maps embed URL
+  // Generate Google Maps embed URL (prefer explicit coordinates over geocoded address)
   const getMapUrl = () => {
+    const rawSettings =
+      primaryLab?.settings && typeof primaryLab.settings === "object"
+        ? (primaryLab.settings as Record<string, unknown>)
+        : {};
+
+    const latitude = Number(rawSettings.map_latitude);
+    const longitude = Number(rawSettings.map_longitude);
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return `https://www.google.com/maps?q=${latitude},${longitude}&hl=en&z=16&output=embed`;
+    }
+
     const addressParts = [
       primaryLab?.address,
       primaryLab?.city,
