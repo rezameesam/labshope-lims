@@ -229,13 +229,16 @@ const ActiveSessions = () => {
 
     try {
       setIsBulkActionLoading(true);
-      const { error } = await (supabase as any).rpc("revoke_all_employee_sessions");
-
-      if (error) {
-        throw error;
+      const { error: revokeError } = await (supabase as any).rpc("revoke_all_employee_sessions");
+      if (revokeError) {
+        console.warn("Failed to revoke employee session records before global sign-out:", revokeError);
       }
 
-      await signOut();
+      const { error: signOutError } = await signOut("global");
+      if (signOutError) {
+        throw signOutError;
+      }
+
       toast.success("Signed out from all sessions");
     } catch (error: any) {
       console.error("Failed to sign out all sessions:", error);

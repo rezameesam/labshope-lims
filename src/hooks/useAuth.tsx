@@ -42,7 +42,7 @@ interface AuthContextType {
     firstLoginFlow?: string | null;
   }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signOut: () => Promise<void>;
+  signOut: (scope?: "local" | "global" | "others") => Promise<{ error: Error | null }>;
   hasRole: (role: UserRole) => boolean;
   isStaff: boolean;
   isCollector: boolean;
@@ -264,13 +264,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setRoles([]);
-    setCurrentSessionId(null);
-    setStaffPasswordResetRequired(false);
+  const signOut = async (scope: "local" | "global" | "others" = "local") => {
+    const { error } = await supabase.auth.signOut({ scope });
+
+    if (!error && scope !== "others") {
+      setUser(null);
+      setSession(null);
+      setRoles([]);
+      setCurrentSessionId(null);
+      setStaffPasswordResetRequired(false);
+    }
+
+    return { error: (error as Error | null) ?? null };
   };
 
   const hasRole = (role: UserRole) => roles.includes(role);
