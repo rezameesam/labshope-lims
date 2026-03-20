@@ -4,8 +4,8 @@ import { Monitor, LogOut, ShieldCheck, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -279,7 +279,7 @@ const ActiveSessions = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Email Two-Factor Authentication</CardTitle>
+          <CardTitle>Two Factor Authentication</CardTitle>
           <CardDescription>
             When enabled, you must enter a one-time code sent to your staff email after your password.
           </CardDescription>
@@ -299,20 +299,25 @@ const ActiveSessions = () => {
               Add a staff email address to your employee record before enabling email OTP.
             </p>
           ) : (
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="staff-email-2fa"
-                checked={twoFactorEmailEnabled}
-                disabled={twoFactorSaving}
-                onCheckedChange={(checked) => void handleToggleTwoFactor(checked === true)}
-              />
+            <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="staff-email-2fa" className="cursor-pointer">
-                  Require email OTP for future sign-ins
+                  Two Factor Authentication
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   Verification emails will be sent to <span className="font-medium">{staffEmail}</span>.
                 </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {twoFactorEmailEnabled ? "Enabled" : "Disabled"}
+                </span>
+                <Switch
+                  id="staff-email-2fa"
+                  checked={twoFactorEmailEnabled}
+                  disabled={twoFactorSaving}
+                  onCheckedChange={(checked) => void handleToggleTwoFactor(checked)}
+                />
               </div>
             </div>
           )}
