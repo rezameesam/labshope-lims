@@ -85,6 +85,7 @@ const PatientResetPassword = () => {
           token,
           new_password: newPassword,
           turnstile_token: captchaToken,
+          hostname: typeof window !== "undefined" ? window.location.hostname : null,
         }),
       });
 

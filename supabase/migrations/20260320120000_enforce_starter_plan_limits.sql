@@ -1,6 +1,7 @@
 create or replace function public.enforce_plan_limits()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare
   current_plan text := 'starter';

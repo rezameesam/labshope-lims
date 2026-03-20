@@ -20,3 +20,12 @@ CREATE INDEX IF NOT EXISTS idx_employee_login_challenges_expires_at
   ON public.employee_login_challenges(expires_at);
 
 ALTER TABLE public.employee_login_challenges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Deny all access to employee login challenges" ON public.employee_login_challenges;
+CREATE POLICY "Deny all access to employee login challenges"
+ON public.employee_login_challenges
+AS RESTRICTIVE
+FOR ALL
+TO public
+USING (false)
+WITH CHECK (false);

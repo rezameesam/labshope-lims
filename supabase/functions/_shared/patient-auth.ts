@@ -5,6 +5,7 @@ export const PATIENT_AUTH_DOMAIN =
 export const PATIENT_PASSWORD_MIN_LENGTH = 6;
 
 const LOCAL_ORIGIN_PATTERN = /^(https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?|https?:\/\/[a-z0-9-]+\.localhost(:\d+)?|https?:\/\/(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?)$/i;
+const LOCAL_HOSTNAME_PATTERN = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|[a-z0-9-]+\.localhost|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/i;
 
 export function buildPatientAuthEmail(patientId: string): string {
   const normalizedId = patientId.toLowerCase().replace(/[^a-z0-9]/g, "-");
@@ -21,9 +22,13 @@ export function getPatientPasswordError(password: string): string | null {
   return null;
 }
 
-export async function verifyTurnstile(token: string, req: Request): Promise<string | null> {
+export async function verifyTurnstile(
+  token: string,
+  req: Request,
+  explicitHostname?: string | null
+): Promise<string | null> {
   const origin = resolveRequestOrigin(req);
-  if (origin && isLocalOrigin(origin)) {
+  if ((origin && isLocalOrigin(origin)) || isLocalHostname(explicitHostname || "")) {
     return null;
   }
 
@@ -135,6 +140,10 @@ function resolveRequestOrigin(req: Request): string | null {
 
 function isLocalOrigin(origin: string): boolean {
   return LOCAL_ORIGIN_PATTERN.test(origin);
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return LOCAL_HOSTNAME_PATTERN.test((hostname || "").trim().toLowerCase());
 }
 
 function normalizeResetUrl(rawValue: string): string {

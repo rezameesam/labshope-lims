@@ -33,7 +33,7 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Identifier is required." }, 400);
     }
 
-    const turnstileError = await verifyTurnstile(turnstile_token || "", req);
+    const turnstileError = await verifyTurnstile(turnstile_token || "", req, hostname || null);
     if (turnstileError) {
       return jsonResponse({ error: turnstileError }, 400);
     }

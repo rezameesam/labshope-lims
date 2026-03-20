@@ -16,6 +16,7 @@ interface ResetPasswordRequest {
   token: string;
   new_password: string;
   turnstile_token?: string;
+  hostname?: string | null;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -24,13 +25,13 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { token, new_password, turnstile_token }: ResetPasswordRequest = await req.json();
+    const { token, new_password, turnstile_token, hostname }: ResetPasswordRequest = await req.json();
 
     if (!token || !new_password) {
       return jsonResponse({ error: "Token and new password are required." }, 400);
     }
 
-    const turnstileError = await verifyTurnstile(turnstile_token || "", req);
+    const turnstileError = await verifyTurnstile(turnstile_token || "", req, hostname || null);
     if (turnstileError) {
       return jsonResponse({ error: turnstileError }, 400);
     }

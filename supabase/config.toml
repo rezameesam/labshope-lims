@@ -1,4 +1,4 @@
-project_id = "pxsutovdzppoyyfrbeaw"
+project_id = "ceyfwoczyhnwipacwhcn"
 
 # ── Public endpoints (no JWT required) ──────────────────────────
 # Login / auth flows
@@ -96,10 +96,10 @@ verify_jwt = true
 
 # Payment flows (authenticated)
 [functions.create-razorpay-order]
-verify_jwt = true
+verify_jwt = false
 
 [functions.confirm-razorpay-payment]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-plan-upgrade-order]
 verify_jwt = true

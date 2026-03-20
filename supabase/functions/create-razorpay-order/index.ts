@@ -18,6 +18,15 @@ interface CreateOrderRequest {
   patient_phone?: string;
 }
 
+const extractBearerToken = (authHeader: string | null): string | null => {
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+    return null;
+  }
+
+  const token = authHeader.slice(7).trim();
+  return token || null;
+};
+
 async function getUserOrganizationIds(
   supabaseAdmin: ReturnType<typeof createClient>,
   userId: string,
@@ -53,7 +62,8 @@ serve(async (req: Request) => {
     
     // Verify authentication
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const accessToken = extractBearerToken(authHeader);
+    if (!accessToken) {
       console.error("Missing Authorization header");
       return new Response(
         JSON.stringify({ error: "Authentication required" }),
@@ -63,12 +73,13 @@ serve(async (req: Request) => {
 
     // Create a client with the user's token to verify their identity
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
       global: {
-        headers: { Authorization: authHeader },
+        headers: { Authorization: `Bearer ${accessToken}` },
       },
     });
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(accessToken);
     if (authError || !user) {
       console.error("Authentication failed:", authError?.message);
       return new Response(

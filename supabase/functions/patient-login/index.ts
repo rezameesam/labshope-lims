@@ -36,7 +36,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const turnstileError = await verifyTurnstile(turnstile_token || "", req);
+    const turnstileError = await verifyTurnstile(turnstile_token || "", req, hostname || null);
     if (turnstileError) {
       return new Response(
         JSON.stringify({ error: turnstileError }),

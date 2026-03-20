@@ -15,6 +15,15 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const extractBearerToken = (authHeader: string | null): string | null => {
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+    return null;
+  }
+
+  const token = authHeader.slice(7).trim();
+  return token || null;
+};
+
 // Razorpay payment signature: HMAC-SHA256(order_id + "|" + payment_id, key_secret)
 async function verifyRazorpaySignature(
   orderId: string,
@@ -50,16 +59,18 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Authentication required" }, 401);
+    const accessToken = extractBearerToken(authHeader);
+    if (!accessToken) return json({ error: "Authentication required" }, 401);
 
     const supabaseUrl    = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(accessToken);
     if (authError || !user) return json({ error: "Invalid authentication token" }, 401);
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
