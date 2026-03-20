@@ -23,13 +23,14 @@ import { toast } from "sonner";
 
 const planOptions = [
   { value: "starter", label: "Starter", description: "Best for one lab getting off manual workflows.", price: "₹10,000/year", setup: "+ GST · no lock-in" },
-  { value: "growth", label: "Growth", description: "Best for branch operations and multi-location visibility.", price: "₹20,000/year", setup: "+ GST · no lock-in" },
-  { value: "premium", label: "Premium", description: "Best for higher-touch rollout and white-label depth.", price: "Custom quote", setup: "Implementation fee on quote" },
+  { value: "growth", label: "Growth", description: "Best for up to 10 labs, 100 active staff, and higher-volume branch operations.", price: "₹20,000/year", setup: "+ GST · no lock-in" },
+  { value: "premium", label: "Premium", description: "Best for higher-touch rollout, premium support, and capacity beyond Growth.", price: "₹40,000/year", setup: "+ GST · premium onboarding scoped to rollout" },
 ] as const;
 
 const PLAN_BASE_PRICES: Record<string, number> = {
   starter: 10000,
   growth: 20000,
+  premium: 40000,
 };
 
 const setupModeOptions = [
@@ -44,11 +45,13 @@ const planHighlights: Record<(typeof planOptions)[number]["value"], string[]> = 
     "Best when you want to replace manual work without a long implementation cycle.",
   ],
   growth: [
+    "Up to 10 labs, 100 active staff, and 300,000 patients.",
     "Multi-branch structure with better operational visibility across locations.",
     "Stronger rollout support for billing, reports, reminders, and branch setup.",
     "Best fit for labs that want to scale beyond one desk or one location.",
   ],
   premium: [
+    "Higher capacity beyond Growth with premium onboarding support.",
     "White-label rollout, deeper onboarding support, and higher-touch setup help.",
     "Better fit for complex operational rules, imported data, and custom launch needs.",
     "Best when the lab expects a more managed implementation path.",

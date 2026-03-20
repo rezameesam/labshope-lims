@@ -45,18 +45,18 @@ const features = [
 const plans = [
   {
     name: "Starter",
-    summary: "For one lab with a small team.",
-    items: ["1 lab", "Core patient, test, billing, and report workflows", "Basic notifications"],
+    summary: "For one lab with up to 10 active staff and 25,000 patients.",
+    items: ["1 lab · 10 active staff · 25,000 patients", "Core patient, test, billing, and report workflows", "Patient portal and standard notifications"],
   },
   {
     name: "Growth",
-    summary: "For labs with branches or collection centers.",
-    items: ["Multiple labs and collection centers", "Inventory and doctor referrals", "Custom branding and roles"],
+    summary: "For labs scaling across branches with higher patient volume.",
+    items: ["Up to 10 labs · 100 active staff · 300,000 patients", "Inventory, doctor referrals, custom roles, and branding", "Branch-aware workflows and centralized reporting"],
   },
   {
     name: "Premium",
-    summary: "For larger labs needing higher-touch rollout.",
-    items: ["Priority onboarding", "Custom templates and imports", "Optional dedicated deployment"],
+    summary: "For larger rollouts needing fewer limits and more implementation support.",
+    items: ["Higher capacity beyond Growth plan limits", "Priority onboarding, migration support, and custom templates", "White-label, rollout coordination, and premium support paths"],
   },
 ];
 

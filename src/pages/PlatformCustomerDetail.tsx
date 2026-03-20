@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -120,9 +120,9 @@ const PLAN_COLORS: Record<PlanTier, string> = {
 };
 
 const PLAN_FEATURES: Record<PlanTier, string> = {
-  starter: "1 lab · Up to 10 staff · Core workflows",
-  growth: "Multiple labs · Custom domain · Branded pages · Full analytics",
-  premium: "Everything + Priority support · Data import · Custom integrations",
+  starter: "1 lab · Up to 10 active staff · Up to 25,000 patients",
+  growth: "Up to 10 labs · Up to 100 active staff · Up to 300,000 patients",
+  premium: "Above Growth limits · Priority onboarding · Data import and premium rollout",
 };
 
 const PlatformCustomerDetail = () => {
@@ -144,7 +144,7 @@ const PlatformCustomerDetail = () => {
   const [resolvedPlan, setResolvedPlan] = useState<PlanTier>("starter");
   const [accessingOrg, setAccessingOrg] = useState(false);
 
-  const loadDetails = async () => {
+  const loadDetails = useCallback(async () => {
     if (!orgId) {
       return;
     }
@@ -300,7 +300,7 @@ const PlatformCustomerDetail = () => {
     setPendingPlan(nextResolvedPlan);
 
     setLoading(false);
-  };
+  }, [orgId]);
 
   useEffect(() => {
     if (!orgId) {
@@ -308,7 +308,7 @@ const PlatformCustomerDetail = () => {
     }
 
     void loadDetails();
-  }, [orgId]);
+  }, [orgId, loadDetails]);
 
   const primaryDomain = useMemo(
     () => domains.find((domain) => domain.is_primary) || null,

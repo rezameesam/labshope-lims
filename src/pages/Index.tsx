@@ -69,14 +69,14 @@ const Index = () => {
           </Helmet>
           <PlatformAccessPage
             eyebrow="LabShope LIMS Access"
-            title="This hostname is for lab operations, not the main marketing site."
-            description="Use this workspace for staff access, platform admin, and tenant-specific lab workflows. The main product homepage, pricing, and marketing pages live on labshope.com."
+            title="Operational access for staff, admins, and platform management."
+            description="Use this host for staff sign-in, platform administration, and tenant-specific lab operations. Product marketing, pricing, and demo requests live on labshope.com."
             primaryCtaLabel="Staff Login"
             primaryCtaTo="/auth/staff"
-            secondaryCtaLabel="Go To Homepage"
-            secondaryCtaTo={buildMarketingUrl("/")}
-            helperTitle="Need platform access?"
-            helperBody="Platform administration and staff access are served from the LIMS host. Marketing pages, pricing, and lead capture stay on the main domain."
+            secondaryCtaLabel="Platform Admin"
+            secondaryCtaTo="/platform/login"
+            helperTitle="Main website"
+            helperBody={`The public homepage, plan details, and lead capture flow are served from ${buildMarketingUrl("/")}.`}
           />
         </>
       );

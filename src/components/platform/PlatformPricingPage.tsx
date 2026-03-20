@@ -6,17 +6,19 @@ import PlatformSiteHeader from "@/components/platform/PlatformSiteHeader";
 import { Button } from "@/components/ui/button";
 import { buildPlatformPathWithMarketing } from "@/lib/platformMarketing";
 import { getPlatformPageTitle, platformBranding } from "@/lib/platformBranding";
+import { PLAN_LIMITS, PLAN_PRICES } from "@/lib/planLimits";
 
 const plans = [
   {
     name: "Starter",
     subtitle: "For a single lab replacing manual daily operations.",
-    price: "₹10,000",
+    price: `₹${PLAN_PRICES.starter.toLocaleString("en-IN")}`,
     priceSuffix: "/year",
     setupFee: "+ GST · no lock-in",
     recommended: false,
     items: [
-      "1 lab · up to 10 staff",
+      `1 lab · up to ${PLAN_LIMITS.starter.employees} active staff`,
+      `Up to ${PLAN_LIMITS.starter.patients.toLocaleString("en-IN")} patients`,
       "Patient registration and history",
       "Tests, reports, and billing",
       "Patient portal access",
@@ -26,14 +28,16 @@ const plans = [
   },
   {
     name: "Growth",
-    subtitle: "For labs with branches, collection centers, and deeper operational controls.",
-    price: "₹20,000",
+    subtitle: "For labs with multiple branches, higher staff counts, and larger patient volume.",
+    price: `₹${PLAN_PRICES.growth.toLocaleString("en-IN")}`,
     priceSuffix: "/year",
     setupFee: "+ GST · no lock-in",
     recommended: true,
     items: [
       "Everything in Starter",
-      "Multiple labs and collection centers",
+      `Up to ${PLAN_LIMITS.growth.labs} labs · ${PLAN_LIMITS.growth.employees} active staff`,
+      `Up to ${PLAN_LIMITS.growth.patients.toLocaleString("en-IN")} patients`,
+      "Collection centers and branch-aware operations",
       "Inventory and doctor referral tracking",
       "Custom roles and branch-aware workflows",
       "Organization branding and custom domain",
@@ -42,13 +46,14 @@ const plans = [
   },
   {
     name: "Premium",
-    subtitle: "For larger labs needing rollout support and higher-touch configuration.",
-    price: "Custom",
-    priceSuffix: "",
-    setupFee: "Implementation fee on quote",
+    subtitle: "For higher-scale labs that need support beyond Growth limits and a more managed rollout.",
+    price: `₹${PLAN_PRICES.premium.toLocaleString("en-IN")}`,
+    priceSuffix: "/year",
+    setupFee: "+ GST · implementation scoped to rollout",
     recommended: false,
     items: [
       "Everything in Growth",
+      "Higher scale beyond standard Growth limits",
       "Priority onboarding and data import",
       "Template and white-label customization",
       "Dedicated rollout coordination",
@@ -173,12 +178,12 @@ const PlatformPricingPage = () => {
                   <div className="mt-8">
                     <Link to={buildPlatformPathWithMarketing(`/start?plan=${plan.name.toLowerCase()}`)} className="block">
                       <Button variant={plan.recommended ? "clinical" : "outline"} className="w-full">
-                        {plan.price === "Custom" ? "Request a quote" : `Get started · ${plan.price}${plan.priceSuffix}`}
+                        {`Get started · ${plan.price}${plan.priceSuffix}`}
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </Link>
                     <p className="mt-2 text-center text-xs text-muted-foreground">
-                      {plan.price === "Custom" ? "We'll scope and quote within 24 hours." : "No lock-in · cancel anytime"}
+                      {plan.name === "Premium" ? "Includes premium onboarding and rollout scoping." : "No lock-in · cancel anytime"}
                     </p>
                   </div>
                 </article>
@@ -206,6 +211,9 @@ const PlatformPricingPage = () => {
                     ["Test, reports & billing", true, true, true],
                     ["Patient portal", true, true, true],
                     ["Email & WhatsApp reminders", true, true, true],
+                    ["Labs included", "1", "Up to 10", "Above Growth limits"],
+                    ["Active staff included", "Up to 10", "Up to 100", "Above Growth limits"],
+                    ["Patient capacity", "Up to 25,000", "Up to 300,000", "Above Growth limits"],
                     ["Multiple labs / branches", false, true, true],
                     ["Collection centers", false, true, true],
                     ["Inventory & doctor referrals", false, true, true],
@@ -218,9 +226,15 @@ const PlatformPricingPage = () => {
                   ].map(([feature, starter, growth, premium]) => (
                     <tr key={String(feature)} className="bg-card even:bg-slate-50/40">
                       <td className="px-5 py-3 text-foreground">{String(feature)}</td>
-                      <td className="px-5 py-3 text-center">{starter ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>}</td>
-                      <td className="px-5 py-3 text-center">{growth ? <Check className="mx-auto h-4 w-4 text-clinical-blue" /> : <span className="text-slate-300">—</span>}</td>
-                      <td className="px-5 py-3 text-center">{premium ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>}</td>
+                      <td className="px-5 py-3 text-center">
+                        {typeof starter === "boolean" ? (starter ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(starter)}</span>}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {typeof growth === "boolean" ? (growth ? <Check className="mx-auto h-4 w-4 text-clinical-blue" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(growth)}</span>}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {typeof premium === "boolean" ? (premium ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(premium)}</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -346,7 +360,7 @@ const PlatformPricingPage = () => {
                   </h2>
                   <p className="mt-4 text-lg leading-8 text-muted-foreground">
                     If you are still standardizing one lab, start smaller. If you already manage branches,
-                    collection, shared branding, and centralized reporting, start at Growth.
+                    collection, shared branding, centralized reporting, and up to 10 labs, start at Growth.
                   </p>
                 </div>
                 <div className="rounded-3xl border border-clinical-blue/20 bg-clinical-blue-light p-5 text-sm leading-7 text-clinical-navy">
