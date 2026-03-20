@@ -32,6 +32,30 @@ const PlatformAccessPage = ({
   helperTitle,
   helperBody,
 }: PlatformAccessPageProps) => {
+  const renderCta = (to: string, label: string, variant: "clinical" | "outline") => {
+    const isExternal = /^https?:\/\//.test(to);
+
+    if (isExternal) {
+      return (
+        <Button asChild variant={variant} size="lg">
+          <a href={to}>
+            {label}
+            {variant === "clinical" ? <ArrowRight className="ml-2 h-4 w-4" /> : null}
+          </a>
+        </Button>
+      );
+    }
+
+    return (
+      <Link to={to}>
+        <Button variant={variant} size="lg">
+          {label}
+          {variant === "clinical" ? <ArrowRight className="ml-2 h-4 w-4" /> : null}
+        </Button>
+      </Link>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ef_0%,#ffffff_48%,#eef5f7_100%)] text-foreground">
       <PlatformSiteHeader />
@@ -55,17 +79,8 @@ const PlatformAccessPage = ({
               </div>
 
               <div className="flex flex-wrap gap-4">
-                <Link to={primaryCtaTo}>
-                  <Button variant="clinical" size="lg">
-                    {primaryCtaLabel}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link to={secondaryCtaTo}>
-                  <Button variant="outline" size="lg">
-                    {secondaryCtaLabel}
-                  </Button>
-                </Link>
+                {renderCta(primaryCtaTo, primaryCtaLabel, "clinical")}
+                {renderCta(secondaryCtaTo, secondaryCtaLabel, "outline")}
               </div>
             </div>
 

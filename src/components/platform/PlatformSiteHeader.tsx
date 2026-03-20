@@ -4,30 +4,30 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { buildPlatformPathWithMarketing } from "@/lib/platformMarketing";
-import { platformBranding } from "@/lib/platformBranding";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
+import { buildMarketingUrl, buildOperationsUrl } from "@/lib/publicTenant";
 
 const navItems = [
-  { label: "Home", to: "/" },
-  { label: "Features", to: buildPlatformPathWithMarketing("/features") },
-  { label: "Pricing", to: buildPlatformPathWithMarketing("/pricing") },
-  { label: "Contact", to: buildPlatformPathWithMarketing("/contact") },
-  { label: "Careers", to: "/careers" },
-  { label: "Privacy", to: "/privacy" },
-  { label: "Terms", to: "/terms" },
+  { label: "Home", href: buildMarketingUrl("/") },
+  { label: "Features", href: buildMarketingUrl(buildPlatformPathWithMarketing("/features")) },
+  { label: "Pricing", href: buildMarketingUrl(buildPlatformPathWithMarketing("/pricing")) },
+  { label: "Contact", href: buildMarketingUrl(buildPlatformPathWithMarketing("/contact")) },
+  { label: "Careers", href: buildMarketingUrl("/careers") },
+  { label: "Privacy", href: buildMarketingUrl("/privacy") },
+  { label: "Terms", href: buildMarketingUrl("/terms") },
 ];
 
 const PlatformSiteHeader = () => {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isActive = (to: string) => {
-    if (to === "/") {
-      return location.pathname === "/";
-    }
+  const currentHref = `${window.location.origin}${location.pathname}`;
 
-    return location.pathname === to;
+  const isActive = (href: string) => {
+    const normalizedHref = href.endsWith("/") && href.length > 1 ? href.slice(0, -1) : href;
+    const normalizedCurrent = currentHref.endsWith("/") && currentHref.length > 1 ? currentHref.slice(0, -1) : currentHref;
+    return normalizedCurrent === normalizedHref;
   };
 
   return (
@@ -37,22 +37,22 @@ const PlatformSiteHeader = () => {
       </div>
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur">
       <div className="container mx-auto flex h-18 items-center justify-between px-4 lg:px-8">
-        <Link to="/" className="flex items-center gap-3">
+        <a href={buildMarketingUrl("/")} className="flex items-center gap-3">
           <img src="/labshope-logo.jpg" alt="LabShope LIMS" className="h-10 w-auto object-contain" />
-        </Link>
+        </a>
 
         <nav className="hidden items-center gap-8 lg:flex">
           {navItems.map((item) => (
-            <Link
+            <a
               key={item.label}
-              to={item.to}
+              href={item.href}
               className={cn(
                 "text-sm font-medium transition hover:text-primary",
-                isActive(item.to) ? "text-primary" : "text-foreground/80",
+                isActive(item.href) ? "text-primary" : "text-foreground/80",
               )}
             >
               {item.label}
-            </Link>
+            </a>
           ))}
         </nav>
 
@@ -70,56 +70,58 @@ const PlatformSiteHeader = () => {
                 </div>
                 <nav className="flex flex-col gap-4">
                   {navItems.map((item) => (
-                    <SheetClose asChild key={item.label}>
-                      <Link
-                        to={item.to}
-                        className={cn(
-                          "rounded-xl px-3 py-2 text-base font-medium transition hover:bg-secondary hover:text-primary",
-                          isActive(item.to) ? "bg-secondary text-primary" : "text-foreground",
-                        )}
-                      >
-                        {item.label}
-                      </Link>
-                    </SheetClose>
+                    <div key={item.label}>
+                      <SheetClose asChild>
+                        <a
+                          href={item.href}
+                          className={cn(
+                            "rounded-xl px-3 py-2 text-base font-medium transition hover:bg-secondary hover:text-primary",
+                            isActive(item.href) ? "bg-secondary text-primary" : "text-foreground",
+                          )}
+                        >
+                          {item.label}
+                        </a>
+                      </SheetClose>
+                    </div>
                   ))}
                 </nav>
                 <div className="mt-4 flex flex-col gap-3">
                   <SheetClose asChild>
-                    <Link to="/platform/login">
+                    <a href={buildOperationsUrl("/platform/login")}>
                       <Button variant="outline" className="w-full">Platform Admin</Button>
-                    </Link>
+                    </a>
                   </SheetClose>
                   <SheetClose asChild>
-                    <Link to={buildPlatformPathWithMarketing("/start")}>
+                    <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/start"))}>
                       <Button variant="clinical" className="w-full">Get Started</Button>
-                    </Link>
+                    </a>
                   </SheetClose>
                   <SheetClose asChild>
-                    <Link to="/auth/staff">
+                    <a href={buildOperationsUrl("/auth/staff")}>
                       <Button variant="outline" className="w-full">Staff Login</Button>
-                    </Link>
+                    </a>
                   </SheetClose>
                   <SheetClose asChild>
-                    <Link to={buildPlatformPathWithMarketing("/book-demo")}>
+                    <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/book-demo"))}>
                       <Button variant="outline" className="w-full">Book Demo</Button>
-                    </Link>
+                    </a>
                   </SheetClose>
                 </div>
               </div>
             </SheetContent>
           </Sheet>
-          <Link to="/platform/login" className="hidden sm:block">
+          <a href={buildOperationsUrl("/platform/login")} className="hidden sm:block">
             <Button variant="outline" size="sm">Platform Admin</Button>
-          </Link>
-          <Link to="/auth/staff" className="hidden sm:block">
+          </a>
+          <a href={buildOperationsUrl("/auth/staff")} className="hidden sm:block">
             <Button variant="outline" size="sm">Staff Login</Button>
-          </Link>
-          <Link to={buildPlatformPathWithMarketing("/book-demo")} className="hidden sm:block">
+          </a>
+          <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/book-demo"))} className="hidden sm:block">
             <Button variant="outline" size="sm">Book Demo</Button>
-          </Link>
-          <Link to={buildPlatformPathWithMarketing("/start")}>
+          </a>
+          <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/start"))}>
             <Button variant="clinical" size="sm">Get Started</Button>
-          </Link>
+          </a>
         </div>
       </div>
     </header>

@@ -6,6 +6,12 @@ export const getPublicHostname = () => {
   return window.location.hostname?.trim().toLowerCase() || null;
 };
 
+export const getConfiguredBaseDomain = () =>
+  import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase() || null;
+
+export const getConfiguredPlatformHostname = () =>
+  import.meta.env.VITE_PLATFORM_HOSTNAME?.trim().toLowerCase() || null;
+
 export const getPublicSlugCandidate = (hostname: string | null) => {
   if (!hostname) {
     return null;
@@ -16,7 +22,7 @@ export const getPublicSlugCandidate = (hostname: string | null) => {
     return candidate || null;
   }
 
-  const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
+  const configuredBaseDomain = getConfiguredBaseDomain();
   if (configuredBaseDomain && hostname.endsWith(`.${configuredBaseDomain}`)) {
     const candidate = hostname.slice(0, -(configuredBaseDomain.length + 1));
     return candidate || null;
@@ -34,12 +40,12 @@ export const isPlatformHostname = (hostname: string | null) => {
     return true;
   }
 
-  const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
+  const configuredBaseDomain = getConfiguredBaseDomain();
   if (configuredBaseDomain && hostname === configuredBaseDomain) {
     return true;
   }
 
-  const platformHostname = import.meta.env.VITE_PLATFORM_HOSTNAME?.trim().toLowerCase();
+  const platformHostname = getConfiguredPlatformHostname();
   if (platformHostname && hostname === platformHostname) {
     return true;
   }
@@ -53,11 +59,39 @@ export const isDefinitelyPlatformHostname = (hostname: string | null) => {
   if (!hostname) return true;
   if (hostname === "localhost" || hostname === "127.0.0.1") return true;
 
-  const configuredBaseDomain = import.meta.env.VITE_PUBLIC_BASE_DOMAIN?.trim().toLowerCase();
+  const configuredBaseDomain = getConfiguredBaseDomain();
   if (configuredBaseDomain && hostname === configuredBaseDomain) return true;
 
-  const platformHostname = import.meta.env.VITE_PLATFORM_HOSTNAME?.trim().toLowerCase();
+  const platformHostname = getConfiguredPlatformHostname();
   if (platformHostname && hostname === platformHostname) return true;
 
   return false;
 };
+
+export const isMarketingHostname = (hostname: string | null) => {
+  const configuredBaseDomain = getConfiguredBaseDomain();
+  return Boolean(configuredBaseDomain && hostname === configuredBaseDomain);
+};
+
+export const isOperationsHostname = (hostname: string | null) => {
+  const platformHostname = getConfiguredPlatformHostname();
+  return Boolean(platformHostname && hostname === platformHostname);
+};
+
+const buildAbsoluteUrl = (hostname: string | null, path = "/") => {
+  if (!hostname) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const protocol =
+    typeof window !== "undefined" && (window.location.protocol === "http:" || window.location.protocol === "https:")
+      ? window.location.protocol
+      : "https:";
+
+  return `${protocol}//${hostname}${normalizedPath}`;
+};
+
+export const buildMarketingUrl = (path = "/") => buildAbsoluteUrl(getConfiguredBaseDomain(), path);
+
+export const buildOperationsUrl = (path = "/") => buildAbsoluteUrl(getConfiguredPlatformHostname(), path);

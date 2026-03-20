@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { buildPlatformPathWithMarketing } from "@/lib/platformMarketing";
 import { platformBranding } from "@/lib/platformBranding";
+import { buildMarketingUrl, buildOperationsUrl } from "@/lib/publicTenant";
 
 const PlatformSiteFooter = () => {
   const year = new Date().getFullYear();
@@ -58,24 +59,24 @@ const PlatformSiteFooter = () => {
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link to={buildPlatformPathWithMarketing("/features")} className="transition hover:text-primary">
+                <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/features"))} className="transition hover:text-primary">
                   Features
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to={buildPlatformPathWithMarketing("/pricing")} className="transition hover:text-primary">
+                <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/pricing"))} className="transition hover:text-primary">
                   Pricing
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to={buildPlatformPathWithMarketing("/start")} className="transition hover:text-primary">
+                <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/start"))} className="transition hover:text-primary">
                   Get Started
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to={buildPlatformPathWithMarketing("/book-demo")} className="transition hover:text-primary">
+                <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/book-demo"))} className="transition hover:text-primary">
                   Book Demo
-                </Link>
+                </a>
               </li>
             </ul>
           </div>
@@ -87,19 +88,19 @@ const PlatformSiteFooter = () => {
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link to="/" className="transition hover:text-primary">
+                <a href={buildMarketingUrl("/")} className="transition hover:text-primary">
                   Home
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/careers" className="transition hover:text-primary">
+                <a href={buildMarketingUrl("/careers")} className="transition hover:text-primary">
                   Careers
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to={buildPlatformPathWithMarketing("/contact")} className="transition hover:text-primary">
+                <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/contact"))} className="transition hover:text-primary">
                   Contact
-                </Link>
+                </a>
               </li>
             </ul>
           </div>
@@ -111,19 +112,19 @@ const PlatformSiteFooter = () => {
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link to="/privacy" className="transition hover:text-primary">
+                <a href={buildMarketingUrl("/privacy")} className="transition hover:text-primary">
                   Privacy Policy
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/terms" className="transition hover:text-primary">
+                <a href={buildMarketingUrl("/terms")} className="transition hover:text-primary">
                   Terms of Service
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/platform/login" className="transition hover:text-primary">
+                <a href={buildOperationsUrl("/platform/login")} className="transition hover:text-primary">
                   Platform Admin
-                </Link>
+                </a>
               </li>
             </ul>
           </div>

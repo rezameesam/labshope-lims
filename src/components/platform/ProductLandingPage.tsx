@@ -7,6 +7,7 @@ import { buildPlatformPathWithMarketing } from "@/lib/platformMarketing";
 import { platformBranding } from "@/lib/platformBranding";
 import PlatformSiteFooter from "@/components/platform/PlatformSiteFooter";
 import PlatformSiteHeader from "@/components/platform/PlatformSiteHeader";
+import { buildOperationsUrl } from "@/lib/publicTenant";
 
 const features = [
   {
@@ -534,9 +535,9 @@ const ProductLandingPage = () => {
                   <Link to={buildPlatformPathWithMarketing("/book-demo")}>
                     <Button variant="heroOutline" size="xl">Contact Sales</Button>
                   </Link>
-                  <Link to="/auth/staff">
+                  <a href={buildOperationsUrl("/auth/staff")}>
                     <Button variant="heroOutline" size="xl">Staff Login</Button>
-                  </Link>
+                  </a>
                 </div>
                 <p className="mt-6 text-sm text-primary-foreground/65">Sales contact: {contactEmail}</p>
               </div>

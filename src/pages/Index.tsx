@@ -12,6 +12,8 @@ import ProductLandingPage from "@/components/platform/ProductLandingPage";
 import { usePublicPageMode } from "@/hooks/usePublicPageMode";
 import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
 import { platformBranding } from "@/lib/platformBranding";
+import PlatformAccessPage from "@/components/platform/PlatformAccessPage";
+import { buildMarketingUrl, isOperationsHostname } from "@/lib/publicTenant";
 
 const Index = () => {
   const location = useLocation();
@@ -34,7 +36,7 @@ const Index = () => {
     }, 100);
 
     return () => window.clearTimeout(timeoutId);
-  }, [location.hash]);
+  }, [location.hash, platformMode]);
 
   if (loading) {
     return (
@@ -49,6 +51,37 @@ const Index = () => {
   }
 
   if (platformMode) {
+    if (isOperationsHostname(hostname)) {
+      return (
+        <>
+          <Helmet>
+            <title>{`${platformBranding.productName} Access | ${platformBranding.companyName}`}</title>
+            <meta
+              name="description"
+              content={`Access staff login, platform admin, and tenant operations for ${platformBranding.productName}.`}
+            />
+            <meta property="og:title" content={`${platformBranding.productName} Access | ${platformBranding.companyName}`} />
+            <meta
+              property="og:description"
+              content={`Access staff login, platform admin, and tenant operations for ${platformBranding.productName}.`}
+            />
+            <meta property="og:type" content="website" />
+          </Helmet>
+          <PlatformAccessPage
+            eyebrow="LabShope LIMS Access"
+            title="This hostname is for lab operations, not the main marketing site."
+            description="Use this workspace for staff access, platform admin, and tenant-specific lab workflows. The main product homepage, pricing, and marketing pages live on labshope.com."
+            primaryCtaLabel="Staff Login"
+            primaryCtaTo="/auth/staff"
+            secondaryCtaLabel="Go To Homepage"
+            secondaryCtaTo={buildMarketingUrl("/")}
+            helperTitle="Need platform access?"
+            helperBody="Platform administration and staff access are served from the LIMS host. Marketing pages, pricing, and lead capture stay on the main domain."
+          />
+        </>
+      );
+    }
+
     return (
       <>
         <Helmet>
