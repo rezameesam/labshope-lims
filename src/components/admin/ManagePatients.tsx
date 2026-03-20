@@ -51,6 +51,7 @@ import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { formatAppDate } from "@/lib/date";
+import { getUpgradeMessage, PLAN_LIMITS, resolvePlanTier } from "@/lib/planLimits";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
   DEFAULT_COUNTRY_CODE,
@@ -693,6 +694,10 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [customResetPassword, setCustomResetPassword] = useState("");
   const abdmScanShareEnabled =
     settings.abdm_enabled === "true" && settings.abdm_scan_share_enabled === "true";
+  const currentPlan = resolvePlanTier(settings.plan_tier);
+  const patientLimit = PLAN_LIMITS[currentPlan].patients;
+  const patientLimitReached = Number.isFinite(patientLimit) && patients.length >= patientLimit;
+  const patientLimitMessage = patientLimitReached ? getUpgradeMessage(currentPlan, "patients", patientLimit) : "";
 
   const fetchPatients = useCallback(async () => {
     try {
@@ -983,6 +988,10 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       toast.error("Organization context is required before creating patients");
       return;
     }
+    if (patientLimitReached) {
+      toast.error(patientLimitMessage);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -1026,6 +1035,11 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     try {
       if (!organizationId) {
         toast.error("Organization context is required before creating patients");
+        setIsSubmitting(false);
+        return;
+      }
+      if (patientLimitReached) {
+        toast.error(patientLimitMessage);
         setIsSubmitting(false);
         return;
       }
@@ -1674,6 +1688,8 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         abdmScanShareEnabled={abdmScanShareEnabled}
         onOpenAbdmDialog={() => setIsAbdmDialogOpen(true)}
         onOpenAddPatientDialog={() => setIsDialogOpen(true)}
+        addDisabled={patientLimitReached}
+        addDisabledReason={patientLimitMessage}
       />
 
       {/* ABDM Scan and Share Dialog */}

@@ -20,6 +20,8 @@ interface EmployeeFiltersProps {
   onFilterRoleChange: (value: "all" | "admin" | "employee" | "collector") => void;
   onExport: () => void;
   onAddClick: () => void;
+  addDisabled?: boolean;
+  addDisabledReason?: string;
 }
 
 const EmployeeFilters = ({
@@ -31,6 +33,8 @@ const EmployeeFilters = ({
   onFilterRoleChange,
   onExport,
   onAddClick,
+  addDisabled = false,
+  addDisabledReason,
 }: EmployeeFiltersProps) => {
   return (
     <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
@@ -75,11 +79,19 @@ const EmployeeFilters = ({
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Export
         </Button>
-        <Button onClick={onAddClick} className="bg-clinical-navy hover:bg-clinical-navy/90">
+        <Button
+          onClick={onAddClick}
+          className="bg-clinical-navy hover:bg-clinical-navy/90"
+          disabled={addDisabled}
+          title={addDisabledReason}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Employee
         </Button>
       </div>
+      {addDisabledReason ? (
+        <p className="w-full text-sm text-amber-700">{addDisabledReason}</p>
+      ) : null}
     </div>
   );
 };

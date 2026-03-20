@@ -59,6 +59,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import LabAnalytics from "@/components/admin/LabAnalytics";
 import { BarChart3, Settings } from "lucide-react";
+import { getUpgradeMessage, PLAN_LIMITS, resolvePlanTier } from "@/lib/planLimits";
 
 interface Lab {
   id: string;
@@ -109,7 +110,8 @@ const ManageLabs = () => {
   const { refreshLabs, availableLabs } = useLab();
   const { organization, settings, loading: organizationLoading } = useOrganization();
   const organizationId = organization?.id ?? null;
-  const isStarterPlan = settings.plan_tier === "starter";
+  const currentPlan = resolvePlanTier(settings.plan_tier);
+  const labLimit = PLAN_LIMITS[currentPlan].labs;
   const [labs, setLabs] = useState<Lab[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,6 +122,8 @@ const ManageLabs = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [labToDelete, setLabToDelete] = useState<string | null>(null);
   const [editingLab, setEditingLab] = useState<Lab | null>(null);
+  const labLimitReached = Number.isFinite(labLimit) && labs.length >= labLimit;
+  const labLimitMessage = labLimitReached ? getUpgradeMessage(currentPlan, "labs", labLimit) : "";
 
   const [labForm, setLabForm] = useState({
     lab_code: "",
@@ -252,6 +256,10 @@ const ManageLabs = () => {
   const handleSaveLab = async () => {
     if (!organizationId) {
       toast.error("Organization context is required before managing labs");
+      return;
+    }
+    if (!editingLab && labLimitReached) {
+      toast.error(labLimitMessage);
       return;
     }
 
@@ -391,7 +399,7 @@ const ManageLabs = () => {
             </TabsList>
           </Tabs>
           {viewMode === "management" && (
-            isStarterPlan && labs.length >= 1 ? (
+            labLimitReached ? (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -403,7 +411,7 @@ const ManageLabs = () => {
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Starter plan allows only 1 lab. Upgrade to Growth or Premium to add more.
+                    {labLimitMessage}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

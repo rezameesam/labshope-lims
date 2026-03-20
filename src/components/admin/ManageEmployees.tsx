@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { User, UserCheck, Shield, FlaskConical } from "lucide-react";
 import { exportToExcel } from "@/lib/exportToExcel";
+import { getUpgradeMessage, PLAN_LIMITS, resolvePlanTier } from "@/lib/planLimits";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -81,7 +82,7 @@ const createEmptyEditFormData = (): EmployeeEditFormState => ({
 });
 
 const ManageEmployees = () => {
-  const { branding, organization, loading: organizationLoading } = useOrganization();
+  const { branding, organization, settings, loading: organizationLoading } = useOrganization();
   const organizationId = organization?.id ?? null;
   const employeeEmailPlaceholder = `employee@${getWebsiteHostname(branding.website)}`;
   const { currentLab } = useLab();
@@ -315,6 +316,7 @@ const ManageEmployees = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!organizationId) { toast.error("Organization context is required"); return; }
+    if (employeeLimitReached) { toast.error(employeeLimitMessage); return; }
     setIsSubmitting(true);
     let created: { id: string; user_id: string } | null = null;
     try {
@@ -449,6 +451,10 @@ const ManageEmployees = () => {
   const adminCount = employees.filter(e => e.role === "admin").length;
   const collectorCount = employees.filter(e => e.role === "collector").length;
   const activeCount = employees.filter(e => e.is_active).length;
+  const currentPlan = resolvePlanTier(settings.plan_tier);
+  const employeeLimit = PLAN_LIMITS[currentPlan].employees;
+  const employeeLimitReached = Number.isFinite(employeeLimit) && activeCount >= employeeLimit;
+  const employeeLimitMessage = employeeLimitReached ? getUpgradeMessage(currentPlan, "employees", employeeLimit) : "";
   const canManageEmployeeRecords = hasRole("admin");
   const canEditSelectedEmployeePhone = Boolean(selectedEmployee) && (canManageEmployeeRecords || user?.id === selectedEmployee?.user_id);
 
@@ -485,6 +491,8 @@ const ManageEmployees = () => {
           { key: "department", label: "Department" }, { key: "is_active", label: "Active" },
         ], filteredEmployees.map(e => ({ ...e, is_active: e.is_active ? "Yes" : "No" })))}
         onAddClick={() => setIsDialogOpen(true)}
+        addDisabled={employeeLimitReached}
+        addDisabledReason={employeeLimitMessage}
       />
 
       <EmployeeTable

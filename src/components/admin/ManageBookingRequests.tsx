@@ -46,6 +46,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useLab } from "@/contexts/LabContext";
 import { DEFAULT_COUNTRY_CODE, getPhoneLookupVariants, normalizePhoneNumber } from "@/lib/phone";
+import { getUpgradeMessage, PLAN_LIMITS, resolvePlanTier } from "@/lib/planLimits";
 
 type BookingRequestRow = Database["public"]["Tables"]["booking_requests"]["Row"];
 
@@ -125,7 +126,7 @@ interface ManageBookingRequestsProps {
 
 const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) => {
   const { user } = useAuth();
-  const { organization, loading: organizationLoading } = useOrganization();
+  const { organization, settings, loading: organizationLoading } = useOrganization();
   const organizationId = organization?.id ?? null;
   const { currentLab } = useLab();
 
@@ -149,6 +150,11 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewStatus, setReviewStatus] = useState("new");
   const [matchingPatients, setMatchingPatients] = useState<PatientSummary[]>([]);
+  const [patientCount, setPatientCount] = useState(0);
+  const currentPlan = resolvePlanTier(settings.plan_tier);
+  const patientLimit = PLAN_LIMITS[currentPlan].patients;
+  const patientLimitReached = Number.isFinite(patientLimit) && patientCount >= patientLimit;
+  const patientLimitMessage = getUpgradeMessage(currentPlan, "patients", patientLimit);
   const [manualSearch, setManualSearch] = useState("");
   const [manualResults, setManualResults] = useState<PatientSummary[]>([]);
   const [searchingPatients, setSearchingPatients] = useState(false);
@@ -190,14 +196,26 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
 
       query = query.eq("organization_id" as any, organizationId);
 
-      const { data, error } = await query;
+      const [requestsResult, patientsCountResult] = await Promise.all([
+        query,
+        (supabase as any)
+          .from("patients")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId),
+      ]);
+
+      const { data, error } = requestsResult;
 
       if (error) {
         throw error;
       }
+      if (patientsCountResult.error) {
+        throw patientsCountResult.error;
+      }
 
       const nextRequests = (data || []) as BookingRequest[];
       setRequests(nextRequests);
+      setPatientCount(patientsCountResult.count ?? 0);
       onCountChangeRef.current?.(nextRequests.filter((request) => request.status === "new").length);
     } catch (error: any) {
       console.error("Error fetching booking requests:", error);
@@ -217,6 +235,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       setRequests([]);
       setMatchingPatients([]);
       setManualResults([]);
+      setPatientCount(0);
       setLoading(false);
       onCountChangeRef.current?.(0);
       return;
@@ -476,6 +495,10 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
     }
     if (!organizationId) {
       toast.error("Organization context is required before creating patients");
+      return;
+    }
+    if (patientLimitReached) {
+      toast.error(patientLimitMessage);
       return;
     }
 
@@ -959,10 +982,19 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Create a new patient record from this request without leaving the queue.
                       </p>
-                      <Button type="button" className="mt-4" onClick={() => void handleCreatePatient()} disabled={saving}>
+                      <Button
+                        type="button"
+                        className="mt-4"
+                        onClick={() => void handleCreatePatient()}
+                        disabled={saving || patientLimitReached}
+                        title={patientLimitReached ? patientLimitMessage : undefined}
+                      >
                         <UserPlus className="mr-2 h-4 w-4" />
                         Create Patient From Request
                       </Button>
+                      {patientLimitReached ? (
+                        <p className="mt-2 text-sm text-amber-700">{patientLimitMessage}</p>
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>

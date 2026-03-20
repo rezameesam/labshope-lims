@@ -19,6 +19,8 @@ export interface PatientFiltersProps {
   abdmScanShareEnabled: boolean;
   onOpenAbdmDialog: () => void;
   onOpenAddPatientDialog: () => void;
+  addDisabled?: boolean;
+  addDisabledReason?: string;
 }
 
 const PatientFilters = ({
@@ -34,6 +36,8 @@ const PatientFilters = ({
   abdmScanShareEnabled,
   onOpenAbdmDialog,
   onOpenAddPatientDialog,
+  addDisabled = false,
+  addDisabledReason,
 }: PatientFiltersProps) => {
   return (
     <div className="flex flex-col gap-3">
@@ -112,11 +116,16 @@ const PatientFilters = ({
         <Button
           className="bg-clinical-navy hover:bg-clinical-navy/90"
           onClick={onOpenAddPatientDialog}
+          disabled={addDisabled}
+          title={addDisabledReason}
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Patient
         </Button>
       </div>
+      {addDisabledReason ? (
+        <p className="text-sm text-amber-700">{addDisabledReason}</p>
+      ) : null}
     </div>
   );
 };

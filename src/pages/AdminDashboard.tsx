@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { NEXT_PLAN, PLAN_LIMITS, PLAN_PRICES, resolvePlanTier } from "@/lib/planLimits";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { initiateRazorpayPayment } from "@/services/razorpayService";
@@ -273,12 +274,8 @@ const AdminDashboard = () => {
     const dismissKey = `plan_limit_dismissed_${organization.id}`;
     if (sessionStorage.getItem(dismissKey)) return;
 
-    const PLAN_PRICES: Record<string, number> = { starter: 10000, growth: 20000, premium: 40000 };
-    const PLAN_PATIENT_LIMITS: Record<string, number> = { starter: 25000, growth: 100000, premium: Infinity };
-    const NEXT_PLAN: Record<string, string> = { starter: "growth", growth: "premium" };
-
     const checkPlanLimits = async () => {
-      const [settingsResult, patientsResult] = await Promise.all([
+      const [settingsResult, patientsResult, labsResult, employeesResult] = await Promise.all([
         (supabase as any)
           .from("organization_settings")
           .select("setting_value")
@@ -289,19 +286,47 @@ const AdminDashboard = () => {
           .from("patients")
           .select("id", { count: "exact", head: true })
           .eq("organization_id", organization.id),
+        (supabase as any)
+          .from("labs")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organization.id),
+        (supabase as any)
+          .from("employees")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organization.id)
+          .eq("is_active", true),
       ]);
 
-      const currentPlan: string = settingsResult.data?.setting_value || "starter";
+      const currentPlan = resolvePlanTier(settingsResult.data?.setting_value);
       const patientCount: number = patientsResult.count ?? 0;
-      const patientLimit = PLAN_PATIENT_LIMITS[currentPlan] ?? 25000;
+      const labCount: number = labsResult.count ?? 0;
+      const employeeCount: number = employeesResult.count ?? 0;
+      const limits = PLAN_LIMITS[currentPlan];
+      const upgradeTo = NEXT_PLAN[currentPlan];
 
-      if (patientCount > patientLimit && NEXT_PLAN[currentPlan]) {
-        const upgradeTo = NEXT_PLAN[currentPlan];
-        setPlanLimitInfo({
-          currentPlan,
+      const exceeded =
+        (Number.isFinite(limits.labs) && labCount > limits.labs && {
+          exceededMetric: "labs",
+          currentValue: labCount,
+          limit: limits.labs,
+        }) ||
+        (Number.isFinite(limits.employees) && employeeCount > limits.employees && {
+          exceededMetric: "active employees",
+          currentValue: employeeCount,
+          limit: limits.employees,
+        }) ||
+        (Number.isFinite(limits.patients) && patientCount > limits.patients && {
           exceededMetric: "active patients",
           currentValue: patientCount,
-          limit: patientLimit,
+          limit: limits.patients,
+        });
+
+      if (exceeded && upgradeTo) {
+        setPlanLimitInfo({
+          currentPlan,
+          exceededMetric: exceeded.exceededMetric,
+          currentValue: exceeded.currentValue,
+          limit: exceeded.limit,
           upgradeTo,
           upgradePrice: (PLAN_PRICES[upgradeTo] ?? 0) - (PLAN_PRICES[currentPlan] ?? 0),
         });
