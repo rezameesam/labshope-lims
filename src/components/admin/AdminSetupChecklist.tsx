@@ -117,6 +117,7 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
       "branding_description",
       "organization_website",
       "razorpay_key_id",
+      "phonepe_merchant_id",
       "email_from_name",
       "email_from_email",
       "whatsapp_access_token",
@@ -466,3 +467,4 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
 };
 
 export default AdminSetupChecklist;
+minSetupChecklist;

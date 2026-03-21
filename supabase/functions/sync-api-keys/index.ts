@@ -85,7 +85,7 @@ serve(async (req: Request) => {
     const settingsMap = await fetchScopedSettings(
       supabaseUrl,
       serviceRoleKey,
-      ["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"],
+      ["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret", "phonepe_merchant_id", "phonepe_salt_key", "phonepe_salt_index"],
       organizationId,
     );
 
@@ -98,9 +98,12 @@ serve(async (req: Request) => {
           razorpay_key_id: settingsMap.get("razorpay_key_id") || "",
           razorpay_key_secret: settingsMap.get("razorpay_key_secret") ? "***" : "",
           razorpay_webhook_secret: settingsMap.get("razorpay_webhook_secret") ? "***" : "",
+          phonepe_merchant_id: settingsMap.get("phonepe_merchant_id") || "",
+          phonepe_salt_key: settingsMap.get("phonepe_salt_key") ? "***" : "",
+          phonepe_salt_index: settingsMap.get("phonepe_salt_index") || "",
         },
         instructions: {
-          cli: "supabase secrets set RAZORPAY_KEY_ID=value RAZORPAY_KEY_SECRET=value",
+          cli: "supabase secrets set RAZORPAY_KEY_ID=value RAZORPAY_KEY_SECRET=value PHONEPE_MERCHANT_ID=value PHONEPE_SALT_KEY=value PHONEPE_SALT_INDEX=1",
           dashboard: "Go to Settings → Edge Functions → Secrets",
         },
       }),

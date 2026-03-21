@@ -1,5 +1,5 @@
 import { Receipt, IndianRupee, Download, CheckCircle, Clock, XCircle } from "lucide-react";
-import { RazorpayButton } from "@/components/payment/RazorpayButton";
+import { OnlinePaymentButton } from "@/components/payment/OnlinePaymentButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -204,7 +204,7 @@ export const BillingDetail = ({
                   </div>
                 </div>
 
-                <RazorpayButton
+                <OnlinePaymentButton
                   invoiceId={selectedInvoice.id}
                   invoiceNumber={selectedInvoice.invoice_number}
                   amount={getOutstandingAmount(selectedInvoice)}

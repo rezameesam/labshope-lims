@@ -1,5 +1,5 @@
 import { Receipt, FileText, Download, CheckCircle, Clock, XCircle } from "lucide-react";
-import { RazorpayButton } from "@/components/payment/RazorpayButton";
+import { OnlinePaymentButton } from "@/components/payment/OnlinePaymentButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -96,7 +96,7 @@ export const BillingHistory = ({
                 </Badge>
               )}
               {unpaidInvoices.length > 0 && (
-                <RazorpayButton
+                <OnlinePaymentButton
                   amount={totalOutstanding}
                   invoices={unpaidInvoices.map((inv) => ({
                     id: inv.id,
@@ -184,7 +184,7 @@ export const BillingHistory = ({
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       {getOutstandingAmount(invoice) > 0 && (
-                        <RazorpayButton
+                        <OnlinePaymentButton
                           invoiceId={invoice.id}
                           invoiceNumber={invoice.invoice_number}
                           amount={getOutstandingAmount(invoice)}

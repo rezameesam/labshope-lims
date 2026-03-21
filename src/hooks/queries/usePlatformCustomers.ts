@@ -80,7 +80,7 @@ function getOrgHealth(
       s.get("mailgun_api_key")
     ),
     whatsapp: !!(s.get("whatsapp_phone_number_id")),
-    payment: !!(s.get("razorpay_key_id")),
+    payment: !!(s.get("razorpay_key_id") || s.get("phonepe_merchant_id")),
     domain: domains.some(
       (d) => d.organization_id === orgId && d.verified_at && d.is_primary,
     ),
