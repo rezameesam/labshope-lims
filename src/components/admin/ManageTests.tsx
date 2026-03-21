@@ -123,6 +123,28 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState("auto");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const patientTestInsights = useMemo(() => {
+    if (!selectedPatient) {
+      return { recentTestSuggestions: [] as string[], pendingCount: 0, completedCount: 0, lastTestDate: "" };
+    }
+
+    const patientRows = tests.filter((t) => t.patient_id === selectedPatient.id);
+    const pendingCount = patientRows.filter((t) => t.status === "pending" || t.status === "in_progress").length;
+    const completedCount = patientRows.filter((t) => t.status === "completed").length;
+    const lastTestDate = patientRows[0]?.test_date || "";
+
+    const recentTestSuggestions = Array.from(
+      new Set(
+        patientRows
+          .slice(0, 30)
+          .map((t) => t.test_name)
+          .filter(Boolean)
+      )
+    ).slice(0, 8);
+
+    return { recentTestSuggestions, pendingCount, completedCount, lastTestDate };
+  }, [tests, selectedPatient]);
+
   // Filter patients by search
   const filteredPatients = useMemo(() => {
     if (!patientSearch.trim()) return patients.slice(0, 10);
@@ -1545,6 +1567,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
                 setShowPackageTestsIndividually(false);
               }}
               selectedTestsTotal={selectedTestsTotal}
+              recentTestSuggestions={patientTestInsights.recentTestSuggestions}
+              pendingCount={patientTestInsights.pendingCount}
+              completedCount={patientTestInsights.completedCount}
+              lastTestDate={patientTestInsights.lastTestDate}
               testCatalog={testCatalog}
               doctors={doctors}
               onCancel={() => setIsDialogOpen(false)}

@@ -87,6 +87,10 @@ interface TestFormDialogProps {
   onShowPackageTestsIndividuallyChange: (value: boolean) => void;
   onRemovePackage: () => void;
   selectedTestsTotal: number;
+  recentTestSuggestions: string[];
+  pendingCount: number;
+  completedCount: number;
+  lastTestDate: string;
   testCatalog: Test[];
   doctors: Doctor[];
   onCancel: () => void;
@@ -126,6 +130,10 @@ export const TestFormDialog = ({
   onShowPackageTestsIndividuallyChange,
   onRemovePackage,
   selectedTestsTotal,
+  recentTestSuggestions,
+  pendingCount,
+  completedCount,
+  lastTestDate,
   testCatalog,
   doctors,
   onCancel,
@@ -154,26 +162,42 @@ export const TestFormDialog = ({
                     <div className="space-y-2">
                       <Label htmlFor="patient_search">Patient *</Label>
                       {selectedPatient ? (
-                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-primary/10">
-                              <User className="h-4 w-4 text-primary" />
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 rounded-full bg-primary/10">
+                                <User className="h-4 w-4 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{selectedPatient.full_name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {selectedPatient.patient_id} • {selectedPatient.phone}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium">{selectedPatient.full_name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedPatient.patient_id} • {selectedPatient.phone}
-                              </p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onSelectPatient(null)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div className="rounded-md border p-2 bg-background">
+                              <p className="text-muted-foreground">Pending</p>
+                              <p className="font-semibold">{pendingCount}</p>
+                            </div>
+                            <div className="rounded-md border p-2 bg-background">
+                              <p className="text-muted-foreground">Completed</p>
+                              <p className="font-semibold">{completedCount}</p>
+                            </div>
+                            <div className="rounded-md border p-2 bg-background">
+                              <p className="text-muted-foreground">Last Test</p>
+                              <p className="font-semibold">{lastTestDate || "—"}</p>
                             </div>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onSelectPatient(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -400,6 +424,27 @@ export const TestFormDialog = ({
                         </Select>
                       </div>
                     </div>
+
+                    {recentTestSuggestions.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Quick add from patient history</p>
+                        <div className="flex flex-wrap gap-2">
+                          {recentTestSuggestions.map((testName) => {
+                            const active = selectedTests.includes(testName);
+                            return (
+                              <Badge
+                                key={testName}
+                                variant={active ? "default" : "secondary"}
+                                className="cursor-pointer"
+                                onClick={() => onToggleTestSelection(testName)}
+                              >
+                                {active ? "✓ " : ""}{testName}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
