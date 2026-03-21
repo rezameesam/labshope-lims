@@ -347,6 +347,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
             "mailgun_domain",
             "sendgrid_api_key",
             "plan_tier",
+            "razorpay_key_id",
+            "phonepe_merchant_id",
           ]);
 
         if (!settingsError && settingsData) {
@@ -356,6 +358,23 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
               setting.setting_value || "",
             ])
           );
+        }
+      }
+
+      if (organizationId) {
+        const needsPaymentGatewayHints = !resolvedSettings.get("razorpay_key_id") && !resolvedSettings.get("phonepe_merchant_id");
+        if (needsPaymentGatewayHints) {
+          const { data: paymentSettingsData, error: paymentSettingsError } = await supabase
+            .from("organization_settings" as any)
+            .select("setting_key, setting_value")
+            .eq("organization_id", organizationId)
+            .in("setting_key", ["razorpay_key_id", "phonepe_merchant_id"]);
+
+          if (!paymentSettingsError && paymentSettingsData) {
+            for (const setting of paymentSettingsData as OrganizationSettingRecord[]) {
+              resolvedSettings.set(setting.setting_key, setting.setting_value || "");
+            }
+          }
         }
       }
 

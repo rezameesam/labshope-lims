@@ -1282,7 +1282,7 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
     if (category === "abdm" && useOrganizationScope) {
       return settings.filter((s) => s.category === category && !s.platform_only);
     }
-    return settings.filter((s) => s.category === category);
+    return settings.filter((s) => s.category === category && s.setting_key !== "payment_provider");
   };
 
   const isConfigured = (setting: SystemSetting) => {
