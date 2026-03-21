@@ -260,7 +260,7 @@ const PlatformCustomerDetail = () => {
         settingsMap.get("mailgun_api_key")
       ),
       whatsapp: !!(settingsMap.get("whatsapp_phone_number_id")),
-      payment: !!(settingsMap.get("razorpay_key_id") || settingsMap.get("phonepe_merchant_id")),
+      payment: !!(settingsMap.get("razorpay_key_id") || settingsMap.get("phonepe_merchant_id") || settingsMap.get("payu_key")),
       domain: !!(nextDomains.some((d) => d.verified_at && d.is_primary)),
       abdm: !!(
         settingsMap.get("abdm_enabled") === "true" &&

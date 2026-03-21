@@ -89,6 +89,7 @@ const settingKeys = [
   "whatsapp_phone_number_id",
   "razorpay_key_id",
   "phonepe_merchant_id",
+  "payu_key",
 ] as const;
 
 const STARTER_CATALOG = [

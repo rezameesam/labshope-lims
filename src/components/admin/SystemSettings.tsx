@@ -130,6 +130,39 @@ const PAYMENT_SETTING_TEMPLATES: SystemSetting[] = [
     description: "Use preprod URL for testing, production URL for live transactions.",
     is_encrypted: false,
   },
+  {
+    id: "template-payu_key",
+    organization_id: null,
+    setting_key: "payu_key",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "PayU Key",
+    description: "Merchant key from PayU dashboard.",
+    is_encrypted: true,
+  },
+  {
+    id: "template-payu_salt",
+    organization_id: null,
+    setting_key: "payu_salt",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "PayU Salt",
+    description: "Merchant salt used for request/response hash verification.",
+    is_encrypted: true,
+  },
+  {
+    id: "template-payu_base_url",
+    organization_id: null,
+    setting_key: "payu_base_url",
+    setting_value: "https://test.payu.in",
+    setting_type: "text",
+    category: "payment",
+    label: "PayU Base URL",
+    description: "Use https://test.payu.in for testing and https://secure.payu.in for production.",
+    is_encrypted: false,
+  },
 ];
 
 const EMAIL_SETTING_TEMPLATES: SystemSetting[] = [
@@ -807,6 +840,13 @@ const getProviderHelpLink = (settingKey: string) => {
     return {
       label: "Open PhonePe PG Docs",
       href: "https://developer.phonepe.com/payment-gateway/backend-sdk/nodejs-be-sdk/integration-steps",
+    };
+  }
+
+  if (settingKey.startsWith("payu_")) {
+    return {
+      label: "Open PayU Docs",
+      href: "https://docs.payu.in/docs/introduction",
     };
   }
 

@@ -101,6 +101,18 @@ verify_jwt = false
 [functions.confirm-razorpay-payment]
 verify_jwt = false
 
+[functions.create-phonepe-order]
+verify_jwt = false
+
+[functions.confirm-phonepe-payment]
+verify_jwt = false
+
+[functions.create-payu-order]
+verify_jwt = false
+
+[functions.confirm-payu-payment]
+verify_jwt = false
+
 [functions.create-plan-upgrade-order]
 verify_jwt = true
 

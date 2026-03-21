@@ -349,6 +349,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
             "plan_tier",
             "razorpay_key_id",
             "phonepe_merchant_id",
+            "payu_key",
           ]);
 
         if (!settingsError && settingsData) {
@@ -362,13 +363,13 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (organizationId) {
-        const needsPaymentGatewayHints = !resolvedSettings.get("razorpay_key_id") && !resolvedSettings.get("phonepe_merchant_id");
+        const needsPaymentGatewayHints = !resolvedSettings.get("razorpay_key_id") && !resolvedSettings.get("phonepe_merchant_id") && !resolvedSettings.get("payu_key");
         if (needsPaymentGatewayHints) {
           const { data: paymentSettingsData, error: paymentSettingsError } = await supabase
             .from("organization_settings" as any)
             .select("setting_key, setting_value")
             .eq("organization_id", organizationId)
-            .in("setting_key", ["razorpay_key_id", "phonepe_merchant_id"]);
+            .in("setting_key", ["razorpay_key_id", "phonepe_merchant_id", "payu_key"]);
 
           if (!paymentSettingsError && paymentSettingsData) {
             for (const setting of paymentSettingsData as OrganizationSettingRecord[]) {

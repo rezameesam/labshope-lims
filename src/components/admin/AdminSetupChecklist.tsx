@@ -118,6 +118,7 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
       "organization_website",
       "razorpay_key_id",
       "phonepe_merchant_id",
+      "payu_key",
       "email_from_name",
       "email_from_email",
       "whatsapp_access_token",
@@ -193,7 +194,7 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
     Boolean(primaryLab?.city?.trim());
   const hasCatalogAndTemplate = metrics.tests > 0 && metrics.templates > 0;
   const hasExtraStaff = metrics.employees > 1;
-  const hasPayments = Boolean(metrics.settings.razorpay_key_id?.trim());
+  const hasPayments = Boolean(metrics.settings.razorpay_key_id?.trim() || metrics.settings.phonepe_merchant_id?.trim() || metrics.settings.payu_key?.trim());
   const hasNotifications =
     Boolean(metrics.settings.email_from_name?.trim()) ||
     Boolean(metrics.settings.email_from_email?.trim()) ||
