@@ -7,6 +7,7 @@ import { toast } from "sonner";
 interface PhonePeButtonProps {
   invoiceId?: string;
   invoiceNumber?: string;
+  invoices?: Array<{ id: string; invoice_number: string; amount: number }>;
   amount: number;
   patientName?: string;
   patientEmail?: string;
@@ -35,8 +36,9 @@ export const PhonePeButton = ({
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const handlePayment = async () => {
-    if (!invoiceId) {
-      toast.error("PhonePe is currently available for single invoice payments.");
+    const isBulkPayment = Array.isArray(invoices) && invoices.length > 0;
+    if (!isBulkPayment && !invoiceId) {
+      toast.error("Missing invoice details.");
       return;
     }
 
@@ -85,6 +87,9 @@ export const PhonePeButton = ({
         const { data: statusData, error: statusError } = await supabase.functions.invoke("confirm-phonepe-payment", {
           body: {
             invoice_id: invoiceId,
+            bulk_invoices: isBulkPayment
+              ? (invoices || []).map((inv) => ({ invoice_id: inv.id, amount: inv.amount }))
+              : undefined,
             merchant_transaction_id: data.merchant_transaction_id,
           },
           headers: {

@@ -46,25 +46,29 @@ serve(async (req: Request) => {
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const body = await req.json();
-    const invoiceId = (body.invoice_id || "").trim();
     const merchantTransactionId = (body.merchant_transaction_id || "").trim();
+    const invoiceId = (body.invoice_id || "").trim();
+    const bulkInvoices = Array.isArray(body.bulk_invoices) ? body.bulk_invoices : [];
 
-    if (!invoiceId || !merchantTransactionId) {
-      return new Response(JSON.stringify({ error: "invoice_id and merchant_transaction_id are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const invoiceIds = bulkInvoices.length > 0
+      ? bulkInvoices.map((i: any) => i.invoice_id).filter(Boolean)
+      : (invoiceId ? [invoiceId] : []);
+
+    if (!merchantTransactionId || invoiceIds.length === 0) {
+      return new Response(JSON.stringify({ error: "merchant_transaction_id and invoice_id (or bulk_invoices) are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { data: invoice } = await supabaseAdmin
+    const { data: invoices } = await supabaseAdmin
       .from("invoices")
       .select("id, final_amount, paid_amount, organization_id, patients!inner(user_id)")
-      .eq("id", invoiceId)
-      .single();
+      .in("id", invoiceIds);
 
-    if (!invoice) {
-      return new Response(JSON.stringify({ error: "Invoice not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!invoices || invoices.length === 0) {
+      return new Response(JSON.stringify({ error: "Invoice(s) not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const invoicePatientUserId = (invoice.patients as any)?.user_id;
-    const isPatientOwner = invoicePatientUserId === user.id;
+    const ownerUserId = (invoices[0].patients as any)?.user_id;
+    const isPatientOwner = ownerUserId === user.id;
     if (!isPatientOwner) {
       const { data: userRoles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", user.id);
       const hasStaffRole = userRoles?.some((r) => r.role === "admin" || r.role === "employee");
@@ -73,7 +77,7 @@ serve(async (req: Request) => {
       }
     }
 
-    const orgId = (invoice as any).organization_id || null;
+    const orgId = (invoices[0] as any).organization_id || null;
     const settingsMap = await fetchScopedSettings(
       supabaseUrl,
       serviceRoleKey,
@@ -86,78 +90,65 @@ serve(async (req: Request) => {
     const saltIndex = settingsMap.get("phonepe_salt_index")?.trim() || Deno.env.get("PHONEPE_SALT_INDEX") || "1";
     const configuredBaseUrl = settingsMap.get("phonepe_base_url")?.trim() || Deno.env.get("PHONEPE_BASE_URL") || "https://api-preprod.phonepe.com/apis/pg-sandbox";
 
-    if (!merchantId || !saltKey) {
-      return new Response(JSON.stringify({ error: "PhonePe is not configured for this organization" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
     const statusPath = `/pg/v1/status/${merchantId}/${merchantTransactionId}`;
     const digest = await sha256Hex(statusPath + saltKey);
     const xVerify = `${digest}###${saltIndex}`;
 
     const response = await fetch(`${configuredBaseUrl}${statusPath}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-VERIFY": xVerify,
-        "X-MERCHANT-ID": merchantId,
-      },
+      headers: { "Content-Type": "application/json", "X-VERIFY": xVerify, "X-MERCHANT-ID": merchantId },
     });
-
     const statusData = await response.json();
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: "Failed to fetch PhonePe payment status", details: statusData }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
 
     const state = statusData?.data?.state || statusData?.state;
     if (state !== "COMPLETED") {
       return new Response(JSON.stringify({ success: false, state, message: "Payment is not completed yet" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const existing = await supabaseAdmin
-      .from("payments")
-      .select("id")
-      .eq("invoice_id", invoiceId)
-      .eq("transaction_id", merchantTransactionId)
-      .maybeSingle();
-
-    if (existing.data?.id) {
-      return new Response(JSON.stringify({ success: true, already_processed: true, state }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
     const amountPaid = Number(statusData?.data?.amount || 0) / 100;
-    const finalAmount = Number((invoice as any).final_amount || 0);
-    const paidAmount = Number((invoice as any).paid_amount || 0);
-    const applied = Math.min(amountPaid, Math.max(0, finalAmount - paidAmount));
+    const outstandingRows = invoices.map((inv: any) => ({
+      invoice_id: inv.id,
+      outstanding: Math.max(0, Number(inv.final_amount) - Number(inv.paid_amount || 0)),
+      paid_amount: Number(inv.paid_amount || 0),
+      final_amount: Number(inv.final_amount || 0),
+    })).filter((r) => r.outstanding > 0);
 
-    if (applied <= 0) {
-      return new Response(JSON.stringify({ success: true, state, message: "No payable amount remaining" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    let remaining = amountPaid;
+    const processed: string[] = [];
 
-    await supabaseAdmin.from("payments").insert({
-      invoice_id: invoiceId,
-      organization_id: orgId,
-      amount: applied,
-      payment_method: "online",
-      payment_gateway: "phonepe",
-      transaction_id: merchantTransactionId,
-      payment_date: new Date().toISOString(),
-      notes: `phonepe_transaction_id:${merchantTransactionId}`,
-    });
+    for (const row of outstandingRows) {
+      if (remaining <= 0) break;
+      const existing = await supabaseAdmin.from("payments").select("id").eq("invoice_id", row.invoice_id).eq("transaction_id", merchantTransactionId).maybeSingle();
+      if (existing.data?.id) continue;
 
-    const newPaid = paidAmount + applied;
-    const newStatus = newPaid >= finalAmount ? "paid" : "partial";
+      const applied = Math.min(row.outstanding, remaining);
+      if (applied <= 0) continue;
 
-    await supabaseAdmin
-      .from("invoices")
-      .update({
+      await supabaseAdmin.from("payments").insert({
+        invoice_id: row.invoice_id,
+        organization_id: orgId,
+        amount: applied,
+        payment_method: "online",
+        payment_gateway: "phonepe",
+        transaction_id: merchantTransactionId,
+        payment_date: new Date().toISOString(),
+        notes: `phonepe_transaction_id:${merchantTransactionId}`,
+      });
+
+      const newPaid = row.paid_amount + applied;
+      const newStatus = newPaid >= row.final_amount ? "paid" : "partial";
+      await supabaseAdmin.from("invoices").update({
         paid_amount: newPaid,
         payment_status: newStatus,
         payment_method: "online",
         paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-      })
-      .eq("id", invoiceId);
+      }).eq("id", row.invoice_id);
 
-    return new Response(JSON.stringify({ success: true, state, merchant_transaction_id: merchantTransactionId }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      remaining -= applied;
+      processed.push(row.invoice_id);
+    }
+
+    return new Response(JSON.stringify({ success: true, state, merchant_transaction_id: merchantTransactionId, processed_invoice_ids: processed }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
     console.error("confirm-phonepe-payment error", error);
     return new Response(JSON.stringify({ error: error.message || "Failed to confirm PhonePe payment" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

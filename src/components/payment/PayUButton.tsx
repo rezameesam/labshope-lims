@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 interface PayUButtonProps {
   invoiceId?: string;
+  invoices?: Array<{ id: string; invoice_number: string; amount: number }>;
   amount: number;
   patientName?: string;
   patientEmail?: string;
@@ -19,6 +20,7 @@ interface PayUButtonProps {
 
 export const PayUButton = ({
   invoiceId,
+  invoices,
   amount,
   patientName,
   patientEmail,
@@ -30,7 +32,6 @@ export const PayUButton = ({
   size = "default",
 }: PayUButtonProps) => {
   const [processing, setProcessing] = useState(false);
-
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const submitPayUForm = (actionUrl: string, fields: Record<string, string>) => {
@@ -38,7 +39,6 @@ export const PayUButton = ({
     form.method = "POST";
     form.action = actionUrl;
     form.target = "_blank";
-
     Object.entries(fields).forEach(([key, value]) => {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -46,25 +46,23 @@ export const PayUButton = ({
       input.value = value;
       form.appendChild(input);
     });
-
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);
   };
 
   const handlePayment = async () => {
-    if (!invoiceId) {
-      toast.error("PayU is currently available for single invoice payments.");
+    const isBulkPayment = Array.isArray(invoices) && invoices.length > 0;
+    if (!isBulkPayment && !invoiceId) {
+      toast.error("Missing invoice details.");
       return;
     }
-
     if (amount <= 0) {
       toast.error("Invalid payment amount");
       return;
     }
 
     setProcessing(true);
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -76,6 +74,7 @@ export const PayUButton = ({
       const { data, error } = await supabase.functions.invoke("create-payu-order", {
         body: {
           invoice_id: invoiceId,
+          invoice_ids: isBulkPayment ? invoices?.map((inv) => inv.id) : undefined,
           amount,
           patient_name: patientName,
           patient_email: patientEmail,
@@ -93,10 +92,10 @@ export const PayUButton = ({
       let retries = 24;
       while (retries > 0) {
         await wait(5000);
-
         const { data: statusData, error: statusError } = await supabase.functions.invoke("confirm-payu-payment", {
           body: {
             invoice_id: invoiceId,
+            bulk_invoices: isBulkPayment ? (invoices || []).map((inv) => ({ invoice_id: inv.id, amount: inv.amount })) : undefined,
             transaction_id: data.transaction_id,
           },
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -108,7 +107,6 @@ export const PayUButton = ({
           setProcessing(false);
           return;
         }
-
         retries -= 1;
       }
 
@@ -124,15 +122,9 @@ export const PayUButton = ({
   return (
     <Button onClick={handlePayment} disabled={processing || amount <= 0} className={className} variant={variant} size={size}>
       {processing ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Processing...
-        </>
+        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
       ) : (
-        <>
-          <CreditCard className="mr-2 h-4 w-4" />
-          {label ?? `Pay via PayU (₹${amount.toLocaleString()})`}
-        </>
+        <><CreditCard className="mr-2 h-4 w-4" />{label ?? `Pay via PayU (₹${amount.toLocaleString()})`}</>
       )}
     </Button>
   );

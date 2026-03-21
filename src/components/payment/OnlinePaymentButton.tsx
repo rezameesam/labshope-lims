@@ -9,11 +9,6 @@ type OnlinePaymentButtonProps = ComponentProps<typeof RazorpayButton>;
 export const OnlinePaymentButton = (props: OnlinePaymentButtonProps) => {
   const { settings } = useOrganization();
 
-  // Bulk payments are supported on Razorpay flow only at the moment.
-  if (Array.isArray(props.invoices) && props.invoices.length > 0) {
-    return <RazorpayButton {...props} />;
-  }
-
   const hasRazorpay = Boolean((settings.razorpay_key_id || "").trim());
   const hasPhonePe = Boolean((settings.phonepe_merchant_id || "").trim());
   const hasPayU = Boolean((settings.payu_key || "").trim());

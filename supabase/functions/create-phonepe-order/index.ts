@@ -10,6 +10,7 @@ const corsHeaders = {
 
 interface CreateOrderRequest {
   invoice_id?: string;
+  invoice_ids?: string[];
   amount: number;
   patient_name?: string;
   patient_email?: string;
@@ -53,24 +54,28 @@ serve(async (req: Request) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const { invoice_id, amount }: CreateOrderRequest = await req.json();
+    const { invoice_id, invoice_ids, amount }: CreateOrderRequest = await req.json();
 
-    if (!invoice_id || !amount || amount <= 0) {
-      return new Response(JSON.stringify({ error: "invoice_id and amount are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const bulkIds = Array.isArray(invoice_ids) ? invoice_ids.filter(Boolean) : [];
+    const isBulk = bulkIds.length > 0;
+    if ((!invoice_id && !isBulk) || !amount || amount <= 0) {
+      return new Response(JSON.stringify({ error: "invoice_id (or invoice_ids) and amount are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { data: invoice } = await supabaseAdmin
+    const query = supabaseAdmin
       .from("invoices")
-      .select("id, invoice_number, final_amount, paid_amount, patient_id, organization_id, patients!inner(user_id)")
-      .eq("id", invoice_id)
-      .single();
+      .select("id, invoice_number, final_amount, paid_amount, patient_id, organization_id, patients!inner(user_id)");
 
-    if (!invoice) {
-      return new Response(JSON.stringify({ error: "Invoice not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { data: invoices } = isBulk
+      ? await query.in("id", bulkIds)
+      : await query.eq("id", invoice_id).limit(1);
+
+    if (!invoices || invoices.length === 0) {
+      return new Response(JSON.stringify({ error: "Invoice(s) not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const invoicePatientUserId = (invoice.patients as any)?.user_id;
-    const isPatientOwner = invoicePatientUserId === user.id;
+    const ownerUserId = (invoices[0].patients as any)?.user_id;
+    const isPatientOwner = ownerUserId === user.id;
     if (!isPatientOwner) {
       const { data: userRoles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", user.id);
       const hasStaffRole = userRoles?.some((r) => r.role === "admin" || r.role === "employee");
@@ -79,13 +84,26 @@ serve(async (req: Request) => {
       }
     }
 
-    const outstandingAmount = Number(invoice.final_amount) - Number(invoice.paid_amount || 0);
-    if (outstandingAmount <= 0) {
-      return new Response(JSON.stringify({ error: "Invoice is already settled" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const orgIds = new Set(invoices.map((i: any) => i.organization_id).filter(Boolean));
+    if (orgIds.size > 1) {
+      return new Response(JSON.stringify({ error: "Invoices must belong to same organization" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const organizationId = Array.from(orgIds)[0] || null;
+
+    const invoicePayments = invoices
+      .map((inv: any) => ({
+        invoice_id: inv.id,
+        invoice_number: inv.invoice_number,
+        amount: Math.max(0, Number(inv.final_amount) - Number(inv.paid_amount || 0)),
+      }))
+      .filter((x) => x.amount > 0);
+
+    if (invoicePayments.length === 0) {
+      return new Response(JSON.stringify({ error: "No outstanding invoices to pay" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const payAmountPaise = Math.round(Math.min(amount, outstandingAmount) * 100);
-    const organizationId = (invoice as any).organization_id || null;
+    const totalOutstanding = invoicePayments.reduce((sum, x) => sum + x.amount, 0);
+    const payAmountPaise = Math.round(Math.min(amount, totalOutstanding) * 100);
 
     const settingsMap = await fetchScopedSettings(
       supabaseUrl,
@@ -104,9 +122,8 @@ serve(async (req: Request) => {
     }
 
     const origin = req.headers.get("origin") || Deno.env.get("SITE_URL") || "https://example.com";
-    const merchantTransactionId = `INV_${invoice_id.replace(/-/g, "").slice(0, 24)}_${Date.now()}`;
-    const callbackUrl = `${supabaseUrl}/functions/v1/confirm-phonepe-payment`;
-    const redirectUrl = `${origin}/patient/billing?phonepe_txn=${merchantTransactionId}&invoice_id=${invoice_id}`;
+    const merchantTransactionId = `${isBulk ? "BULK" : "INV"}_${Date.now()}`;
+    const redirectUrl = `${origin}/patient/billing?phonepe_txn=${merchantTransactionId}`;
 
     const payload = {
       merchantId,
@@ -115,7 +132,7 @@ serve(async (req: Request) => {
       amount: payAmountPaise,
       redirectUrl,
       redirectMode: "REDIRECT",
-      callbackUrl,
+      callbackUrl: `${supabaseUrl}/functions/v1/confirm-phonepe-payment`,
       mobileNumber: "",
       paymentInstrument: { type: "PAY_PAGE" },
     };
@@ -127,10 +144,7 @@ serve(async (req: Request) => {
 
     const response = await fetch(`${configuredBaseUrl}${apiPath}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-VERIFY": xVerify,
-      },
+      headers: { "Content-Type": "application/json", "X-VERIFY": xVerify },
       body: JSON.stringify({ request: base64Payload }),
     });
 
