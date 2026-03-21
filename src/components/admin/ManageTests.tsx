@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, startTransition, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, startTransition, useState } from "react";
 import { Plus, CheckCircle, Clock, AlertCircle, Calendar, FileSpreadsheet, Printer, History } from "lucide-react";
 import { exportToExcel } from "@/lib/exportToExcel";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateWarningAccepted, setDuplicateWarningAccepted] = useState(false);
   const [favoriteTests, setFavoriteTests] = useState<string[]>([]);
+  const lastPreselectedPatientIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -176,10 +177,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   }, [patients, patientSearch]);
 
   useEffect(() => {
-    if (!preselectedPatient) return;
+    if (!preselectedPatient) {
+      lastPreselectedPatientIdRef.current = null;
+      return;
+    }
+
+    const isNewPreselectedPatient = lastPreselectedPatientIdRef.current !== preselectedPatient.id;
 
     setSelectedPatient(preselectedPatient);
     setPatientSearch("");
+    if (isNewPreselectedPatient) {
+      setIsDialogOpen(true);
+      lastPreselectedPatientIdRef.current = preselectedPatient.id;
+    }
 
     const patientLabId = preselectedPatient.lab_id || currentLab?.id || "";
     let patientCollectionCenterId = preselectedPatient.collection_center_id || "";
