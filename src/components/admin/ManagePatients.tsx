@@ -132,6 +132,16 @@ interface BillingSummary {
   invoiceCount: number;
 }
 
+interface PatientCommunicationEvent {
+  id: string;
+  title: string;
+  message: string | null;
+  reminder_date: string;
+  reminder_type: string;
+  notification_method: string | null;
+  notification_sent: boolean | null;
+}
+
 interface PatientFormData {
   full_name: string;
   country_code: string;
@@ -659,6 +669,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true, includeWatermark: true });
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
+  const [patientCommunicationEvents, setPatientCommunicationEvents] = useState<PatientCommunicationEvent[]>([]);
   const [abdmProfileShares, setAbdmProfileShares] = useState<AbdmProfileShare[]>([]);
   const [matchShareDialogShare, setMatchShareDialogShare] = useState<AbdmProfileShare | null>(null);
   const [matchShareSearch, setMatchShareSearch] = useState("");
@@ -873,6 +884,35 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       );
     } catch (error) {
       console.error("Error fetching patient tests:", error);
+    }
+  }, [organizationId]);
+
+  const fetchPatientCommunicationEvents = useCallback(async (patientId: string) => {
+    try {
+      if (!organizationId) {
+        setPatientCommunicationEvents([]);
+        return;
+      }
+
+      const { data, error } = await (supabase as any)
+        .from("patient_reminders")
+        .select("id, title, message, reminder_date, reminder_type, notification_method, notification_sent")
+        .eq("patient_id", patientId)
+        .order("reminder_date", { ascending: false })
+        .limit(12);
+
+      if (error) {
+        if (error.code === "42P01") {
+          setPatientCommunicationEvents([]);
+          return;
+        }
+        throw error;
+      }
+
+      setPatientCommunicationEvents((data || []) as PatientCommunicationEvent[]);
+    } catch (error) {
+      console.error("Error fetching communication events:", error);
+      setPatientCommunicationEvents([]);
     }
   }, [organizationId]);
 
@@ -1429,9 +1469,11 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setSelectedPatient(patient);
     setSelectedTestIds(new Set());
     setBillingSummary(null);
+    setPatientCommunicationEvents([]);
     await Promise.all([
       fetchPatientTests(patient.id),
-      fetchBillingSummary(patient.id)
+      fetchBillingSummary(patient.id),
+      fetchPatientCommunicationEvents(patient.id)
     ]);
     setIsSheetOpen(true);
   };
@@ -2053,6 +2095,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         selectedPatient={selectedPatient}
         patientTests={patientTests}
         billingSummary={billingSummary}
+        patientCommunicationEvents={patientCommunicationEvents}
         selectedTestIds={selectedTestIds}
         completedPatientTests={completedPatientTests}
         onToggleTestSelection={toggleTestSelection}

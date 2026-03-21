@@ -112,12 +112,23 @@ export interface BillingSummary {
   invoiceCount: number;
 }
 
+export interface PatientCommunicationEvent {
+  id: string;
+  title: string;
+  message: string | null;
+  reminder_date: string;
+  reminder_type: string;
+  notification_method: string | null;
+  notification_sent: boolean | null;
+}
+
 export interface PatientDetailViewProps {
   isSheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
   selectedPatient: Patient | null;
   patientTests: PatientTest[];
   billingSummary: BillingSummary | null;
+  patientCommunicationEvents: PatientCommunicationEvent[];
   selectedTestIds: Set<string>;
   completedPatientTests: PatientTest[];
   onToggleTestSelection: (testId: string) => void;
@@ -149,6 +160,7 @@ const PatientDetailView = ({
   selectedPatient,
   patientTests,
   billingSummary,
+  patientCommunicationEvents,
   selectedTestIds,
   completedPatientTests,
   onToggleTestSelection,
@@ -488,6 +500,38 @@ const PatientDetailView = ({
                           <p className="text-xs text-muted-foreground">{formatAppDate(item.date)}</p>
                         </div>
                         {getStatusBadge(item.status)}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Communications Timeline */}
+              <div>
+                <h4 className="font-semibold flex items-center gap-2 mb-3">
+                  <MessageSquare className="h-4 w-4" />
+                  Communications
+                </h4>
+                <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                  {patientCommunicationEvents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">No communication logs found</p>
+                  ) : (
+                    patientCommunicationEvents.map((event) => (
+                      <div key={event.id} className="rounded-lg border p-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">{event.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatAppDate(event.reminder_date)} • {(event.notification_method || event.reminder_type || "notification").replace(/_/g, " ")}
+                            </p>
+                          </div>
+                          <Badge variant={event.notification_sent ? "default" : "secondary"}>
+                            {event.notification_sent ? "Sent" : "Pending"}
+                          </Badge>
+                        </div>
+                        {event.message && (
+                          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{event.message}</p>
+                        )}
                       </div>
                     ))
                   )}
