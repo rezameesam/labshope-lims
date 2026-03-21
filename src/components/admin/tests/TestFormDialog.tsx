@@ -1,4 +1,4 @@
-import { Search, User, X } from "lucide-react";
+import { Search, Star, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -88,6 +88,9 @@ interface TestFormDialogProps {
   onRemovePackage: () => void;
   selectedTestsTotal: number;
   recentTestSuggestions: string[];
+  popularTodaySuggestions: string[];
+  favoriteTests: string[];
+  onToggleFavoriteTest: (testName: string) => void;
   pendingCount: number;
   completedCount: number;
   lastTestDate: string;
@@ -131,6 +134,9 @@ export const TestFormDialog = ({
   onRemovePackage,
   selectedTestsTotal,
   recentTestSuggestions,
+  popularTodaySuggestions,
+  favoriteTests,
+  onToggleFavoriteTest,
   pendingCount,
   completedCount,
   lastTestDate,
@@ -146,6 +152,20 @@ export const TestFormDialog = ({
     if (!first) return;
     onToggleTestSelection(first.name);
   };
+
+  const packageSavings = (() => {
+    if (!appliedPackage) return 0;
+    const packageNames = new Set(
+      testCatalog.filter((test) => appliedPackage.tests.includes(test.id)).map((test) => test.name)
+    );
+    const selectedPackageTests = selectedTests.filter((name) => packageNames.has(name));
+    if (selectedPackageTests.length === 0) return 0;
+    const individualTotal = selectedPackageTests.reduce((sum, name) => {
+      const item = testCatalog.find((test) => test.name === name);
+      return sum + (item?.price || 0);
+    }, 0);
+    return Math.max(0, individualTotal - (appliedPackage.price || 0));
+  })();
 
   return (
     <>
@@ -439,6 +459,27 @@ export const TestFormDialog = ({
                       </div>
                     </div>
 
+                    {favoriteTests.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Favorites</p>
+                        <div className="flex flex-wrap gap-2">
+                          {favoriteTests.slice(0, 10).map((testName) => {
+                            const active = selectedTests.includes(testName);
+                            return (
+                              <Badge
+                                key={`fav-${testName}`}
+                                variant={active ? "default" : "secondary"}
+                                className="cursor-pointer"
+                                onClick={() => onToggleTestSelection(testName)}
+                              >
+                                {active ? "✓ " : ""}{testName}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {recentTestSuggestions.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">Quick add from patient history</p>
@@ -449,6 +490,27 @@ export const TestFormDialog = ({
                               <Badge
                                 key={testName}
                                 variant={active ? "default" : "secondary"}
+                                className="cursor-pointer"
+                                onClick={() => onToggleTestSelection(testName)}
+                              >
+                                {active ? "✓ " : ""}{testName}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {popularTodaySuggestions.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Most ordered today</p>
+                        <div className="flex flex-wrap gap-2">
+                          {popularTodaySuggestions.map((testName) => {
+                            const active = selectedTests.includes(testName);
+                            return (
+                              <Badge
+                                key={`popular-${testName}`}
+                                variant={active ? "default" : "outline"}
                                 className="cursor-pointer"
                                 onClick={() => onToggleTestSelection(testName)}
                               >
@@ -521,6 +583,18 @@ export const TestFormDialog = ({
                                                 ₹{test.price}
                                               </span>
                                             )}
+                                            <button
+                                              type="button"
+                                              className="inline-flex items-center text-muted-foreground hover:text-amber-500"
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                onToggleFavoriteTest(test.name);
+                                              }}
+                                              title={favoriteTests.includes(test.name) ? "Remove from favorites" : "Add to favorites"}
+                                            >
+                                              <Star className={`h-3.5 w-3.5 ${favoriteTests.includes(test.name) ? "fill-amber-400 text-amber-500" : ""}`} />
+                                            </button>
                                           </div>
                                         </div>
                                       </Label>
@@ -536,9 +610,14 @@ export const TestFormDialog = ({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium leading-none">Selected Tests</p>
-                        <span className="text-sm text-muted-foreground">
-                          Total: ₹{selectedTestsTotal}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm text-muted-foreground block">
+                            Total: ₹{selectedTestsTotal}
+                          </span>
+                          {packageSavings > 0 && (
+                            <span className="text-xs text-emerald-600">You save ₹{packageSavings}</span>
+                          )}
+                        </div>
                       </div>
                       {appliedPackage && (
                         <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-2 text-sm">

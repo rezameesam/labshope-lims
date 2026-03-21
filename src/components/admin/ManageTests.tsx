@@ -123,6 +123,23 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState("auto");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateWarningAccepted, setDuplicateWarningAccepted] = useState(false);
+  const [favoriteTests, setFavoriteTests] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const scopeKey = currentLab?.id || organizationId || "global";
+    const raw = window.localStorage.getItem(`favorite_tests_${scopeKey}`);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setFavoriteTests(parsed.filter(Boolean).slice(0, 20));
+      } catch {
+        setFavoriteTests([]);
+      }
+    } else {
+      setFavoriteTests([]);
+    }
+  }, [currentLab?.id, organizationId]);
 
   const patientTestInsights = useMemo(() => {
     if (!selectedPatient) {
@@ -226,6 +243,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   useEffect(() => {
     setDuplicateWarningAccepted(false);
   }, [selectedPatient?.id, selectedTests]);
+
+  const popularTodaySuggestions = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const counts = new Map<string, number>();
+    tests
+      .filter((t) => t.test_date?.slice(0, 10) === today)
+      .forEach((t) => counts.set(t.test_name, (counts.get(t.test_name) || 0) + 1));
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name]) => name);
+  }, [tests]);
 
   const selectedTestsTotal = useMemo(() => {
     const packageTestNames = appliedPackage
@@ -703,6 +733,17 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       const next = { ...prev, result_items: updatedItems };
       if (usePanelResults) {
         next.is_abnormal = getPanelAbnormal(updatedItems);
+      }
+      return next;
+    });
+  };
+
+  const toggleFavoriteTest = (testName: string) => {
+    const scopeKey = currentLab?.id || organizationId || "global";
+    setFavoriteTests((prev) => {
+      const next = prev.includes(testName) ? prev.filter((t) => t !== testName) : [testName, ...prev].slice(0, 20);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(`favorite_tests_${scopeKey}`, JSON.stringify(next));
       }
       return next;
     });
@@ -1594,6 +1635,9 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
               }}
               selectedTestsTotal={selectedTestsTotal}
               recentTestSuggestions={patientTestInsights.recentTestSuggestions}
+              popularTodaySuggestions={popularTodaySuggestions}
+              favoriteTests={favoriteTests}
+              onToggleFavoriteTest={toggleFavoriteTest}
               pendingCount={patientTestInsights.pendingCount}
               completedCount={patientTestInsights.completedCount}
               lastTestDate={patientTestInsights.lastTestDate}
