@@ -217,12 +217,26 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     return () => cancelAnimationFrame(frameId);
   }, [isDialogOpen]);
 
+  const weightedTestCatalog = useMemo(() => {
+    const patientRecentSet = new Set(patientTestInsights.recentTestSuggestions);
+    return [...testCatalog].sort((a, b) => {
+      const score = (name: string) => {
+        let s = 0;
+        if (favoriteTests.includes(name)) s += 100;
+        if (patientRecentSet.has(name)) s += 60;
+        if (popularTodaySuggestions.includes(name)) s += 30;
+        return s;
+      };
+      return score(b.name) - score(a.name) || a.name.localeCompare(b.name);
+    });
+  }, [testCatalog, favoriteTests, patientTestInsights.recentTestSuggestions, popularTodaySuggestions]);
+
   // Group tests by category
   const testsByCategory = useMemo(() => {
     const grouped: Record<string, Test[]> = {};
     const uncategorized: Test[] = [];
 
-    testCatalog.forEach((test) => {
+    weightedTestCatalog.forEach((test) => {
       if (test.category_id) {
         const category = categories.find((c) => c.id === test.category_id);
         const categoryName = category?.name || "Other";
@@ -238,7 +252,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     }
 
     return grouped;
-  }, [testCatalog, categories]);
+  }, [weightedTestCatalog, categories]);
 
   useEffect(() => {
     setDuplicateWarningAccepted(false);

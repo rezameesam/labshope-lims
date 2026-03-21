@@ -459,6 +459,38 @@ export const TestFormDialog = ({
                       </div>
                     </div>
 
+                    {(favoriteTests.length > 0 || recentTestSuggestions.length > 0 || popularTodaySuggestions.length > 0) && (
+                      <div className="space-y-2 rounded-md border p-2 bg-muted/30">
+                        <p className="text-xs text-muted-foreground">Quick order bar</p>
+                        <div className="flex flex-wrap gap-2">
+                          {favoriteTests.slice(0, 5).map((testName) => {
+                            const active = selectedTests.includes(testName);
+                            return (
+                              <Badge key={`quick-fav-${testName}`} variant={active ? "default" : "secondary"} className="cursor-pointer" onClick={() => onToggleTestSelection(testName)}>
+                                ⭐ {active ? "✓ " : ""}{testName}
+                              </Badge>
+                            );
+                          })}
+                          {popularTodaySuggestions.slice(0, 5).map((testName) => {
+                            const active = selectedTests.includes(testName);
+                            return (
+                              <Badge key={`quick-pop-${testName}`} variant={active ? "default" : "outline"} className="cursor-pointer" onClick={() => onToggleTestSelection(testName)}>
+                                🔥 {active ? "✓ " : ""}{testName}
+                              </Badge>
+                            );
+                          })}
+                          {recentTestSuggestions.slice(0, 5).map((testName) => {
+                            const active = selectedTests.includes(testName);
+                            return (
+                              <Badge key={`quick-rec-${testName}`} variant={active ? "default" : "secondary"} className="cursor-pointer" onClick={() => onToggleTestSelection(testName)}>
+                                🕘 {active ? "✓ " : ""}{testName}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {favoriteTests.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">Favorites</p>
