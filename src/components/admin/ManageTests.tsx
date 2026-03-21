@@ -217,6 +217,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     return () => cancelAnimationFrame(frameId);
   }, [isDialogOpen]);
 
+  const popularTodaySuggestions = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const counts = new Map<string, number>();
+    tests
+      .filter((t) => t.test_date?.slice(0, 10) === today)
+      .forEach((t) => counts.set(t.test_name, (counts.get(t.test_name) || 0) + 1));
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name]) => name);
+  }, [tests]);
+
   const weightedTestCatalog = useMemo(() => {
     const patientRecentSet = new Set(patientTestInsights.recentTestSuggestions);
     return [...testCatalog].sort((a, b) => {
@@ -257,19 +270,6 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   useEffect(() => {
     setDuplicateWarningAccepted(false);
   }, [selectedPatient?.id, selectedTests]);
-
-  const popularTodaySuggestions = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const counts = new Map<string, number>();
-    tests
-      .filter((t) => t.test_date?.slice(0, 10) === today)
-      .forEach((t) => counts.set(t.test_name, (counts.get(t.test_name) || 0) + 1));
-
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([name]) => name);
-  }, [tests]);
 
   const selectedTestsTotal = useMemo(() => {
     const packageTestNames = appliedPackage
