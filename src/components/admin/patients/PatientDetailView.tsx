@@ -18,6 +18,9 @@ import {
   ClipboardList,
   Shield,
   Printer,
+  TrendingUp,
+  AlertTriangle,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -168,6 +171,38 @@ const PatientDetailView = ({
   onPrintOptionsChange,
   onPrintTests,
 }: PatientDetailViewProps) => {
+  const pendingTestsCount = patientTests.filter((t) => t.status === "pending" || t.status === "in_progress").length;
+  const completedTestsCount = patientTests.filter((t) => t.status === "completed").length;
+  const abnormalTestsCount = patientTests.filter((t) => t.is_abnormal).length;
+  const lastTest = patientTests[0] || null;
+
+  const timelineItems = patientTests
+    .slice(0, 6)
+    .map((t) => ({
+      id: t.id,
+      title: t.test_name,
+      date: t.test_date,
+      status: t.status,
+      type: "test" as const,
+    }));
+
+  if (billingSummary?.invoiceCount) {
+    timelineItems.push({
+      id: "billing-summary",
+      title: `${billingSummary.invoiceCount} invoice(s) generated`,
+      date: selectedPatient?.created_at || new Date().toISOString(),
+      status: billingSummary.outstanding > 0 ? "pending" : "completed",
+      type: "billing",
+    });
+  }
+
+  const quickActions = [
+    pendingTestsCount > 0 ? { label: `Follow up ${pendingTestsCount} pending test(s)`, severity: "warning" as const } : null,
+    billingSummary && billingSummary.outstanding > 0 ? { label: `Collect outstanding ₹${billingSummary.outstanding.toLocaleString()}`, severity: "warning" as const } : null,
+    abnormalTestsCount > 0 ? { label: `Review ${abnormalTestsCount} abnormal report(s)`, severity: "critical" as const } : null,
+    selectedPatient && !selectedPatient.email ? { label: "Add email for report delivery", severity: "info" as const } : null,
+  ].filter(Boolean) as Array<{ label: string; severity: "warning" | "critical" | "info" }>;
+
   return (
     <>
       {/* Patient Details Sheet */}
@@ -201,6 +236,49 @@ const PatientDetailView = ({
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Snapshot */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-lg border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Pending Tests</p>
+                  <p className="text-lg font-semibold">{pendingTestsCount}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Completed</p>
+                  <p className="text-lg font-semibold">{completedTestsCount}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Abnormal</p>
+                  <p className="text-lg font-semibold">{abnormalTestsCount}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Last Activity</p>
+                  <p className="text-sm font-semibold truncate">{lastTest ? formatAppDate(lastTest.test_date) : "No tests yet"}</p>
+                </div>
+              </div>
+
+              {/* Next Best Actions */}
+              {quickActions.length > 0 && (
+                <Card className="border-amber-200 bg-amber-50/40">
+                  <CardContent className="pt-4 space-y-2">
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" /> Next Best Actions
+                    </p>
+                    {quickActions.map((action, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-sm">
+                        {action.severity === "critical" ? (
+                          <AlertTriangle className="h-4 w-4 text-red-600" />
+                        ) : action.severity === "warning" ? (
+                          <Clock className="h-4 w-4 text-amber-600" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4 text-blue-600" />
+                        )}
+                        <span>{action.label}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Contact & Info */}
               <div className="grid grid-cols-2 gap-4">
@@ -387,6 +465,29 @@ const PatientDetailView = ({
                           </div>
                         </div>
                         {getStatusBadge(test.status)}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div>
+                <h4 className="font-semibold flex items-center gap-2 mb-3">
+                  <Clock className="h-4 w-4" />
+                  Patient Timeline
+                </h4>
+                <div className="space-y-2">
+                  {timelineItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">No recent activity</p>
+                  ) : (
+                    timelineItems.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-lg border p-2">
+                        <div>
+                          <p className="text-sm font-medium">{item.title}</p>
+                          <p className="text-xs text-muted-foreground">{formatAppDate(item.date)}</p>
+                        </div>
+                        {getStatusBadge(item.status)}
                       </div>
                     ))
                   )}
