@@ -84,27 +84,36 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    const loadPatientForUserWithTimeout = async (userId: string | null) => {
-      const requestId = ++bootstrapRequestId;
+    const runWithTimeout = async (userId: string | null, requestId: number, timeoutMs: number) => {
       let timeoutId: number | null = null;
-
       try {
         await Promise.race([
           loadPatientForUser(userId, requestId),
-          new Promise<void>((_, reject) =>
-            {
-              timeoutId = window.setTimeout(() => reject(new Error("Patient session bootstrap timed out")), 10000);
-            },
-          ),
+          new Promise<void>((_, reject) => {
+            timeoutId = window.setTimeout(() => reject(new Error("Patient session bootstrap timed out")), timeoutMs);
+          }),
         ]);
-      } catch (error) {
-        if (isMounted && requestId === bootstrapRequestId) {
-          console.warn("Patient bootstrap fallback triggered:", error);
-          setPatient(null);
-        }
       } finally {
         if (timeoutId !== null) {
           window.clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    const loadPatientForUserWithTimeout = async (userId: string | null) => {
+      const requestId = ++bootstrapRequestId;
+
+      try {
+        await runWithTimeout(userId, requestId, 15000);
+      } catch (firstError) {
+        // Retry once to avoid noisy fallback under transient latency.
+        try {
+          await runWithTimeout(userId, requestId, 15000);
+        } catch (retryError) {
+          if (isMounted && requestId === bootstrapRequestId) {
+            console.warn("Patient bootstrap fallback triggered:", retryError || firstError);
+            setPatient(null);
+          }
         }
       }
     };
