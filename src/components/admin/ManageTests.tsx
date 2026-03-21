@@ -122,6 +122,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [reportTemplates, setReportTemplates] = useState<ReportTemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("auto");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateWarningAccepted, setDuplicateWarningAccepted] = useState(false);
 
   const patientTestInsights = useMemo(() => {
     if (!selectedPatient) {
@@ -221,6 +222,10 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
     return grouped;
   }, [testCatalog, categories]);
+
+  useEffect(() => {
+    setDuplicateWarningAccepted(false);
+  }, [selectedPatient?.id, selectedTests]);
 
   const selectedTestsTotal = useMemo(() => {
     const packageTestNames = appliedPackage
@@ -714,6 +719,26 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       return;
     }
 
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const duplicateTests = Array.from(
+      new Set(
+        tests
+          .filter((t) =>
+            t.patient_id === selectedPatient.id &&
+            selectedTests.includes(t.test_name) &&
+            new Date(t.test_date) >= thirtyDaysAgo
+          )
+          .map((t) => t.test_name)
+      )
+    );
+
+    if (duplicateTests.length > 0 && !duplicateWarningAccepted) {
+      toast.warning(`Possible duplicate in last 30 days: ${duplicateTests.slice(0, 4).join(", ")}${duplicateTests.length > 4 ? "..." : ""}. Click confirm again to proceed.`);
+      setDuplicateWarningAccepted(true);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -858,6 +883,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   };
 
   const resetForm = () => {
+    setDuplicateWarningAccepted(false);
     setSelectedPatient(null);
     setSelectedTests([]);
     setSelectedPackageId("none");

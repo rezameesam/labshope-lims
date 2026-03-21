@@ -139,6 +139,14 @@ export const TestFormDialog = ({
   onCancel,
   onSubmitConfirm,
 }: TestFormDialogProps) => {
+  const flattenedFilteredTests = Object.values(filteredTestsByCategory).flat();
+
+  const handleQuickAddTopResult = () => {
+    const first = flattenedFilteredTests[0];
+    if (!first) return;
+    onToggleTestSelection(first.name);
+  };
+
   return (
     <>
       <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
@@ -394,9 +402,15 @@ export const TestFormDialog = ({
                         <Input
                           id="test_search"
                           name="test_search"
-                          placeholder="Search tests..."
+                          placeholder="Search tests... (press Enter to quick add top result)"
                           value={testSearch}
                           onChange={(e) => onTestSearchChange(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleQuickAddTopResult();
+                            }
+                          }}
                           className="pl-10"
                         />
                       </div>
