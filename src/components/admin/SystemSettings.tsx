@@ -30,6 +30,108 @@ interface ScopedSetting extends SystemSetting {
   scope: "organization" | "system" | "default";
 }
 
+const PAYMENT_SETTING_TEMPLATES: SystemSetting[] = [
+  {
+    id: "template-payment_provider",
+    organization_id: null,
+    setting_key: "payment_provider",
+    setting_value: "razorpay",
+    setting_type: "text",
+    category: "payment",
+    label: "Payment Provider",
+    description: "Choose default online payment provider for patient billing: Razorpay or PhonePe.",
+    is_encrypted: false,
+  },
+  {
+    id: "template-razorpay_key_id",
+    organization_id: null,
+    setting_key: "razorpay_key_id",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "Razorpay Key ID",
+    description: "Razorpay API Key ID (starts with rzp_test_ or rzp_live_).",
+    is_encrypted: true,
+  },
+  {
+    id: "template-razorpay_key_secret",
+    organization_id: null,
+    setting_key: "razorpay_key_secret",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "Razorpay Key Secret",
+    description: "Razorpay API Key Secret.",
+    is_encrypted: true,
+  },
+  {
+    id: "template-razorpay_webhook_secret",
+    organization_id: null,
+    setting_key: "razorpay_webhook_secret",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "Razorpay Webhook Secret",
+    description: "Webhook secret configured in Razorpay dashboard for payment event verification.",
+    is_encrypted: true,
+  },
+  {
+    id: "template-razorpay_mode",
+    organization_id: null,
+    setting_key: "razorpay_mode",
+    setting_value: "test",
+    setting_type: "text",
+    category: "payment",
+    label: "Razorpay Mode",
+    description: "Use test mode in sandbox and switch to live mode only after validation.",
+    is_encrypted: false,
+  },
+  {
+    id: "template-phonepe_merchant_id",
+    organization_id: null,
+    setting_key: "phonepe_merchant_id",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "PhonePe Merchant ID",
+    description: "Merchant ID from PhonePe Payment Gateway dashboard.",
+    is_encrypted: true,
+  },
+  {
+    id: "template-phonepe_salt_key",
+    organization_id: null,
+    setting_key: "phonepe_salt_key",
+    setting_value: "",
+    setting_type: "password",
+    category: "payment",
+    label: "PhonePe Salt Key",
+    description: "Salt key used to generate X-VERIFY checksum.",
+    is_encrypted: true,
+  },
+  {
+    id: "template-phonepe_salt_index",
+    organization_id: null,
+    setting_key: "phonepe_salt_index",
+    setting_value: "1",
+    setting_type: "text",
+    category: "payment",
+    label: "PhonePe Salt Index",
+    description: "Salt index mapped to the active PhonePe salt key.",
+    is_encrypted: false,
+  },
+  {
+    id: "template-phonepe_base_url",
+    organization_id: null,
+    setting_key: "phonepe_base_url",
+    setting_value: "https://api-preprod.phonepe.com/apis/pg-sandbox",
+    setting_type: "text",
+    category: "payment",
+    label: "PhonePe Base URL",
+    description: "Use preprod URL for testing, production URL for live transactions.",
+    is_encrypted: false,
+  },
+];
+
 const EMAIL_SETTING_TEMPLATES: SystemSetting[] = [
   {
     id: "template-email_from_name",
@@ -658,7 +760,7 @@ const mergeSettings = (
 ): ScopedSetting[] => {
   const merged = new Map<string, ScopedSetting>();
 
-  [...systemSettings, ...EMAIL_SETTING_TEMPLATES, ...WHATSAPP_SETTING_TEMPLATES, ...SMS_SETTING_TEMPLATES, ...ABDM_SETTING_TEMPLATES, ...GENERAL_SETTING_TEMPLATES].forEach((setting) => {
+  [...systemSettings, ...PAYMENT_SETTING_TEMPLATES, ...EMAIL_SETTING_TEMPLATES, ...WHATSAPP_SETTING_TEMPLATES, ...SMS_SETTING_TEMPLATES, ...ABDM_SETTING_TEMPLATES, ...GENERAL_SETTING_TEMPLATES].forEach((setting) => {
     if (!merged.has(setting.setting_key)) {
       merged.set(setting.setting_key, {
         ...setting,
@@ -698,6 +800,13 @@ const getProviderHelpLink = (settingKey: string) => {
     return {
       label: "Open Razorpay Dashboard",
       href: "https://dashboard.razorpay.com/app/website-app-settings/api-keys",
+    };
+  }
+
+  if (settingKey.startsWith("phonepe_")) {
+    return {
+      label: "Open PhonePe PG Docs",
+      href: "https://developer.phonepe.com/payment-gateway/backend-sdk/nodejs-be-sdk/integration-steps",
     };
   }
 
@@ -1010,6 +1119,25 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
       );
     }
 
+    if (setting.setting_key === "payment_provider") {
+      return (
+        <Select
+          value={formData[setting.setting_key] || "razorpay"}
+          onValueChange={(value) =>
+            setFormData((prev) => ({ ...prev, [setting.setting_key]: value }))
+          }
+        >
+          <SelectTrigger id={setting.setting_key}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="razorpay">Razorpay</SelectItem>
+            <SelectItem value="phonepe">PhonePe</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     if (setting.setting_key === "razorpay_mode") {
       return (
         <Select
@@ -1217,18 +1345,10 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
-                Razorpay Configuration
+                Payment Gateway Configuration
               </CardTitle>
               <CardDescription>
-                Configure Razorpay payment gateway credentials. Get your keys from{" "}
-                <a
-                  href="https://dashboard.razorpay.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Razorpay Dashboard
-                </a>
+                Configure Razorpay and PhonePe payment gateway credentials.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
