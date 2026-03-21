@@ -706,6 +706,9 @@ const PatientDetailView = ({
               <Printer className="h-5 w-5" />
               Print Options
             </DialogTitle>
+            <DialogDescription>
+              Configure report print layout options before generating selected test reports.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">

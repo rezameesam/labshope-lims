@@ -41,6 +41,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +52,7 @@ import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { formatAppDate } from "@/lib/date";
+import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
 import { getUpgradeMessage, PLAN_LIMITS, resolvePlanTier } from "@/lib/planLimits";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
@@ -130,6 +132,13 @@ interface BillingSummary {
   totalPaid: number;
   outstanding: number;
   invoiceCount: number;
+}
+
+interface CatalogTest {
+  id: string;
+  test_id: string | null;
+  name: string;
+  price: number;
 }
 
 interface PatientCommunicationEvent {
@@ -670,6 +679,13 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [printOptions, setPrintOptions] = useState({ includeHeader: true, includeFooter: true, includeWatermark: true });
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [patientCommunicationEvents, setPatientCommunicationEvents] = useState<PatientCommunicationEvent[]>([]);
+  const [quickAssignOpen, setQuickAssignOpen] = useState(false);
+  const [quickAssignPatient, setQuickAssignPatient] = useState<Patient | null>(null);
+  const [catalogTests, setCatalogTests] = useState<CatalogTest[]>([]);
+  const [quickAssignSearch, setQuickAssignSearch] = useState("");
+  const [quickAssignSelectedTests, setQuickAssignSelectedTests] = useState<string[]>([]);
+  const [quickAssignSubmitting, setQuickAssignSubmitting] = useState(false);
+  const [quickAssignDuplicateAccepted, setQuickAssignDuplicateAccepted] = useState(false);
   const [abdmProfileShares, setAbdmProfileShares] = useState<AbdmProfileShare[]>([]);
   const [matchShareDialogShare, setMatchShareDialogShare] = useState<AbdmProfileShare | null>(null);
   const [matchShareSearch, setMatchShareSearch] = useState("");
@@ -752,6 +768,28 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       setLoading(false);
     }
   }, [isCollector, organizationId, user?.id]);
+
+  const fetchCatalogTests = useCallback(async () => {
+    try {
+      if (!organizationId) {
+        setCatalogTests([]);
+        return;
+      }
+
+      const { data, error } = await (supabase as any)
+        .from("tests")
+        .select("id, test_id, name, price")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+      setCatalogTests((data || []) as CatalogTest[]);
+    } catch (error) {
+      console.error("Error fetching catalog tests:", error);
+      setCatalogTests([]);
+    }
+  }, [organizationId]);
 
   const fetchLabs = useCallback(async () => {
     try {
@@ -1011,8 +1049,9 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     void fetchPatients();
     void fetchLabs();
     void fetchCollectionCenters();
+    void fetchCatalogTests();
     void fetchAbdmProfileShares();
-  }, [fetchAbdmProfileShares, fetchCollectionCenters, fetchLabs, fetchPatients, organizationId, organizationLoading]);
+  }, [fetchAbdmProfileShares, fetchCatalogTests, fetchCollectionCenters, fetchLabs, fetchPatients, organizationId, organizationLoading]);
 
   const generatePatientId = () => {
     const prefix = "PAT";
@@ -1465,6 +1504,124 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
   };
 
+  const openQuickAssign = (patient: Patient) => {
+    setQuickAssignPatient(patient);
+    setQuickAssignSearch("");
+    setQuickAssignSelectedTests([]);
+    setQuickAssignDuplicateAccepted(false);
+    setQuickAssignOpen(true);
+  };
+
+  const toggleQuickAssignTest = (testName: string) => {
+    setQuickAssignDuplicateAccepted(false);
+    setQuickAssignSelectedTests((prev) =>
+      prev.includes(testName) ? prev.filter((t) => t !== testName) : [...prev, testName]
+    );
+  };
+
+  const createQuickOrder = async () => {
+    if (!quickAssignPatient || quickAssignSelectedTests.length === 0 || !organizationId) {
+      toast.error("Select patient and at least one test");
+      return;
+    }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data: recentRows } = await (supabase as any)
+      .from("patient_tests")
+      .select("test_name, test_date")
+      .eq("patient_id", quickAssignPatient.id)
+      .gte("test_date", thirtyDaysAgo.toISOString().slice(0, 10));
+
+    const duplicateTests = Array.from(
+      new Set(
+        (recentRows || [])
+          .filter((t: any) => quickAssignSelectedTests.includes(t.test_name))
+          .map((t: any) => t.test_name)
+      )
+    );
+
+    if (duplicateTests.length > 0 && !quickAssignDuplicateAccepted) {
+      toast.warning(`Possible duplicate in last 30 days: ${duplicateTests.slice(0, 4).join(", ")}${duplicateTests.length > 4 ? "..." : ""}. Click Create Order again to continue.`);
+      setQuickAssignDuplicateAccepted(true);
+      return;
+    }
+
+    setQuickAssignSubmitting(true);
+    try {
+      const selectedCatalogTests = quickAssignSelectedTests
+        .map((name) => catalogTests.find((t) => t.name === name))
+        .filter(Boolean) as CatalogTest[];
+
+      const { data: insertedTests, error: testsError } = await (supabase as any)
+        .from("patient_tests")
+        .insert(
+          selectedCatalogTests.map((test) => ({
+            patient_id: quickAssignPatient.id,
+            organization_id: organizationId,
+            test_id: test.id,
+            test_name: test.name,
+            test_date: new Date().toISOString().slice(0, 10),
+            status: "pending",
+            created_by: user?.id || null,
+            collected_by: user?.id || null,
+            collected_at: new Date().toISOString(),
+            lab_id: quickAssignPatient.lab_id || currentLab?.id || null,
+            collection_center_id: quickAssignPatient.collection_center_id || null,
+          }))
+        )
+        .select("id, test_name");
+
+      if (testsError) throw testsError;
+
+      const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
+      const totalAmount = selectedCatalogTests.reduce((sum, t) => sum + Number(t.price || 0), 0);
+
+      const { data: invoice, error: invoiceError } = await (supabase as any)
+        .from("invoices")
+        .insert({
+          invoice_number: invoiceNumber,
+          patient_id: quickAssignPatient.id,
+          organization_id: organizationId,
+          lab_id: quickAssignPatient.lab_id || currentLab?.id || null,
+          collection_center_id: quickAssignPatient.collection_center_id || null,
+          total_amount: totalAmount,
+          final_amount: totalAmount,
+          created_by: user?.id || null,
+          notes: `Quick order from Patients tab (${quickAssignSelectedTests.length} test(s))`,
+        })
+        .select("id")
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      const items = selectedCatalogTests.map((test) => ({
+        invoice_id: invoice.id,
+        organization_id: organizationId,
+        test_name: test.name,
+        unit_price: Number(test.price || 0),
+        quantity: 1,
+        amount: Number(test.price || 0),
+        patient_test_id: insertedTests?.find((t: any) => t.test_name === test.name)?.id || null,
+      }));
+
+      const { error: itemsError } = await (supabase as any).from("invoice_items").insert(items);
+      if (itemsError) throw itemsError;
+
+      toast.success(`Order created for ${quickAssignPatient.full_name} (${invoiceNumber})`);
+      setQuickAssignOpen(false);
+      setQuickAssignPatient(null);
+      setQuickAssignSelectedTests([]);
+      void fetchPatients();
+    } catch (error: any) {
+      console.error("Quick assign failed", error);
+      toast.error(error.message || "Failed to create quick order");
+    } finally {
+      setQuickAssignSubmitting(false);
+    }
+  };
+
   const openPatientDetails = async (patient: Patient) => {
     setSelectedPatient(patient);
     setSelectedTestIds(new Set());
@@ -1685,6 +1842,17 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
 
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  const filteredQuickAssignTests = catalogTests.filter((test) => {
+    if (!quickAssignSearch.trim()) return true;
+    const q = quickAssignSearch.toLowerCase();
+    return test.name.toLowerCase().includes(q) || (test.test_id || "").toLowerCase().includes(q);
+  }).slice(0, 80);
+
+  const quickAssignTotal = quickAssignSelectedTests.reduce((sum, testName) => {
+    const row = catalogTests.find((t) => t.name === testName);
+    return sum + Number(row?.price || 0);
+  }, 0);
 
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -2065,8 +2233,97 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         onPageSizeChange={setPageSize}
         onViewPatient={(patient) => void openPatientDetails(patient)}
         onEditPatient={openEditDialog}
-        onAssignTests={onAssignTests}
+        onAssignTests={openQuickAssign}
       />
+
+      <Sheet open={quickAssignOpen} onOpenChange={setQuickAssignOpen}>
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Quick Test Order</SheetTitle>
+            <SheetDescription>
+              Assign tests directly from Patients tab without switching screens.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-4 space-y-4">
+            {quickAssignPatient && (
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <p className="font-medium">{quickAssignPatient.full_name}</p>
+                <p className="text-xs text-muted-foreground">{quickAssignPatient.patient_id} • {formatPhoneForDisplay(quickAssignPatient.phone)}</p>
+              </div>
+            )}
+
+            <Input
+              placeholder="Search tests by name or code..."
+              value={quickAssignSearch}
+              onChange={(e) => setQuickAssignSearch(e.target.value)}
+            />
+
+            {quickAssignSelectedTests.length > 0 && (
+              <div className="rounded-lg border p-3 bg-muted/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Selected Tests</p>
+                  <Button variant="ghost" size="sm" onClick={() => { setQuickAssignSelectedTests([]); setQuickAssignDuplicateAccepted(false); }}>
+                    Clear
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {quickAssignSelectedTests.map((name) => (
+                    <Badge key={name} variant="secondary" className="cursor-pointer" onClick={() => toggleQuickAssignTest(name)}>
+                      {name} ×
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="max-h-[48vh] overflow-y-auto space-y-2 rounded-lg border p-2">
+              {filteredQuickAssignTests.map((test) => {
+                const active = quickAssignSelectedTests.includes(test.name);
+                return (
+                  <button
+                    key={test.id}
+                    type="button"
+                    className={`w-full text-left rounded-md border px-3 py-2 transition ${active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
+                    onClick={() => toggleQuickAssignTest(test.name)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{test.name}</p>
+                        {test.test_id && <p className="text-xs text-muted-foreground">{test.test_id}</p>}
+                      </div>
+                      <Badge variant={active ? "default" : "secondary"}>₹{Number(test.price || 0).toLocaleString()}</Badge>
+                    </div>
+                  </button>
+                );
+              })}
+              {filteredQuickAssignTests.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No tests found</p>
+              )}
+            </div>
+
+            <div className="rounded-lg border p-3 flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Selected {quickAssignSelectedTests.length} test(s)</p>
+              <p className="font-semibold">₹{quickAssignTotal.toLocaleString()}</p>
+            </div>
+
+            {quickAssignDuplicateAccepted && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                Duplicate warning acknowledged. Click Create Order again to proceed.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setQuickAssignOpen(false)}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={() => void createQuickOrder()} disabled={quickAssignSubmitting || quickAssignSelectedTests.length === 0}>
+                {quickAssignSubmitting ? "Creating..." : "Create Order"}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Edit Dialog */}
       <PatientFormDialog

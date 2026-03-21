@@ -23,6 +23,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -1541,6 +1542,9 @@ const ManageBilling = () => {
               <Receipt className="h-5 w-5" />
               Invoice Details
             </SheetTitle>
+            <SheetDescription>
+              Review invoice summary, line items, and payment entries.
+            </SheetDescription>
           </SheetHeader>
           
           {selectedInvoice && (
