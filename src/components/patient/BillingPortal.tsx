@@ -185,7 +185,15 @@ const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, o
       <BillingHistory
         invoices={invoices}
         selectedInvoiceIds={selectedInvoiceIds}
-        onToggleSelection={(id) => { const s = new Set(selectedInvoiceIds); s.has(id) ? s.delete(id) : s.add(id); setSelectedInvoiceIds(s); }}
+        onToggleSelection={(id) => {
+          const s = new Set(selectedInvoiceIds);
+          if (s.has(id)) {
+            s.delete(id);
+          } else {
+            s.add(id);
+          }
+          setSelectedInvoiceIds(s);
+        }}
         onSelectAll={() => setSelectedInvoiceIds(new Set(invoices.map(i => i.id)))}
         onClearSelection={() => setSelectedInvoiceIds(new Set())}
         onOpenDetails={async (invoice) => { setSelectedInvoice(invoice); await fetchInvoiceDetails(invoice.id); setIsDetailsOpen(true); }}

@@ -1587,7 +1587,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             }}
           >
             <DialogTrigger asChild>
-              <Button className="bg-clinical-navy hover:bg-clinical-navy/90">
+              <Button variant="clinical">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Test
               </Button>

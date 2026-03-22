@@ -49,7 +49,7 @@ const leadStatusClass: Record<string, string> = {
   new: "border-blue-200 bg-blue-50 text-blue-700",
   contacted: "border-amber-200 bg-amber-50 text-amber-700",
   qualified: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  closed: "border-slate-200 bg-slate-100 text-slate-500",
+  closed: "border-border bg-muted text-muted-foreground",
 };
 
 const PAGE_SIZE = 20;
@@ -83,22 +83,27 @@ const PlatformLeads = () => {
   // Initialize draft states for newly loaded leads without overwriting uncommitted edits
   useEffect(() => {
     setDraftStatusNotes((current) => {
+      let changed = false;
       const next = { ...current };
       for (const lead of leads) {
         if (!(lead.id in next)) {
           next[lead.id] = lead.status_notes || "";
+          changed = true;
         }
       }
-      return next;
+      return changed ? next : current;
     });
+
     setDraftFollowUpAt((current) => {
+      let changed = false;
       const next = { ...current };
       for (const lead of leads) {
         if (!(lead.id in next)) {
           next[lead.id] = toDateTimeLocalValue(lead.next_follow_up_at);
+          changed = true;
         }
       }
-      return next;
+      return changed ? next : current;
     });
   }, [leads]);
 
@@ -280,16 +285,16 @@ const PlatformLeads = () => {
 
   return (
     <PlatformRoute>
-      <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-6 shadow-sm lg:px-8">
+      <div className="rounded-[28px] border border-border bg-card px-6 py-6 shadow-sm lg:px-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
               Pipeline
             </p>
-            <h1 className="mt-2 font-heading text-4xl font-bold tracking-tight text-slate-950">
+            <h1 className="mt-2 font-heading text-4xl font-bold tracking-tight text-foreground">
               Demo Leads
             </h1>
-            <p className="mt-3 text-slate-600">
+            <p className="mt-3 text-muted-foreground">
               Review root-site product leads, update status, and export for follow-up.
             </p>
           </div>
@@ -369,11 +374,11 @@ const PlatformLeads = () => {
             <SkeletonTable rows={5} columns={4} className="rounded-none border-0 shadow-none" />
           ) : filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <Users className="h-5 w-5 text-slate-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Users className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="font-semibold text-slate-700">No leads match the current filters</p>
-              <p className="max-w-sm text-sm text-slate-500">
+              <p className="font-semibold text-foreground/80">No leads match the current filters</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
                 Try broadening the search or switching to "All" to see every submitted demo request.
               </p>
             </div>
@@ -387,7 +392,7 @@ const PlatformLeads = () => {
                       <h2 className="font-heading text-2xl font-semibold text-foreground">
                         {lead.full_name}
                       </h2>
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${leadStatusClass[lead.status] ?? "border-slate-200 bg-slate-100 text-slate-600"}`}>
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${leadStatusClass[lead.status] ?? "border-border bg-muted text-muted-foreground"}`}>
                         {lead.status}
                       </span>
                       {lead.status === "qualified" && (
@@ -634,7 +639,7 @@ const PlatformLeads = () => {
                 </Select>
               </div>
               {(convertLead.utm_source || convertLead.utm_medium || convertLead.utm_campaign) && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
                   <span className="font-semibold uppercase tracking-wide">Attribution</span>
                   <span className="ml-2">
                     {[convertLead.utm_source, convertLead.utm_medium, convertLead.utm_campaign]

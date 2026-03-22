@@ -28,6 +28,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { usePublicPageMode } from "@/hooks/usePublicPageMode";
 import PlatformAccessPage from "@/components/platform/PlatformAccessPage";
 import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const PatientAuth = () => {
   const navigate = useNavigate();
@@ -163,23 +164,23 @@ const PatientAuth = () => {
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
       <section className="hidden lg:flex lg:w-1/2 bg-hero-gradient p-12 flex-col justify-between relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-card/50 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-card/50 rounded-full translate-y-1/2 -translate-x-1/2" />
 
         <Link to="/" className="relative z-10 flex items-center gap-3">
           <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
           <div>
-            <h1 className="text-lg font-heading font-bold text-primary-foreground">{branding.shortName}</h1>
-            <p className="text-xs text-primary-foreground/70">{branding.secondaryLabel}</p>
+            <h1 className="text-lg font-heading font-bold text-foreground">{branding.shortName}</h1>
+            <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>
           </div>
         </Link>
 
         <div className="relative z-10">
           <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <h2 className="mb-4 text-4xl font-heading font-bold text-primary-foreground">
+            <h2 className="mb-4 text-4xl font-heading font-bold text-foreground">
               Patient Portal
             </h2>
-            <p className="mb-8 max-w-md text-lg text-primary-foreground/80">
+            <p className="mb-8 max-w-md text-lg text-foreground/80">
               Access reports, track your records, and manage your account from one secure portal.
             </p>
           </motion.div>
@@ -191,14 +192,14 @@ const PatientAuth = () => {
                 initial={{ opacity: 0, x: -18 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.45, delay: 0.12 + index * 0.08 }}
-                className="flex items-center gap-4 rounded-xl bg-white/10 p-4 backdrop-blur-sm"
+                className="flex items-center gap-4 rounded-xl bg-card/70 p-4 backdrop-blur-sm"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/20">
-                  <item.icon className="h-6 w-6 text-primary-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-card/80">
+                  <item.icon className="h-6 w-6 text-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-primary-foreground">{item.title}</h3>
-                  <p className="text-sm text-primary-foreground/70">{item.description}</p>
+                  <h3 className="font-medium text-foreground">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -206,8 +207,8 @@ const PatientAuth = () => {
         </div>
 
         <div className="relative z-10 flex items-center gap-3">
-          <Shield className="h-5 w-5 text-primary-foreground/60" />
-          <p className="text-sm text-primary-foreground/60">
+          <Shield className="h-5 w-5 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
             Your data is encrypted and secure
           </p>
         </div>
@@ -215,11 +216,14 @@ const PatientAuth = () => {
 
       <section className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
+          <div className="mb-4 flex justify-end">
+            <ThemeToggle />
+          </div>
           <div className="lg:hidden mb-8 text-center">
             <Link to="/" className="inline-flex items-center gap-3">
               <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
               <div>
-                <h1 className="text-lg font-heading font-bold text-clinical-navy">{branding.shortName}</h1>
+                <h1 className="text-lg font-heading font-bold text-foreground">{branding.shortName}</h1>
                 <p className="text-xs text-muted-foreground">Patient Portal</p>
               </div>
             </Link>
@@ -238,7 +242,7 @@ const PatientAuth = () => {
                 <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <Phone className="h-6 w-6" />
                 </div>
-                <h2 className="font-heading text-3xl font-semibold text-clinical-navy">Patient sign in</h2>
+                <h2 className="font-heading text-3xl font-semibold text-foreground">Patient sign in</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Use your patient ID, phone number, email, or username to access the portal.
                 </p>

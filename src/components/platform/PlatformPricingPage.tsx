@@ -19,6 +19,7 @@ const plans = [
     items: [
       `1 lab · up to ${PLAN_LIMITS.starter.employees} active staff`,
       `Up to ${PLAN_LIMITS.starter.patients.toLocaleString("en-IN")} patients`,
+      `${PLAN_LIMITS.starter.collectionCenters} collection center`,
       "Patient registration and history",
       "Tests, reports, and billing",
       "Patient portal access",
@@ -37,6 +38,7 @@ const plans = [
       "Everything in Starter",
       `Up to ${PLAN_LIMITS.growth.labs} labs · ${PLAN_LIMITS.growth.employees} active staff`,
       `Up to ${PLAN_LIMITS.growth.patients.toLocaleString("en-IN")} patients`,
+      `Up to ${PLAN_LIMITS.growth.collectionCenters} collection centers`,
       "Collection centers and branch-aware operations",
       "Inventory and doctor referral tracking",
       "Custom roles and branch-aware workflows",
@@ -122,7 +124,7 @@ const PlatformPricingPage = () => {
         <section className="border-b border-border/60 bg-[linear-gradient(180deg,rgba(31,138,205,0.08),transparent)]">
           <div className="container mx-auto px-4 py-16 lg:px-8 lg:py-24">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Pricing</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Pricing</p>
               <h1 className="mt-4 font-heading text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                 Plans that fit a standalone lab today and a branch network later
               </h1>
@@ -169,7 +171,7 @@ const PlatformPricingPage = () => {
                   <ul className="mt-6 flex-1 space-y-3">
                     {plan.items.map((item) => (
                       <li key={item} className="flex items-start gap-3 text-sm leading-7 text-muted-foreground">
-                        <Check className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                        <Check className="mt-1 h-4 w-4 shrink-0 text-primary" />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -201,7 +203,7 @@ const PlatformPricingPage = () => {
                   <tr className="border-b border-border bg-card">
                     <th className="px-5 py-4 text-left font-semibold text-foreground">Feature</th>
                     <th className="px-5 py-4 text-center font-semibold text-foreground">Starter</th>
-                    <th className="px-5 py-4 text-center font-semibold text-clinical-blue">Growth</th>
+                    <th className="px-5 py-4 text-center font-semibold text-primary">Growth</th>
                     <th className="px-5 py-4 text-center font-semibold text-foreground">Premium</th>
                   </tr>
                 </thead>
@@ -211,11 +213,11 @@ const PlatformPricingPage = () => {
                     ["Test, reports & billing", true, true, true],
                     ["Patient portal", true, true, true],
                     ["Email & WhatsApp reminders", true, true, true],
-                    ["Labs included", "1", "Up to 10", "Above Growth limits"],
-                    ["Active staff included", "Up to 10", "Up to 100", "Above Growth limits"],
-                    ["Patient capacity", "Up to 25,000", "Up to 300,000", "Above Growth limits"],
+                    ["Labs included", "1", "Up to 5", "Above Growth limits"],
+                    ["Active staff included", "Up to 5", "Up to 50", "Above Growth limits"],
+                    ["Patient capacity", "Up to 10,000", "Up to 100,000", "Above Growth limits"],
                     ["Multiple labs / branches", false, true, true],
-                    ["Collection centers", false, true, true],
+                    ["Collection centers", "1 included", "Up to 10", "Above Growth limits"],
                     ["Inventory & doctor referrals", false, true, true],
                     ["Custom domain", false, true, true],
                     ["Organization branding", false, true, true],
@@ -230,7 +232,7 @@ const PlatformPricingPage = () => {
                         {typeof starter === "boolean" ? (starter ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(starter)}</span>}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        {typeof growth === "boolean" ? (growth ? <Check className="mx-auto h-4 w-4 text-clinical-blue" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(growth)}</span>}
+                        {typeof growth === "boolean" ? (growth ? <Check className="mx-auto h-4 w-4 text-primary" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(growth)}</span>}
                       </td>
                       <td className="px-5 py-3 text-center">
                         {typeof premium === "boolean" ? (premium ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(premium)}</span>}
@@ -246,7 +248,7 @@ const PlatformPricingPage = () => {
         <section className="border-b border-border/60 bg-background">
           <div className="container mx-auto grid gap-10 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">After Purchase</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">After Purchase</p>
               <h2 className="mt-4 font-heading text-3xl font-bold text-foreground">
                 Buying a package should move the lab straight into setup, not into a dead-end form
               </h2>
@@ -258,7 +260,7 @@ const PlatformPricingPage = () => {
             <div className="grid gap-4">
               {afterPurchaseSteps.map((item, index) => (
                 <div key={item} className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">Step {index + 1}</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Step {index + 1}</p>
                   <p className="mt-3 text-sm leading-7 text-muted-foreground">{item}</p>
                 </div>
               ))}
@@ -269,7 +271,7 @@ const PlatformPricingPage = () => {
         <section className="border-y border-border/60 bg-[linear-gradient(180deg,rgba(31,138,205,0.05),transparent)]">
           <div className="container mx-auto grid gap-10 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Buy And Start</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Buy And Start</p>
               <h2 className="mt-4 font-heading text-3xl font-bold text-foreground">
                 If you already know the operational basics, you can move into setup without waiting on sales
               </h2>
@@ -282,7 +284,7 @@ const PlatformPricingPage = () => {
               {selfServeReadiness.map((item) => (
                 <div key={item} className="rounded-3xl border border-border bg-card p-5 text-sm leading-7 text-muted-foreground shadow-sm">
                   <div className="flex items-start gap-3">
-                    <Check className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                    <Check className="mt-1 h-4 w-4 shrink-0 text-primary" />
                     <span>{item}</span>
                   </div>
                 </div>
@@ -294,7 +296,7 @@ const PlatformPricingPage = () => {
         <section className="border-y border-border/60 bg-secondary/40">
           <div className="container mx-auto grid gap-10 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Add-ons</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Add-ons</p>
               <h2 className="mt-4 font-heading text-3xl font-bold text-foreground">Use add-ons for rollout work, not as hidden plan traps</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -311,7 +313,7 @@ const PlatformPricingPage = () => {
           <div className="container mx-auto px-4 py-16 lg:px-8 lg:py-20">
             <div className="rounded-[2rem] border border-border bg-card p-8 shadow-sm lg:p-10">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Onboarding Flow</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Onboarding Flow</p>
                 <h2 className="mt-4 font-heading text-3xl font-bold text-foreground">
                   The product is designed to get a lab from pricing to launch without a messy handoff
                 </h2>
@@ -319,7 +321,7 @@ const PlatformPricingPage = () => {
               <div className="mt-10 grid gap-5 lg:grid-cols-3">
                 {onboardingExpectations.map((item, index) => (
                   <div key={item.title} className="rounded-3xl border border-border bg-background p-6">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">Step {index + 1}</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Step {index + 1}</p>
                     <h3 className="mt-3 font-heading text-2xl font-semibold text-foreground">{item.title}</h3>
                     <p className="mt-3 text-sm leading-7 text-muted-foreground">{item.body}</p>
                   </div>
@@ -334,7 +336,7 @@ const PlatformPricingPage = () => {
             <div className="rounded-[2rem] border border-border bg-card p-8 shadow-sm lg:p-10">
               <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Included Across Plans</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Included Across Plans</p>
                   <h2 className="mt-4 font-heading text-3xl font-bold text-foreground">The commercial difference is rollout depth and complexity, not basic tenant safety</h2>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -354,7 +356,7 @@ const PlatformPricingPage = () => {
             <div className="rounded-[2rem] border border-border bg-card p-8 shadow-sm lg:p-10">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Buying Guidance</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Buying Guidance</p>
                   <h2 className="mt-4 font-heading text-3xl font-bold text-foreground md:text-4xl">
                     Choose based on branch complexity, not vanity feature counts
                   </h2>
@@ -363,7 +365,7 @@ const PlatformPricingPage = () => {
                     collection, shared branding, centralized reporting, and up to 10 labs, start at Growth.
                   </p>
                 </div>
-                <div className="rounded-3xl border border-clinical-blue/20 bg-clinical-blue-light p-5 text-sm leading-7 text-clinical-navy">
+                <div className="rounded-3xl border border-clinical-blue/20 bg-primary/10 p-5 text-sm leading-7 text-foreground">
                   <div className="flex items-center gap-2 font-semibold">
                     <ShieldCheck className="h-4 w-4" />
                     White-label ready
@@ -373,6 +375,10 @@ const PlatformPricingPage = () => {
                   </p>
                 </div>
               </div>
+              <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+                Note: WhatsApp and SMS delivery fees are not included in LabShope subscription pricing. Labs must bring their own provider account/credits (e.g., MSG91, Twilio, Meta WhatsApp BSP) and associated usage charges.
+              </div>
+
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link to={buildPlatformPathWithMarketing("/start?plan=growth")}>
                   <Button variant="clinical">Start Setup</Button>

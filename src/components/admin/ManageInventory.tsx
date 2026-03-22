@@ -257,7 +257,7 @@ const ManageInventory = () => {
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => { setEditingItem(null); resetItemForm(); setIsItemDialogOpen(true); }} className="bg-clinical-navy hover:bg-clinical-navy/90"><Plus className="h-4 w-4 mr-2" />Add Item</Button>
+        <Button variant="clinical" onClick={() => { setEditingItem(null); resetItemForm(); setIsItemDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" />Add Item</Button>
         <Button variant="outline" onClick={() => { resetPurchaseForm(); setIsPurchaseDialogOpen(true); }}><ShoppingCart className="h-4 w-4 mr-2" />Record Purchase</Button>
         <Button variant="outline" onClick={() => { resetUsageForm(); setIsUsageDialogOpen(true); }}><TrendingDown className="h-4 w-4 mr-2" />Record Usage</Button>
         <Button variant="outline" onClick={() => { resetMaintenanceForm(); setIsMaintenanceDialogOpen(true); }}><Wrench className="h-4 w-4 mr-2" />Schedule Maintenance</Button>

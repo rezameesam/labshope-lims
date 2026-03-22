@@ -22,8 +22,8 @@ import { getPlatformPageTitle, platformBranding } from "@/lib/platformBranding";
 import { toast } from "sonner";
 
 const planOptions = [
-  { value: "starter", label: "Starter", description: "Best for one lab getting off manual workflows.", price: "₹10,000/year", setup: "+ GST · no lock-in" },
-  { value: "growth", label: "Growth", description: "Best for up to 10 labs, 100 active staff, and higher-volume branch operations.", price: "₹20,000/year", setup: "+ GST · no lock-in" },
+  { value: "starter", label: "Starter", description: "Best for one lab, up to 5 staff, 10,000 patients, and one collection center.", price: "₹10,000/year", setup: "+ GST · no lock-in" },
+  { value: "growth", label: "Growth", description: "Best for up to 5 labs, 50 active staff, 100,000 patients, and up to 10 collection centers.", price: "₹20,000/year", setup: "+ GST · no lock-in" },
   { value: "premium", label: "Premium", description: "Best for higher-touch rollout, premium support, and capacity beyond Growth.", price: "₹40,000/year", setup: "+ GST · premium onboarding scoped to rollout" },
 ] as const;
 
@@ -573,7 +573,7 @@ const PlatformStartPage = () => {
         <section className="border-b border-border/60 bg-[linear-gradient(180deg,rgba(31,138,205,0.07),transparent)]">
           <div className="container mx-auto px-4 py-16 lg:px-8 lg:py-24">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Get Started</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Get Started</p>
               <h1 className="mt-4 font-heading text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                 Choose a plan and start your lab setup path
               </h1>
@@ -589,7 +589,7 @@ const PlatformStartPage = () => {
           <div className="container mx-auto grid gap-8 px-4 py-16 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:py-20">
             <div className="space-y-5">
               <div className="rounded-[2rem] border border-border bg-card p-8 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Selected Plan</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Selected Plan</p>
                 <div className="mt-4 flex items-end justify-between gap-3">
                   <h2 className="font-heading text-3xl font-bold text-foreground">{selectedPlanMeta.label}</h2>
                   <div className="text-right">
@@ -613,12 +613,15 @@ const PlatformStartPage = () => {
                         );
                       })()
                     ) : (
-                      <p className="font-heading text-2xl font-bold text-clinical-navy">{selectedPlanMeta.price}</p>
+                      <p className="font-heading text-2xl font-bold text-foreground">{selectedPlanMeta.price}</p>
                     )}
                     <p className="text-xs text-muted-foreground">{selectedPlanMeta.setup}</p>
                   </div>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">{selectedPlanMeta.description}</p>
+                <p className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                  WhatsApp/SMS provider charges are separate and not included in subscription price.
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {planOptions.map((option) => (
                     <button
@@ -638,7 +641,7 @@ const PlatformStartPage = () => {
                 <div className="mt-6 space-y-3 text-sm leading-7 text-muted-foreground">
                   {planHighlights[selectedPlanMeta.value].map((item) => (
                     <div key={item} className="flex items-start gap-3">
-                      <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                      <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-primary" />
                       <span>{item}</span>
                     </div>
                   ))}
@@ -646,9 +649,9 @@ const PlatformStartPage = () => {
               </div>
 
               <div className="rounded-[2rem] border border-border bg-card p-8 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Launch Mode</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Launch Mode</p>
                 <div className="mt-5 flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-blue-light text-clinical-blue">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <Rocket className="h-5 w-5" />
                   </div>
                   <div>
@@ -660,11 +663,11 @@ const PlatformStartPage = () => {
 
               <div className="rounded-[2rem] border border-clinical-blue/20 bg-[linear-gradient(180deg,rgba(31,138,205,0.08),rgba(255,255,255,0.96))] p-8 shadow-sm">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-blue-light text-clinical-blue">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Plan Guidance</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Plan Guidance</p>
                     <h3 className="mt-2 font-heading text-2xl font-semibold text-foreground">
                       Recommended: {recommendedPlanMeta.label}
                     </h3>
@@ -681,7 +684,7 @@ const PlatformStartPage = () => {
                 <div className="mt-5 space-y-3 text-sm leading-7 text-muted-foreground">
                   {rolloutSignals.map((item) => (
                     <div key={item} className="flex items-start gap-3">
-                      <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                      <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-primary" />
                       <span>{item}</span>
                     </div>
                   ))}
@@ -695,7 +698,7 @@ const PlatformStartPage = () => {
                     : "border-border bg-card"
                 }`}
               >
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">
                   Instant Setup Status
                 </p>
                 <h3 className="mt-4 font-heading text-2xl font-semibold text-foreground">
@@ -725,7 +728,7 @@ const PlatformStartPage = () => {
                     <div className="mt-3 space-y-2">
                       {instantProvisionBlockers.map((item) => (
                         <div key={item} className="flex items-start gap-3">
-                          <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                          <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-primary" />
                           <span>{item}</span>
                         </div>
                       ))}
@@ -749,7 +752,7 @@ const PlatformStartPage = () => {
               </div>
 
               <div className="rounded-[2rem] border border-border bg-secondary/35 p-8 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">What happens next</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">What happens next</p>
                 <div className="mt-6 space-y-4 text-sm leading-7 text-muted-foreground">
                   {[
                     "We review your chosen plan and operating complexity.",
@@ -757,7 +760,7 @@ const PlatformStartPage = () => {
                     "We move you into the onboarding path with the right rollout level.",
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3">
-                      <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                      <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-primary" />
                       <span>{item}</span>
                     </div>
                   ))}
@@ -847,7 +850,7 @@ const PlatformStartPage = () => {
                     </div>
                   ) : null}
                       {submittedSnapshot?.autoProvisioned ? (
-                    <div className="mt-6 rounded-2xl border border-clinical-blue/20 bg-clinical-blue-light/30 px-4 py-4 text-sm">
+                    <div className="mt-6 rounded-2xl border border-clinical-blue/20 bg-primary/10 px-4 py-4 text-sm">
                       <p className="font-medium text-foreground">Immediate owner access</p>
                       <p className="mt-2 text-muted-foreground">
                         The workspace is already live. Use the login and launch details below to enter the tenant now.
@@ -905,7 +908,7 @@ const PlatformStartPage = () => {
                             "The owner email receives launch details, login access, and the tenant URL once setup is approved.",
                           ]).map((item) => (
                         <div key={item} className="flex items-start gap-3">
-                          <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-clinical-blue" />
+                          <CircleCheck className="mt-1 h-4 w-4 shrink-0 text-primary" />
                           <span>{item}</span>
                         </div>
                       ))}
@@ -1000,7 +1003,7 @@ const PlatformStartPage = () => {
 
                   <div className="rounded-[1.5rem] border border-border bg-background p-5">
                     <div className="mb-4">
-                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
                         Domain Setup
                       </p>
                       <p className="mt-2 text-sm leading-7 text-muted-foreground">
@@ -1145,7 +1148,7 @@ const PlatformStartPage = () => {
 
                   <div className="rounded-[1.5rem] border border-border bg-background p-5 space-y-4">
                     <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">Branding</p>
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Branding</p>
                       <p className="mt-2 text-sm leading-7 text-muted-foreground">
                         Optional. Paste a public URL to your logo and favicon so we can apply them when your workspace is set up. You can also upload them later from the admin panel.
                       </p>

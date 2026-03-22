@@ -98,7 +98,7 @@ export const PhonePeButton = ({
         });
 
         if (!statusError && statusData?.success) {
-          try { popup.close(); } catch {}
+          try { popup.close(); } catch (_e) { /* popup may already be closed */ }
           toast.success("Payment successful!");
           onPaymentSuccess?.();
           setProcessing(false);

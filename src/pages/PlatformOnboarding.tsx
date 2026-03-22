@@ -46,11 +46,11 @@ const onboardingStatusClass: Record<string, string> = {
   new: "border-blue-200 bg-blue-50 text-blue-700",
   reviewing: "border-amber-200 bg-amber-50 text-amber-700",
   approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  closed: "border-slate-200 bg-slate-100 text-slate-500",
+  closed: "border-border bg-muted text-muted-foreground",
 };
 
 const planClass: Record<string, string> = {
-  starter: "border-slate-200 bg-slate-50 text-slate-600",
+  starter: "border-border bg-muted/40 text-muted-foreground",
   growth: "border-indigo-200 bg-indigo-50 text-indigo-700",
   premium: "border-violet-200 bg-violet-50 text-violet-700",
 };
@@ -428,14 +428,14 @@ const PlatformOnboarding = () => {
 
   return (
     <PlatformRoute>
-      <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-6 shadow-sm lg:px-8">
+      <div className="rounded-[28px] border border-border bg-card px-6 py-6 shadow-sm lg:px-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
               Pipeline
             </p>
-            <h1 className="mt-2 font-heading text-4xl font-bold tracking-tight text-slate-950">Onboarding Queue</h1>
-            <p className="mt-2 text-slate-600">
+            <h1 className="mt-2 font-heading text-4xl font-bold tracking-tight text-foreground">Onboarding Queue</h1>
+            <p className="mt-2 text-muted-foreground">
               Review self-serve setup submissions and move them through the platform onboarding path.
             </p>
           </div>
@@ -486,7 +486,10 @@ const PlatformOnboarding = () => {
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <label htmlFor="onboarding-search" className="sr-only">Search onboarding queue</label>
             <Input
+              id="onboarding-search"
+              name="onboarding_search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search organization, owner, email, city, or campaign"
@@ -523,12 +526,12 @@ const PlatformOnboarding = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : !filteredRequests.length ? (
-          <div className="flex flex-col items-center gap-3 rounded-[20px] border border-slate-200 bg-white p-12 text-center shadow-sm">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-              <Rocket className="h-5 w-5 text-slate-400" />
+          <div className="flex flex-col items-center gap-3 rounded-[20px] border border-border bg-card p-12 text-center shadow-sm">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Rocket className="h-5 w-5 text-muted-foreground" />
             </div>
-            <p className="font-semibold text-slate-700">No onboarding requests match the current filters</p>
-            <p className="max-w-sm text-sm text-slate-500">
+            <p className="font-semibold text-foreground/80">No onboarding requests match the current filters</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
               Switch to "All" or clear the search to see every submitted onboarding request.
             </p>
           </div>
@@ -549,13 +552,13 @@ const PlatformOnboarding = () => {
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="font-heading text-2xl font-semibold text-foreground">{request.organization_name}</h2>
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${planClass[request.selected_plan] ?? "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${planClass[request.selected_plan] ?? "border-border bg-muted/40 text-muted-foreground"}`}>
                         {request.selected_plan}
                       </span>
-                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                      <span className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
                         {request.setup_mode === "self_serve" ? "Self-Serve" : "Assisted"}
                       </span>
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${onboardingStatusClass[request.status] ?? "border-slate-200 bg-slate-100 text-slate-500"}`}>
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${onboardingStatusClass[request.status] ?? "border-border bg-muted text-muted-foreground"}`}>
                         {request.status}
                       </span>
                       {request.provisioned_organization_id ? (
@@ -604,9 +607,9 @@ const PlatformOnboarding = () => {
                       </div>
                     </div>
                     {request.coupon_code ? (
-                      <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm">
-                        <span className="font-semibold text-amber-800">Coupon:</span>
-                        <span className="font-mono font-bold tracking-widest text-amber-900">{request.coupon_code}</span>
+                      <div className="flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+                        <span className="font-semibold text-amber-800 dark:text-amber-300">Coupon:</span>
+                        <span className="font-mono font-bold tracking-widest text-amber-900 dark:text-amber-200">{request.coupon_code}</span>
                       </div>
                     ) : null}
                     {request.notes ? (
@@ -615,7 +618,7 @@ const PlatformOnboarding = () => {
                       </div>
                     ) : null}
                     {request.custom_domain ? (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 text-sm">
+                      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-4 text-sm">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <p className="font-medium text-foreground">DNS handoff</p>
@@ -675,7 +678,7 @@ const PlatformOnboarding = () => {
                       </div>
                     ) : null}
                     {request.provisioned_organization_id ? (
-                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-sm">
+                      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4 text-sm">
                         <p className="font-medium text-foreground">Provisioned Workspace</p>
                         <div className="mt-3 grid gap-2 text-muted-foreground sm:grid-cols-2">
                           <p>Slug: {request.resolved_slug || "-"}</p>

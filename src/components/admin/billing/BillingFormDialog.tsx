@@ -304,6 +304,7 @@ const BillingFormDialog = ({
             Cancel
           </Button>
           <Button
+            variant="clinical"
             onClick={onSubmit}
             disabled={isSubmitting || selectedTestIds.size === 0}
           >

@@ -133,7 +133,15 @@ const ManageLabs = () => {
   const { refreshLabs, availableLabs } = useLab();
   const { organization, settings, loading: organizationLoading } = useOrganization();
   const organizationId = organization?.id ?? null;
-  const currentPlan = resolvePlanTier(settings.plan_tier);
+  const [resolvedPlanTier, setResolvedPlanTier] = useState<string>("");
+
+  const planFromOrganization =
+    (organization as any)?.plan_tier ||
+    (organization as any)?.subscription_tier ||
+    (organization as any)?.subscription_plan ||
+    (organization as any)?.selected_plan ||
+    "";
+  const currentPlan = resolvePlanTier(resolvedPlanTier || planFromOrganization || settings.plan_tier);
   const labLimit = PLAN_LIMITS[currentPlan].labs;
   const [labs, setLabs] = useState<Lab[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,6 +155,38 @@ const ManageLabs = () => {
   const [editingLab, setEditingLab] = useState<Lab | null>(null);
   const labLimitReached = Number.isFinite(labLimit) && labs.length >= labLimit;
   const labLimitMessage = labLimitReached ? getUpgradeMessage(currentPlan, "labs", labLimit) : "";
+
+  useEffect(() => {
+    const loadPlanTier = async () => {
+      if (!organizationId) {
+        setResolvedPlanTier("");
+        return;
+      }
+
+      const { data: settingData } = await (supabase as any)
+        .from("organization_settings")
+        .select("setting_value")
+        .eq("organization_id", organizationId)
+        .eq("setting_key", "plan_tier")
+        .maybeSingle();
+
+      let resolved = (settingData as any)?.setting_value || "";
+
+      if (!resolved) {
+        const { data: onboardingData } = await (supabase as any)
+          .from("onboarding_requests")
+          .select("selected_plan")
+          .eq("provisioned_organization_id", organizationId)
+          .maybeSingle();
+
+        resolved = (onboardingData as any)?.selected_plan || "";
+      }
+
+      setResolvedPlanTier(resolved);
+    };
+
+    void loadPlanTier();
+  }, [organizationId]);
 
   const [labForm, setLabForm] = useState({
     lab_code: "",

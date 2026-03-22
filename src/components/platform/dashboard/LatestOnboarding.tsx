@@ -32,11 +32,11 @@ interface Props {
 }
 
 export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) => (
-  <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-    <CardHeader className="border-b border-slate-200 pb-5">
+  <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+    <CardHeader className="border-b border-border pb-5">
       <div className="flex flex-col gap-4">
         <div>
-          <CardTitle className="text-2xl text-slate-950">Latest Onboarding</CardTitle>
+          <CardTitle className="text-2xl text-foreground">Latest Onboarding</CardTitle>
           <CardDescription>The newest customer setup requests in the queue.</CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -55,25 +55,25 @@ export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) =>
     </CardHeader>
     <CardContent className="space-y-3 p-6">
       {requests.map((request) => (
-        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div key={request.id} className="rounded-2xl border border-border bg-muted/40 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold text-slate-950">{request.organization_name}</p>
-                <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
+                <p className="font-semibold text-foreground">{request.organization_name}</p>
+                <Badge variant="outline" className="border-border bg-card text-foreground/80">
                   {request.selected_plan}
                 </Badge>
-                <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">
+                <Badge variant="outline" className="border-border bg-card text-foreground/80">
                   {request.setup_mode === "self_serve" ? "self-serve" : "assisted"}
                 </Badge>
               </div>
-              <p className="mt-2 text-sm text-slate-500">{request.owner_email}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{request.owner_email}</p>
             </div>
             <Badge variant={request.status === "approved" ? "default" : "secondary"}>
               {request.status}
             </Badge>
           </div>
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-3 text-sm text-muted-foreground">
             {request.custom_domain || request.resolved_slug || "No domain preference"}
             {` · ${formatAppDateTime(request.created_at)}`}
           </p>

@@ -23,6 +23,7 @@ import { getWebsiteHostname } from "@/lib/branding";
 import { usePublicPageMode } from "@/hooks/usePublicPageMode";
 import PlatformAccessPage from "@/components/platform/PlatformAccessPage";
 import InvalidTenantPage from "@/components/platform/InvalidTenantPage";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const EmployeeAuth = () => {
   const navigate = useNavigate();
@@ -215,7 +216,7 @@ const EmployeeAuth = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-subtle-gradient">
-        <div className="animate-pulse text-clinical-navy">Loading...</div>
+        <div className="animate-pulse text-foreground">Loading...</div>
       </div>
     );
   }
@@ -223,7 +224,7 @@ const EmployeeAuth = () => {
   if (publicModeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-subtle-gradient">
-        <div className="animate-pulse text-clinical-navy">Loading...</div>
+        <div className="animate-pulse text-foreground">Loading...</div>
       </div>
     );
   }
@@ -251,38 +252,38 @@ const EmployeeAuth = () => {
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-clinical-navy p-12 flex-col justify-between">
+      <div className="hidden lg:flex lg:w-1/2 bg-muted/30 border-l border-border p-12 flex-col justify-between">
         <Link to="/" className="flex items-center gap-3">
           <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
           <div>
-            <h1 className="text-lg font-heading font-bold text-primary-foreground">
+            <h1 className="text-lg font-heading font-bold text-foreground">
               {branding.shortName}
             </h1>
-            <p className="text-xs text-primary-foreground/70">{branding.secondaryLabel}</p>
+            <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>
           </div>
         </Link>
 
         <div>
-          <h2 className="text-4xl font-heading font-bold text-primary-foreground mb-4">
+          <h2 className="text-4xl font-heading font-bold text-foreground mb-4">
             Staff Portal
           </h2>
-          <p className="text-primary-foreground/80 text-lg max-w-md">
+          <p className="text-muted-foreground text-lg max-w-md">
             Access the laboratory management system to manage patient records, 
             test results, and appointments.
           </p>
           <div className="mt-8 space-y-4">
-            <div className="flex items-center gap-3 text-primary-foreground/80">
+            <div className="flex items-center gap-3 text-foreground/80">
               <Shield className="h-5 w-5" />
               <span>Secure Staff Access</span>
             </div>
-            <div className="flex items-center gap-3 text-primary-foreground/80">
+            <div className="flex items-center gap-3 text-foreground/80">
               <Users className="h-5 w-5" />
               <span>Lab Management System</span>
             </div>
           </div>
         </div>
 
-        <p className="text-primary-foreground/60 text-sm">
+        <p className="text-muted-foreground text-sm">
           © {new Date().getFullYear()} {branding.displayName}
         </p>
       </div>
@@ -290,12 +291,15 @@ const EmployeeAuth = () => {
       {/* Right Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
+          <div className="mb-4 flex justify-end">
+            <ThemeToggle />
+          </div>
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
             <Link to="/" className="inline-flex items-center gap-3">
               <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-14 w-14" />
               <div className="text-left">
-                <h1 className="text-lg font-heading font-bold text-clinical-navy">
+                <h1 className="text-lg font-heading font-bold text-foreground">
                   {branding.shortName}
                 </h1>
                 <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>
@@ -394,7 +398,7 @@ const EmployeeAuth = () => {
                 type="submit"
                 variant="default"
                 size="lg"
-                className="w-full bg-clinical-navy hover:bg-clinical-navy/90"
+                className="w-full bg-primary hover:bg-primary/90"
                 disabled={isLoading}
               >
                 {isLoading ? "Signing in..." : "Sign In"}

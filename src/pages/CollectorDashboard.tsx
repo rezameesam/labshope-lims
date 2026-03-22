@@ -163,6 +163,7 @@ const CollectorDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <div className="text-right">
               <p className="text-sm font-medium">{user?.email}</p>
               <p className="text-xs text-muted-foreground">Sample Collector</p>

@@ -25,18 +25,18 @@ const PlatformResetPage = ({
       <PlatformSiteHeader />
 
       <main className="container mx-auto px-4 py-16 lg:px-8 lg:py-24">
-        <div className="mx-auto max-w-4xl rounded-[32px] border border-border/70 bg-white/90 p-8 shadow-xl shadow-clinical-navy/5 lg:p-12">
+        <div className="mx-auto max-w-4xl rounded-[32px] border border-border/70 bg-card/90 p-8 shadow-xl shadow-clinical-navy/5 lg:p-12">
           <div className="mx-auto max-w-2xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-clinical-navy/15 bg-clinical-navy/5 px-4 py-2 text-sm font-medium text-clinical-navy">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2 text-sm font-medium text-foreground">
               <ShieldCheck className="h-4 w-4" />
               {eyebrow}
             </div>
 
-            <div className="mt-6 inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-clinical-navy text-primary-foreground">
+            <div className="mt-6 inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-primary-foreground">
               <KeyRound className="h-7 w-7" />
             </div>
 
-            <h1 className="mt-6 font-heading text-4xl font-bold tracking-tight text-clinical-navy md:text-5xl">
+            <h1 className="mt-6 font-heading text-4xl font-bold tracking-tight text-foreground md:text-5xl">
               {title}
             </h1>
             <p className="mt-4 text-lg leading-8 text-foreground/72">

@@ -141,6 +141,20 @@ interface CatalogTest {
   price: number;
 }
 
+interface QuickAssignPackage {
+  id: string;
+  name: string;
+  tests: string[];
+  price: number;
+}
+
+interface QuickAssignDuplicateInsight {
+  test_name: string;
+  last_test_date: string;
+  last_status: string;
+  risk: "high" | "medium" | "low";
+}
+
 interface PatientCommunicationEvent {
   id: string;
   title: string;
@@ -682,10 +696,16 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
   const [quickAssignOpen, setQuickAssignOpen] = useState(false);
   const [quickAssignPatient, setQuickAssignPatient] = useState<Patient | null>(null);
   const [catalogTests, setCatalogTests] = useState<CatalogTest[]>([]);
+  const [quickAssignPackages, setQuickAssignPackages] = useState<QuickAssignPackage[]>([]);
+  const [quickAssignSelectedPackageId, setQuickAssignSelectedPackageId] = useState<string>("none");
   const [quickAssignSearch, setQuickAssignSearch] = useState("");
   const [quickAssignSelectedTests, setQuickAssignSelectedTests] = useState<string[]>([]);
   const [quickAssignSubmitting, setQuickAssignSubmitting] = useState(false);
   const [quickAssignDuplicateAccepted, setQuickAssignDuplicateAccepted] = useState(false);
+  const [quickAssignDuplicateInsights, setQuickAssignDuplicateInsights] = useState<QuickAssignDuplicateInsight[]>([]);
+  const [quickAssignSkipDuplicates, setQuickAssignSkipDuplicates] = useState(false);
+  const [quickAssignOverrideReason, setQuickAssignOverrideReason] = useState("");
+  const [quickAssignSuccess, setQuickAssignSuccess] = useState<{ invoiceNumber: string; finalAmount: number; patientName: string } | null>(null);
   const [abdmProfileShares, setAbdmProfileShares] = useState<AbdmProfileShare[]>([]);
   const [matchShareDialogShare, setMatchShareDialogShare] = useState<AbdmProfileShare | null>(null);
   const [matchShareSearch, setMatchShareSearch] = useState("");
@@ -788,6 +808,54 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     } catch (error) {
       console.error("Error fetching catalog tests:", error);
       setCatalogTests([]);
+    }
+  }, [organizationId]);
+
+  const fetchQuickAssignPackages = useCallback(async () => {
+    try {
+      if (!organizationId) {
+        setQuickAssignPackages([]);
+        return;
+      }
+
+      const { data: packagesData, error: packagesError } = await (supabase as any)
+        .from("test_packages")
+        .select("id, name, price")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("name");
+
+      if (packagesError) throw packagesError;
+
+      const packageIds = (packagesData || []).map((p: any) => p.id);
+      let testsByPackage = new Map<string, string[]>();
+
+      if (packageIds.length > 0) {
+        const { data: packageTestsData, error: packageTestsError } = await (supabase as any)
+          .from("test_package_tests")
+          .select("package_id, test_id")
+          .in("package_id", packageIds);
+
+        if (!packageTestsError && packageTestsData) {
+          for (const row of packageTestsData as Array<{ package_id: string; test_id: string }>) {
+            const list = testsByPackage.get(row.package_id) || [];
+            list.push(row.test_id);
+            testsByPackage.set(row.package_id, list);
+          }
+        }
+      }
+
+      const normalized = (packagesData || []).map((pkg: any) => ({
+        id: pkg.id,
+        name: pkg.name,
+        price: Number(pkg.price || 0),
+        tests: testsByPackage.get(pkg.id) || [],
+      })) as QuickAssignPackage[];
+
+      setQuickAssignPackages(normalized);
+    } catch (error) {
+      console.error("Error fetching quick assign packages:", error);
+      setQuickAssignPackages([]);
     }
   }, [organizationId]);
 
@@ -1050,8 +1118,9 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     void fetchLabs();
     void fetchCollectionCenters();
     void fetchCatalogTests();
+    void fetchQuickAssignPackages();
     void fetchAbdmProfileShares();
-  }, [fetchAbdmProfileShares, fetchCatalogTests, fetchCollectionCenters, fetchLabs, fetchPatients, organizationId, organizationLoading]);
+  }, [fetchAbdmProfileShares, fetchCatalogTests, fetchQuickAssignPackages, fetchCollectionCenters, fetchLabs, fetchPatients, organizationId, organizationLoading]);
 
   const generatePatientId = () => {
     const prefix = "PAT";
@@ -1508,18 +1577,48 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setQuickAssignPatient(patient);
     setQuickAssignSearch("");
     setQuickAssignSelectedTests([]);
+    setQuickAssignSelectedPackageId("none");
     setQuickAssignDuplicateAccepted(false);
+    setQuickAssignDuplicateInsights([]);
+    setQuickAssignSkipDuplicates(false);
+    setQuickAssignOverrideReason("");
+    setQuickAssignSuccess(null);
     setQuickAssignOpen(true);
   };
 
   const toggleQuickAssignTest = (testName: string) => {
     setQuickAssignDuplicateAccepted(false);
+    setQuickAssignDuplicateInsights([]);
+    setQuickAssignSkipDuplicates(false);
+    setQuickAssignOverrideReason("");
+    setQuickAssignSelectedPackageId("none");
     setQuickAssignSelectedTests((prev) =>
       prev.includes(testName) ? prev.filter((t) => t !== testName) : [...prev, testName]
     );
   };
 
-  const createQuickOrder = async () => {
+  const applyQuickAssignPackage = (packageId: string) => {
+    setQuickAssignDuplicateAccepted(false);
+    setQuickAssignDuplicateInsights([]);
+    setQuickAssignSkipDuplicates(false);
+    setQuickAssignOverrideReason("");
+    setQuickAssignSelectedPackageId(packageId);
+
+    if (packageId === "none") {
+      return;
+    }
+
+    const selectedPackage = quickAssignPackages.find((pkg) => pkg.id === packageId);
+    if (!selectedPackage) return;
+
+    const packageTestNames = selectedPackage.tests
+      .map((testId) => catalogTests.find((test) => test.id === testId)?.name)
+      .filter(Boolean) as string[];
+
+    setQuickAssignSelectedTests(packageTestNames);
+  };
+
+  const createQuickOrder = async (collectPayment = false) => {
     if (!quickAssignPatient || quickAssignSelectedTests.length === 0 || !organizationId) {
       toast.error("Select patient and at least one test");
       return;
@@ -1530,29 +1629,60 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
 
     const { data: recentRows } = await (supabase as any)
       .from("patient_tests")
-      .select("test_name, test_date")
+      .select("test_name, test_date, status")
       .eq("patient_id", quickAssignPatient.id)
       .gte("test_date", thirtyDaysAgo.toISOString().slice(0, 10));
 
-    const duplicateTests = Array.from(
-      new Set(
-        (recentRows || [])
-          .filter((t: any) => quickAssignSelectedTests.includes(t.test_name))
-          .map((t: any) => t.test_name)
-      )
-    );
+    const duplicateMap = new Map<string, { last_test_date: string; last_status: string }>();
+    for (const row of (recentRows || []) as Array<{ test_name: string; test_date: string; status?: string }>) {
+      if (!quickAssignSelectedTests.includes(row.test_name)) continue;
+      const prev = duplicateMap.get(row.test_name);
+      if (!prev || new Date(row.test_date) > new Date(prev.last_test_date)) {
+        duplicateMap.set(row.test_name, { last_test_date: row.test_date, last_status: row.status || "unknown" });
+      }
+    }
 
-    if (duplicateTests.length > 0 && !quickAssignDuplicateAccepted) {
-      toast.warning(`Possible duplicate in last 30 days: ${duplicateTests.slice(0, 4).join(", ")}${duplicateTests.length > 4 ? "..." : ""}. Click Create Order again to continue.`);
+    const duplicateInsights: QuickAssignDuplicateInsight[] = Array.from(duplicateMap.entries()).map(([test_name, info]) => {
+      const ageDays = Math.max(0, Math.floor((Date.now() - new Date(info.last_test_date).getTime()) / (1000 * 60 * 60 * 24)));
+      const risk: "high" | "medium" | "low" = ageDays <= 7 ? "high" : ageDays <= 30 ? "medium" : "low";
+      return {
+        test_name,
+        last_test_date: info.last_test_date,
+        last_status: info.last_status,
+        risk,
+      };
+    });
+
+    const hasHighRiskDuplicate = duplicateInsights.some((d) => d.risk === "high");
+
+    if (duplicateInsights.length > 0 && !quickAssignDuplicateAccepted) {
+      setQuickAssignDuplicateInsights(duplicateInsights);
+      toast.warning(`Duplicate intelligence found ${duplicateInsights.length} overlap(s). Review and confirm.`);
       setQuickAssignDuplicateAccepted(true);
+      return;
+    }
+
+    if (hasHighRiskDuplicate && !quickAssignSkipDuplicates && !quickAssignOverrideReason.trim()) {
+      toast.error("High-risk duplicate detected. Add override reason or use 'Skip Duplicates'.");
       return;
     }
 
     setQuickAssignSubmitting(true);
     try {
-      const selectedCatalogTests = quickAssignSelectedTests
+      let selectedCatalogTests = quickAssignSelectedTests
         .map((name) => catalogTests.find((t) => t.name === name))
         .filter(Boolean) as CatalogTest[];
+
+      if (quickAssignSkipDuplicates && quickAssignDuplicateInsights.length > 0) {
+        const duplicateNames = new Set(quickAssignDuplicateInsights.map((d) => d.test_name));
+        selectedCatalogTests = selectedCatalogTests.filter((t) => !duplicateNames.has(t.name));
+      }
+
+      if (selectedCatalogTests.length === 0) {
+        toast.error("No tests left after duplicate filtering");
+        setQuickAssignSubmitting(false);
+        return;
+      }
 
       const { data: insertedTests, error: testsError } = await (supabase as any)
         .from("patient_tests")
@@ -1578,6 +1708,18 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
       const totalAmount = selectedCatalogTests.reduce((sum, t) => sum + Number(t.price || 0), 0);
 
+      const selectedPackage = quickAssignPackages.find((pkg) => pkg.id === quickAssignSelectedPackageId) || null;
+      let discountAmount = 0;
+      if (selectedPackage) {
+        const packageTestIds = new Set(selectedPackage.tests);
+        const selectedPackageTests = selectedCatalogTests.filter((test) => packageTestIds.has(test.id));
+        const packageItemsTotal = selectedPackageTests.reduce((sum, test) => sum + Number(test.price || 0), 0);
+        if (selectedPackageTests.length > 0) {
+          discountAmount = Math.max(0, packageItemsTotal - Number(selectedPackage.price || 0));
+        }
+      }
+      const finalAmount = Math.max(0, totalAmount - discountAmount);
+
       const { data: invoice, error: invoiceError } = await (supabase as any)
         .from("invoices")
         .insert({
@@ -1587,9 +1729,14 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           lab_id: quickAssignPatient.lab_id || currentLab?.id || null,
           collection_center_id: quickAssignPatient.collection_center_id || null,
           total_amount: totalAmount,
-          final_amount: totalAmount,
+          discount_amount: discountAmount,
+          final_amount: finalAmount,
+          paid_amount: collectPayment ? finalAmount : 0,
+          payment_status: collectPayment ? "paid" : "pending",
+          payment_method: collectPayment ? "cash" : null,
+          paid_at: collectPayment ? new Date().toISOString() : null,
           created_by: user?.id || null,
-          notes: `Quick order from Patients tab (${quickAssignSelectedTests.length} test(s))`,
+          notes: `Quick order from Patients tab (${quickAssignSelectedTests.length} test(s))${selectedPackage ? ` • package:${selectedPackage.name}` : ""}${quickAssignOverrideReason.trim() ? ` • duplicate_override:${quickAssignOverrideReason.trim()}` : ""}`,
         })
         .select("id")
         .single();
@@ -1609,10 +1756,28 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const { error: itemsError } = await (supabase as any).from("invoice_items").insert(items);
       if (itemsError) throw itemsError;
 
-      toast.success(`Order created for ${quickAssignPatient.full_name} (${invoiceNumber})`);
-      setQuickAssignOpen(false);
-      setQuickAssignPatient(null);
+      if (collectPayment && finalAmount > 0) {
+        const { error: paymentError } = await (supabase as any).from("payments").insert({
+          invoice_id: invoice.id,
+          organization_id: organizationId,
+          amount: finalAmount,
+          payment_method: "cash",
+          payment_gateway: "manual",
+          payment_date: new Date().toISOString(),
+          notes: "Collected during quick order (Patients tab)",
+        });
+        if (paymentError) throw paymentError;
+      }
+
+      toast.success(`${collectPayment ? "Order + payment recorded" : "Order created"} for ${quickAssignPatient.full_name} (${invoiceNumber})`);
+      setQuickAssignSuccess({ invoiceNumber, finalAmount, patientName: quickAssignPatient.full_name });
       setQuickAssignSelectedTests([]);
+      setQuickAssignSearch("");
+      setQuickAssignSelectedPackageId("none");
+      setQuickAssignDuplicateAccepted(false);
+      setQuickAssignDuplicateInsights([]);
+      setQuickAssignSkipDuplicates(false);
+      setQuickAssignOverrideReason("");
       void fetchPatients();
     } catch (error: any) {
       console.error("Quick assign failed", error);
@@ -1849,10 +2014,31 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     return test.name.toLowerCase().includes(q) || (test.test_id || "").toLowerCase().includes(q);
   }).slice(0, 80);
 
+  const quickAssignRecentSuggestions = Array.from(
+    new Set(patientTests.slice(0, 20).map((t) => t.test_name).filter(Boolean))
+  ).slice(0, 8);
+
   const quickAssignTotal = quickAssignSelectedTests.reduce((sum, testName) => {
     const row = catalogTests.find((t) => t.name === testName);
     return sum + Number(row?.price || 0);
   }, 0);
+
+  const quickAssignSelectedPackage = quickAssignPackages.find((pkg) => pkg.id === quickAssignSelectedPackageId) || null;
+  let quickAssignDiscount = 0;
+  if (quickAssignSelectedPackage) {
+    const packageTestIds = new Set(quickAssignSelectedPackage.tests);
+    const packageItemsTotal = catalogTests
+      .filter((test) => quickAssignSelectedTests.includes(test.name) && packageTestIds.has(test.id))
+      .reduce((sum, test) => sum + Number(test.price || 0), 0);
+    if (packageItemsTotal > 0) {
+      quickAssignDiscount = Math.max(0, packageItemsTotal - Number(quickAssignSelectedPackage.price || 0));
+    }
+  }
+  const quickAssignFinalTotal = Math.max(0, quickAssignTotal - quickAssignDiscount);
+  const quickAssignHasHighRiskDuplicate = quickAssignDuplicateInsights.some((d) => d.risk === "high");
+  const quickAssignSkippedDuplicateNames = quickAssignSkipDuplicates
+    ? quickAssignDuplicateInsights.map((d) => d.test_name)
+    : [];
 
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -2246,18 +2432,84 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           </SheetHeader>
 
           <div className="mt-4 space-y-4">
-            {quickAssignPatient && (
-              <div className="rounded-lg border p-3 bg-muted/30">
-                <p className="font-medium">{quickAssignPatient.full_name}</p>
-                <p className="text-xs text-muted-foreground">{quickAssignPatient.patient_id} • {formatPhoneForDisplay(quickAssignPatient.phone)}</p>
+            {quickAssignSuccess ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
+                <p className="font-semibold text-emerald-800">Order created successfully</p>
+                <div className="text-sm">
+                  <p><span className="text-muted-foreground">Patient:</span> {quickAssignSuccess.patientName}</p>
+                  <p><span className="text-muted-foreground">Invoice:</span> {quickAssignSuccess.invoiceNumber}</p>
+                  <p><span className="text-muted-foreground">Final Amount:</span> ₹{quickAssignSuccess.finalAmount.toLocaleString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => { setTab("billing"); setQuickAssignOpen(false); }}>
+                    Open Billing
+                  </Button>
+                  <Button size="sm" onClick={() => {
+                    setQuickAssignSuccess(null);
+                    setQuickAssignSelectedTests([]);
+                    setQuickAssignSearch("");
+                    setQuickAssignSelectedPackageId("none");
+                    setQuickAssignDuplicateAccepted(false);
+                    setQuickAssignDuplicateInsights([]);
+                    setQuickAssignSkipDuplicates(false);
+                    setQuickAssignOverrideReason("");
+                  }}>
+                    Create Another
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {quickAssignPatient && (
+                  <div className="rounded-lg border p-3 bg-muted/30">
+                    <p className="font-medium">{quickAssignPatient.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{quickAssignPatient.patient_id} • {formatPhoneForDisplay(quickAssignPatient.phone)}</p>
+                  </div>
+                )}
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-assign-package">Package (optional)</Label>
+              <Select name="quick_assign_package" value={quickAssignSelectedPackageId} onValueChange={applyQuickAssignPackage}>
+                <SelectTrigger id="quick-assign-package">
+                  <SelectValue placeholder="Choose a package" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No package</SelectItem>
+                  {quickAssignPackages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name} (₹{Number(pkg.price || 0).toLocaleString()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {quickAssignRecentSuggestions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Recent for this patient</p>
+                <div className="flex flex-wrap gap-2">
+                  {quickAssignRecentSuggestions.map((name) => {
+                    const active = quickAssignSelectedTests.includes(name);
+                    return (
+                      <Badge key={`recent-${name}`} variant={active ? "default" : "secondary"} className="cursor-pointer" onClick={() => toggleQuickAssignTest(name)}>
+                        {active ? "✓ " : ""}{name}
+                      </Badge>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
-            <Input
-              placeholder="Search tests by name or code..."
-              value={quickAssignSearch}
-              onChange={(e) => setQuickAssignSearch(e.target.value)}
-            />
+            <div className="space-y-1">
+              <Label htmlFor="quick-assign-search">Search tests</Label>
+              <Input
+                id="quick-assign-search"
+                name="quick_assign_search"
+                placeholder="Search tests by name or code..."
+                value={quickAssignSearch}
+                onChange={(e) => setQuickAssignSearch(e.target.value)}
+              />
+            </div>
 
             {quickAssignSelectedTests.length > 0 && (
               <div className="rounded-lg border p-3 bg-muted/20 space-y-2">
@@ -2302,14 +2554,80 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
               )}
             </div>
 
-            <div className="rounded-lg border p-3 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Selected {quickAssignSelectedTests.length} test(s)</p>
-              <p className="font-semibold">₹{quickAssignTotal.toLocaleString()}</p>
+            <div className="rounded-lg border p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Selected {quickAssignSelectedTests.length} test(s)</p>
+                <p className="font-semibold">₹{quickAssignTotal.toLocaleString()}</p>
+              </div>
+              {quickAssignDiscount > 0 && (
+                <div className="flex items-center justify-between text-xs text-emerald-700">
+                  <p>Package discount</p>
+                  <p>- ₹{quickAssignDiscount.toLocaleString()}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm font-semibold">
+                <p>Final amount</p>
+                <p>₹{quickAssignFinalTotal.toLocaleString()}</p>
+              </div>
             </div>
+
+            {quickAssignDuplicateInsights.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                <p className="text-sm font-medium text-amber-800">Duplicate intelligence</p>
+                <div className="space-y-1">
+                  {quickAssignDuplicateInsights.map((item) => (
+                    <div key={item.test_name} className="flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-medium">{item.test_name}</span>
+                        <span className="text-muted-foreground ml-2">{formatAppDate(item.last_test_date)} • {item.last_status}</span>
+                      </div>
+                      <Badge
+                        variant={item.risk === "high" ? "destructive" : item.risk === "medium" ? "secondary" : "outline"}
+                      >
+                        {item.risk}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="quick-assign-skip-duplicates" className="text-xs">Skip duplicates and order only fresh tests</Label>
+                  <Switch
+                    id="quick-assign-skip-duplicates"
+                    checked={quickAssignSkipDuplicates}
+                    onCheckedChange={setQuickAssignSkipDuplicates}
+                  />
+                </div>
+
+                {quickAssignDuplicateInsights.some((d) => d.risk === "high") && !quickAssignSkipDuplicates && (
+                  <div className="space-y-1">
+                    <Label htmlFor="quick-assign-override-reason" className="text-xs">Override reason (required for high risk)</Label>
+                    <Input
+                      id="quick-assign-override-reason"
+                      placeholder="Doctor advised repeat due to clinical change"
+                      value={quickAssignOverrideReason}
+                      onChange={(e) => setQuickAssignOverrideReason(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {quickAssignDuplicateAccepted && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                Duplicate warning acknowledged. Click Create Order again to proceed.
+                Duplicate warning acknowledged. Review duplicate intelligence and proceed.
+              </p>
+            )}
+
+            {quickAssignSkipDuplicates && quickAssignSkippedDuplicateNames.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Will skip: {quickAssignSkippedDuplicateNames.join(", ")}
+              </p>
+            )}
+
+            {quickAssignHasHighRiskDuplicate && !quickAssignSkipDuplicates && (
+              <p className="text-xs text-amber-700">
+                High risk = same test repeated within 7 days. Provide override reason to proceed.
               </p>
             )}
 
@@ -2317,10 +2635,24 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
               <Button variant="outline" className="flex-1" onClick={() => setQuickAssignOpen(false)}>
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={() => void createQuickOrder()} disabled={quickAssignSubmitting || quickAssignSelectedTests.length === 0}>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => void createQuickOrder(false)}
+                disabled={quickAssignSubmitting || quickAssignSelectedTests.length === 0 || (quickAssignHasHighRiskDuplicate && !quickAssignSkipDuplicates && !quickAssignOverrideReason.trim())}
+              >
                 {quickAssignSubmitting ? "Creating..." : "Create Order"}
               </Button>
+              <Button
+                className="flex-1"
+                onClick={() => void createQuickOrder(true)}
+                disabled={quickAssignSubmitting || quickAssignSelectedTests.length === 0 || (quickAssignHasHighRiskDuplicate && !quickAssignSkipDuplicates && !quickAssignOverrideReason.trim())}
+              >
+                {quickAssignSubmitting ? "Creating..." : "Create + Collect"}
+              </Button>
             </div>
+          </>
+            )}
           </div>
         </SheetContent>
       </Sheet>

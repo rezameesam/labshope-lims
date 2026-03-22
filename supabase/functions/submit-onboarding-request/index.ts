@@ -153,7 +153,7 @@ const buildLaunchUrls = (domain: string | null, slug: string) => {
   };
 };
 
-// @ts-ignore Deno runtime
+// @ts-expect-error Deno runtime
 const PAGES_CNAME_TARGET: string = (typeof Deno !== "undefined" ? (Deno as any).env.get("PAGES_CNAME_TARGET") : null) || "labshope-lims.pages.dev";
 
 const getDnsGuide = (customDomain: string, fallbackDomain: string) => {

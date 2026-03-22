@@ -7,6 +7,7 @@ import { buildPlatformPathWithMarketing } from "@/lib/platformMarketing";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
 import { buildMarketingUrl, buildOperationsUrl } from "@/lib/publicTenant";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { label: "Home", href: buildMarketingUrl("/") },
@@ -57,6 +58,7 @@ const PlatformSiteHeader = () => {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="lg:hidden" aria-label="Open site navigation">

@@ -57,6 +57,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import CollectionCenterAnalytics from "@/components/admin/CollectionCenterAnalytics";
 import { BarChart3, Settings } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getUpgradeMessage, PLAN_LIMITS, resolvePlanTier } from "@/lib/planLimits";
 
 interface CollectionCenter {
   id: string;
@@ -78,7 +79,7 @@ interface CollectionCenter {
 const ManageCollectionCenters = () => {
   const { hasRole } = useAuth();
   const { currentLab, availableLabs, isLabAdmin } = useLab();
-  const { organization, loading: organizationLoading } = useOrganization();
+  const { organization, loading: organizationLoading, settings } = useOrganization();
   const organizationId = organization?.id ?? null;
   const [centers, setCenters] = useState<CollectionCenter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +191,11 @@ const ManageCollectionCenters = () => {
     }
 
     try {
+      if (!editingCenter && collectionCenterLimitReached) {
+        toast.error(collectionCenterLimitMessage || "Collection center limit reached for current plan");
+        return;
+      }
+
       const centerData = {
         lab_id: centerForm.lab_id,
         organization_id: organizationId,
@@ -266,6 +272,13 @@ const ManageCollectionCenters = () => {
     ? organizationLabs
     : organizationLabs.filter((lab) => isLabAdmin(lab.id));
 
+  const currentPlan = resolvePlanTier(settings.plan_tier);
+  const collectionCenterLimit = PLAN_LIMITS[currentPlan].collectionCenters;
+  const collectionCenterLimitReached = Number.isFinite(collectionCenterLimit) && centers.length >= collectionCenterLimit;
+  const collectionCenterLimitMessage = collectionCenterLimitReached
+    ? getUpgradeMessage(currentPlan, "collectionCenters", collectionCenterLimit)
+    : "";
+
   if (!currentLab && !hasRole("admin")) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -279,7 +292,7 @@ const ManageCollectionCenters = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-clinical-navy">Collection Centers</h2>
+          <h2 className="text-2xl font-bold text-foreground">Collection Centers</h2>
           <p className="text-muted-foreground">Manage sample collection centers</p>
         </div>
         <div className="flex gap-2">
@@ -296,13 +309,23 @@ const ManageCollectionCenters = () => {
             </TabsList>
           </Tabs>
           {viewMode === "management" && accessibleLabs.length > 0 && (
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+            <Button
+              onClick={() => { resetForm(); setIsDialogOpen(true); }}
+              disabled={collectionCenterLimitReached}
+              title={collectionCenterLimitReached ? collectionCenterLimitMessage : undefined}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Collection Center
             </Button>
           )}
         </div>
       </div>
+
+      {collectionCenterLimitReached && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+          {collectionCenterLimitMessage}
+        </div>
+      )}
 
       {/* Analytics View */}
       {viewMode === "analytics" && (

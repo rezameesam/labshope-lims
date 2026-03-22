@@ -102,8 +102,8 @@ export default function PlatformAuditLog() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Audit Log</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-xl font-semibold text-foreground">Audit Log</h2>
+            <p className="text-sm text-muted-foreground">
               Platform-level action trail for ops and compliance.
             </p>
           </div>
@@ -153,13 +153,19 @@ export default function PlatformAuditLog() {
               ))}
             </SelectContent>
           </Select>
+          <label htmlFor="audit-date-from" className="sr-only">From date</label>
           <Input
+            id="audit-date-from"
+            name="audit_date_from"
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="w-40"
           />
+          <label htmlFor="audit-date-to" className="sr-only">To date</label>
           <Input
+            id="audit-date-to"
+            name="audit_date_to"
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
@@ -168,10 +174,10 @@ export default function PlatformAuditLog() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-[28px] border border-border bg-card shadow-sm">
           {loading ? (
             <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <>
@@ -191,7 +197,7 @@ export default function PlatformAuditLog() {
                     <TableRow>
                       <TableCell
                         colSpan={6}
-                        className="py-8 text-center text-slate-400"
+                        className="py-8 text-center text-muted-foreground"
                       >
                         No audit log entries found.
                       </TableCell>
@@ -199,22 +205,22 @@ export default function PlatformAuditLog() {
                   ) : (
                     paginated.map((entry) => (
                       <TableRow key={entry.id}>
-                        <TableCell className="whitespace-nowrap text-xs text-slate-500">
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                           {formatAppDateTime(entry.created_at)}
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary">{entry.action}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-slate-600">
+                        <TableCell className="text-sm text-muted-foreground">
                           {entry.entity_type}
                         </TableCell>
-                        <TableCell className="max-w-[140px] truncate font-mono text-xs text-slate-500">
+                        <TableCell className="max-w-[140px] truncate font-mono text-xs text-muted-foreground">
                           {entry.entity_id}
                         </TableCell>
-                        <TableCell className="max-w-[120px] truncate font-mono text-xs text-slate-400">
+                        <TableCell className="max-w-[120px] truncate font-mono text-xs text-muted-foreground">
                           {entry.user_id ?? "—"}
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate text-xs text-slate-400">
+                        <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
                           {entry.details ? JSON.stringify(entry.details) : "—"}
                         </TableCell>
                       </TableRow>

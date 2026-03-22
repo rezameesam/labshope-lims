@@ -6,7 +6,7 @@ import {
   type AbdmConfig,
 } from "../_shared/abdm-settings.ts";
 import { resolveOrganizationIdentity } from "../_shared/organization-settings.ts";
-// @ts-ignore node:crypto available in Supabase Edge Runtime (Deno 1.40+)
+// @ts-expect-error node:crypto available in Supabase Edge Runtime (Deno 1.40+)
 import { publicEncrypt, constants } from "node:crypto";
 
 const corsHeaders = {

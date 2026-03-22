@@ -114,7 +114,7 @@ type IntegrationHealth = {
 type PlanTier = "starter" | "growth" | "premium";
 
 const PLAN_COLORS: Record<PlanTier, string> = {
-  starter: "bg-slate-100 text-slate-700 border-slate-300",
+  starter: "bg-muted text-foreground/80 border-border",
   growth: "bg-blue-100 text-blue-700 border-blue-300",
   premium: "bg-amber-100 text-amber-700 border-amber-300",
 };
@@ -411,7 +411,7 @@ const PlatformCustomerDetail = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : !organization ? (
-        <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-[28px] border border-border bg-card shadow-sm">
           <CardHeader>
             <CardTitle>Customer not found</CardTitle>
             <CardDescription>The requested organization could not be loaded.</CardDescription>
@@ -425,16 +425,16 @@ const PlatformCustomerDetail = () => {
         </Card>
       ) : (
       <div className="space-y-6">
-          <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
             <CardHeader className="pb-5">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     <Building2 className="h-3.5 w-3.5" />
                     Customer Detail
                   </div>
-                  <CardTitle className="mt-4 text-3xl text-slate-950">{organization.display_name}</CardTitle>
-                  <CardDescription className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                  <CardTitle className="mt-4 text-3xl text-foreground">{organization.display_name}</CardTitle>
+                  <CardDescription className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
                     Tenant profile for software-owner review: plan, domains, onboarding source, operating footprint, and recent billing.
                   </CardDescription>
 
@@ -524,45 +524,45 @@ const PlatformCustomerDetail = () => {
               </div>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Slug</p>
-                <p className="mt-2 text-lg font-semibold text-slate-950">{organization.slug}</p>
-                <p className="mt-2 text-sm text-slate-600">Created {formatAppDateTime(organization.created_at)}</p>
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Slug</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{organization.slug}</p>
+                <p className="mt-2 text-sm text-muted-foreground">Created {formatAppDateTime(organization.created_at)}</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Plan</p>
-                <p className="mt-2 text-lg font-semibold capitalize text-slate-950">
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Plan</p>
+                <p className="mt-2 text-lg font-semibold capitalize text-foreground">
                   {onboarding?.selected_plan || "Unassigned"}
                 </p>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {onboarding?.setup_mode ? onboarding.setup_mode.replace("_", "-") : "No onboarding record"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Domain status</p>
-                <p className="mt-2 text-lg font-semibold text-slate-950">{liveStatus}</p>
-                <p className="mt-2 text-sm text-slate-600">{primaryDomain?.domain || "No primary domain"}</p>
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Domain status</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{liveStatus}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{primaryDomain?.domain || "No primary domain"}</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Payments</p>
-                <p className="mt-2 text-lg font-semibold text-slate-950">
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Payments</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">
                   {new Intl.NumberFormat("en-IN", {
                     style: "currency",
                     currency: "INR",
                     maximumFractionDigits: 0,
                   }).format(paymentsTotal)}
                 </p>
-                <p className="mt-2 text-sm text-slate-600">Recorded across all tenant invoices</p>
+                <p className="mt-2 text-sm text-muted-foreground">Recorded across all tenant invoices</p>
               </div>
             </CardContent>
           </Card>
 
           {/* Integration Health Card */}
-          <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-slate-200 pb-5">
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">Integration Health</CardTitle>
+                  <CardTitle className="text-2xl text-foreground">Integration Health</CardTitle>
                   <CardDescription>Live signal for each configured integration. Click an item to open the relevant settings.</CardDescription>
                 </div>
                 {integrationHealth && (
@@ -611,12 +611,12 @@ const PlatformCustomerDetail = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold leading-none text-slate-950">{label}</p>
+                          <p className="text-sm font-semibold leading-none text-foreground">{label}</p>
                           <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
                             {ok ? "OK" : "Fix"}
                           </span>
                         </div>
-                        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                           {ok ? "Connected and active." : hint}
                         </p>
                       </div>
@@ -628,11 +628,11 @@ const PlatformCustomerDetail = () => {
           </Card>
 
           {/* Plan & Billing Card */}
-          <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-slate-200 pb-5">
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">Plan & Billing</CardTitle>
+                  <CardTitle className="text-2xl text-foreground">Plan & Billing</CardTitle>
                   <CardDescription>Current subscription tier and onboarding owner details.</CardDescription>
                 </div>
                 {!editingPlan && (
@@ -664,21 +664,21 @@ const PlatformCustomerDetail = () => {
                       </Badge>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500">{PLAN_FEATURES[currentPlan]}</p>
+                  <p className="text-sm text-muted-foreground">{PLAN_FEATURES[currentPlan]}</p>
                   {onboarding && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-medium text-slate-950">{onboarding.owner_full_name}</p>
-                      <p className="text-xs text-slate-500">{onboarding.owner_email}</p>
+                    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">{onboarding.owner_full_name}</p>
+                      <p className="text-xs text-muted-foreground">{onboarding.owner_email}</p>
                     </div>
                   )}
                   {!onboarding && (
-                    <p className="text-sm text-slate-500">No onboarding request linked to this tenant.</p>
+                    <p className="text-sm text-muted-foreground">No onboarding request linked to this tenant.</p>
                   )}
                 </div>
               </div>
 
               {editingPlan && (
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-4">
                   <Select
                     value={pendingPlan}
                     onValueChange={(v) => setPendingPlan(v as PlanTier)}
@@ -710,52 +710,52 @@ const PlatformCustomerDetail = () => {
           </Card>
 
           <div className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
-            <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-              <CardHeader className="border-b border-slate-200 pb-5">
-                <CardTitle className="text-2xl text-slate-950">Identity & launch</CardTitle>
+            <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+              <CardHeader className="border-b border-border pb-5">
+                <CardTitle className="text-2xl text-foreground">Identity & launch</CardTitle>
                 <CardDescription>How this tenant entered the platform and what domain state it is in.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 p-6">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Onboarding source</p>
-                  <p className="mt-2 text-base font-semibold text-slate-950">
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Onboarding source</p>
+                  <p className="mt-2 text-base font-semibold text-foreground">
                     {onboarding ? `${onboarding.setup_mode.replace("_", "-")} · ${onboarding.selected_plan}` : "No onboarding record"}
                   </p>
-                  <p className="mt-2 text-sm text-slate-600">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {onboarding
                       ? `${onboarding.owner_full_name} · ${onboarding.owner_email}`
                       : "This tenant was not tied to a captured onboarding request."}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
                   <div className="flex items-start gap-3">
-                    <Globe2 className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <Globe2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-950">Primary domain</p>
-                      <p className="truncate text-sm text-slate-600">{primaryDomain?.domain || "-"}</p>
-                      <p className="mt-2 text-xs text-slate-500">
+                      <p className="text-sm font-semibold text-foreground">Primary domain</p>
+                      <p className="truncate text-sm text-muted-foreground">{primaryDomain?.domain || "-"}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {primaryDomain?.verified_at ? `Verified ${formatAppDateTime(primaryDomain.verified_at)}` : "Not verified yet"}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
                   <div className="flex items-start gap-3">
-                    <Globe2 className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <Globe2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-950">Fallback access</p>
-                      <p className="truncate text-sm text-slate-600">{fallbackDomain?.domain || onboarding?.resolved_access_domain || "-"}</p>
-                      <p className="mt-2 text-xs text-slate-500">Keep this active until custom DNS is confirmed live.</p>
+                      <p className="text-sm font-semibold text-foreground">Fallback access</p>
+                      <p className="truncate text-sm text-muted-foreground">{fallbackDomain?.domain || onboarding?.resolved_access_domain || "-"}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Keep this active until custom DNS is confirmed live.</p>
                     </div>
                   </div>
                 </div>
 
                 {domains.length > 0 && (
-                  <div className="rounded-2xl border border-slate-200 bg-white">
+                  <div className="rounded-2xl border border-border bg-card">
                     <Table>
-                      <TableHeader className="bg-slate-50">
+                      <TableHeader className="bg-muted/40">
                         <TableRow>
                           <TableHead>Domain</TableHead>
                           <TableHead>Role</TableHead>
@@ -781,39 +781,39 @@ const PlatformCustomerDetail = () => {
               </CardContent>
             </Card>
 
-            <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-              <CardHeader className="border-b border-slate-200 pb-5">
-                <CardTitle className="text-2xl text-slate-950">Operating footprint</CardTitle>
+            <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+              <CardHeader className="border-b border-border pb-5">
+                <CardTitle className="text-2xl text-foreground">Operating footprint</CardTitle>
                 <CardDescription>Current tenant size across locations, users, patients, and recent billing.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Labs</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-950">{labs.length}</p>
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Labs</p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">{labs.length}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Staff</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-950">{employees.length}</p>
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Staff</p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">{employees.length}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Patients</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-950">{patientsCount}</p>
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Patients</p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">{patientsCount}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recent invoices</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-950">{recentInvoices.length}</p>
+                <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Recent invoices</p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">{recentInvoices.length}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="grid gap-6 2xl:grid-cols-[0.9fr_1.1fr]">
-            <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-              <CardHeader className="border-b border-slate-200 pb-5">
+            <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+              <CardHeader className="border-b border-border pb-5">
                 <div className="flex items-center gap-3">
-                  <Users className="h-5 w-5 text-slate-500" />
+                  <Users className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <CardTitle className="text-2xl text-slate-950">Labs & staff</CardTitle>
+                    <CardTitle className="text-2xl text-foreground">Labs & staff</CardTitle>
                     <CardDescription>Main operating entities inside this tenant.</CardDescription>
                   </div>
                 </div>
@@ -821,18 +821,18 @@ const PlatformCustomerDetail = () => {
               <CardContent className="space-y-4 p-6">
                 <div className="space-y-3">
                   {labs.length === 0 ? (
-                    <p className="text-sm text-slate-500">No labs found for this tenant.</p>
+                    <p className="text-sm text-muted-foreground">No labs found for this tenant.</p>
                   ) : (
                     labs.map((lab) => (
-                      <div key={lab.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div key={lab.id} className="rounded-2xl border border-border bg-muted/40 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="font-semibold text-slate-950">{lab.name}</p>
-                            <p className="text-xs text-slate-500">{lab.lab_code} · {lab.type}</p>
+                            <p className="font-semibold text-foreground">{lab.name}</p>
+                            <p className="text-xs text-muted-foreground">{lab.lab_code} · {lab.type}</p>
                           </div>
-                          <p className="text-xs text-slate-500">{formatAppDateTime(lab.created_at)}</p>
+                          <p className="text-xs text-muted-foreground">{formatAppDateTime(lab.created_at)}</p>
                         </div>
-                        <p className="mt-2 text-sm text-slate-600">
+                        <p className="mt-2 text-sm text-muted-foreground">
                           {[lab.city, lab.phone].filter(Boolean).join(" · ") || "No city or phone yet"}
                         </p>
                       </div>
@@ -840,9 +840,9 @@ const PlatformCustomerDetail = () => {
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white">
+                <div className="rounded-2xl border border-border bg-card">
                   <Table>
-                    <TableHeader className="bg-slate-50">
+                    <TableHeader className="bg-muted/40">
                       <TableRow>
                         <TableHead>Staff</TableHead>
                         <TableHead>Role</TableHead>
@@ -854,14 +854,14 @@ const PlatformCustomerDetail = () => {
                         <TableRow key={employee.id}>
                           <TableCell>
                             <div>
-                              <p className="font-medium text-slate-950">{employee.full_name}</p>
-                              <p className="text-xs text-slate-500">{employee.employee_id}</p>
+                              <p className="font-medium text-foreground">{employee.full_name}</p>
+                              <p className="text-xs text-muted-foreground">{employee.employee_id}</p>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div>
                               <p>{employee.designation || "Staff"}</p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-muted-foreground">
                                 {employee.lab_id ? labNameById[employee.lab_id] || "Assigned lab" : "No lab assigned"}
                               </p>
                             </div>
@@ -879,15 +879,15 @@ const PlatformCustomerDetail = () => {
               </CardContent>
             </Card>
 
-            <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-              <CardHeader className="border-b border-slate-200 pb-5">
-                <CardTitle className="text-2xl text-slate-950">Recent invoices</CardTitle>
+            <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+              <CardHeader className="border-b border-border pb-5">
+                <CardTitle className="text-2xl text-foreground">Recent invoices</CardTitle>
                 <CardDescription>Latest billing activity visible from the software-owner layer.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-hidden rounded-2xl border border-border">
                   <Table>
-                    <TableHeader className="bg-slate-50">
+                    <TableHeader className="bg-muted/40">
                       <TableRow>
                         <TableHead>Invoice</TableHead>
                         <TableHead>Amount</TableHead>
@@ -898,14 +898,14 @@ const PlatformCustomerDetail = () => {
                     <TableBody>
                       {recentInvoices.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-sm text-slate-500">
+                          <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
                             No invoices found for this tenant yet.
                           </TableCell>
                         </TableRow>
                       ) : (
                         recentInvoices.map((invoice) => (
                           <TableRow key={invoice.id}>
-                            <TableCell className="font-medium text-slate-950">{invoice.invoice_number}</TableCell>
+                            <TableCell className="font-medium text-foreground">{invoice.invoice_number}</TableCell>
                             <TableCell>
                               {new Intl.NumberFormat("en-IN", {
                                 style: "currency",
@@ -918,7 +918,7 @@ const PlatformCustomerDetail = () => {
                                 {invoice.payment_status}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-slate-500">{formatAppDateTime(invoice.created_at)}</TableCell>
+                            <TableCell className="text-muted-foreground">{formatAppDateTime(invoice.created_at)}</TableCell>
                           </TableRow>
                         ))
                       )}

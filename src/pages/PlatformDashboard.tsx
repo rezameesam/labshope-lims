@@ -172,8 +172,8 @@ const PlatformDashboard = () => {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Control</p>
-          <h2 className="mt-1 font-heading text-3xl font-bold tracking-tight text-slate-950">Overview</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Control</p>
+          <h2 className="mt-1 font-heading text-3xl font-bold tracking-tight text-foreground">Overview</h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate("/platform/leads")}>
@@ -215,14 +215,14 @@ const PlatformDashboard = () => {
             onFilterChange={setOnboardingFilter}
           />
 
-          <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-slate-200 pb-5">
-              <CardTitle className="text-2xl text-slate-950">Customer Ops</CardTitle>
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-5">
+              <CardTitle className="text-2xl text-foreground">Customer Ops</CardTitle>
               <CardDescription>Open the dedicated customer module for plans, domains, and tenant footprint.</CardDescription>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm leading-7 text-slate-600">
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <p className="text-sm leading-7 text-muted-foreground">
                   Use the customer module when you need an operator view across tenant plans, live domains, fallback domains, usage footprint, and recorded payments.
                 </p>
                 <Button className="mt-4" variant="outline" onClick={() => navigate("/platform/customers")}>

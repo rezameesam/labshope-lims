@@ -23,14 +23,14 @@ interface Props {
 }
 
 export const TenantsTable = ({ tenants, search, onSearchChange, organizationCount }: Props) => (
-  <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-    <CardHeader className="border-b border-slate-200 pb-5">
+  <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+    <CardHeader className="border-b border-border pb-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <CardTitle className="text-2xl text-slate-950">Customers</CardTitle>
+          <CardTitle className="text-2xl text-foreground">Customers</CardTitle>
           <CardDescription>Search the tenant base and inspect public-domain state.</CardDescription>
         </div>
-        <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
+        <Badge variant="outline" className="w-fit border-border bg-muted/40 text-foreground/80">
           {organizationCount} organizations
         </Badge>
       </div>
@@ -41,13 +41,13 @@ export const TenantsTable = ({ tenants, search, onSearchChange, organizationCoun
         <Input
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          className="border-slate-200 bg-slate-50 pl-10"
+          className="border-border bg-muted/40 pl-10"
           placeholder="Search tenant, slug, or domain"
         />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200">
+      <div className="overflow-hidden rounded-2xl border border-border">
         <Table>
-          <TableHeader className="bg-slate-50">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               <TableHead>Organization</TableHead>
               <TableHead>Primary Domain</TableHead>
@@ -61,8 +61,8 @@ export const TenantsTable = ({ tenants, search, onSearchChange, organizationCoun
               <TableRow key={tenant.id}>
                 <TableCell>
                   <div>
-                    <p className="font-semibold text-slate-950">{tenant.displayName}</p>
-                    <p className="text-xs text-slate-500">{tenant.slug}</p>
+                    <p className="font-semibold text-foreground">{tenant.displayName}</p>
+                    <p className="text-xs text-muted-foreground">{tenant.slug}</p>
                   </div>
                 </TableCell>
                 <TableCell className="max-w-[260px] truncate">{tenant.primaryDomain || "-"}</TableCell>
@@ -72,7 +72,7 @@ export const TenantsTable = ({ tenants, search, onSearchChange, organizationCoun
                     {tenant.connected ? "connected" : "needs DNS"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-slate-500">{formatAppDateTime(tenant.createdAt)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatAppDateTime(tenant.createdAt)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

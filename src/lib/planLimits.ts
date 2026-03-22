@@ -9,18 +9,21 @@ export const PLAN_PRICES: Record<PlanTier, number> = {
 export const PLAN_LIMITS = {
   starter: {
     labs: 1,
-    employees: 10,
-    patients: 25000,
+    employees: 5,
+    patients: 10000,
+    collectionCenters: 1,
   },
   growth: {
-    labs: 10,
-    employees: 100,
-    patients: 300000,
+    labs: 5,
+    employees: 50,
+    patients: 100000,
+    collectionCenters: 10,
   },
   premium: {
     labs: Infinity,
     employees: Infinity,
     patients: Infinity,
+    collectionCenters: Infinity,
   },
 } as const;
 
@@ -39,7 +42,7 @@ export const resolvePlanTier = (value?: string | null): PlanTier => {
 
 export const getUpgradeMessage = (
   currentPlan: PlanTier,
-  metric: "labs" | "employees" | "patients",
+  metric: "labs" | "employees" | "patients" | "collectionCenters",
   limit: number
 ) => {
   const upgradeTo = NEXT_PLAN[currentPlan];
@@ -56,6 +59,10 @@ export const getUpgradeMessage = (
 
   if (metric === "employees") {
     return `${currentLabel} package supports up to ${limit} active employees. Upgrade to ${upgradeLabel} to add more staff.`;
+  }
+
+  if (metric === "collectionCenters") {
+    return `${currentLabel} package supports up to ${limit} collection centers. Upgrade to ${upgradeLabel} to add more centers.`;
   }
 
   return `${currentLabel} package supports up to ${limit.toLocaleString("en-IN")} patients. Upgrade to ${upgradeLabel} to keep growing your customer base.`;

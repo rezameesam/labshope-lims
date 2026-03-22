@@ -863,6 +863,7 @@ export const TestFormDialog = ({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-clinical-blue text-primary-foreground hover:bg-clinical-blue-dark"
               onClick={onSubmitConfirm}
               disabled={isSubmitting || !selectedPatient || selectedTests.length === 0}
             >

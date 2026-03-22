@@ -223,14 +223,14 @@ export default function PlatformCoupons() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium mb-1">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium mb-1">
             <Tag className="h-4 w-4" />
             <span>Coupons</span>
           </div>
-          <h1 className="font-heading text-2xl font-bold text-slate-900 tracking-tight">
+          <h1 className="font-heading text-2xl font-bold text-foreground tracking-tight">
             Discount Codes
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Create and manage coupon codes for plan discounts.
           </p>
         </div>
@@ -241,14 +241,14 @@ export default function PlatformCoupons() {
       </div>
 
       {/* Table card */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
         {fetching ? (
-          <div className="flex items-center justify-center py-16 text-slate-400 text-sm gap-2">
+          <div className="flex items-center justify-center py-16 text-muted-foreground text-sm gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading coupons…
           </div>
         ) : coupons.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
             <Tag className="h-8 w-8 opacity-30" />
             <p className="text-sm">No coupon codes yet. Create your first one.</p>
           </div>
@@ -256,7 +256,7 @@ export default function PlatformCoupons() {
           <>
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50 border-b border-slate-200">
+              <TableRow className="bg-muted/40 border-b border-border">
                 {(
                   [
                     { label: "Code", col: "code", className: "pl-6" },
@@ -268,18 +268,18 @@ export default function PlatformCoupons() {
                     { label: "Created", col: "created_at" },
                   ] as { label: string; col: keyof CouponCode; className?: string }[]
                 ).map(({ label, col, className }) => (
-                  <TableHead key={col} className={`font-semibold text-slate-700 ${className ?? ""}`}>
+                  <TableHead key={col} className={`font-semibold text-foreground/80 ${className ?? ""}`}>
                     <button
                       type="button"
                       onClick={() => handleSort(col)}
-                      className="inline-flex items-center hover:text-slate-900 transition-colors"
+                      className="inline-flex items-center hover:text-foreground transition-colors"
                     >
                       {label}
                       <SortIcon col={col} />
                     </button>
                   </TableHead>
                 ))}
-                <TableHead className="font-semibold text-slate-700 pr-6 text-right">Action</TableHead>
+                <TableHead className="font-semibold text-foreground/80 pr-6 text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -290,25 +290,25 @@ export default function PlatformCoupons() {
                       {coupon.code}
                     </span>
                     {coupon.note && (
-                      <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[160px]">{coupon.note}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[160px]">{coupon.note}</p>
                     )}
                   </TableCell>
                   <TableCell>
-                    <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                    <span className="inline-flex items-center rounded-lg bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
                       {formatDiscount(coupon)}
                       <span className="ml-1 font-normal text-indigo-500">
                         {coupon.discount_type === "percent" ? "off" : "flat"}
                       </span>
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600">
+                  <TableCell className="text-sm text-muted-foreground">
                     {formatPlans(coupon.applicable_plans)}
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600">
+                  <TableCell className="text-sm text-muted-foreground">
                     {coupon.uses_count}
                     {coupon.max_uses !== null ? ` / ${coupon.max_uses}` : " / ∞"}
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600">
+                  <TableCell className="text-sm text-muted-foreground">
                     {formatDate(coupon.valid_until)}
                   </TableCell>
                   <TableCell>
@@ -317,12 +317,12 @@ export default function PlatformCoupons() {
                         Active
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-500 border-slate-200">
+                      <Badge variant="secondary" className="bg-muted text-muted-foreground border-border">
                         Inactive
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-slate-500">
+                  <TableCell className="text-sm text-muted-foreground">
                     {formatDate(coupon.created_at)}
                   </TableCell>
                   <TableCell className="pr-6 text-right">
@@ -333,8 +333,8 @@ export default function PlatformCoupons() {
                       disabled={togglingId === coupon.id}
                       className={
                         coupon.is_active
-                          ? "text-slate-500 hover:text-red-600 hover:bg-red-50"
-                          : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                          ? "text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50"
                       }
                     >
                       {togglingId === coupon.id ? (
@@ -442,7 +442,7 @@ export default function PlatformCoupons() {
                       setForm((p) => ({ ...p, applicable_plans_all: Boolean(checked), applicable_plans: [] }))
                     }
                   />
-                  <label htmlFor="coupon-plans-all" className="text-sm cursor-pointer text-slate-700">
+                  <label htmlFor="coupon-plans-all" className="text-sm cursor-pointer text-foreground/80">
                     All plans
                   </label>
                 </div>
@@ -457,7 +457,7 @@ export default function PlatformCoupons() {
                         />
                         <label
                           htmlFor={`coupon-plan-${plan}`}
-                          className="text-sm cursor-pointer text-slate-700 capitalize"
+                          className="text-sm cursor-pointer text-foreground/80 capitalize"
                         >
                           {plan}
                         </label>
@@ -472,7 +472,7 @@ export default function PlatformCoupons() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="coupon-max-uses">
-                  Max uses <span className="text-slate-400 font-normal">(optional)</span>
+                  Max uses <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <Input
                   id="coupon-max-uses"
@@ -486,7 +486,7 @@ export default function PlatformCoupons() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="coupon-valid-until">
-                  Valid until <span className="text-slate-400 font-normal">(optional)</span>
+                  Valid until <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <Input
                   id="coupon-valid-until"
@@ -500,7 +500,7 @@ export default function PlatformCoupons() {
             {/* Note */}
             <div className="space-y-1.5">
               <Label htmlFor="coupon-note">
-                Note <span className="text-slate-400 font-normal">(optional)</span>
+                Note <span className="text-muted-foreground font-normal">(optional)</span>
               </Label>
               <Input
                 id="coupon-note"

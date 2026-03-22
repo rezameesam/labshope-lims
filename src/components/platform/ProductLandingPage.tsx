@@ -167,20 +167,20 @@ const ProductLandingPage = () => {
         <PlatformSiteHeader />
 
         <main>
-          <section className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--clinical-navy))_0%,hsl(var(--clinical-blue-dark))_48%,hsl(var(--clinical-blue))_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.14),transparent_28%)]" />
+          <section className="relative overflow-hidden bg-gradient-to-br from-primary/15 via-background to-primary/5">
+            
+            
             <div className="container relative z-10 mx-auto px-4 py-24 lg:px-8 lg:py-32">
               <div className="grid gap-14 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
                 <div className="max-w-3xl">
-                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2 text-sm font-medium text-primary-foreground/90">
+                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-4 py-2 text-sm font-medium text-foreground">
                     <ShieldCheck className="h-4 w-4" />
                     Built for diagnostic labs and growing branch operations
                   </div>
-                  <h2 className="font-heading text-4xl font-bold leading-tight text-primary-foreground md:text-6xl">
+                  <h2 className="font-heading text-4xl font-bold leading-tight text-foreground md:text-6xl">
                     Run Your Diagnostic Lab On One Modern System
                   </h2>
-                  <p className="mt-6 max-w-2xl text-lg text-primary-foreground/80 md:text-xl">
+                  <p className="mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
                     Manage patients, tests, billing, reports, reminders, and branches from one platform built for diagnostic labs.
                   </p>
                   <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -194,34 +194,34 @@ const ProductLandingPage = () => {
                       </Button>
                     </Link>
                   </div>
-                  <div className="mt-10 grid gap-3 text-sm text-primary-foreground/80 sm:grid-cols-3">
+                  <div className="mt-10 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
                     {heroStats.map((stat) => (
-                      <div key={stat.label} className="rounded-3xl border border-primary-foreground/15 bg-primary-foreground/10 px-5 py-4">
-                        <p className="font-heading text-2xl font-bold text-primary-foreground">{stat.value}</p>
-                        <p className="mt-1 text-primary-foreground/75">{stat.label}</p>
+                      <div key={stat.label} className="rounded-3xl border border-border/70 bg-card/70 px-5 py-4">
+                        <p className="font-heading text-2xl font-bold text-foreground">{stat.value}</p>
+                        <p className="mt-1 text-muted-foreground">{stat.label}</p>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 <div className="space-y-5">
-                  <div className="rounded-[2rem] border border-white/15 bg-white/10 p-6 text-primary-foreground shadow-2xl backdrop-blur">
-                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary-foreground/70">Why labs switch</p>
+                  <div className="rounded-[2rem] border border-border/70 bg-card/70 p-6 text-foreground shadow-2xl backdrop-blur">
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-muted-foreground">Why labs switch</p>
                     <div className="mt-6 space-y-5">
                       {[
                         "Replace spreadsheets, chats, and disconnected workflows",
                         "Improve turnaround across patients, billing, and reports",
                         "Launch a branded patient experience for each lab customer",
                       ].map((item) => (
-                        <div key={item} className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                          <p className="text-base leading-relaxed text-primary-foreground/90">{item}</p>
+                        <div key={item} className="rounded-2xl border border-border/60 bg-card/70 p-4">
+                          <p className="text-base leading-relaxed text-foreground">{item}</p>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-[2rem] border border-white/15 bg-clinical-navy/55 p-6 text-primary-foreground shadow-2xl backdrop-blur">
-                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary-foreground/70">Commercial model</p>
-                    <div className="mt-5 space-y-3 text-sm leading-7 text-primary-foreground/85">
+                  <div className="rounded-[2rem] border border-border/70 bg-card/80 p-6 text-foreground shadow-2xl backdrop-blur">
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-muted-foreground">Commercial model</p>
+                    <div className="mt-5 space-y-3 text-sm leading-7 text-foreground/80">
                       <p>Root domain sells the product.</p>
                       <p>Tenant domain serves the lab’s patients and staff.</p>
                       <p>No per-customer forked repo model.</p>
@@ -251,7 +251,7 @@ const ProductLandingPage = () => {
             <div className="container mx-auto px-4 py-14 lg:px-8">
               <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Start On Your Own</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Start On Your Own</p>
                   <h3 className="mt-4 font-heading text-3xl font-bold text-foreground">
                     If your lab already knows the basics, skip the long sales loop
                   </h3>
@@ -274,7 +274,7 @@ const ProductLandingPage = () => {
           <section className="bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--secondary)/0.35)_100%)]">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Operating Model</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Operating Model</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold text-foreground md:text-5xl">
                   Structured like a product company, not a custom build for every buyer
                 </h3>
@@ -293,7 +293,7 @@ const ProductLandingPage = () => {
                         : "border-border bg-card"
                     }`}
                   >
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
                       Layer {index + 1}
                     </p>
                     <h4 className="mt-4 font-heading text-2xl font-semibold text-foreground">{item.title}</h4>
@@ -304,10 +304,10 @@ const ProductLandingPage = () => {
             </div>
           </section>
 
-          <section className="border-b border-border/60 bg-card">
+          <section className="border-b border-border/60 bg-muted/20">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">The problem</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">The problem</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold text-foreground md:text-5xl">
                   Most labs still run critical work in too many places
                 </h3>
@@ -322,7 +322,7 @@ const ProductLandingPage = () => {
           <section id="features" className="bg-background">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Features</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Features</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold md:text-5xl">One platform for daily lab operations</h3>
                 <p className="mt-6 text-lg text-muted-foreground">
                   From patient registration to final report delivery, keep your core workflows in one system your staff can use every day.
@@ -331,7 +331,7 @@ const ProductLandingPage = () => {
               <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {features.map((feature) => (
                   <article key={feature.title} className="rounded-3xl border border-border bg-card p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-blue-light text-clinical-blue">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <feature.icon className="h-6 w-6" />
                     </div>
                     <h4 className="mt-6 font-heading text-2xl font-semibold text-foreground">{feature.title}</h4>
@@ -346,7 +346,7 @@ const ProductLandingPage = () => {
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Workflow Preview</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Workflow Preview</p>
                   <h3 className="mt-4 font-heading text-3xl font-bold text-foreground md:text-5xl">
                     The product should look operational, not theoretical
                   </h3>
@@ -369,7 +369,7 @@ const ProductLandingPage = () => {
                     <article key={card.title} className="rounded-[2rem] border border-border bg-card p-6 shadow-sm">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-clinical-blue">{card.eyebrow}</p>
+                          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">{card.eyebrow}</p>
                           <h4 className="mt-3 font-heading text-2xl font-semibold text-foreground">{card.title}</h4>
                         </div>
                         <span className={`mt-1 h-3 w-3 rounded-full ${card.accent}`} />
@@ -378,7 +378,7 @@ const ProductLandingPage = () => {
                         {card.metrics.map(([label, value]) => (
                           <div key={label} className="rounded-2xl border border-border/70 bg-background px-4 py-4">
                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-                            <p className="mt-3 font-heading text-2xl font-bold text-clinical-navy">{value}</p>
+                            <p className="mt-3 font-heading text-2xl font-bold text-foreground">{value}</p>
                           </div>
                         ))}
                       </div>
@@ -392,7 +392,7 @@ const ProductLandingPage = () => {
           <section className="border-y border-border/60 bg-secondary/40">
             <div className="container mx-auto grid gap-10 px-4 py-20 lg:grid-cols-2 lg:px-8">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Outcomes</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Outcomes</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold md:text-5xl">Built to reduce operational friction</h3>
                 <ul className="mt-8 space-y-4 text-lg text-muted-foreground">
                   <li>Faster billing and report turnaround</li>
@@ -403,7 +403,7 @@ const ProductLandingPage = () => {
                 </ul>
               </div>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Who it’s for</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Who it’s for</p>
                 <div className="mt-8 space-y-5">
                   {[
                     ["Single Lab", "For owner-led labs that want to replace manual workflows with one reliable system."],
@@ -423,7 +423,7 @@ const ProductLandingPage = () => {
           <section id="onboarding" className="bg-background">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Onboarding</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Onboarding</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold md:text-5xl">Go live without reinventing your process</h3>
                 <p className="mt-6 text-lg text-muted-foreground">
                   We help you launch with your own branding, staff setup, tests, pricing, and patient workflow so you can move from setup to daily use quickly.
@@ -438,7 +438,7 @@ const ProductLandingPage = () => {
                   "Train your team and go live",
                 ].map((step, index) => (
                   <article key={step} className="rounded-3xl border border-border bg-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-clinical-blue">Step {index + 1}</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Step {index + 1}</p>
                     <p className="mt-4 text-base leading-7 text-foreground">{step}</p>
                   </article>
                 ))}
@@ -446,10 +446,10 @@ const ProductLandingPage = () => {
             </div>
           </section>
 
-          <section id="pricing" className="border-y border-border/60 bg-card">
+          <section id="pricing" className="border-y border-border/60 bg-muted/20">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Pricing</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Pricing</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold md:text-5xl">Simple plans for lab growth</h3>
                 <p className="mt-6 text-lg text-muted-foreground">
                   Choose a plan based on your lab size, branch structure, and onboarding needs.
@@ -466,7 +466,7 @@ const ProductLandingPage = () => {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-4">
-                      <h4 className="font-heading text-3xl font-bold text-clinical-navy">{plan.name}</h4>
+                      <h4 className="font-heading text-3xl font-bold text-foreground">{plan.name}</h4>
                       {index === 1 ? (
                         <span className="rounded-full bg-clinical-blue px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                           Popular
@@ -495,7 +495,7 @@ const ProductLandingPage = () => {
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
                 <div className="rounded-[2rem] border border-border bg-card p-8 shadow-sm">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">Why this model</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Why this model</p>
                   <h3 className="mt-4 font-heading text-3xl font-bold text-foreground md:text-4xl">
                     Built as a product, not a separate codebase for every lab
                   </h3>
@@ -510,7 +510,7 @@ const ProductLandingPage = () => {
                 </div>
 
                 <div className="rounded-[2rem] border border-border bg-secondary/35 p-8 shadow-sm">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-clinical-blue">FAQ</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">FAQ</p>
                   <div className="mt-6 space-y-4">
                     {faqs.map((faq) => (
                       <article key={faq.question} className="rounded-2xl border border-border bg-background p-5">
@@ -522,10 +522,10 @@ const ProductLandingPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-[2rem] bg-clinical-navy px-8 py-14 text-primary-foreground lg:px-14">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary-foreground/70">Contact</p>
+              <div className="rounded-[2rem] border border-border bg-card px-8 py-14 text-foreground lg:px-14">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">Contact</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold md:text-5xl">Ready to modernize your lab operations?</h3>
-                <p className="mt-6 max-w-3xl text-lg text-primary-foreground/80">
+                <p className="mt-6 max-w-3xl text-lg text-muted-foreground">
                   Launch your own branded lab system with patient management, billing, reports, reminders, and branch support.
                 </p>
                 <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -539,7 +539,7 @@ const ProductLandingPage = () => {
                     <Button variant="heroOutline" size="xl">Staff Login</Button>
                   </a>
                 </div>
-                <p className="mt-6 text-sm text-primary-foreground/65">Sales contact: {contactEmail}</p>
+                <p className="mt-6 text-sm text-muted-foreground">Sales contact: {contactEmail}</p>
               </div>
             </div>
           </section>

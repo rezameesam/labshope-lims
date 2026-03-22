@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -76,7 +77,9 @@ interface InvoiceSummary {
 const FinancialReports = () => {
   const { organization, loading: organizationLoading } = useOrganization();
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<"today" | "week" | "month" | "all">("month");
+  const [period, setPeriod] = useState<"today" | "week" | "month" | "all" | "custom">("month");
+  const [fromDate, setFromDate] = useState<string>(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [toDate, setToDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [stats, setStats] = useState<FinancialStats>({
     totalRevenue: 0,
     totalPaid: 0,
@@ -110,22 +113,35 @@ const FinancialReports = () => {
     try {
       const today = new Date();
       let startDate: Date;
-      
+      let endDate: Date;
+
       switch (period) {
         case "today":
           startDate = startOfDay(today);
+          endDate = endOfDay(today);
           break;
         case "week":
           startDate = startOfWeek(today);
+          endDate = endOfDay(today);
           break;
         case "month":
           startDate = startOfMonth(today);
+          endDate = endOfDay(today);
+          break;
+        case "custom":
+          startDate = startOfDay(new Date(fromDate));
+          endDate = endOfDay(new Date(toDate));
           break;
         default:
           startDate = new Date(0); // All time
+          endDate = new Date();
       }
 
-      const endDate = period === "all" ? new Date() : endOfDay(today);
+      if (startDate > endDate) {
+        toast.error("From date cannot be after end date");
+        setLoading(false);
+        return;
+      }
 
       // Fetch invoices
       let invoicesQuery = (supabase as any)
@@ -225,7 +241,7 @@ const FinancialReports = () => {
     } finally {
       setLoading(false);
     }
-  }, [organization?.id, period]);
+  }, [organization?.id, period, fromDate, toDate]);
 
   useEffect(() => {
     if (organizationLoading) {
@@ -242,7 +258,11 @@ const FinancialReports = () => {
     doc.setFontSize(20);
     doc.text("Financial Report", 14, 20);
     doc.setFontSize(12);
-    doc.text(`Period: ${period.charAt(0).toUpperCase() + period.slice(1)}`, 14, 30);
+    const periodLabel =
+      period === "custom"
+        ? `${formatAppDate(fromDate)} to ${formatAppDate(toDate)}`
+        : `${period.charAt(0).toUpperCase() + period.slice(1)}`;
+    doc.text(`Period: ${periodLabel}`, 14, 30);
     doc.text(`Generated: ${formatAppDateTime(new Date())}`, 14, 36);
 
     // Summary Table
@@ -303,7 +323,7 @@ const FinancialReports = () => {
         </div>
         <div className="flex gap-2">
           <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-44" id="financial-report-period" name="financial_report_period">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -311,8 +331,15 @@ const FinancialReports = () => {
               <SelectItem value="week">This Week</SelectItem>
               <SelectItem value="month">This Month</SelectItem>
               <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
             </SelectContent>
           </Select>
+          {period === "custom" && (
+            <>
+              <Input id="financial-from-date" name="financial_from_date" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" />
+              <Input id="financial-to-date" name="financial_to_date" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" />
+            </>
+          )}
           <Button onClick={handleExportPDF} className="gap-2">
             <Download className="h-4 w-4" />
             Export PDF

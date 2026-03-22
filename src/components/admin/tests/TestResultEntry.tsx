@@ -86,6 +86,7 @@ export const TestResultEntry = ({
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
             <Select
+              name="test_result_status"
               value={resultData.status}
               onValueChange={(value) => onResultDataChange({ ...resultData, status: value })}
             >

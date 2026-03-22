@@ -114,7 +114,7 @@ const PatientFilters = ({
           </Button>
         )}
         <Button
-          className="bg-clinical-navy hover:bg-clinical-navy/90"
+          variant="clinical"
           onClick={onOpenAddPatientDialog}
           disabled={addDisabled}
           title={addDisabledReason}

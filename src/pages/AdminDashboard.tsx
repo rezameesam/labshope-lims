@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { NEXT_PLAN, PLAN_LIMITS, PLAN_PRICES, resolvePlanTier } from "@/lib/planLimits";
 import { useAuth } from "@/hooks/useAuth";
@@ -471,10 +472,10 @@ const AdminDashboard = () => {
           <div className="flex items-center gap-3 mb-8 p-2">
             <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-10 w-10" />
             <div>
-              <h1 className="text-sm font-heading font-bold text-primary-foreground">
+              <h1 className="text-sm font-heading font-bold text-white">
                 {branding.shortName}
               </h1>
-              <p className="text-xs text-primary-foreground/70">Admin Panel</p>
+              <p className="text-xs text-white/75">Admin Panel</p>
             </div>
           </div>
 
@@ -490,8 +491,8 @@ const AdminDashboard = () => {
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     activeTab === tab.id
-                      ? "bg-primary-foreground/10 text-primary-foreground"
-                      : "text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/5"
+                      ? "bg-white/15 text-white"
+                      : "text-white/80 hover:text-white hover:bg-white/10"
                   }`}
                 >
                   <tab.icon className="h-5 w-5" />
@@ -514,16 +515,16 @@ const AdminDashboard = () => {
           {/* User Info & Logout */}
           <div className="border-t border-primary-foreground/20 pt-4">
             <div className="px-4 py-2 mb-2">
-              <p className="text-sm font-medium text-primary-foreground truncate">
+              <p className="text-sm font-medium text-white truncate">
                 {user?.email}
               </p>
-              <p className="text-xs text-primary-foreground/60 capitalize">
+              <p className="text-xs text-white/70 capitalize">
                 {hasRole("admin") ? "Administrator" : "Employee"}
               </p>
             </div>
             <Button
               variant="ghost"
-              className="w-full justify-start text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/5"
+              className="w-full justify-start text-white/80 hover:text-white hover:bg-white/10"
               onClick={handleSignOut}
             >
               <LogOut className="h-5 w-5 mr-3" />
@@ -558,6 +559,7 @@ const AdminDashboard = () => {
               </h1>
             </div>
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <LabSelector />
               {isPlatformAdmin && (
                 <Button
@@ -594,7 +596,7 @@ const AdminDashboard = () => {
           <Suspense
             fallback={
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-clinical-navy" />
+                <Loader2 className="h-8 w-8 animate-spin text-foreground" />
               </div>
             }
           >
@@ -676,7 +678,7 @@ const AdminDashboard = () => {
               <DialogTitle className="text-center text-xl">Time to upgrade your plan</DialogTitle>
               <DialogDescription className="text-center">
                 You have{" "}
-                <span className="font-semibold text-slate-900">
+                <span className="font-semibold text-foreground">
                   {planLimitInfo.currentValue.toLocaleString("en-IN")}
                 </span>{" "}
                 {planLimitInfo.exceededMetric}, which exceeds the{" "}
@@ -688,14 +690,14 @@ const AdminDashboard = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-center">
-              <p className="font-semibold text-blue-900 capitalize">
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-center">
+              <p className="font-semibold text-blue-800 dark:text-blue-200 capitalize">
                 Upgrade to {planLimitInfo.upgradeTo}
               </p>
-              <p className="mt-1 text-blue-700">
+              <p className="mt-1 text-blue-700 dark:text-blue-300">
                 ₹{planLimitInfo.upgradePrice.toLocaleString("en-IN")}/year + GST
               </p>
-              <p className="mt-1 text-xs text-blue-500">
+              <p className="mt-1 text-xs text-blue-600 dark:text-blue-300/80">
                 (difference from your current {planLimitInfo.currentPlan} plan)
               </p>
             </div>

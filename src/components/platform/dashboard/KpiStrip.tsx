@@ -18,7 +18,7 @@ const METRIC_CARDS = [
     title: "Organizations",
     key: "organizations" as const,
     icon: Building2,
-    toneClass: "bg-slate-100 text-slate-700",
+    toneClass: "bg-slate-100 text-foreground/80",
   },
   {
     title: "Lead Pipeline",
@@ -45,12 +45,12 @@ export const KpiStrip = ({ counts }: Props) => (
     {METRIC_CARDS.map((card) => {
       const Icon = card.icon;
       return (
-        <div key={card.title} className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div key={card.title} className="rounded-[20px] border border-border bg-card p-5 shadow-sm">
           <div className={`inline-flex rounded-xl p-2 ${card.toneClass}`}>
             <Icon className="h-4 w-4" />
           </div>
-          <p className="mt-3 font-heading text-3xl font-bold text-slate-950">{counts[card.key]}</p>
-          <p className="mt-1 text-sm font-medium text-slate-700">{card.title}</p>
+          <p className="mt-3 font-heading text-3xl font-bold text-foreground">{counts[card.key]}</p>
+          <p className="mt-1 text-sm font-medium text-foreground/80">{card.title}</p>
         </div>
       );
     })}

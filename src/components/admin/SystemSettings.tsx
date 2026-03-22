@@ -1341,7 +1341,7 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-heading font-bold text-clinical-navy">
+        <h2 className="text-2xl font-heading font-bold text-foreground">
           {useOrganizationScope ? "Organization Settings" : "System Settings"}
         </h2>
         <p className="text-muted-foreground">

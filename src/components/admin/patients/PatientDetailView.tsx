@@ -223,6 +223,9 @@ const PatientDetailView = ({
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Patient Details</SheetTitle>
+            <SheetDescription>
+              Review patient profile, tests, billing insights, and communication timeline.
+            </SheetDescription>
           </SheetHeader>
 
           {selectedPatient && (

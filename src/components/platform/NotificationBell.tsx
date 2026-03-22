@@ -27,7 +27,7 @@ const TYPE_COLORS: Record<string, string> = {
   lead: "text-emerald-600 bg-emerald-50",
   onboarding: "text-blue-600 bg-blue-50",
   dns: "text-amber-600 bg-amber-50",
-  system: "text-slate-500 bg-slate-100",
+  system: "text-muted-foreground bg-muted",
   revenue: "text-indigo-600 bg-indigo-50",
 };
 
@@ -71,7 +71,7 @@ const NotificationItem = ({
     <button
       type="button"
       onClick={handleClick}
-      className={`w-full rounded-xl px-3 py-3 text-left transition hover:bg-slate-50 ${
+      className={`w-full rounded-xl px-3 py-3 text-left transition hover:bg-muted/40 ${
         !notification.is_read ? "bg-indigo-50/60" : ""
       }`}
     >
@@ -85,7 +85,7 @@ const NotificationItem = ({
           <div className="flex items-start justify-between gap-2">
             <p
               className={`text-sm font-medium leading-tight ${
-                notification.is_read ? "text-slate-600" : "text-slate-900"
+                notification.is_read ? "text-muted-foreground" : "text-foreground"
               }`}
             >
               {notification.title}
@@ -94,10 +94,10 @@ const NotificationItem = ({
               <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />
             )}
           </div>
-          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500">
+          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             {notification.description}
           </p>
-          <p className="mt-1 text-[11px] text-slate-400">{formatTime(notification.created_at)}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{formatTime(notification.created_at)}</p>
         </div>
       </div>
     </button>
@@ -115,7 +115,7 @@ export const NotificationBell = () => {
         <button
           type="button"
           aria-label="Notifications"
-          className="relative rounded-xl p-2 text-slate-400 transition hover:bg-white/8 hover:text-slate-200"
+          className="relative rounded-xl p-2 text-muted-foreground transition hover:bg-card/8 hover:text-slate-200"
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
@@ -134,12 +134,12 @@ export const NotificationBell = () => {
         align="end"
         side="bottom"
         sideOffset={8}
-        className="w-80 rounded-2xl border border-slate-200 bg-white p-0 shadow-xl"
+        className="w-80 rounded-2xl border border-border bg-card p-0 shadow-xl"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">Notifications</h3>
+            <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
             {unreadCount > 0 && (
               <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-600">
                 {unreadCount} new
@@ -163,7 +163,7 @@ export const NotificationBell = () => {
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
               <Bell className="h-8 w-8 text-slate-300" />
-              <p className="text-sm text-slate-400">No notifications yet</p>
+              <p className="text-sm text-muted-foreground">No notifications yet</p>
             </div>
           ) : (
             <div className="p-2">

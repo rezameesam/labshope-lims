@@ -97,7 +97,16 @@ const buildAbsoluteUrl = (hostname: string | null, path = "/") => {
       ? window.location.protocol
       : "https:";
 
-  return `${protocol}//${hostname}${normalizedPath}`;
+  let portPart = "";
+  if (typeof window !== "undefined") {
+    const currentPort = window.location.port || "";
+    const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+    if (isLocalHost && currentPort) {
+      portPart = `:${currentPort}`;
+    }
+  }
+
+  return `${protocol}//${hostname}${portPart}${normalizedPath}`;
 };
 
 export const buildMarketingUrl = (path = "/") => buildAbsoluteUrl(getConfiguredBaseDomain(), path);

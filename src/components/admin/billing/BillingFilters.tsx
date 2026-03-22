@@ -136,7 +136,7 @@ const BillingFilters = ({
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Export
         </Button>
-        <Button onClick={onCreateInvoice} className="bg-clinical-navy hover:bg-clinical-navy/90">
+        <Button variant="clinical" onClick={onCreateInvoice}>
           <Plus className="h-4 w-4 mr-2" />
           Create Invoice
         </Button>

@@ -20,9 +20,9 @@ interface Props {
 
 export const DashboardCharts = ({ leadsChartData, planChartData }: Props) => (
   <div className="grid gap-6 lg:grid-cols-2">
-    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Trend</p>
-      <h3 className="mt-1 text-lg font-semibold text-slate-950">Leads — last 30 days</h3>
+    <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Trend</p>
+      <h3 className="mt-1 text-lg font-semibold text-foreground">Leads — last 30 days</h3>
       <StableResponsiveChart className="mt-5 h-52 min-w-0">
           <AreaChart data={leadsChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <defs>
@@ -62,9 +62,9 @@ export const DashboardCharts = ({ leadsChartData, planChartData }: Props) => (
       </StableResponsiveChart>
     </div>
 
-    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Breakdown</p>
-      <h3 className="mt-1 text-lg font-semibold text-slate-950">Onboarding by plan</h3>
+    <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Breakdown</p>
+      <h3 className="mt-1 text-lg font-semibold text-foreground">Onboarding by plan</h3>
       <div className="mt-5 h-52">
         {planChartData.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">

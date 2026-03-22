@@ -468,4 +468,3 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
 };
 
 export default AdminSetupChecklist;
-minSetupChecklist;

@@ -23,12 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-
-const PLAN_PRICES: Record<string, number> = {
-  starter: 2999,
-  growth: 5999,
-  premium: 9999,
-};
+import { PLAN_PRICES, resolvePlanTier, type PlanTier } from "@/lib/planLimits";
 
 const PLAN_LABELS: Record<string, string> = {
   starter: "Starter",
@@ -37,7 +32,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const planClass: Record<string, string> = {
-  starter: "border-slate-200 bg-slate-50 text-slate-600",
+  starter: "border-border bg-muted/40 text-muted-foreground",
   growth: "border-indigo-200 bg-indigo-50 text-indigo-700",
   premium: "border-violet-200 bg-violet-50 text-violet-700",
 };
@@ -45,10 +40,10 @@ const planClass: Record<string, string> = {
 type OrgRevenueRow = {
   id: string;
   organizationName: string;
-  plan: "starter" | "growth" | "premium";
+  plan: PlanTier;
   status: string;
   provisionedAt: string | null;
-  mrr: number;
+  annualRevenue: number;
 };
 
 export default function PlatformRevenue() {
@@ -71,15 +66,40 @@ export default function PlatformRevenue() {
       return;
     }
 
+    const rowsData = data || [];
+
+    const orgIds = rowsData
+      .map((row: any) => row.provisioned_organization_id)
+      .filter(Boolean);
+
+    let planTierByOrgId = new Map<string, PlanTier>();
+
+    if (orgIds.length > 0) {
+      const { data: settingsRows, error: settingsError } = await (supabase as any)
+        .from("organization_settings")
+        .select("organization_id, setting_value")
+        .in("organization_id", orgIds)
+        .eq("setting_key", "plan_tier");
+
+      if (!settingsError && settingsRows) {
+        for (const row of settingsRows as Array<{ organization_id: string; setting_value: string }>) {
+          planTierByOrgId.set(row.organization_id, resolvePlanTier(row.setting_value));
+        }
+      }
+    }
+
     setRows(
-      (data || []).map((row: any) => ({
-        id: row.id,
-        organizationName: row.organization_name,
-        plan: row.selected_plan || "starter",
-        status: row.status,
-        provisionedAt: row.provisioned_at,
-        mrr: PLAN_PRICES[row.selected_plan] ?? 0,
-      })),
+      rowsData.map((row: any) => {
+        const resolvedPlan = planTierByOrgId.get(row.provisioned_organization_id) || resolvePlanTier(row.selected_plan);
+        return {
+          id: row.id,
+          organizationName: row.organization_name,
+          plan: resolvedPlan,
+          status: row.status,
+          provisionedAt: row.provisioned_at,
+          annualRevenue: PLAN_PRICES[resolvedPlan] ?? 0,
+        };
+      }),
     );
     setLoading(false);
   };
@@ -88,10 +108,11 @@ export default function PlatformRevenue() {
     void loadData();
   }, []);
 
-  const totalMRR = useMemo(
-    () => rows.reduce((sum, r) => sum + r.mrr, 0),
+  const totalARR = useMemo(
+    () => rows.reduce((sum, r) => sum + r.annualRevenue, 0),
     [rows],
   );
+  const totalMRR = useMemo(() => Math.round(totalARR / 12), [totalARR]);
   const approvedCount = useMemo(
     () => rows.filter((r) => r.status === "approved").length,
     [rows],
@@ -102,7 +123,7 @@ export default function PlatformRevenue() {
     for (const r of rows) {
       if (!byPlan[r.plan]) byPlan[r.plan] = { count: 0, revenue: 0 };
       byPlan[r.plan].count++;
-      byPlan[r.plan].revenue += r.mrr;
+      byPlan[r.plan].revenue += r.annualRevenue;
     }
     return Object.entries(byPlan).map(([plan, vals]) => ({
       plan: PLAN_LABELS[plan] || plan,
@@ -116,9 +137,9 @@ export default function PlatformRevenue() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Revenue</h2>
-            <p className="text-sm text-slate-500">
-              MRR estimates based on active tenants and plan pricing.
+            <h2 className="text-xl font-semibold text-foreground">Revenue</h2>
+            <p className="text-sm text-muted-foreground">
+              Yearly subscription pricing model with derived MRR projections.
             </p>
           </div>
           <Button
@@ -137,50 +158,50 @@ export default function PlatformRevenue() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Estimated MRR
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-slate-900">
+              <p className="text-2xl font-bold text-foreground">
                 ₹{totalMRR.toLocaleString("en-IN")}
               </p>
-              <p className="mt-1 text-xs text-slate-400">Based on plan tier prices</p>
+              <p className="mt-1 text-xs text-muted-foreground">Derived from yearly plans ÷ 12</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Active Tenants
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-slate-900">{approvedCount}</p>
-              <p className="mt-1 text-xs text-slate-400">Provisioned &amp; approved</p>
+              <p className="text-2xl font-bold text-foreground">{approvedCount}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Provisioned &amp; approved</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500">Est. ARR</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Estimated ARR</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-slate-900">
-                ₹{(totalMRR * 12).toLocaleString("en-IN")}
+              <p className="text-2xl font-bold text-foreground">
+                ₹{totalARR.toLocaleString("en-IN")}
               </p>
-              <p className="mt-1 text-xs text-slate-400">MRR × 12</p>
+              <p className="mt-1 text-xs text-muted-foreground">Sum of yearly plan prices</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Bar chart */}
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+        <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
             By Plan
           </p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-950">Revenue by Plan Tier</h3>
+          <h3 className="mt-1 text-lg font-semibold text-foreground">Revenue by Plan Tier</h3>
           {loading ? (
             <div className="flex h-52 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="mt-5 h-52">
@@ -217,15 +238,15 @@ export default function PlatformRevenue() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-[28px] border border-border bg-card shadow-sm">
           <div className="border-b border-slate-100 px-6 py-4">
-            <h3 className="text-base font-semibold text-slate-900">
+            <h3 className="text-base font-semibold text-foreground">
               Tenant Revenue Breakdown
             </h3>
           </div>
           {loading ? (
             <div className="flex h-32 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <Table>
@@ -234,7 +255,7 @@ export default function PlatformRevenue() {
                   <TableHead>Organization</TableHead>
                   <TableHead>Plan</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">MRR</TableHead>
+                  <TableHead className="text-right">Plan Price (Yearly)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -242,7 +263,7 @@ export default function PlatformRevenue() {
                   <TableRow>
                     <TableCell
                       colSpan={4}
-                      className="py-8 text-center text-slate-400"
+                      className="py-8 text-center text-muted-foreground"
                     >
                       No provisioned tenants found.
                     </TableCell>
@@ -267,14 +288,14 @@ export default function PlatformRevenue() {
                           className={
                             row.status === "approved"
                               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-slate-200 bg-slate-50 text-slate-600"
+                              : "border-border bg-muted/40 text-muted-foreground"
                           }
                         >
                           {row.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        ₹{row.mrr.toLocaleString("en-IN")}/mo
+                        ₹{row.annualRevenue.toLocaleString("en-IN")}/year
                       </TableCell>
                     </TableRow>
                   ))

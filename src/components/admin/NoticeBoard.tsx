@@ -509,7 +509,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
                         </div>
                       </div>
                       <Button
-                        variant="outline"
+                        variant={notice.type === "invoice" ? "clinical" : "outline"}
                         size="sm"
                         onClick={() => handleNoticeClick(notice.link)}
                         className="shrink-0"

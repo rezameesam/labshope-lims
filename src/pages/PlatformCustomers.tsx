@@ -31,7 +31,7 @@ type HealthFilter = (typeof healthOptions)[number];
 function getPlanBadgeClass(plan: CustomerRecord["selectedPlan"]): string {
   switch (plan) {
     case "starter":
-      return "border-slate-300 bg-white text-slate-700";
+      return "border-border bg-card text-foreground/80";
     case "growth":
       return "border-blue-300 bg-blue-50 text-blue-700";
     case "premium":
@@ -39,7 +39,7 @@ function getPlanBadgeClass(plan: CustomerRecord["selectedPlan"]): string {
     case "unassigned":
       return "border-red-300 bg-red-50 text-red-600";
     default:
-      return "border-slate-200 bg-white text-slate-700";
+      return "border-border bg-card text-foreground/80";
   }
 }
 
@@ -111,16 +111,16 @@ const PlatformCustomers = () => {
     <PlatformRoute>
       <TooltipProvider>
         <div className="space-y-6">
-          <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
             <CardHeader className="pb-5">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     <Building2 className="h-3.5 w-3.5" />
                     Customer Ops
                   </div>
-                  <CardTitle className="mt-4 text-3xl text-slate-950">Platform customers</CardTitle>
-                  <CardDescription className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                  <CardTitle className="mt-4 text-3xl text-foreground">Platform customers</CardTitle>
+                  <CardDescription className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
                     One customer operations view for tenants, plans, domains, and launch posture.
                   </CardDescription>
                 </div>
@@ -134,37 +134,37 @@ const PlatformCustomers = () => {
               </div>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Organizations</p>
-                <p className="mt-2 text-3xl font-bold text-slate-950">{metrics.total}</p>
-                <p className="mt-2 text-sm text-slate-600">Provisioned customer tenants on the platform.</p>
+              <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Organizations</p>
+                <p className="mt-2 text-3xl font-bold text-foreground">{metrics.total}</p>
+                <p className="mt-2 text-sm text-muted-foreground">Provisioned customer tenants on the platform.</p>
               </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Connected Domains</p>
-                <p className="mt-2 text-3xl font-bold text-slate-950">{metrics.connected}</p>
-                <p className="mt-2 text-sm text-slate-600">Tenants already live on a verified custom domain.</p>
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Connected Domains</p>
+                <p className="mt-2 text-3xl font-bold text-emerald-800 dark:text-emerald-200">{metrics.connected}</p>
+                <p className="mt-2 text-sm text-emerald-800/80 dark:text-emerald-200/80">Tenants already live on a verified custom domain.</p>
               </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Pending DNS</p>
-                <p className="mt-2 text-3xl font-bold text-slate-950">{metrics.pendingDns}</p>
-                <p className="mt-2 text-sm text-slate-600">Provisioned tenants still waiting on domain cutover.</p>
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Pending DNS</p>
+                <p className="mt-2 text-3xl font-bold text-amber-800 dark:text-amber-200">{metrics.pendingDns}</p>
+                <p className="mt-2 text-sm text-amber-800/80 dark:text-amber-200/80">Provisioned tenants still waiting on domain cutover.</p>
               </div>
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Self-Serve</p>
-                <p className="mt-2 text-3xl font-bold text-slate-950">{metrics.selfServe}</p>
-                <p className="mt-2 text-sm text-slate-600">Tenants launched through the self-serve path.</p>
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Self-Serve</p>
+                <p className="mt-2 text-3xl font-bold text-blue-800 dark:text-blue-200">{metrics.selfServe}</p>
+                <p className="mt-2 text-sm text-blue-800/80 dark:text-blue-200/80">Tenants launched through the self-serve path.</p>
               </div>
-              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">Fully Connected</p>
-                <p className="mt-2 text-3xl font-bold text-slate-950">{metrics.fullyConnected}</p>
-                <p className="mt-2 text-sm text-slate-600">Orgs with all 5 integrations configured.</p>
+              <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">Fully Connected</p>
+                <p className="mt-2 text-3xl font-bold text-violet-800 dark:text-violet-200">{metrics.fullyConnected}</p>
+                <p className="mt-2 text-sm text-violet-800/80 dark:text-violet-200/80">Orgs with all 5 integrations configured.</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="border-b border-slate-200 pb-5">
-              <CardTitle className="text-2xl text-slate-950">Customer directory</CardTitle>
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-5">
+              <CardTitle className="text-2xl text-foreground">Customer directory</CardTitle>
               <CardDescription>
                 Search by tenant name, slug, or domain, then inspect plan, domain status, and operating footprint.
               </CardDescription>
@@ -172,7 +172,7 @@ const PlatformCustomers = () => {
             <CardContent className="space-y-5 p-6">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_180px_180px]">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <label htmlFor="customer-search" className="sr-only">Search customers</label>
                   <Input
                     id="customer-search"
@@ -180,7 +180,7 @@ const PlatformCustomers = () => {
                     autoComplete="off"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    className="border-slate-200 bg-slate-50 pl-10"
+                    className="border-border bg-muted/40 pl-10"
                     placeholder="Search customer, slug, or domain"
                   />
                 </div>
@@ -232,9 +232,9 @@ const PlatformCustomers = () => {
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-hidden rounded-2xl border border-border">
                 <Table>
-                  <TableHeader className="bg-slate-50">
+                  <TableHeader className="bg-muted/40">
                     <TableRow>
                       <TableHead>Customer</TableHead>
                       <TableHead>Plan</TableHead>
@@ -254,12 +254,12 @@ const PlatformCustomers = () => {
                             <button
                               type="button"
                               onClick={() => navigate(`/platform/customers/${customer.id}`)}
-                              className="font-semibold text-slate-950 transition hover:text-primary"
+                              className="font-semibold text-foreground transition hover:text-primary"
                             >
                               {customer.displayName}
                             </button>
-                            <p className="text-xs text-slate-500">{customer.slug}</p>
-                            <p className="mt-2 text-xs text-slate-500">{formatAppDateTime(customer.createdAt)}</p>
+                            <p className="text-xs text-muted-foreground">{customer.slug}</p>
+                            <p className="mt-2 text-xs text-muted-foreground">{formatAppDateTime(customer.createdAt)}</p>
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -270,7 +270,7 @@ const PlatformCustomers = () => {
                             >
                               {customer.selectedPlan === "unassigned" ? "Unassigned" : customer.selectedPlan}
                             </Badge>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                               {customer.setupMode === "unknown" ? "No onboarding source" : customer.setupMode.replace("_", "-")}
                             </p>
                           </div>
@@ -292,7 +292,7 @@ const PlatformCustomers = () => {
                                     className={`inline-flex cursor-default items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
                                       item.connected
                                         ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                                        : "bg-slate-100 text-slate-400 ring-1 ring-slate-200"
+                                        : "bg-muted text-muted-foreground ring-1 ring-slate-200"
                                     }`}
                                   >
                                     <span className={`h-1.5 w-1.5 rounded-full ${item.connected ? "bg-emerald-500" : "bg-slate-300"}`} />
@@ -309,10 +309,10 @@ const PlatformCustomers = () => {
                         <TableCell className="align-top">
                           <div className="space-y-2">
                             <div className="flex items-start gap-2">
-                              <Globe2 className="mt-0.5 h-4 w-4 text-slate-400" />
+                              <Globe2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-slate-950">{customer.primaryDomain || "-"}</p>
-                                <p className="truncate text-xs text-slate-500">{customer.fallbackDomain || "No fallback"}</p>
+                                <p className="truncate text-sm font-medium text-foreground">{customer.primaryDomain || "-"}</p>
+                                <p className="truncate text-xs text-muted-foreground">{customer.fallbackDomain || "No fallback"}</p>
                               </div>
                             </div>
                             <Badge variant={customer.customDomainConnected ? "default" : "secondary"}>
@@ -325,28 +325,28 @@ const PlatformCustomers = () => {
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
-                          <div className="space-y-1 text-sm text-slate-600">
+                          <div className="space-y-1 text-sm text-muted-foreground">
                             <p>{customer.labsCount} labs</p>
                             <p>{customer.patientsCount} patients</p>
                             <p>{customer.invoicesCount} invoices</p>
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
-                          <p className="font-semibold text-slate-950">
+                          <p className="font-semibold text-foreground">
                             {new Intl.NumberFormat("en-IN", {
                               style: "currency",
                               currency: "INR",
                               maximumFractionDigits: 0,
                             }).format(customer.paymentsTotal)}
                           </p>
-                          <p className="text-xs text-slate-500">Recorded payments</p>
+                          <p className="text-xs text-muted-foreground">Recorded payments</p>
                         </TableCell>
                         <TableCell className="align-top">
                           <div className="space-y-2">
                             <Badge variant={customer.onboardingStatus === "approved" ? "default" : "outline"}>
                               {customer.onboardingStatus || customer.status}
                             </Badge>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                               {customer.customDomainPending
                                 ? "Waiting on domain cutover"
                                 : customer.customDomainConnected

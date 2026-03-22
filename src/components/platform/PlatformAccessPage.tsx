@@ -57,20 +57,20 @@ const PlatformAccessPage = ({
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ef_0%,#ffffff_48%,#eef5f7_100%)] text-foreground">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 text-foreground">
       <PlatformSiteHeader />
 
       <main>
         <section className="container mx-auto px-4 py-16 lg:px-8 lg:py-24">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div className="space-y-7">
-              <div className="inline-flex items-center gap-2 rounded-full border border-clinical-navy/15 bg-white/75 px-4 py-2 text-sm font-medium text-clinical-navy shadow-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/75 px-4 py-2 text-sm font-medium text-foreground shadow-sm">
                 <ShieldCheck className="h-4 w-4" />
                 {eyebrow}
               </div>
 
               <div className="space-y-4">
-                <h1 className="max-w-3xl font-heading text-4xl font-bold tracking-tight text-clinical-navy md:text-5xl">
+                <h1 className="max-w-3xl font-heading text-4xl font-bold tracking-tight text-foreground md:text-5xl">
                   {title}
                 </h1>
                 <p className="max-w-2xl text-lg leading-8 text-foreground/75">
@@ -84,12 +84,12 @@ const PlatformAccessPage = ({
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-border/70 bg-white/90 p-8 shadow-xl shadow-clinical-navy/5">
-              <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-clinical-navy text-primary-foreground">
+            <div className="rounded-[28px] border border-border/70 bg-card/90 p-8 shadow-xl shadow-clinical-navy/5">
+              <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                 <Building2 className="h-6 w-6" />
               </div>
 
-              <h2 className="font-heading text-2xl font-semibold text-clinical-navy">
+              <h2 className="font-heading text-2xl font-semibold text-foreground">
                 {helperTitle}
               </h2>
               <p className="mt-3 text-sm leading-7 text-foreground/70">
@@ -97,7 +97,7 @@ const PlatformAccessPage = ({
               </p>
 
               <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-5">
-                <p className="text-sm font-medium text-clinical-navy">Portal pattern</p>
+                <p className="text-sm font-medium text-foreground">Portal pattern</p>
                 <p className="mt-2 font-mono text-sm text-foreground/70">{portalPattern}</p>
               </div>
 
