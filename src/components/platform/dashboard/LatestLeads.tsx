@@ -36,13 +36,13 @@ export const LatestLeads = ({ leads, onNavigate }: Props) => (
         <p className="text-sm text-muted-foreground">No active leads right now.</p>
       ) : (
         leads.map((lead) => (
-          <div key={lead.id} className="rounded-2xl border border-border bg-muted/40 p-4">
+          <div key={lead.id} className="rounded-2xl border border-primary/15 bg-card/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-foreground">{lead.lab_name}</p>
                 <p className="text-sm text-muted-foreground">{lead.full_name}</p>
               </div>
-              <Badge variant="outline" className="border-border bg-card text-foreground/80">
+              <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
                 {lead.status}
               </Badge>
             </div>
@@ -57,5 +57,3 @@ export const LatestLeads = ({ leads, onNavigate }: Props) => (
     </CardContent>
   </Card>
 );
-;
-

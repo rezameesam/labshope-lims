@@ -39,7 +39,7 @@ export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) =>
           <CardTitle className="text-2xl text-foreground">Latest Onboarding</CardTitle>
           <CardDescription>The newest customer setup requests in the queue.</CardDescription>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5">
           {FILTER_OPTIONS.map((option) => (
             <Button
               key={option.value}
@@ -55,7 +55,7 @@ export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) =>
     </CardHeader>
     <CardContent className="space-y-3 p-6">
       {requests.map((request) => (
-        <div key={request.id} className="rounded-2xl border border-primary/15 bg-card/85 p-4">
+        <div key={request.id} className="rounded-2xl border border-primary/15 bg-card/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">

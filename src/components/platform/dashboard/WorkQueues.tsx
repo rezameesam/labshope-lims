@@ -71,10 +71,10 @@ export const WorkQueues = ({ counts, onNavigate }: Props) => (
       {QUEUE_CARDS.map((card) => {
         const Icon = card.icon;
         return (
-          <div key={card.title} className="rounded-2xl border border-primary/15 bg-card/85 p-5">
+          <div key={card.title} className="rounded-2xl border border-primary/15 bg-card/85 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
             <div className="flex items-start justify-between gap-3">
               <div className={`rounded-xl p-2.5 ${card.iconClass}`}>
-                <Icon className="h-4.5 w-4.5" />
+                <Icon className="h-4 w-4" />
               </div>
               <p className="font-heading text-4xl font-bold text-foreground">{counts[card.key]}</p>
             </div>

@@ -58,7 +58,7 @@ export const TenantsTable = ({ tenants, search, onSearchChange, organizationCoun
           </TableHeader>
           <TableBody>
             {tenants.map((tenant) => (
-              <TableRow key={tenant.id}>
+              <TableRow key={tenant.id} className="transition-colors hover:bg-primary/5">
                 <TableCell>
                   <div>
                     <p className="font-semibold text-foreground">{tenant.displayName}</p>
