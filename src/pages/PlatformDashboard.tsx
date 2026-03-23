@@ -170,7 +170,7 @@ const PlatformDashboard = () => {
   return (
     <PlatformRoute>
       {/* Page header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Platform dashboard header">
         <div>
           <p className="inline-flex rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">Control</p>
           <h2 className="mt-2 font-heading text-3xl font-bold tracking-tight text-foreground">Overview</h2>
@@ -185,20 +185,26 @@ const PlatformDashboard = () => {
             <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
-      </div>
+      </header>
 
-      <KpiStrip counts={counts} />
+      <section aria-label="Key performance indicators">
+        <KpiStrip counts={counts} />
+      </section>
 
-      <DashboardCharts leadsChartData={leadsChartData} planChartData={planChartData} />
+      <section aria-label="Performance charts">
+        <DashboardCharts leadsChartData={leadsChartData} planChartData={planChartData} />
+      </section>
 
-      <AttentionSection items={attentionItems} onNavigate={navigate} />
+      <section aria-label="Priority actions">
+        <AttentionSection items={attentionItems} onNavigate={navigate} />
+      </section>
 
-      <section className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
+      <section className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]" aria-label="Queue and platform status">
         <WorkQueues counts={counts} onNavigate={navigate} />
         <PlatformStatus counts={counts} />
       </section>
 
-      <section className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
+      <section className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]" aria-label="Customers, leads, and onboarding updates">
         <TenantsTable
           tenants={filteredTenants}
           search={tenantSearch}

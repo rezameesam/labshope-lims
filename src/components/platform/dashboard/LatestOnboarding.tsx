@@ -55,7 +55,7 @@ export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) =>
     </CardHeader>
     <CardContent className="space-y-3 p-6">
       {requests.map((request) => (
-        <div key={request.id} tabIndex={0} className="rounded-2xl border border-primary/15 bg-card/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:-translate-y-0.5 focus-visible:shadow-md">
+        <div key={request.id} className="rounded-2xl border border-primary/15 bg-card/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
