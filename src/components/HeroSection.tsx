@@ -33,7 +33,7 @@ const HeroSection = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <span className="inline-block px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground text-sm font-medium mb-6 border border-primary-foreground/20">
+            <span className="mb-6 inline-block rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-2 text-sm font-medium text-primary-foreground dark:border-white/35 dark:bg-white/10 dark:text-white">
               {`Trusted Diagnostic Centre${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}`}
             </span>
           </motion.div>
@@ -52,7 +52,7 @@ const HeroSection = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-primary-foreground/90 max-w-2xl mb-8"
+            className="mb-8 max-w-2xl text-lg text-primary-foreground/90 dark:text-white md:text-xl"
           >
             {branding.description} Experience trusted healthcare with modern diagnostic support.
           </motion.p>
@@ -91,6 +91,7 @@ const HeroSection = () => {
             <Button
               variant="heroOutline"
               size="xl"
+              className="border-white/60 bg-white/90 text-primary hover:bg-white hover:text-primary dark:border-cyan-300/40 dark:bg-cyan-400/15 dark:text-white dark:hover:bg-cyan-400/25"
               onClick={() => {
                 document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
               }}
