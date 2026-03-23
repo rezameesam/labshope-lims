@@ -55,6 +55,9 @@ const planClass: Record<string, string> = {
   premium: "border-violet-200 bg-violet-50 text-violet-700",
 };
 
+const EMPTY_REQUESTS: PlatformOnboardingRequest[] = [];
+const EMPTY_DOMAINS: Record<string, PlatformDomainRecord[]> = {};
+
 const PlatformOnboarding = () => {
   const { user } = useAuth();
   const { logAction } = useAuditLog();
@@ -62,8 +65,11 @@ const PlatformOnboarding = () => {
 
   // Data via React Query
   const { data: onboardingData, isLoading: loading } = usePlatformOnboarding();
-  const requests = onboardingData?.requests ?? [];
-  const organizationDomains = onboardingData?.organizationDomains ?? {};
+  const requests = useMemo(() => onboardingData?.requests ?? EMPTY_REQUESTS, [onboardingData?.requests]);
+  const organizationDomains = useMemo(
+    () => onboardingData?.organizationDomains ?? EMPTY_DOMAINS,
+    [onboardingData?.organizationDomains],
+  );
 
   // Mutations
   const updateMutation = useUpdateOnboardingRequest();

@@ -34,6 +34,8 @@ const DEFAULT_COUNTS: PlatformCounts = {
   selfServeRequests: 0,
 };
 
+const EMPTY_LIST: never[] = [];
+
 const PlatformDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -44,11 +46,11 @@ const PlatformDashboard = () => {
   const { data, isLoading } = usePlatformDashboard();
 
   const counts = data?.counts ?? DEFAULT_COUNTS;
-  const recentLeads = data?.recentLeads ?? [];
-  const recentOnboarding = data?.recentOnboarding ?? [];
-  const recentTenants = data?.recentTenants ?? [];
-  const leadsChartData = data?.leadsChartData ?? [];
-  const planChartData = data?.planChartData ?? [];
+  const recentLeads = data?.recentLeads ?? EMPTY_LIST;
+  const recentOnboarding = useMemo(() => data?.recentOnboarding ?? EMPTY_LIST, [data?.recentOnboarding]);
+  const recentTenants = useMemo(() => data?.recentTenants ?? EMPTY_LIST, [data?.recentTenants]);
+  const leadsChartData = data?.leadsChartData ?? EMPTY_LIST;
+  const planChartData = data?.planChartData ?? EMPTY_LIST;
 
   useEffect(() => {
     const channel = supabase
