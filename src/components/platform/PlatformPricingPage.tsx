@@ -229,13 +229,13 @@ const PlatformPricingPage = () => {
                     <tr key={String(feature)} className="bg-card even:bg-slate-50/40">
                       <td className="px-5 py-3 text-foreground">{String(feature)}</td>
                       <td className="px-5 py-3 text-center">
-                        {typeof starter === "boolean" ? (starter ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(starter)}</span>}
+                        {typeof starter === "boolean" ? (starter ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="font-medium text-muted-foreground">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(starter)}</span>}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        {typeof growth === "boolean" ? (growth ? <Check className="mx-auto h-4 w-4 text-primary" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(growth)}</span>}
+                        {typeof growth === "boolean" ? (growth ? <Check className="mx-auto h-4 w-4 text-primary" /> : <span className="font-medium text-muted-foreground">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(growth)}</span>}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        {typeof premium === "boolean" ? (premium ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="text-slate-300">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(premium)}</span>}
+                        {typeof premium === "boolean" ? (premium ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="font-medium text-muted-foreground">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(premium)}</span>}
                       </td>
                     </tr>
                   ))}
