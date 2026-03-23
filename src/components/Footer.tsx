@@ -8,7 +8,7 @@ const Footer = () => {
   const { branding } = useOrganization();
 
   return (
-    <footer className="border-t border-primary/20 bg-[linear-gradient(180deg,hsl(var(--clinical-navy))_0%,hsl(var(--background))_140%)] text-primary-foreground">
+    <footer className="border-t border-cyan-400/20 bg-[linear-gradient(180deg,#0b2238_0%,#081a2a_100%)] text-white">
       <div className="container mx-auto px-4 lg:px-8 py-12 lg:py-16">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand */}
@@ -17,10 +17,10 @@ const Footer = () => {
               <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
               <div>
                 <h3 className="font-heading font-bold text-lg">{branding.shortName}</h3>
-                <p className="text-sm text-primary-foreground/70">{branding.secondaryLabel}</p>
+                <p className="text-sm text-white/75">{branding.secondaryLabel}</p>
               </div>
             </Link>
-            <p className="text-primary-foreground/70 text-sm leading-relaxed">
+            <p className="text-white/75 text-sm leading-relaxed">
               {`${branding.displayName} is your trusted diagnostic partner${branding.locationLabel ? ` in ${branding.locationLabel}` : ""}, serving the community with accurate and reliable test results since ${branding.establishedYear}.`}
             </p>
           </div>
@@ -32,7 +32,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/#services"
-                  className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                  className="text-white/75 hover:text-white transition-colors text-sm"
                 >
                   Our Services
                 </Link>
@@ -40,7 +40,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/#about"
-                  className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                  className="text-white/75 hover:text-white transition-colors text-sm"
                 >
                   About Us
                 </Link>
@@ -48,7 +48,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/#contact"
-                  className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                  className="text-white/75 hover:text-white transition-colors text-sm"
                 >
                   Contact
                 </Link>
@@ -56,7 +56,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/careers"
-                  className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                  className="text-white/75 hover:text-white transition-colors text-sm"
                 >
                   Work With Us
                 </Link>
@@ -64,7 +64,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/auth/patient"
-                  className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                  className="text-white/75 hover:text-white transition-colors text-sm"
                 >
                   Patient Portal
                 </Link>
@@ -75,7 +75,7 @@ const Footer = () => {
           {/* Services */}
           <div>
             <h4 className="font-heading font-semibold text-lg mb-4">Our Services</h4>
-            <ul className="space-y-2 text-sm text-primary-foreground/70">
+            <ul className="space-y-2 text-sm text-white/75">
               <li>Haematology</li>
               <li>Biochemistry</li>
               <li>Urine Examination</li>
@@ -89,26 +89,26 @@ const Footer = () => {
           <div>
             <h4 className="font-heading font-semibold text-lg mb-4">Contact Info</h4>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-3 text-primary-foreground/70">
+              <li className="flex items-start gap-3 text-white/75">
                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <span>{branding.addressLines.join(", ")}</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="h-4 w-4 flex-shrink-0" />
-                <div className="text-primary-foreground/70">
+                <div className="text-white/75">
                   {branding.phoneNumbers.map((phone, index) => (
                     <span key={phone}>
                       {index > 0 ? " / " : null}
-                      <a href={`tel:${phone}`} className="hover:text-primary-foreground transition-colors">
+                      <a href={`tel:${phone}`} className="hover:text-white transition-colors">
                         {phone}
                       </a>
                     </span>
                   ))}
                 </div>
               </li>
-              <li className="flex items-center gap-3 text-primary-foreground/70">
+              <li className="flex items-center gap-3 text-white/75">
                 <Mail className="h-4 w-4 flex-shrink-0" />
-                <a href={`mailto:${branding.email}`} className="hover:text-primary-foreground transition-colors">
+                <a href={`mailto:${branding.email}`} className="hover:text-white transition-colors">
                   {branding.email}
                 </a>
               </li>
@@ -117,18 +117,18 @@ const Footer = () => {
         </div>
 
         {/* Bottom */}
-        <div className="mt-12 pt-8 border-t border-primary-foreground/10 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-primary-foreground/60">
+        <div className="mt-12 pt-8 border-t border-white/15 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-white/60">
             © {currentYear} {branding.displayName}. All rights reserved.
           </p>
-          <div className="flex gap-6 text-sm text-primary-foreground/60">
-            <Link to="/privacy" className="hover:text-primary-foreground transition-colors">
+          <div className="flex gap-6 text-sm text-white/60">
+            <Link to="/privacy" className="hover:text-white transition-colors">
               Privacy Policy
             </Link>
-            <Link to="/terms" className="hover:text-primary-foreground transition-colors">
+            <Link to="/terms" className="hover:text-white transition-colors">
               Terms of Service
             </Link>
-            <Link to="/refund-policy" className="hover:text-primary-foreground transition-colors">
+            <Link to="/refund-policy" className="hover:text-white transition-colors">
               Refund Policy
             </Link>
           </div>

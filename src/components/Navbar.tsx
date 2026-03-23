@@ -40,7 +40,7 @@ const Navbar = () => {
           <Link to="/" className="flex items-center gap-3">
             <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-14 w-14" />
             <div className="hidden sm:block">
-              <h1 className="text-lg font-heading font-bold text-clinical-navy leading-tight">
+              <h1 className="text-lg font-heading font-bold text-foreground leading-tight dark:text-white">
                 {branding.shortName}
               </h1>
               <p className="text-xs text-muted-foreground">{branding.secondaryLabel}</p>

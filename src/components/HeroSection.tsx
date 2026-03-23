@@ -42,10 +42,10 @@ const HeroSection = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-primary-foreground leading-tight mb-6"
+            className="mb-6 text-4xl font-heading font-bold leading-tight text-white md:text-5xl lg:text-6xl xl:text-7xl"
           >
             Your Health,{" "}
-            <span className="text-accent">Our Priority</span>
+            <span className="text-cyan-200">Our Priority</span>
           </motion.h1>
 
           <motion.p
@@ -67,7 +67,7 @@ const HeroSection = () => {
             {featuresWithBranding.map((feature) => (
               <div
                 key={feature.text}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground border border-primary-foreground/20"
+                className="flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-white dark:border-cyan-300/40 dark:bg-cyan-400/15"
               >
                 <feature.icon className="h-4 w-4" />
                 <span className="text-sm font-medium">{feature.text}</span>
@@ -115,3 +115,4 @@ const HeroSection = () => {
 };
 
 export default HeroSection;
+n;
