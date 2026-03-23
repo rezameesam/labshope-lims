@@ -10,13 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Turnstile from "@/components/ui/turnstile";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -296,22 +290,19 @@ const BookTest = () => {
                           <Label htmlFor="country_code" className="sr-only">
                             Country code
                           </Label>
-                          <input type="hidden" name="country_code" value={formData.country_code} />
-                          <Select
+                          <select
+                            id="country_code"
+                            name="country_code"
                             value={formData.country_code}
-                            onValueChange={(value) => setFormData((current) => ({ ...current, country_code: value }))}
+                            onChange={(e) => setFormData((current) => ({ ...current, country_code: e.target.value }))}
+                            className="h-10 w-[170px] rounded-md border border-input bg-background px-3 py-2 text-sm"
                           >
-                            <SelectTrigger id="country_code" className="w-[170px]">
-                              <SelectValue placeholder="Country code" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PHONE_COUNTRY_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            {PHONE_COUNTRY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                           <Input
                             id="phone"
                             name="phone"
@@ -348,24 +339,21 @@ const BookTest = () => {
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="booking_type">Visit Type *</Label>
-                          <input type="hidden" name="booking_type" value={formData.booking_type} />
-                          <Select
+                          <select
+                            id="booking_type"
+                            name="booking_type"
                             value={formData.booking_type}
-                            onValueChange={(value) =>
+                            onChange={(e) =>
                               setFormData((current) => ({
                                 ...current,
-                                booking_type: value,
+                                booking_type: e.target.value,
                               }))
                             }
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           >
-                            <SelectTrigger id="booking_type">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="walk_in">Walk-in Lab Visit</SelectItem>
-                              <SelectItem value="home_collection">Home Collection</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            <option value="walk_in">Walk-in Lab Visit</option>
+                            <option value="home_collection">Home Collection</option>
+                          </select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="preferred_date">Preferred Date</Label>
@@ -385,55 +373,49 @@ const BookTest = () => {
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="lab_id">Preferred Lab</Label>
-                          <input type="hidden" name="lab_id" value={formData.lab_id} />
-                          <Select
+                          <select
+                            id="lab_id"
+                            name="lab_id"
                             value={formData.lab_id || "none"}
-                            onValueChange={(value) =>
+                            onChange={(e) =>
                               setFormData((current) => ({
                                 ...current,
-                                lab_id: value === "none" ? "" : value,
+                                lab_id: e.target.value === "none" ? "" : e.target.value,
                                 collection_center_id: "",
                               }))
                             }
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           >
-                            <SelectTrigger id="lab_id">
-                              <SelectValue placeholder="Choose lab" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No preference</SelectItem>
-                              {labs.map((lab) => (
-                                <SelectItem key={lab.id} value={lab.id}>
-                                  {lab.name} ({lab.lab_code})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <option value="none">No preference</option>
+                            {labs.map((lab) => (
+                              <option key={lab.id} value={lab.id}>
+                                {lab.name} ({lab.lab_code})
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="collection_center_id">Collection Center</Label>
-                          <input type="hidden" name="collection_center_id" value={formData.collection_center_id} />
-                          <Select
+                          <select
+                            id="collection_center_id"
+                            name="collection_center_id"
                             value={formData.collection_center_id || "none"}
-                            onValueChange={(value) =>
+                            onChange={(e) =>
                               setFormData((current) => ({
                                 ...current,
-                                collection_center_id: value === "none" ? "" : value,
+                                collection_center_id: e.target.value === "none" ? "" : e.target.value,
                               }))
                             }
                             disabled={!formData.lab_id}
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <SelectTrigger id="collection_center_id">
-                              <SelectValue placeholder={formData.lab_id ? "Choose collection center" : "Select lab first"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No preference</SelectItem>
-                              {filteredCollectionCenters.map((center) => (
-                                <SelectItem key={center.id} value={center.id}>
-                                  {center.name} ({center.code})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <option value="none">No preference</option>
+                            {filteredCollectionCenters.map((center) => (
+                              <option key={center.id} value={center.id}>
+                                {center.name} ({center.code})
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
@@ -463,8 +445,8 @@ const BookTest = () => {
 
                       {turnstileSiteKey && (
                         <div className="space-y-2">
-                          <Label htmlFor="security-check">Security Check *</Label>
-                          <div id="security-check" className="overflow-x-auto rounded-lg border p-3">
+                          <Label>Security Check *</Label>
+                          <div className="overflow-x-auto rounded-lg border p-3">
                             <Turnstile
                               key={captchaInstanceKey}
                               siteKey={turnstileSiteKey}
