@@ -10,6 +10,30 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("jspdf-autotable")) {
+            return "vendor-pdf";
+          }
+          if (id.includes("recharts") || id.includes("d3-")) {
+            return "vendor-charts";
+          }
+          if (id.includes("date-fns")) {
+            return "vendor-date";
+          }
+          if (id.includes("@supabase/supabase-js")) {
+            return "vendor-supabase";
+          }
+
+          return;
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
