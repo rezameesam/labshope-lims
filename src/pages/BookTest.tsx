@@ -445,7 +445,7 @@ const BookTest = () => {
 
                       {turnstileSiteKey && (
                         <div className="space-y-2">
-                          <Label>Security Check *</Label>
+                          <p className="text-sm font-medium leading-none">Security Check *</p>
                           <div className="overflow-x-auto rounded-lg border p-3">
                             <Turnstile
                               key={captchaInstanceKey}
