@@ -740,6 +740,8 @@ const PlatformOnboarding = () => {
                       <div className="rounded-2xl border border-border/70 bg-background px-4 py-4 text-sm">
                         <p className="text-muted-foreground">Internal Notes</p>
                         <Textarea
+                          id={`status-notes-${request.id}`}
+                          name={`statusNotes-${request.id}`}
                           value={draftStatusNotes[request.id] || ""}
                           onChange={(event) =>
                             setDraftStatusNotes((current) => ({
