@@ -58,24 +58,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [staffPasswordResetRequired, setStaffPasswordResetRequired] = useState(false);
   const roleRequestIdRef = useRef(0);
+  const roleCacheRef = useRef<Map<string, { roles: UserRole[]; expiresAt: number }>>(new Map());
+  const roleInFlightRef = useRef<Map<string, Promise<UserRole[]>>>(new Map());
 
   const fetchUserRoles = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
+    const now = Date.now();
+    const cached = roleCacheRef.current.get(userId);
+    if (cached && cached.expiresAt > now) {
+      return cached.roles;
+    }
 
-      if (error) {
+    const inFlight = roleInFlightRef.current.get(userId);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
+
+        if (error) {
+          console.error("Error fetching roles:", error);
+          return [];
+        }
+
+        const nextRoles = (data?.map((r) => r.role as UserRole)) || [];
+        roleCacheRef.current.set(userId, { roles: nextRoles, expiresAt: Date.now() + 60_000 });
+        return nextRoles;
+      } catch (error) {
         console.error("Error fetching roles:", error);
         return [];
+      } finally {
+        roleInFlightRef.current.delete(userId);
       }
+    })();
 
-      return (data?.map((r) => r.role as UserRole)) || [];
-    } catch (error) {
-      console.error("Error fetching roles:", error);
-      return [];
-    }
+    roleInFlightRef.current.set(userId, request);
+    return request;
   };
 
   useEffect(() => {
@@ -273,6 +295,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setRoles([]);
       setCurrentSessionId(null);
       setStaffPasswordResetRequired(false);
+      roleCacheRef.current.clear();
+      roleInFlightRef.current.clear();
     }
 
     return { error: (error as Error | null) ?? null };

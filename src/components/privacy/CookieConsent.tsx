@@ -24,6 +24,7 @@ type ConsentState = {
 const CONSENT_COOKIE = "irm_consent";
 const CONSENT_VERSION = "1";
 const ONE_YEAR = 60 * 60 * 24 * 365;
+const PAGE_VIEW_LOG_THROTTLE_MS = 30_000;
 
 const parseConsentCookie = (): ConsentState | null => {
   const match = document.cookie
@@ -116,6 +117,13 @@ const CookieConsent = () => {
   useEffect(() => {
     if (organizationLoading) return;
     if (!isPublic) return;
+
+    const throttleKey = `visitor_log:${window.location.hostname}:${location.pathname}`;
+    const lastLogged = Number(sessionStorage.getItem(throttleKey) || "0");
+    if (Date.now() - lastLogged < PAGE_VIEW_LOG_THROTTLE_MS) {
+      return;
+    }
+
     const current = consent || parseConsentCookie();
     const payload = {
       event_type: "page_view",
@@ -127,15 +135,13 @@ const CookieConsent = () => {
       ...browserCountry,
     };
 
-    const sendLog = async () => {
-      try {
-        await supabase.functions.invoke("log-visitor", { body: payload });
-      } catch (error) {
-        console.error("Failed to log visitor", error);
-      }
-    };
+    sessionStorage.setItem(throttleKey, String(Date.now()));
 
-    sendLog();
+    void supabase.functions
+      .invoke("log-visitor", { body: payload })
+      .catch((error) => {
+        console.error("Failed to log visitor", error);
+      });
   }, [isPublic, location.pathname, consent, browserCountry, organization?.id, organizationLoading]);
 
   const applyConsent = (nextPrefs: typeof prefs) => {
