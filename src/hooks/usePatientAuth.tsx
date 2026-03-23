@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
@@ -51,6 +51,8 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const patientCacheRef = useRef<Map<string, { patient: Patient | null; expiresAt: number }>>(new Map());
+  const patientInFlightRef = useRef<Map<string, Promise<Patient | null>>>(new Map());
 
   useEffect(() => {
     let isMounted = true;
@@ -64,24 +66,48 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("patients")
-        .select("id, patient_id, full_name, phone, email, gender, blood_group, address, date_of_birth, is_active, organization_id, password_reset_required, last_password_change, abha_number, abha_address, abdm_source, abdm_last_verified_at")
-        .eq("user_id", userId)
-        .eq("is_active", true)
-        .maybeSingle();
+      const now = Date.now();
+      const cached = patientCacheRef.current.get(userId);
+      if (cached && cached.expiresAt > now) {
+        if (isMounted && requestId === bootstrapRequestId) {
+          setPatient(cached.patient);
+        }
+        return;
+      }
+
+      const existing = patientInFlightRef.current.get(userId);
+      const request =
+        existing ||
+        (async () => {
+          const { data, error } = await supabase
+            .from("patients")
+            .select("id, patient_id, full_name, phone, email, gender, blood_group, address, date_of_birth, is_active, organization_id, password_reset_required, last_password_change, abha_number, abha_address, abdm_source, abdm_last_verified_at")
+            .eq("user_id", userId)
+            .eq("is_active", true)
+            .maybeSingle();
+
+          if (error && error.code !== "42501") {
+            console.error("Failed to load patient record for session:", error);
+          }
+
+          const patientData = data && !error ? (data as unknown as Patient) : null;
+          patientCacheRef.current.set(userId, {
+            patient: patientData,
+            expiresAt: Date.now() + 60_000,
+          });
+          return patientData;
+        })();
+
+      if (!existing) {
+        patientInFlightRef.current.set(userId, request);
+      }
+
+      const patientData = await request.finally(() => {
+        patientInFlightRef.current.delete(userId);
+      });
 
       if (!isMounted || requestId !== bootstrapRequestId) return;
-
-      if (data && !error) {
-        const patientData = data as unknown as Patient;
-        setPatient(patientData);
-      } else {
-        if (error && error.code !== "42501") {
-          console.error("Failed to load patient record for session:", error);
-        }
-        setPatient(null);
-      }
+      setPatient(patientData);
     };
 
     const runWithTimeout = async (userId: string | null, requestId: number, timeoutMs: number) => {
@@ -128,6 +154,8 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!nextSession?.user?.id) {
         setPatient(null);
+        patientCacheRef.current.clear();
+        patientInFlightRef.current.clear();
         setLoading(false);
         return;
       }
@@ -411,6 +439,8 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
     setPatient(null);
     setSession(null);
     setCurrentSessionId(null);
+    patientCacheRef.current.clear();
+    patientInFlightRef.current.clear();
   };
 
   return (
