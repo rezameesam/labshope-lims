@@ -167,13 +167,13 @@ const ProductLandingPage = () => {
         <PlatformSiteHeader />
 
         <main>
-          <section className="relative overflow-hidden bg-gradient-to-br from-primary/15 via-background to-primary/5">
+          <section className="relative overflow-hidden bg-gradient-to-br from-primary/30 via-secondary/45 to-background">
             
             
             <div className="container relative z-10 mx-auto px-4 py-24 lg:px-8 lg:py-32">
               <div className="grid gap-14 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
                 <div className="max-w-3xl">
-                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-4 py-2 text-sm font-medium text-foreground">
+                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
                     <ShieldCheck className="h-4 w-4" />
                     Built for diagnostic labs and growing branch operations
                   </div>
@@ -232,7 +232,7 @@ const ProductLandingPage = () => {
             </div>
           </section>
 
-          <section className="border-b border-border/60 bg-background">
+          <section className="border-b border-primary/15 bg-primary/5">
             <div className="container mx-auto px-4 py-8 lg:px-8">
               <div className="grid gap-4 md:grid-cols-3">
                 {trustSignals.map((signal) => (
@@ -319,7 +319,7 @@ const ProductLandingPage = () => {
             </div>
           </section>
 
-          <section id="features" className="bg-background">
+          <section id="features" className="bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--secondary)/0.35)_100%)]">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Features</p>
@@ -536,7 +536,7 @@ const ProductLandingPage = () => {
                     <Button variant="heroOutline" size="xl">Contact Sales</Button>
                   </Link>
                   <a href={buildOperationsUrl("/auth/staff")}>
-                    <Button variant="heroOutline" size="xl">Staff Login</Button>
+                    <Button variant="outline" size="xl">Staff Login</Button>
                   </a>
                 </div>
                 <p className="mt-6 text-sm text-muted-foreground">Sales contact: {contactEmail}</p>

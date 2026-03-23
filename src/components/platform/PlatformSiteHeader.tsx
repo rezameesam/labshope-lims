@@ -36,7 +36,7 @@ const PlatformSiteHeader = () => {
       <div className="w-full bg-amber-500 px-4 py-2 text-center text-sm font-medium text-amber-950">
         🚧 This platform is currently under development. No orders or sign-up requests will be accepted or entertained at this time.
       </div>
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-primary/20 bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--secondary)/0.45)_100%)] backdrop-blur">
       <div className="container mx-auto flex h-18 items-center justify-between px-4 lg:px-8">
         <a href={buildMarketingUrl("/")} className="flex items-center gap-3">
           <img src="/labshope-logo.jpg" alt="LabShope LIMS" className="h-10 w-auto object-contain" />
@@ -105,7 +105,7 @@ const PlatformSiteHeader = () => {
                   </SheetClose>
                   <SheetClose asChild>
                     <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/book-demo"))}>
-                      <Button variant="outline" className="w-full">Book Demo</Button>
+                      <Button variant="heroOutline" className="w-full">Book Demo</Button>
                     </a>
                   </SheetClose>
                 </div>
@@ -119,7 +119,7 @@ const PlatformSiteHeader = () => {
             <Button variant="outline" size="sm">Staff Login</Button>
           </a>
           <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/book-demo"))} className="hidden sm:block">
-            <Button variant="outline" size="sm">Book Demo</Button>
+            <Button variant="heroOutline" size="sm">Book Demo</Button>
           </a>
           <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/start"))}>
             <Button variant="clinical" size="sm">Get Started</Button>
