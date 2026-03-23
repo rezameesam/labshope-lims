@@ -36,7 +36,7 @@ export const LatestLeads = ({ leads, onNavigate }: Props) => (
         <p className="text-sm text-muted-foreground">No active leads right now.</p>
       ) : (
         leads.map((lead) => (
-          <div key={lead.id} className="rounded-2xl border border-primary/15 bg-card/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <div key={lead.id} tabIndex={0} className="rounded-2xl border border-primary/15 bg-card/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:-translate-y-0.5 focus-visible:shadow-md">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-foreground">{lead.lab_name}</p>

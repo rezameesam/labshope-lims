@@ -45,7 +45,7 @@ export const KpiStrip = ({ counts }: Props) => (
     {METRIC_CARDS.map((card) => {
       const Icon = card.icon;
       return (
-        <div key={card.title} className="rounded-[20px] border border-border bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+        <div key={card.title} tabIndex={0} className="rounded-[20px] border border-border bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:-translate-y-0.5 focus-visible:shadow-md">
           <div className={`inline-flex rounded-xl p-2.5 ${card.toneClass}`}>
             <Icon className="h-4 w-4" />
           </div>

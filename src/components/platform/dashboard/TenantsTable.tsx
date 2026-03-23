@@ -60,7 +60,7 @@ export const TenantsTable = ({ tenants, search, onSearchChange, organizationCoun
           </TableHeader>
           <TableBody>
             {tenants.map((tenant) => (
-              <TableRow key={tenant.id} className="transition-colors hover:bg-primary/5">
+              <TableRow key={tenant.id} className="transition-colors hover:bg-primary/5 focus-within:bg-primary/10">
                 <TableCell>
                   <div>
                     <p className="font-semibold text-foreground">{tenant.displayName}</p>
