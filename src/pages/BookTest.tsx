@@ -296,6 +296,7 @@ const BookTest = () => {
                           <Label htmlFor="country_code" className="sr-only">
                             Country code
                           </Label>
+                          <input type="hidden" name="country_code" value={formData.country_code} />
                           <Select
                             value={formData.country_code}
                             onValueChange={(value) => setFormData((current) => ({ ...current, country_code: value }))}
@@ -347,6 +348,7 @@ const BookTest = () => {
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="booking_type">Visit Type *</Label>
+                          <input type="hidden" name="booking_type" value={formData.booking_type} />
                           <Select
                             value={formData.booking_type}
                             onValueChange={(value) =>
@@ -383,6 +385,7 @@ const BookTest = () => {
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="lab_id">Preferred Lab</Label>
+                          <input type="hidden" name="lab_id" value={formData.lab_id} />
                           <Select
                             value={formData.lab_id || "none"}
                             onValueChange={(value) =>
@@ -408,6 +411,7 @@ const BookTest = () => {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="collection_center_id">Collection Center</Label>
+                          <input type="hidden" name="collection_center_id" value={formData.collection_center_id} />
                           <Select
                             value={formData.collection_center_id || "none"}
                             onValueChange={(value) =>
@@ -459,8 +463,8 @@ const BookTest = () => {
 
                       {turnstileSiteKey && (
                         <div className="space-y-2">
-                          <Label>Security Check *</Label>
-                          <div className="overflow-x-auto rounded-lg border p-3">
+                          <Label htmlFor="security-check">Security Check *</Label>
+                          <div id="security-check" className="overflow-x-auto rounded-lg border p-3">
                             <Turnstile
                               key={captchaInstanceKey}
                               siteKey={turnstileSiteKey}
