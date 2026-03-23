@@ -12,13 +12,13 @@ interface Props {
 }
 
 export const PlatformStatus = ({ counts }: Props) => (
-  <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+  <Card className="rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.3)_100%)] shadow-sm">
     <CardHeader className="border-b border-border pb-5">
       <CardTitle className="text-2xl text-foreground">Platform Status</CardTitle>
       <CardDescription>Short operational readout for the software owner.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-4 p-6">
-      <div className="rounded-2xl border border-border bg-muted/40 p-5">
+      <div className="rounded-2xl border border-primary/15 bg-card/80 p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Posture</p>
         <p className="mt-3 text-base font-semibold text-foreground">
           {counts.pendingDns > 0
@@ -26,7 +26,7 @@ export const PlatformStatus = ({ counts }: Props) => (
             : "No current DNS blockers are visible in the live launch queue."}
         </p>
       </div>
-      <div className="rounded-2xl border border-border bg-muted/40 p-5">
+      <div className="rounded-2xl border border-primary/15 bg-card/80 p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Customer Motion</p>
         <p className="mt-3 text-base font-semibold text-foreground">
           {counts.activeLeads > 0
@@ -34,7 +34,7 @@ export const PlatformStatus = ({ counts }: Props) => (
             : "Sales is quiet right now; onboarding and launch quality are the main operational focus."}
         </p>
       </div>
-      <div className="rounded-2xl border border-border bg-muted/40 p-5">
+      <div className="rounded-2xl border border-primary/15 bg-card/80 p-5">
         <div className="flex items-center gap-3">
           <BadgeCheck className="h-4.5 w-4.5 text-foreground/80" />
           <p className="text-sm font-semibold text-foreground">Next best action</p>

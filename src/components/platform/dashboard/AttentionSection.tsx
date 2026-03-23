@@ -15,7 +15,7 @@ interface Props {
 }
 
 export const AttentionSection = ({ items, onNavigate }: Props) => (
-  <section className="rounded-[28px] border border-border bg-card p-6 shadow-sm">
+  <section className="rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.3)_100%)] p-6 shadow-sm">
     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Needs Attention</p>
@@ -27,9 +27,9 @@ export const AttentionSection = ({ items, onNavigate }: Props) => (
     </div>
 
     {items.length === 0 ? (
-      <div className="mt-5 flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-          <BadgeCheck className="h-5 w-5 text-emerald-600" />
+      <div className="mt-5 flex items-center gap-4 rounded-2xl border border-emerald-300/70 bg-emerald-50 p-5 dark:border-emerald-400/40 dark:bg-emerald-500/15">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/25">
+          <BadgeCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
         </div>
         <div>
           <p className="text-base font-semibold text-foreground">Queue is clear</p>

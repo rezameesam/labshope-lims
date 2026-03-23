@@ -113,7 +113,7 @@ const PlatformDashboard = () => {
               detail: `${counts.onboardingRequests} customer setup request${counts.onboardingRequests === 1 ? "" : "s"} are still open in provisioning.`,
               actionLabel: "Go to onboarding",
               href: "/platform/onboarding",
-              toneClass: "border-blue-200 bg-blue-50",
+              toneClass: "border-blue-300/70 bg-blue-50 dark:border-blue-400/40 dark:bg-blue-500/15",
             }
           : null,
         counts.pendingDns > 0
@@ -172,8 +172,8 @@ const PlatformDashboard = () => {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Control</p>
-          <h2 className="mt-1 font-heading text-3xl font-bold tracking-tight text-foreground">Overview</h2>
+          <p className="inline-flex rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">Control</p>
+          <h2 className="mt-2 font-heading text-3xl font-bold tracking-tight text-foreground">Overview</h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate("/platform/leads")}>
@@ -238,3 +238,4 @@ const PlatformDashboard = () => {
 };
 
 export default PlatformDashboard;
+oard;
