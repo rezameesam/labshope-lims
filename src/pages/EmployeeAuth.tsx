@@ -250,11 +250,11 @@ const EmployeeAuth = () => {
   }
 
   return (
-    <div className="min-h-screen bg-subtle-gradient flex">
+    <div className="min-h-screen bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--secondary)/0.45)_100%)] flex">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-muted/30 border-l border-border p-12 flex-col justify-between">
+      <div className="hidden lg:flex lg:w-1/2 border-r border-primary/20 bg-[linear-gradient(180deg,hsl(var(--primary)/0.14)_0%,hsl(var(--secondary)/0.45)_100%)] p-12 flex-col justify-between">
         <Link to="/" className="flex items-center gap-3">
-          <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12" />
+          <img src={branding.logoUrl || logo} alt={branding.displayName} className="h-12 w-12 rounded-xl ring-1 ring-primary/20" />
           <div>
             <h1 className="text-lg font-heading font-bold text-foreground">
               {branding.shortName}
@@ -263,22 +263,30 @@ const EmployeeAuth = () => {
           </div>
         </Link>
 
-        <div>
-          <h2 className="text-4xl font-heading font-bold text-foreground mb-4">
-            Staff Portal
+        <div className="max-w-xl">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+            <Sparkles className="h-3.5 w-3.5" />
+            Staff Workspace
+          </p>
+          <h2 className="mt-5 text-5xl leading-tight font-heading font-bold text-foreground">
+            Secure access for
+            <span className="block text-primary">LabShope operations</span>
           </h2>
-          <p className="text-muted-foreground text-lg max-w-md">
-            Access the laboratory management system to manage patient records, 
-            test results, and appointments.
+          <p className="mt-5 text-foreground/80 text-lg max-w-md leading-8">
+            Manage diagnostics workflows, reporting, collections, and staff operations from a single secure portal.
           </p>
           <div className="mt-8 space-y-4">
             <div className="flex items-center gap-3 text-foreground/80">
-              <Shield className="h-5 w-5" />
-              <span>Secure Staff Access</span>
+              <Shield className="h-5 w-5 text-primary" />
+              <span>Role-protected staff access</span>
             </div>
             <div className="flex items-center gap-3 text-foreground/80">
-              <Users className="h-5 w-5" />
-              <span>Lab Management System</span>
+              <Users className="h-5 w-5 text-primary" />
+              <span>Multi-tenant lab management</span>
+            </div>
+            <div className="flex items-center gap-3 text-foreground/80">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <span>Audit-ready operational workflows</span>
             </div>
           </div>
         </div>
@@ -290,7 +298,7 @@ const EmployeeAuth = () => {
 
       {/* Right Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-lg">
           <div className="mb-4 flex justify-end">
             <ThemeToggle />
           </div>
@@ -311,13 +319,16 @@ const EmployeeAuth = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
-            className="bg-card rounded-2xl p-8 shadow-xl border border-border"
+            className="rounded-3xl border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.28)_100%)] p-8 shadow-xl"
           >
             <div className="mb-8">
-              <h2 className="text-2xl font-heading font-bold text-foreground mb-2">
+              <p className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                Secure Access
+              </p>
+              <h2 className="mt-3 text-3xl font-heading font-bold text-foreground">
                 Staff Login
               </h2>
-              <p className="text-muted-foreground">
+              <p className="mt-2 text-muted-foreground">
                 {platformAdminLoginMode ? "Sign in to the platform admin portal" : "Sign in with your staff credentials"}
               </p>
             </div>
@@ -334,7 +345,7 @@ const EmployeeAuth = () => {
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 border-primary/20 bg-card/80"
                     autoComplete="username"
                     required
                   />
@@ -351,7 +362,7 @@ const EmployeeAuth = () => {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10"
+                    className="pl-10 pr-10 border-primary/20 bg-card/80"
                     name="password"
                     autoComplete="current-password"
                     autoCorrect="off"
@@ -360,8 +371,9 @@ const EmployeeAuth = () => {
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 transition-colors hover:bg-primary/10"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -398,12 +410,13 @@ const EmployeeAuth = () => {
                 type="submit"
                 variant="default"
                 size="lg"
-                className="w-full bg-primary hover:bg-primary/90"
+                className="w-full h-11 bg-primary hover:bg-primary/90"
                 disabled={isLoading}
               >
                 {isLoading ? "Signing in..." : "Sign In"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
+              <p className="text-xs text-muted-foreground text-center">Protected by role checks and activity logging.</p>
             </form>
 
             <div className="mt-6 pt-6 border-t border-border text-center">
