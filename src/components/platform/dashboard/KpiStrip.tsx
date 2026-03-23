@@ -18,25 +18,25 @@ const METRIC_CARDS = [
     title: "Organizations",
     key: "organizations" as const,
     icon: Building2,
-    toneClass: "bg-slate-100 text-foreground/80",
+    toneClass: "bg-primary/15 text-primary dark:bg-primary/20 dark:text-primary",
   },
   {
     title: "Lead Pipeline",
     key: "activeLeads" as const,
     icon: Users,
-    toneClass: "bg-emerald-50 text-emerald-700",
+    toneClass: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
   },
   {
     title: "Onboarding Flow",
     key: "onboardingRequests" as const,
     icon: Rocket,
-    toneClass: "bg-blue-50 text-blue-700",
+    toneClass: "bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
   },
   {
     title: "Pending DNS",
     key: "pendingDns" as const,
     icon: Globe2,
-    toneClass: "bg-amber-50 text-amber-700",
+    toneClass: "bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
   },
 ];
 
