@@ -86,13 +86,13 @@ const AboutSection = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.45, delay: 0.08 }}
-            className="rounded-3xl border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.24)_100%)] p-7 shadow-sm lg:sticky lg:top-28"
+            className="rounded-3xl border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.24)_100%)] p-8 shadow-sm lg:sticky lg:top-28 lg:p-12"
           >
             <div className="mx-auto flex max-w-sm flex-col items-center text-center">
               <img
                 src={branding.logoUrl || logo}
                 alt={`${branding.displayName} Logo`}
-                className="mb-5 h-36 w-36 rounded-2xl border border-primary/20 bg-background/60 p-3 object-contain md:h-44 md:w-44"
+                className="mb-6 h-48 w-48 rounded-2xl border border-primary/20 bg-background/60 p-3 object-contain lg:h-64 lg:w-64"
               />
               <h3 className="text-2xl font-heading font-bold text-foreground">{branding.displayName}</h3>
               <p className="mt-1 text-sm text-muted-foreground">Established {branding.establishedYear}</p>
