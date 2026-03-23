@@ -23,31 +23,31 @@ interface Props {
 }
 
 export const TenantsTable = ({ tenants, search, onSearchChange, organizationCount }: Props) => (
-  <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+  <Card className="rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.28)_100%)] shadow-sm">
     <CardHeader className="border-b border-border pb-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <CardTitle className="text-2xl text-foreground">Customers</CardTitle>
           <CardDescription>Search the tenant base and inspect public-domain state.</CardDescription>
         </div>
-        <Badge variant="outline" className="w-fit border-border bg-muted/40 text-foreground/80">
+        <Badge variant="outline" className="w-fit border-primary/25 bg-primary/10 text-primary">
           {organizationCount} organizations
         </Badge>
       </div>
     </CardHeader>
     <CardContent className="p-6">
-      <div className="relative mb-5 max-w-md">
+      <div className="relative mb-6 max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          className="border-border bg-muted/40 pl-10"
+          className="border-primary/20 bg-card/80 pl-10"
           placeholder="Search tenant, slug, or domain"
         />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border">
+      <div className="overflow-hidden rounded-2xl border border-primary/15 bg-card/90">
         <Table>
-          <TableHeader className="bg-muted/40">
+          <TableHeader className="bg-primary/5">
             <TableRow>
               <TableHead>Organization</TableHead>
               <TableHead>Primary Domain</TableHead>

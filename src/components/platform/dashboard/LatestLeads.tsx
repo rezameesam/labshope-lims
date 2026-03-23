@@ -19,7 +19,7 @@ interface Props {
 }
 
 export const LatestLeads = ({ leads, onNavigate }: Props) => (
-  <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+  <Card className="rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.28)_100%)] shadow-sm">
     <CardHeader className="border-b border-border pb-5">
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -57,3 +57,5 @@ export const LatestLeads = ({ leads, onNavigate }: Props) => (
     </CardContent>
   </Card>
 );
+;
+

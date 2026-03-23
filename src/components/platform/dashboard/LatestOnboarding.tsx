@@ -32,7 +32,7 @@ interface Props {
 }
 
 export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) => (
-  <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+  <Card className="rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.28)_100%)] shadow-sm">
     <CardHeader className="border-b border-border pb-5">
       <div className="flex flex-col gap-4">
         <div>
@@ -55,15 +55,15 @@ export const LatestOnboarding = ({ requests, filter, onFilterChange }: Props) =>
     </CardHeader>
     <CardContent className="space-y-3 p-6">
       {requests.map((request) => (
-        <div key={request.id} className="rounded-2xl border border-border bg-muted/40 p-4">
+        <div key={request.id} className="rounded-2xl border border-primary/15 bg-card/85 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold text-foreground">{request.organization_name}</p>
-                <Badge variant="outline" className="border-border bg-card text-foreground/80">
+                <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
                   {request.selected_plan}
                 </Badge>
-                <Badge variant="outline" className="border-border bg-card text-foreground/80">
+                <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
                   {request.setup_mode === "self_serve" ? "self-serve" : "assisted"}
                 </Badge>
               </div>
