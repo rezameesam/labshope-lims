@@ -16,11 +16,20 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
 
-          if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("jspdf-autotable")) {
-            return "vendor-pdf";
+          if (id.includes("html2canvas")) {
+            return "vendor-html2canvas";
           }
-          if (id.includes("recharts") || id.includes("d3-")) {
-            return "vendor-charts";
+          if (id.includes("jspdf-autotable")) {
+            return "vendor-jspdf-autotable";
+          }
+          if (id.includes("jspdf")) {
+            return "vendor-jspdf";
+          }
+          if (id.includes("recharts")) {
+            return "vendor-recharts";
+          }
+          if (id.includes("d3-")) {
+            return "vendor-d3";
           }
           if (id.includes("date-fns")) {
             return "vendor-date";
