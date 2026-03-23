@@ -63,7 +63,7 @@ const services = [
 
 const ServicesSection = () => {
   return (
-    <section id="services" className="scroll-mt-24 bg-background py-20 lg:py-28">
+    <section id="services" className="scroll-mt-24 bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--secondary)/0.25)_100%)] py-20 lg:py-28">
       <div className="container mx-auto px-4 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
@@ -108,7 +108,7 @@ const ServicesSection = () => {
               className="group relative bg-card rounded-xl p-6 shadow-md hover:shadow-xl transition-all duration-300 border border-border hover:border-primary/30 overflow-hidden"
             >
               {/* Gradient Background on Hover */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${service.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
+              <div className={`absolute inset-0 bg-gradient-to-br ${service.color} opacity-0 transition-opacity duration-300 group-hover:opacity-10 dark:group-hover:opacity-20`} />
               
               {/* Icon */}
               <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${service.color} text-primary-foreground mb-4 shadow-md`}>

@@ -107,7 +107,7 @@ const ContactSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              className="bg-card rounded-xl p-6 shadow-md border border-border text-center hover:shadow-lg transition-shadow"
+              className="rounded-xl border border-primary/15 bg-card/90 p-6 text-center shadow-md transition-shadow hover:shadow-lg dark:bg-card"
             >
               <div className="inline-flex p-3 rounded-full bg-primary/10 text-primary mb-4">
                 <info.icon className="h-6 w-6" />

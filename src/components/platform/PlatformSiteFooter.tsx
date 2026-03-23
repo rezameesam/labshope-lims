@@ -7,7 +7,7 @@ const PlatformSiteFooter = () => {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-border bg-card">
+    <footer className="border-t border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.3)_100%)]">
       <div className="container mx-auto px-4 py-12 lg:px-8">
         {/* Top section: brand + columns */}
         <div className="grid grid-cols-2 gap-8 md:grid-cols-5">

@@ -167,7 +167,7 @@ const ProductLandingPage = () => {
         <PlatformSiteHeader />
 
         <main>
-          <section className="relative overflow-hidden bg-gradient-to-br from-primary/30 via-secondary/45 to-background">
+          <section className="relative overflow-hidden bg-gradient-to-br from-primary/30 via-secondary/45 to-background dark:from-primary/25 dark:via-secondary/35 dark:to-background">
             
             
             <div className="container relative z-10 mx-auto px-4 py-24 lg:px-8 lg:py-32">
@@ -446,7 +446,7 @@ const ProductLandingPage = () => {
             </div>
           </section>
 
-          <section id="pricing" className="border-y border-border/60 bg-muted/20">
+          <section id="pricing" className="border-y border-primary/20 bg-muted/20 dark:bg-muted/30">
             <div className="container mx-auto px-4 py-20 lg:px-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Pricing</p>
@@ -522,7 +522,7 @@ const ProductLandingPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-border bg-card px-8 py-14 text-foreground lg:px-14">
+              <div className="rounded-[2rem] border border-primary/20 bg-card/90 px-8 py-14 text-foreground lg:px-14 dark:bg-card">
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">Contact</p>
                 <h3 className="mt-4 font-heading text-3xl font-bold md:text-5xl">Ready to modernize your lab operations?</h3>
                 <p className="mt-6 max-w-3xl text-lg text-muted-foreground">

@@ -8,7 +8,7 @@ const Footer = () => {
   const { branding } = useOrganization();
 
   return (
-    <footer className="bg-clinical-navy text-primary-foreground">
+    <footer className="border-t border-primary/20 bg-[linear-gradient(180deg,hsl(var(--clinical-navy))_0%,hsl(var(--background))_140%)] text-primary-foreground">
       <div className="container mx-auto px-4 lg:px-8 py-12 lg:py-16">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand */}

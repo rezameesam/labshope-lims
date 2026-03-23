@@ -22,7 +22,7 @@ const HeroSection = () => {
     <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-hero-gradient" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent_50%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.14),transparent_50%)] dark:bg-[radial-gradient(circle_at_30%_50%,rgba(56,189,248,0.18),transparent_55%)]" />
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
 
       {/* Content */}
@@ -52,7 +52,7 @@ const HeroSection = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mb-8"
+            className="text-lg md:text-xl text-primary-foreground/90 max-w-2xl mb-8"
           >
             {branding.description} Experience trusted healthcare with modern diagnostic support.
           </motion.p>
@@ -108,7 +108,7 @@ const HeroSection = () => {
         transition={{ duration: 0.8, delay: 0.5 }}
         className="absolute right-10 top-1/3 hidden xl:block"
       >
-        <div className="w-64 h-64 rounded-full bg-primary-foreground/5 blur-3xl" />
+        <div className="w-64 h-64 rounded-full bg-primary-foreground/10 dark:bg-primary/25 blur-3xl" />
       </motion.div>
     </section>
   );

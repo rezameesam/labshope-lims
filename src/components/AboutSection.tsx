@@ -90,7 +90,7 @@ const AboutSection = () => {
             transition={{ duration: 0.6 }}
             className="relative"
           >
-            <div className="relative bg-card rounded-2xl p-8 lg:p-12 shadow-xl border border-border">
+            <div className="relative rounded-2xl border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--secondary)/0.25)_100%)] p-8 shadow-xl lg:p-12">
               {/* Logo Display */}
               <div className="flex flex-col items-center text-center">
                 <motion.img
@@ -100,7 +100,7 @@ const AboutSection = () => {
                   animate={{ rotate: [0, 2, 0, -2, 0] }}
                   transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
                 />
-                <h3 className="text-2xl lg:text-3xl font-heading font-bold text-clinical-navy mb-2">
+                <h3 className="mb-2 text-2xl font-heading font-bold text-foreground lg:text-3xl">
                   {branding.displayName}
                 </h3>
                 <p className="text-muted-foreground font-medium">
