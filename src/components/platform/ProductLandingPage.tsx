@@ -289,7 +289,7 @@ const ProductLandingPage = () => {
                     key={item.title}
                     className={`rounded-[2rem] border p-7 shadow-sm ${
                       index === 1
-                        ? "border-clinical-blue/30 bg-[linear-gradient(180deg,rgba(31,138,205,0.08),rgba(255,255,255,0.96))]"
+                        ? "border-clinical-blue/30 bg-[linear-gradient(180deg,rgba(31,138,205,0.08),hsl(var(--card)))] dark:bg-[linear-gradient(180deg,rgba(31,138,205,0.22),hsl(var(--card)))]"
                         : "border-border bg-card"
                     }`}
                   >
@@ -461,14 +461,14 @@ const ProductLandingPage = () => {
                     key={plan.name}
                     className={`rounded-3xl border p-7 shadow-sm ${
                       index === 1
-                        ? "border-clinical-blue bg-[linear-gradient(180deg,rgba(31,138,205,0.08),rgba(255,255,255,0.98))]"
+                        ? "border-clinical-blue bg-[linear-gradient(180deg,rgba(31,138,205,0.08),hsl(var(--card)))] dark:bg-[linear-gradient(180deg,rgba(31,138,205,0.22),hsl(var(--card)))]"
                         : "border-border bg-background"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-4">
                       <h4 className="font-heading text-3xl font-bold text-foreground">{plan.name}</h4>
                       {index === 1 ? (
-                        <span className="rounded-full bg-clinical-blue px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                        <span className="rounded-full bg-clinical-blue px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground">
                           Popular
                         </span>
                       ) : null}
