@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Mail, Lock, ArrowRight, Shield, Users, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, ArrowRight, Shield, Users, Eye, EyeOff, Sparkles, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
