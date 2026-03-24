@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
+  Calendar,
+  Check,
   ClipboardCopy,
   CreditCard,
   ExternalLink,
@@ -17,11 +19,13 @@ import {
   Settings,
   ShieldCheck,
   Users,
+  X,
 } from "lucide-react";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +37,7 @@ type OrganizationRow = {
   slug: string;
   display_name: string;
   status: string;
+  trial_ends_at: string | null;
   created_at: string;
   logo_url?: string | null;
 };
@@ -143,6 +148,9 @@ const PlatformCustomerDetail = () => {
   const [savingPlan, setSavingPlan] = useState(false);
   const [resolvedPlan, setResolvedPlan] = useState<PlanTier>("starter");
   const [accessingOrg, setAccessingOrg] = useState(false);
+  const [editingTrialDate, setEditingTrialDate] = useState(false);
+  const [trialDateInput, setTrialDateInput] = useState("");
+  const [savingTrialStatus, setSavingTrialStatus] = useState(false);
 
   const loadDetails = useCallback(async () => {
     if (!orgId) {
@@ -163,7 +171,7 @@ const PlatformCustomerDetail = () => {
     ] = await Promise.all([
       (supabase as any)
         .from("organizations")
-        .select("id, slug, display_name, status, created_at, logo_url")
+        .select("id, slug, display_name, status, trial_ends_at, created_at, logo_url")
         .eq("id", orgId)
         .maybeSingle(),
       (supabase as any)
@@ -402,6 +410,44 @@ const PlatformCustomerDetail = () => {
     }
   };
 
+  const handleSaveOrgStatus = async (newStatus: "active" | "trial" | "suspended" | "cancelled") => {
+    if (!organization?.id) return;
+    setSavingTrialStatus(true);
+    try {
+      const update: Record<string, unknown> = { status: newStatus };
+      if (newStatus === "active") update.trial_ends_at = null;
+      if (newStatus === "trial" && trialDateInput) update.trial_ends_at = new Date(trialDateInput).toISOString();
+      const { error } = await (supabase as any).from("organizations").update(update).eq("id", organization.id);
+      if (error) throw error;
+      setOrganization((prev) => prev ? { ...prev, status: newStatus, trial_ends_at: newStatus === "active" ? null : (trialDateInput ? new Date(trialDateInput).toISOString() : prev.trial_ends_at) } : prev);
+      setEditingTrialDate(false);
+      toast.success(`Organization ${newStatus === "active" ? "activated" : newStatus === "suspended" ? "suspended" : "updated"} successfully`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update organization status");
+    } finally {
+      setSavingTrialStatus(false);
+    }
+  };
+
+  const handleSaveTrialDate = async () => {
+    if (!organization?.id || !trialDateInput) return;
+    setSavingTrialStatus(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("organizations")
+        .update({ trial_ends_at: new Date(trialDateInput).toISOString(), status: "trial" })
+        .eq("id", organization.id);
+      if (error) throw error;
+      setOrganization((prev) => prev ? { ...prev, status: "trial", trial_ends_at: new Date(trialDateInput).toISOString() } : prev);
+      setEditingTrialDate(false);
+      toast.success("Trial end date updated");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update trial date");
+    } finally {
+      setSavingTrialStatus(false);
+    }
+  };
+
   const currentPlan: PlanTier = resolvedPlan;
 
   return (
@@ -553,6 +599,115 @@ const PlatformCustomerDetail = () => {
                   }).format(paymentsTotal)}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">Recorded across all tenant invoices</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Subscription & Trial Card */}
+          <Card className="rounded-[28px] border border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border pb-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-2xl text-foreground">Subscription & Trial</CardTitle>
+                  <CardDescription>Manage this organization's status and trial period. Activating removes the trial deadline.</CardDescription>
+                </div>
+                <Badge
+                  className={
+                    organization.status === "active"
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                      : organization.status === "trial"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                      : organization.status === "suspended"
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                      : "bg-muted text-muted-foreground"
+                  }
+                >
+                  {organization.status}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                {/* Trial end date display / editor */}
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    Trial ends
+                  </p>
+                  {editingTrialDate ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={trialDateInput}
+                        onChange={(e) => setTrialDateInput(e.target.value)}
+                        className="w-44"
+                      />
+                      <Button size="icon" variant="ghost" onClick={handleSaveTrialDate} disabled={savingTrialStatus || !trialDateInput}>
+                        {savingTrialStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-emerald-600" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setEditingTrialDate(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-semibold text-foreground">
+                        {organization.trial_ends_at
+                          ? formatAppDateTime(organization.trial_ends_at)
+                          : organization.status === "active"
+                          ? "No deadline — active"
+                          : "Not set"}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const d = organization.trial_ends_at ? new Date(organization.trial_ends_at) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+                          setTrialDateInput(d.toISOString().split("T")[0]);
+                          setEditingTrialDate(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {organization.status !== "active" && (
+                    <Button
+                      variant="outline"
+                      className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                      onClick={() => void handleSaveOrgStatus("active")}
+                      disabled={savingTrialStatus}
+                    >
+                      {savingTrialStatus ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                      Mark as Active
+                    </Button>
+                  )}
+                  {organization.status !== "trial" && (
+                    <Button
+                      variant="outline"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                      onClick={() => void handleSaveOrgStatus("trial")}
+                      disabled={savingTrialStatus}
+                    >
+                      Move to Trial
+                    </Button>
+                  )}
+                  {organization.status !== "suspended" && (
+                    <Button
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
+                      onClick={() => void handleSaveOrgStatus("suspended")}
+                      disabled={savingTrialStatus}
+                    >
+                      Suspend
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

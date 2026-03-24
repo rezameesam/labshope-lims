@@ -678,6 +678,18 @@ const GENERAL_SETTING_TEMPLATES: SystemSetting[] = [
     is_encrypted: false,
   },
   {
+    id: "template-trial_period_days",
+    organization_id: null,
+    setting_key: "trial_period_days",
+    setting_value: "14",
+    setting_type: "text",
+    category: "general",
+    label: "Default Trial Period (days)",
+    description: "Number of days a newly provisioned organization stays on trial before being auto-suspended. Default is 14.",
+    is_encrypted: false,
+    platform_only: true,
+  },
+  {
     id: "template-notification_follow_up_title",
     organization_id: null,
     setting_key: "notification_follow_up_title",

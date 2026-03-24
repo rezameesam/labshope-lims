@@ -310,6 +310,13 @@ serve(async (req: Request) => {
     };
 
     try {
+      const { data: trialSetting } = await supabaseAdmin
+        .from("system_settings")
+        .select("setting_value")
+        .eq("setting_key", "trial_period_days")
+        .maybeSingle();
+      const trialDays = Math.max(1, parseInt((trialSetting as any)?.setting_value || "14", 10) || 14);
+
       const { data: insertedOrganization, error: organizationError } = await supabaseAdmin
         .from("organizations")
         .insert({
@@ -324,7 +331,7 @@ serve(async (req: Request) => {
           currency_code: payload.currency_code?.trim().toUpperCase() || DEFAULT_CURRENCY,
           country_code: payload.country_code?.trim().toUpperCase() || DEFAULT_COUNTRY,
           status: "trial",
-          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          trial_ends_at: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString(),
         })
         .select("id")
         .single();
