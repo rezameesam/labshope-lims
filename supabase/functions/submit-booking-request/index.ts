@@ -293,6 +293,7 @@ serve(async (req: Request): Promise<Response> => {
             subject: emailSubject,
             htmlContent: emailHtml,
             ...(ccEmails.length > 0 ? { cc: ccEmails } : {}),
+            organizationId: resolvedOrganizationId,
             textContent: buildBookingAlertText({
               fullName,
               phone,
