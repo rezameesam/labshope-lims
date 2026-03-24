@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +39,7 @@ type OrganizationRow = {
   display_name: string;
   status: string;
   trial_ends_at: string | null;
+  payment_notes: string | null;
   created_at: string;
   logo_url?: string | null;
 };
@@ -151,6 +153,9 @@ const PlatformCustomerDetail = () => {
   const [editingTrialDate, setEditingTrialDate] = useState(false);
   const [trialDateInput, setTrialDateInput] = useState("");
   const [savingTrialStatus, setSavingTrialStatus] = useState(false);
+  const [paymentNotesInput, setPaymentNotesInput] = useState("");
+  const [editingPaymentNotes, setEditingPaymentNotes] = useState(false);
+  const [savingPaymentNotes, setSavingPaymentNotes] = useState(false);
 
   const loadDetails = useCallback(async () => {
     if (!orgId) {
@@ -171,7 +176,7 @@ const PlatformCustomerDetail = () => {
     ] = await Promise.all([
       (supabase as any)
         .from("organizations")
-        .select("id, slug, display_name, status, trial_ends_at, created_at, logo_url")
+        .select("id, slug, display_name, status, trial_ends_at, payment_notes, created_at, logo_url")
         .eq("id", orgId)
         .maybeSingle(),
       (supabase as any)
@@ -448,6 +453,25 @@ const PlatformCustomerDetail = () => {
     }
   };
 
+  const handleSavePaymentNotes = async () => {
+    if (!organization?.id) return;
+    setSavingPaymentNotes(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("organizations")
+        .update({ payment_notes: paymentNotesInput.trim() || null })
+        .eq("id", organization.id);
+      if (error) throw error;
+      setOrganization((prev) => prev ? { ...prev, payment_notes: paymentNotesInput.trim() || null } : prev);
+      setEditingPaymentNotes(false);
+      toast.success("Payment notes saved");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save payment notes");
+    } finally {
+      setSavingPaymentNotes(false);
+    }
+  };
+
   const currentPlan: PlanTier = resolvedPlan;
 
   return (
@@ -708,6 +732,46 @@ const PlatformCustomerDetail = () => {
                     </Button>
                   )}
                 </div>
+              </div>
+
+              <div className="mt-5 border-t border-border pt-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-muted-foreground">Payment notes</p>
+                  {!editingPaymentNotes && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setPaymentNotesInput(organization.payment_notes || "");
+                        setEditingPaymentNotes(true);
+                      }}
+                    >
+                      {organization.payment_notes ? "Edit" : "Add note"}
+                    </Button>
+                  )}
+                </div>
+                {editingPaymentNotes ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={paymentNotesInput}
+                      onChange={(e) => setPaymentNotesInput(e.target.value)}
+                      placeholder="e.g. Spoke to owner on 25 Mar, payment expected Friday via UPI"
+                      rows={3}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void handleSavePaymentNotes()} disabled={savingPaymentNotes}>
+                        {savingPaymentNotes ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingPaymentNotes(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground whitespace-pre-wrap">
+                    {organization.payment_notes || <span className="text-muted-foreground italic">No notes yet</span>}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
