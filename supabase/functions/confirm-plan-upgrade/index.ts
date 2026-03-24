@@ -143,6 +143,17 @@ serve(async (req) => {
       return json({ error: "Failed to update plan" }, 500);
     }
 
+    // Activate the organization and clear the trial deadline
+    const { error: activateError } = await supabaseAdmin
+      .from("organizations")
+      .update({ status: "active", trial_ends_at: null })
+      .eq("id", organization_id);
+
+    if (activateError) {
+      console.error("Failed to activate organization after payment:", activateError);
+      return json({ error: "Failed to activate organization" }, 500);
+    }
+
     // Also update the linked onboarding request if one exists (best-effort)
     const { error: onboardingError } = await supabaseAdmin
       .from("platform_onboarding_requests")

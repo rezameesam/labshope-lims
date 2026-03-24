@@ -324,6 +324,7 @@ serve(async (req: Request) => {
           currency_code: payload.currency_code?.trim().toUpperCase() || DEFAULT_CURRENCY,
           country_code: payload.country_code?.trim().toUpperCase() || DEFAULT_COUNTRY,
           status: "trial",
+          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         })
         .select("id")
         .single();
