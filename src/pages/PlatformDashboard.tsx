@@ -106,7 +106,7 @@ const PlatformDashboard = () => {
               detail: `${counts.activeLeads} demo request${counts.activeLeads === 1 ? "" : "s"} still need active sales handling.`,
               actionLabel: "Go to leads",
               href: "/platform/leads",
-              toneClass: "border-emerald-200 bg-emerald-50",
+              toneClass: "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/30",
             }
           : null,
         counts.onboardingRequests > 0
@@ -124,7 +124,7 @@ const PlatformDashboard = () => {
               detail: `${counts.pendingDns} provisioned tenant${counts.pendingDns === 1 ? "" : "s"} still need DNS confirmation.`,
               actionLabel: "Review DNS queue",
               href: "/platform/onboarding",
-              toneClass: "border-amber-200 bg-amber-50",
+              toneClass: "border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30",
             }
           : null,
       ].filter(Boolean) as Array<{

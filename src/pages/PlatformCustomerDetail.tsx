@@ -787,8 +787,8 @@ const PlatformCustomerDetail = () => {
                 {integrationHealth && (
                   <div className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                     Object.values(integrationHealth).every(Boolean)
-                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                      : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-700"
+                      : "bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:ring-amber-700"
                   }`}>
                     {Object.values(integrationHealth).filter(Boolean).length}/{Object.values(integrationHealth).length} connected
                   </div>
@@ -821,17 +821,17 @@ const PlatformCustomerDetail = () => {
                       }}
                       className={`flex items-start gap-3 rounded-xl border p-4 text-left transition hover:shadow-sm ${
                         ok
-                          ? "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50"
-                          : "border-red-200 bg-red-50/40 hover:bg-red-50"
+                          ? "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50"
+                          : "border-red-200 bg-red-50/40 hover:bg-red-50 dark:border-red-800/60 dark:bg-red-950/30 dark:hover:bg-red-950/50"
                       }`}
                     >
-                      <div className={`mt-0.5 shrink-0 rounded-full p-1.5 ${ok ? "bg-emerald-100" : "bg-red-100"}`}>
-                        <Icon className={`h-3.5 w-3.5 ${ok ? "text-emerald-600" : "text-red-500"}`} />
+                      <div className={`mt-0.5 shrink-0 rounded-full p-1.5 ${ok ? "bg-emerald-100 dark:bg-emerald-900/60" : "bg-red-100 dark:bg-red-900/60"}`}>
+                        <Icon className={`h-3.5 w-3.5 ${ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold leading-none text-foreground">{label}</p>
-                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${ok ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300" : "bg-red-100 text-red-600 dark:bg-red-900/60 dark:text-red-400"}`}>
                             {ok ? "OK" : "Fix"}
                           </span>
                         </div>
