@@ -319,12 +319,12 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
 
   return (
     <Card className="border-0 shadow-md overflow-hidden">
-      <div className="bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_38%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96))] text-primary-foreground">
+      <div className="bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_38%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96))] text-white">
         <CardHeader className="pb-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Badge className="bg-white/12 text-primary-foreground hover:bg-white/12">
+                <Badge className="bg-white/12 text-white hover:bg-white/12">
                   <Sparkles className="mr-1 h-3.5 w-3.5" />
                   Go-live checklist
                 </Badge>
@@ -335,22 +335,22 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
                 )}
               </div>
               <div>
-                <CardTitle className="font-heading text-2xl text-primary-foreground">
+                <CardTitle className="font-heading text-2xl text-white">
                   Finish the setup and hand this workspace to the lab team
                 </CardTitle>
-                <CardDescription className="mt-2 max-w-2xl text-primary-foreground/75">
+                <CardDescription className="mt-2 max-w-2xl text-white/75">
                   A provisioned organization is only the starting point. These steps turn it into a usable
                   production workspace for the lab owner, staff, and patients.
                 </CardDescription>
               </div>
             </div>
             <div className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm backdrop-blur">
-              <div className="text-primary-foreground/70">Setup progress</div>
+              <div className="text-white/70">Setup progress</div>
               <div className="mt-1 flex items-end gap-2">
-                <span className="text-3xl font-semibold text-primary-foreground">{completedCount}</span>
-                <span className="pb-1 text-primary-foreground/70">/ {checklistItems.length} complete</span>
+                <span className="text-3xl font-semibold text-white">{completedCount}</span>
+                <span className="pb-1 text-white/70">/ {checklistItems.length} complete</span>
               </div>
-              <p className="mt-2 text-primary-foreground/70">
+              <p className="mt-2 text-white/70">
                 {completedCount === checklistItems.length
                   ? "This tenant is ready for live traffic."
                   : `${checklistItems.length - completedCount} steps still need attention.`}
@@ -358,7 +358,7 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
             </div>
           </div>
           <div className="space-y-2 pt-2">
-            <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-primary-foreground/60">
+            <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-white/60">
               <span>Workspace readiness</span>
               <span>{progressValue}%</span>
             </div>
@@ -388,14 +388,14 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
                   key={item.id}
                   className={`rounded-2xl border p-4 transition-colors ${
                     item.complete
-                      ? "border-emerald-200 bg-emerald-50/70"
+                      ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-800/60 dark:bg-emerald-950/40"
                       : "border-border bg-card"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div
                       className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
-                        item.complete ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"
+                        item.complete ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300" : "bg-primary/10 text-primary"
                       }`}
                     >
                       <Icon className="h-5 w-5" />
