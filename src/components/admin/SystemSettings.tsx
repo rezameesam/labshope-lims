@@ -265,6 +265,28 @@ const EMAIL_SETTING_TEMPLATES: SystemSetting[] = [
     description: "Optional organization-specific SendGrid API key.",
     is_encrypted: true,
   },
+  {
+    id: "template-booking_alert_primary_email",
+    organization_id: null,
+    setting_key: "booking_alert_primary_email",
+    setting_value: "",
+    setting_type: "text",
+    category: "email",
+    label: "Book Test Alert — Primary Email",
+    description: "Primary recipient email for new book-test requests submitted from the website. Falls back to the organization's primary email if left blank.",
+    is_encrypted: false,
+  },
+  {
+    id: "template-booking_alert_cc_emails",
+    organization_id: null,
+    setting_key: "booking_alert_cc_emails",
+    setting_value: "",
+    setting_type: "text",
+    category: "email",
+    label: "Book Test Alert — CC Emails",
+    description: "Comma-separated list of additional email addresses to CC on every new book-test request alert (e.g. manager@lab.com, front-desk@lab.com).",
+    is_encrypted: false,
+  },
 ];
 
 const WHATSAPP_SETTING_TEMPLATES: SystemSetting[] = [

@@ -72,7 +72,7 @@ serve(async (req) => {
   }
 
   try {
-    const { to, subject, htmlContent, textContent, patientId, organizationId } = await req.json();
+    const { to, subject, htmlContent, textContent, cc, patientId, organizationId } = await req.json();
 
     if (!to || !subject || !htmlContent) {
       return new Response(
@@ -195,6 +195,9 @@ serve(async (req) => {
               To: [{
                 Email: to,
               }],
+              ...(cc && cc.length > 0
+                ? { Cc: (Array.isArray(cc) ? cc : [cc]).map((e: string) => ({ Email: e.trim() })) }
+                : {}),
               Subject: subject,
               HTMLPart: htmlContent,
               TextPart: textContent || htmlContent.replace(/<[^>]*>/g, ""),
@@ -256,6 +259,7 @@ serve(async (req) => {
             subject: subject,
             html: htmlContent,
             text: textContent || htmlContent.replace(/<[^>]*>/g, ""),
+            ...(cc && cc.length > 0 ? { cc: Array.isArray(cc) ? cc : [cc] } : {}),
             ...(replyToEmail ? { reply_to: replyToEmail } : {}),
           }),
         });
@@ -290,6 +294,9 @@ serve(async (req) => {
         formData.append("html", htmlContent);
         if (textContent) {
           formData.append("text", textContent);
+        }
+        if (cc && cc.length > 0) {
+          formData.append("cc", Array.isArray(cc) ? cc.join(",") : cc);
         }
         if (replyToEmail) {
           formData.append("h:Reply-To", replyToEmail);
@@ -332,6 +339,9 @@ serve(async (req) => {
           body: JSON.stringify({
             personalizations: [{
               to: [{ email: to }],
+              ...(cc && cc.length > 0
+                ? { cc: (Array.isArray(cc) ? cc : [cc]).map((e: string) => ({ email: e.trim() })) }
+                : {}),
             }],
             from: { email: sendgridFrom },
             subject: subject,

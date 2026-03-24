@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthenticatedUserFromRequest, verifyTurnstile } from "../_shared/patient-auth.ts";
-import { fetchOrganizationBranding } from "../_shared/organization-settings.ts";
+import { fetchOrganizationBranding, fetchScopedSettings } from "../_shared/organization-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -242,16 +242,26 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Failed to submit booking request." }, 500);
     }
 
-    const organizationBranding = await fetchOrganizationBranding(
-      supabaseUrl,
-      serviceRoleKey,
-      resolvedOrganizationId,
-    );
+    const [organizationBranding, bookingSettingsMap] = await Promise.all([
+      fetchOrganizationBranding(supabaseUrl, serviceRoleKey, resolvedOrganizationId),
+      fetchScopedSettings(
+        supabaseUrl,
+        serviceRoleKey,
+        ["booking_alert_primary_email", "booking_alert_cc_emails"],
+        resolvedOrganizationId,
+      ),
+    ]);
 
     const alertEmail =
+      bookingSettingsMap.get("booking_alert_primary_email")?.trim() ||
       organizationBranding?.primaryEmail?.trim() ||
       Deno.env.get("BOOKING_ALERT_EMAIL")?.trim() ||
       BOOKING_ALERT_EMAIL;
+
+    const ccEmailsRaw = bookingSettingsMap.get("booking_alert_cc_emails")?.trim() || "";
+    const ccEmails = ccEmailsRaw
+      ? ccEmailsRaw.split(",").map((e) => e.trim()).filter((e) => e.length > 0)
+      : [];
 
     if (alertEmail) {
       const emailSubject = `New booking request${organizationBranding?.displayName ? ` - ${organizationBranding.displayName}` : ""}: ${fullName}`;
@@ -282,6 +292,7 @@ serve(async (req: Request): Promise<Response> => {
             to: alertEmail,
             subject: emailSubject,
             htmlContent: emailHtml,
+            ...(ccEmails.length > 0 ? { cc: ccEmails } : {}),
             textContent: buildBookingAlertText({
               fullName,
               phone,
