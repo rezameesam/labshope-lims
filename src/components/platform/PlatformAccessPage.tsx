@@ -17,9 +17,23 @@ interface PlatformAccessPageProps {
   helperBody: string;
 }
 
-const portalPattern = import.meta.env.VITE_PUBLIC_BASE_DOMAIN
-  ? `your-lab.${import.meta.env.VITE_PUBLIC_BASE_DOMAIN}`
-  : "your-lab.labshope.com";
+function getPortalPattern(): string {
+  const envDomain = (import.meta.env.VITE_PUBLIC_BASE_DOMAIN as string | undefined)?.trim();
+  if (envDomain && envDomain !== "localhost" && !envDomain.endsWith(".localhost")) {
+    return `your-lab.${envDomain}`;
+  }
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== "localhost" && !hostname.endsWith(".localhost")) {
+      const parts = hostname.split(".");
+      const baseDomain = parts.length > 2 ? parts.slice(1).join(".") : hostname;
+      return `your-lab.${baseDomain}`;
+    }
+  }
+  return "your-lab.labshope.com";
+}
+
+const portalPattern = getPortalPattern();
 
 const PlatformAccessPage = ({
   eyebrow,
