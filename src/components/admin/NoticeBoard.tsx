@@ -301,9 +301,9 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "high":
-        return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">High Priority</Badge>;
+        return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/50">High Priority</Badge>;
       case "medium":
-        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Medium</Badge>;
+        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/50">Medium</Badge>;
       case "low":
         return <Badge variant="outline">Low</Badge>;
       default:
@@ -314,13 +314,13 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "test":
-        return <TestTube className="h-5 w-5 text-blue-600" />;
+        return <TestTube className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
       case "reminder":
-        return <Bell className="h-5 w-5 text-purple-600" />;
+        return <Bell className="h-5 w-5 text-purple-600 dark:text-purple-400" />;
       case "invoice":
-        return <CreditCard className="h-5 w-5 text-green-600" />;
+        return <CreditCard className="h-5 w-5 text-green-600 dark:text-green-400" />;
       default:
-        return <FileText className="h-5 w-5 text-gray-600" />;
+        return <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />;
     }
   };
 
@@ -458,20 +458,20 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
                   <div
                     key={notice.id}
                     className={`p-4 border rounded-lg hover:shadow-md transition-all ${
-                      notice.priority === "high" 
-                        ? "border-red-200 bg-red-50/50" 
+                      notice.priority === "high"
+                        ? "border-red-200 bg-red-50/50 dark:border-red-800/60 dark:bg-red-950/30"
                         : notice.priority === "medium"
-                        ? "border-amber-200 bg-amber-50/50"
+                        ? "border-amber-200 bg-amber-50/50 dark:border-amber-800/60 dark:bg-amber-950/30"
                         : "border-border bg-card"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3 flex-1">
                         <div className={`p-2 rounded-lg ${
-                          notice.priority === "high" 
-                            ? "bg-red-100" 
+                          notice.priority === "high"
+                            ? "bg-red-100 dark:bg-red-900/50"
                             : notice.priority === "medium"
-                            ? "bg-amber-100"
+                            ? "bg-amber-100 dark:bg-amber-900/50"
                             : "bg-muted"
                         }`}>
                           {getTypeIcon(notice.type)}
@@ -531,8 +531,8 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onNavigate?.("tests")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-lg bg-blue-100">
-                <TestTube className="h-6 w-6 text-blue-600" />
+              <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/40">
+                <TestTube className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex-1">
                 <p className="font-semibold">Enter Test Results</p>
@@ -546,8 +546,8 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onNavigate?.("reminders")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-lg bg-purple-100">
-                <Bell className="h-6 w-6 text-purple-600" />
+              <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/40">
+                <Bell className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div className="flex-1">
                 <p className="font-semibold">Manage Reminders</p>
@@ -561,8 +561,8 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onNavigate?.("billing")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-lg bg-green-100">
-                <CreditCard className="h-6 w-6 text-green-600" />
+              <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/40">
+                <CreditCard className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="flex-1">
                 <p className="font-semibold">Process Payments</p>
