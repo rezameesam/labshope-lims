@@ -284,9 +284,9 @@ export default function PlatformCoupons() {
             </TableHeader>
             <TableBody>
               {pagedCoupons.map((coupon) => (
-                <TableRow key={coupon.id} className="border-b border-slate-100 last:border-0">
+                <TableRow key={coupon.id} className="border-b border-slate-100 last:border-0 dark:border-border">
                   <TableCell className="pl-6">
-                    <span className="font-mono text-sm font-semibold tracking-widest text-slate-800">
+                    <span className="font-mono text-sm font-semibold tracking-widest text-slate-800 dark:text-slate-200">
                       {coupon.code}
                     </span>
                     {coupon.note && (
