@@ -351,11 +351,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const metadata = getClientSessionMetadata();
     let trackingDisabled = false;
     let isMounted = true;
+    const lastTrackedAt = { current: 0 };
+    const MIN_INTERVAL = 60000; // 1 minute throttle for manual triggers
 
-    const trackSession = async () => {
+    const trackSession = async (force = false) => {
       if (!isMounted || trackingDisabled) {
         return;
       }
+
+      const now = Date.now();
+      if (!force && now - lastTrackedAt.current < MIN_INTERVAL) {
+        return;
+      }
+
+      lastTrackedAt.current = now;
 
       const { error } = await (supabase as any).rpc("upsert_employee_session", {
         _session_id: sessionId,
@@ -385,11 +394,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    void trackSession();
+    // Initial track on mount/session change
+    void trackSession(true);
 
     const intervalId = window.setInterval(() => {
       void trackSession();
-    }, 15000);
+    }, 120000); // Check every 2 minutes
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {

@@ -12,24 +12,75 @@ export type PlatformNotification = {
   created_by: string | null;
 };
 
+// Module-level cache and fetch state to ensure stability across hook instances
+let cachedNotifications: PlatformNotification[] = [];
+let lastFetchAt = 0;
+let inFlightFetch: Promise<PlatformNotification[]> | null = null;
+const THROTTLE_MS = 2000;
+
 export const usePlatformNotifications = () => {
-  const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize state from cache to prevent unnecessary loading states
+  const [notifications, setNotifications] = useState<PlatformNotification[]>(cachedNotifications);
+  const [loading, setLoading] = useState(cachedNotifications.length === 0);
 
   const fetchNotifications = useCallback(async () => {
-    const { data } = await (supabase as any)
-      .from("platform_notifications")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setNotifications((data || []) as PlatformNotification[]);
-    setLoading(false);
-  }, []);
+    // 1. If a fetch is already in progress, wait for it and share results
+    if (inFlightFetch) {
+      try {
+        const data = await inFlightFetch;
+        setNotifications(data);
+        setLoading(false);
+        return;
+      } catch (err) {
+        // If shared fetch fails, fall through to allow a retry
+      }
+    }
+
+    // 2. Throttle: Use cache if it's fresh enough
+    const now = Date.now();
+    if (now - lastFetchAt < THROTTLE_MS && cachedNotifications.length > 0) {
+      setNotifications(cachedNotifications);
+      setLoading(false);
+      return;
+    }
+
+    // 3. Initiate a new fetch
+    inFlightFetch = (async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from("platform_notifications")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        
+        const result = (data || []) as PlatformNotification[];
+        cachedNotifications = result;
+        lastFetchAt = Date.now(); // Updated only on success
+        return result;
+      } finally {
+        inFlightFetch = null;
+      }
+    })();
+
+    try {
+      const data = await inFlightFetch;
+      setNotifications(data);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []); // Dependencies are now stable
 
   const markAsRead = useCallback(async (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+    // Optimistically update cache and local state
+    cachedNotifications = cachedNotifications.map((n) => 
+      n.id === id ? { ...n, is_read: true } : n
     );
+    setNotifications(cachedNotifications);
+
     await (supabase as any)
       .from("platform_notifications")
       .update({ is_read: true })
@@ -37,7 +88,10 @@ export const usePlatformNotifications = () => {
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    // Optimistically update cache and local state
+    cachedNotifications = cachedNotifications.map((n) => ({ ...n, is_read: true }));
+    setNotifications(cachedNotifications);
+
     await (supabase as any)
       .from("platform_notifications")
       .update({ is_read: true })
