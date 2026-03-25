@@ -70,7 +70,7 @@ export const PatientSecurityTab = ({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
-            <p className="font-medium text-clinical-navy">Last password change</p>
+            <p className="font-medium text-foreground">Last password change</p>
             <p className="mt-1">{formatTimestamp(patient.last_password_change)}</p>
           </div>
           <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">

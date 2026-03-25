@@ -55,7 +55,7 @@ export const PatientStatsCards = ({
             <CardContent className="flex items-center justify-between p-5">
               <div>
                 <p className="text-sm text-muted-foreground">{card.label}</p>
-                <p className="mt-2 text-3xl font-semibold text-clinical-navy">{card.value}</p>
+                <p className="mt-2 text-3xl font-semibold text-foreground">{card.value}</p>
               </div>
               <div className={`rounded-2xl border p-3 ${card.tone}`}>
                 <card.icon className="h-6 w-6" />

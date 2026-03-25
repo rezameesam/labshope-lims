@@ -149,7 +149,7 @@ const PatientResetPassword = () => {
                 <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <LockKeyhole className="h-6 w-6" />
                 </div>
-                <h2 className="font-heading text-3xl font-semibold text-clinical-navy">Reset password</h2>
+                <h2 className="font-heading text-3xl font-semibold text-foreground">Reset password</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Create a new password with at least 6 characters.
                 </p>

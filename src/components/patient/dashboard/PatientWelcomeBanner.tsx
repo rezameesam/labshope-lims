@@ -96,7 +96,7 @@ export const PatientWelcomeBanner = ({
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
               <Button
-                className="w-full justify-start gap-2 bg-white text-clinical-navy hover:bg-white/90"
+                className="w-full justify-start gap-2 bg-white text-foreground hover:bg-white/90"
                 onClick={onViewResults}
               >
                 <FileText className="h-4 w-4 shrink-0" />

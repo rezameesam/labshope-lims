@@ -81,7 +81,7 @@ export const PatientQuickActions = ({
               <Icon className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-clinical-navy">{label}</p>
+              <p className="text-sm font-semibold text-foreground">{label}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
             </div>
           </CardContent>

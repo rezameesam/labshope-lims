@@ -158,7 +158,7 @@ const PatientActiveSessions = () => {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-xl font-heading font-semibold text-clinical-navy">Active sessions</h3>
+          <h3 className="text-xl font-heading font-semibold text-foreground">Active sessions</h3>
           <p className="text-sm text-muted-foreground">
             Review devices currently signed in to your patient account.
           </p>
