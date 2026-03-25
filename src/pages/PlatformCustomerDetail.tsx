@@ -552,8 +552,8 @@ const PlatformCustomerDetail = () => {
                       onClick={() => {
                         const slug = organization.slug;
                         const staffUrl = primaryDomain
-                          ? `${primaryDomain.domain.endsWith(".localhost") ? "http" : "https"}://${primaryDomain.domain}/auth`
-                          : `${window.location.origin}/auth?org=${slug}`;
+                          ? `${primaryDomain.domain.endsWith(".localhost") ? "http" : "https"}://${primaryDomain.domain}/auth/staff`
+                          : `${window.location.origin}/auth/staff?org=${slug}`;
                         window.open(staffUrl, "_blank", "noopener,noreferrer");
                       }}
                     >
