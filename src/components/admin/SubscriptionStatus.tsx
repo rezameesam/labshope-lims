@@ -183,7 +183,7 @@ export default function SubscriptionStatus() {
 
   const trialDays = trialEndsAt ? daysUntil(trialEndsAt) : null;
   const renewalDays = planExpiresAt ? daysUntil(planExpiresAt) : null;
-  const expiredDaysAgo = planExpiresAt && renewalDays === 0 ? daysAgo(planExpiresAt) : null;
+  const expiredDaysAgo = planExpiresAt && new Date(planExpiresAt) < new Date() ? daysAgo(planExpiresAt) : null;
 
   const isTrialUrgent = status === "trial" && trialDays !== null && trialDays <= 3;
   const isRenewalSoon = status === "active" && renewalDays !== null && renewalDays <= 30;
