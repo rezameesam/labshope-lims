@@ -63,10 +63,12 @@ serve(async (req) => {
     const {
       organization_id,
       to_plan,
+      years: rawYears,
       razorpay_payment_id,
       razorpay_order_id,
       razorpay_signature,
     } = await req.json();
+    const years = Math.min(3, Math.max(1, Math.round(Number(rawYears) || 1)));
 
     if (
       !organization_id || !to_plan || !VALID_PLANS.includes(to_plan) ||
@@ -154,7 +156,7 @@ serve(async (req) => {
       ? new Date(currentOrg.plan_expires_at)   // extend from existing expiry (early renewal stacks)
       : new Date();                             // expired or first payment — extend from now
 
-    const newExpiresAt = new Date(baseDate.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const newExpiresAt = new Date(baseDate.getTime() + years * 365 * 24 * 60 * 60 * 1000).toISOString();
 
     const { error: activateError } = await supabaseAdmin
       .from("organizations")

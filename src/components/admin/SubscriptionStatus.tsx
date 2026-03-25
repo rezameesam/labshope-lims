@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   CheckCircle2,
   Clock,
@@ -82,6 +83,7 @@ export default function SubscriptionStatus() {
   const [orgData, setOrgData] = useState<OrgData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
+  const [renewYears, setRenewYears] = useState(1);
 
   const load = useCallback(async () => {
     if (!organization?.id) return;
@@ -109,7 +111,7 @@ export default function SubscriptionStatus() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleUpgrade = useCallback(async (targetPlan?: PlanTier) => {
+  const handleUpgrade = useCallback(async (targetPlan?: PlanTier, years = 1) => {
     const upgradeTo = targetPlan ?? NEXT_PLAN[planTier];
     if (!upgradeTo || !organization?.id || !user) return;
     setUpgrading(true);
@@ -125,7 +127,7 @@ export default function SubscriptionStatus() {
           Authorization: `Bearer ${session?.access_token}`,
           apikey: supabaseAnonKey,
         },
-        body: JSON.stringify({ organization_id: organization.id, to_plan: upgradeTo }),
+        body: JSON.stringify({ organization_id: organization.id, to_plan: upgradeTo, years }),
       });
       const orderData = await res.json();
       if (!res.ok) throw new Error(orderData.error || "Failed to create order");
@@ -146,6 +148,7 @@ export default function SubscriptionStatus() {
             body: JSON.stringify({
               organization_id: organization.id,
               to_plan: upgradeTo,
+              years,
               razorpay_payment_id: paymentId,
               razorpay_order_id: orderId,
               razorpay_signature: signature,
@@ -329,28 +332,52 @@ export default function SubscriptionStatus() {
 
         {/* Action buttons — always visible unless complimentary */}
         {!isComplimentary && (
-          <div className="mt-5 flex flex-wrap gap-3">
-            {/* Renew current plan */}
-            <Button
-              onClick={() => void handleUpgrade(planTier)}
-              disabled={upgrading}
-              className="gap-2"
-            >
-              {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Renew {PLAN_LABELS[planTier]} — {formatPrice(price)}/yr
-            </Button>
-            {/* Upgrade to next plan */}
-            {nextPlan && (
+          <div className="mt-5 space-y-3">
+            {/* Year selector */}
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground shrink-0">Renew for</p>
+              <Select value={String(renewYears)} onValueChange={(v) => setRenewYears(Number(v))}>
+                <SelectTrigger className="h-8 w-32 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 year</SelectItem>
+                  <SelectItem value="2">2 years</SelectItem>
+                  <SelectItem value="3">3 years</SelectItem>
+                </SelectContent>
+              </Select>
+              {renewYears > 1 && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                  {renewYears === 2 ? "Save by committing longer" : "Best value"}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {/* Renew current plan */}
               <Button
-                variant="outline"
-                onClick={() => void handleUpgrade(nextPlan)}
+                onClick={() => void handleUpgrade(planTier, renewYears)}
                 disabled={upgrading}
                 className="gap-2"
               >
-                <ArrowUpCircle className="h-4 w-4" />
-                Upgrade to {PLAN_LABELS[nextPlan]} — {formatPrice(PLAN_PRICES[nextPlan])}/yr
+                {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Renew {PLAN_LABELS[planTier]} — {formatPrice(price * renewYears)}
+                {renewYears > 1 && <span className="opacity-70 text-xs">({renewYears} yrs)</span>}
               </Button>
-            )}
+              {/* Upgrade to next plan */}
+              {nextPlan && (
+                <Button
+                  variant="outline"
+                  onClick={() => void handleUpgrade(nextPlan, renewYears)}
+                  disabled={upgrading}
+                  className="gap-2"
+                >
+                  <ArrowUpCircle className="h-4 w-4" />
+                  Upgrade to {PLAN_LABELS[nextPlan]} — {formatPrice(PLAN_PRICES[nextPlan] * renewYears)}
+                  {renewYears > 1 && <span className="opacity-70 text-xs">({renewYears} yrs)</span>}
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

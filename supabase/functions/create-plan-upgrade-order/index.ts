@@ -34,7 +34,8 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) return json({ error: "Invalid token" }, 401);
 
-    const { organization_id, to_plan } = await req.json();
+    const { organization_id, to_plan, years: rawYears } = await req.json();
+    const years = Math.min(3, Math.max(1, Math.round(Number(rawYears) || 1)));
 
     if (!organization_id || !to_plan || !VALID_PLANS.includes(to_plan)) {
       return json({ error: "organization_id and a valid to_plan are required" }, 400);
@@ -66,9 +67,9 @@ serve(async (req) => {
     const fromPlan: string = (planSetting as any)?.setting_value || "starter";
     const fromPrice = PLAN_PRICES[fromPlan] ?? 10000;
     const toPrice = PLAN_PRICES[to_plan] ?? 10000;
-    // Same plan = renewal at full price; upgrade = price difference
+    // Same plan = renewal at full price × years; upgrade = price difference × years
     const isRenewal = fromPlan === to_plan;
-    const upgradeAmount = isRenewal ? toPrice : toPrice - fromPrice;
+    const upgradeAmount = isRenewal ? toPrice * years : (toPrice - fromPrice) * years;
 
     if (upgradeAmount <= 0) {
       return json({ error: "to_plan must be a higher-tier plan than the current plan" }, 400);
@@ -101,6 +102,7 @@ serve(async (req) => {
         organization_id,
         from_plan: fromPlan,
         to_plan,
+        years,
         user_id: user.id,
       },
     };
