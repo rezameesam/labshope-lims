@@ -318,33 +318,28 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
         setTopTests(topTestsData);
 
-        // Generate revenue trends for last 7 days
-        const revenueTrendsData: RevenueTrend[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = subDays(today, i);
-          let dayInvoicesQuery = (supabase as any)
-            .from("invoices")
-            .select("final_amount, paid_amount")
-            .gte("created_at", startOfDay(date).toISOString())
-            .lte("created_at", endOfDay(date).toISOString());
-
-          if (organization?.id) {
-            dayInvoicesQuery = dayInvoicesQuery.eq("organization_id" as any, organization.id);
-          }
-
-          const { data: dayInvoices } = await dayInvoicesQuery;
-
-          const dayRevenue = (dayInvoices || []).reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
-          const dayPaid = (dayInvoices || []).reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
-          const dayPending = dayRevenue - dayPaid;
-
-          revenueTrendsData.push({
-            date: format(date, "EEE"),
-            revenue: dayRevenue,
-            paid: dayPaid,
-            pending: dayPending
-          });
+        // Generate revenue trends for last 7 days — single query, group in JS
+        const weekStart = startOfDay(subDays(today, 6));
+        let invoicesTrendQuery = (supabase as any)
+          .from("invoices")
+          .select("final_amount, paid_amount, created_at")
+          .gte("created_at", weekStart.toISOString())
+          .lte("created_at", endOfDay(today).toISOString());
+        if (organization?.id) {
+          invoicesTrendQuery = invoicesTrendQuery.eq("organization_id" as any, organization.id);
         }
+        const { data: invoicesTrendData } = await invoicesTrendQuery;
+
+        const revenueTrendsData: RevenueTrend[] = Array.from({ length: 7 }, (_, i) => {
+          const date = subDays(today, 6 - i);
+          const dayKey = format(date, "yyyy-MM-dd");
+          const dayInvoices = (invoicesTrendData || []).filter((inv: { created_at: string }) =>
+            inv.created_at.slice(0, 10) === dayKey
+          );
+          const dayRevenue = dayInvoices.reduce((sum: number, inv: { final_amount: unknown }) => sum + (Number(inv.final_amount) || 0), 0);
+          const dayPaid = dayInvoices.reduce((sum: number, inv: { paid_amount: unknown }) => sum + (Number(inv.paid_amount) || 0), 0);
+          return { date: format(date, "EEE"), revenue: dayRevenue, paid: dayPaid, pending: dayRevenue - dayPaid };
+        });
         setRevenueTrends(revenueTrendsData);
 
         const revenueYesterday = (invoicesYesterdayRes.data || []).reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
@@ -382,27 +377,25 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           { name: "Pending", value: pending, color: "#F59E0B" },
         ]);
 
-        // Generate trend data for last 7 days
-        const trends: TestTrend[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = subDays(today, i);
-          let dayTestsQuery = (supabase as any)
-            .from("patient_tests")
-            .select("id", { count: "exact", head: true })
-            .gte("test_date", startOfDay(date).toISOString().split('T')[0])
-            .lte("test_date", endOfDay(date).toISOString().split('T')[0]);
-
-          if (organization?.id) {
-            dayTestsQuery = dayTestsQuery.eq("organization_id" as any, organization.id);
-          }
-
-          const { count } = await dayTestsQuery;
-          
-          trends.push({
-            date: format(date, "EEE"),
-            tests: count || 0,
-          });
+        // Generate trend data for last 7 days — single query, group in JS
+        const testWeekStart = startOfDay(subDays(today, 6)).toISOString().split("T")[0];
+        const testWeekEnd = endOfDay(today).toISOString().split("T")[0];
+        let testsTrendQuery = (supabase as any)
+          .from("patient_tests")
+          .select("id, test_date")
+          .gte("test_date", testWeekStart)
+          .lte("test_date", testWeekEnd);
+        if (organization?.id) {
+          testsTrendQuery = testsTrendQuery.eq("organization_id" as any, organization.id);
         }
+        const { data: testsTrendData } = await testsTrendQuery;
+
+        const trends: TestTrend[] = Array.from({ length: 7 }, (_, i) => {
+          const date = subDays(today, 6 - i);
+          const dayKey = format(date, "yyyy-MM-dd");
+          const count = (testsTrendData || []).filter((t: { test_date: string }) => t.test_date === dayKey).length;
+          return { date: format(date, "EEE"), tests: count };
+        });
         setTestTrends(trends);
       } catch (error) {
         console.error("Error fetching stats:", error);
