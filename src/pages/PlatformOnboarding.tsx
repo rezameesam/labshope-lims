@@ -115,8 +115,23 @@ const PlatformOnboarding = () => {
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   };
 
+  const getBaseDomain = (): string => {
+    const envDomain = (import.meta.env.VITE_PUBLIC_BASE_DOMAIN as string | undefined)?.trim();
+    if (envDomain && envDomain !== "localhost" && !envDomain.endsWith(".localhost")) {
+      return envDomain;
+    }
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname && hostname !== "localhost" && !hostname.endsWith(".localhost")) {
+        const parts = hostname.split(".");
+        return parts.length > 2 ? parts.slice(1).join(".") : hostname;
+      }
+    }
+    return "labshope.com";
+  };
+
   const getLaunchBaseUrl = (domain: string | null, slug: string | null) => {
-    const host = domain || (slug ? `${slug}.localhost` : null);
+    const host = domain || (slug ? `${slug}.${getBaseDomain()}` : null);
     if (!host) {
       return null;
     }
