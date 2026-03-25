@@ -69,12 +69,15 @@ const generatePassword = (length = DEFAULT_OWNER_PASSWORD_LENGTH) => {
   return Array.from(randomBytes, (value) => alphabet[value % alphabet.length]).join("");
 };
 
+const isRealDomain = (value: string | null): boolean =>
+  !!value && value !== "localhost" && value !== "127.0.0.1" && !value.endsWith(".localhost");
+
 const deriveBaseDomain = (hostname: string | null) => {
   const configured =
     normalizeHostname(Deno.env.get("PUBLIC_BASE_DOMAIN")) ||
     normalizeHostname(Deno.env.get("VITE_PUBLIC_BASE_DOMAIN"));
 
-  if (configured) {
+  if (configured && isRealDomain(configured)) {
     return configured;
   }
 
@@ -82,11 +85,15 @@ const deriveBaseDomain = (hostname: string | null) => {
     return null;
   }
 
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
+  if (!isRealDomain(hostname)) {
     return "localhost";
   }
 
-  return null;
+  // Derive base domain from the caller's hostname.
+  // e.g. "labshope.com" → "labshope.com"
+  //      "lims.labshope.com" → "labshope.com"
+  const parts = hostname.split(".");
+  return parts.slice(-2).join(".");
 };
 
 const buildLaunchUrls = (domain: string | null, slug: string) => {
