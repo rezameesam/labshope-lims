@@ -135,12 +135,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
+      (event, nextSession) => {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
         syncRolesForSession(nextSession);
         // NOTE: setLoading(false) is now handled inside syncRolesForSession
         // so that loading stays true until roles are fetched on first load.
+
+        // Handle platform "Access as Admin" magic link redirect.
+        // When Supabase can't honour the redirectTo URL (e.g. not whitelisted),
+        // it falls back to the site root with ?type=magiclink in the hash.
+        // Detect that case and forward the org admin to their dashboard.
+        if (
+          event === "SIGNED_IN" &&
+          typeof window !== "undefined" &&
+          window.location.hash.includes("type=magiclink")
+        ) {
+          const meta = nextSession?.user?.user_metadata ?? {};
+          const orgRole = meta.role as string | undefined;
+          const orgId = meta.organization_id as string | undefined;
+          if (orgId && (orgRole === "owner" || orgRole === "admin")) {
+            window.setTimeout(() => {
+              window.location.replace("/admin");
+            }, 50);
+          }
+        }
       }
     );
 

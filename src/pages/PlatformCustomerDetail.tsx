@@ -423,7 +423,9 @@ const PlatformCustomerDetail = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Failed to generate access link.");
       if (!result.url) throw new Error("No access URL returned.");
-      window.open(result.url, "_blank", "noopener,noreferrer");
+      // Navigate in the same tab — the magic link redirects back to this origin
+      // so a new tab would cause a cross-tab session conflict in localStorage.
+      window.location.href = result.url;
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to generate access link.");
     } finally {
