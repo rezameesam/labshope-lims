@@ -4,6 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
 import { getPublicHostname, getPublicSlugCandidate, isDefinitelyPlatformHostname } from "@/lib/publicTenant";
 
+// Capture hash at module load before Supabase processes and clears it.
+const initialHashHasMagicLink =
+  typeof window !== "undefined" && window.location.hash.includes("type=magiclink");
+
 type UserRole = "admin" | "employee" | "patient" | "collector";
 
 interface AuthContextType {
@@ -146,11 +150,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // When Supabase can't honour the redirectTo URL (e.g. not whitelisted),
         // it falls back to the site root with ?type=magiclink in the hash.
         // Detect that case and forward the org admin to their dashboard.
-        if (
-          event === "SIGNED_IN" &&
-          typeof window !== "undefined" &&
-          window.location.hash.includes("type=magiclink")
-        ) {
+        if (event === "SIGNED_IN" && initialHashHasMagicLink) {
           const meta = nextSession?.user?.user_metadata ?? {};
           const orgRole = meta.role as string | undefined;
           const orgId = meta.organization_id as string | undefined;
