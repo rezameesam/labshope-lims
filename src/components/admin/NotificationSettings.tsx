@@ -66,6 +66,7 @@ const NotificationSettings = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
       const body: Record<string, string> = {
         to: testEmail,
@@ -82,6 +83,7 @@ const NotificationSettings = () => {
         headers: {
           "Content-Type": "application/json",
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          apikey: supabaseAnonKey,
         },
         body: JSON.stringify(body),
       });

@@ -406,6 +406,7 @@ const PlatformCustomerDetail = () => {
       if (!session?.access_token) throw new Error("Not authenticated.");
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
       const fallbackRedirectTo = `${window.location.origin}/admin?platform_access=1`;
 
       const response = await fetch(`${supabaseUrl}/functions/v1/platform-impersonate-org`, {
@@ -413,6 +414,7 @@ const PlatformCustomerDetail = () => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
+          apikey: supabaseAnonKey,
         },
         body: JSON.stringify({
           organization_id: organization.id,
