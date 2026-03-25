@@ -194,11 +194,11 @@ export default function SubscriptionStatus() {
 
       {/* Complimentary access banner */}
       {isComplimentary && (
-        <div className="flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-950/30">
+        <div className="flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-600 dark:bg-purple-900/40">
           <Gift className="mt-0.5 h-5 w-5 shrink-0 text-purple-500 dark:text-purple-400" />
           <div>
             <p className="font-semibold text-purple-700 dark:text-purple-300">Complimentary access</p>
-            <p className="mt-0.5 text-sm text-purple-600/80 dark:text-purple-400/70">
+            <p className="mt-0.5 text-sm text-purple-600/80 dark:text-purple-300">
               {complimentaryUntil
                 ? `Your account has been granted free access until ${formatDate(complimentaryUntil)}.`
                 : "Your account has been granted free access by LabShope."
@@ -210,11 +210,11 @@ export default function SubscriptionStatus() {
 
       {/* Suspended banner */}
       {status === "suspended" && !isComplimentary && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30">
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-700 dark:bg-red-900/40">
           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
           <div className="flex-1">
             <p className="font-semibold text-red-700 dark:text-red-400">Account suspended</p>
-            <p className="mt-0.5 text-sm text-red-600/80 dark:text-red-400/70">
+            <p className="mt-0.5 text-sm text-red-600/80 dark:text-red-300">
               {isExpired
                 ? `Your subscription expired ${expiredDaysAgo} day${expiredDaysAgo === 1 ? "" : "s"} ago.`
                 : "Your account has been suspended."
@@ -232,15 +232,15 @@ export default function SubscriptionStatus() {
       {status === "trial" && trialDays !== null && !isComplimentary && (
         <div className={`flex items-start gap-3 rounded-xl border p-4 ${
           isTrialUrgent
-            ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
-            : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+            ? "border-red-200 bg-red-50 dark:border-red-700 dark:bg-red-900/40"
+            : "border-amber-200 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/40"
         }`}>
           <Clock className={`mt-0.5 h-5 w-5 shrink-0 ${isTrialUrgent ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400"}`} />
           <div className="flex-1">
             <p className={`font-semibold ${isTrialUrgent ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
               {trialDays === 0 ? "Trial expires today" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your trial`}
             </p>
-            <p className={`mt-0.5 text-sm ${isTrialUrgent ? "text-red-600/80 dark:text-red-400/70" : "text-amber-600/80 dark:text-amber-400/70"}`}>
+            <p className={`mt-0.5 text-sm ${isTrialUrgent ? "text-red-600/80 dark:text-red-300" : "text-amber-600/80 dark:text-amber-300"}`}>
               Trial ends {formatDate(trialEndsAt!)}. Activate a paid plan to keep uninterrupted access.
             </p>
           </div>
@@ -254,13 +254,13 @@ export default function SubscriptionStatus() {
 
       {/* Renewal reminder */}
       {isRenewalSoon && planExpiresAt && !isComplimentary && (
-        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/30">
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-600 dark:bg-blue-900/40">
           <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-blue-500 dark:text-blue-400" />
           <div className="flex-1">
             <p className="font-semibold text-blue-700 dark:text-blue-400">
               Renewal due in {renewalDays} day{renewalDays === 1 ? "" : "s"}
             </p>
-            <p className="mt-0.5 text-sm text-blue-600/80 dark:text-blue-400/70">
+            <p className="mt-0.5 text-sm text-blue-600/80 dark:text-blue-300">
               Your subscription renews on {formatDate(planExpiresAt)}. Renew early to avoid interruption.
             </p>
           </div>
