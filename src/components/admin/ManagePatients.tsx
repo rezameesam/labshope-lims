@@ -1,10 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, CheckCircle2, Building2, Lock, ClipboardList, Shield, FileSpreadsheet } from "lucide-react";
 import { exportToExcel } from "@/lib/exportToExcel";
-import { AbhaEnrollmentDialog } from "./AbhaEnrollmentDialog";
-import { AbdmQrCodeDisplay } from "./AbdmQrCodeDisplay";
 import { Button } from "@/components/ui/button";
-import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +44,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import DuplicatePhoneDialog from "./DuplicatePhoneDialog";
 import { useLab } from "@/contexts/LabContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -67,6 +63,10 @@ import PatientFilters from "./patients/PatientFilters";
 import PatientTable from "./patients/PatientTable";
 import PatientFormDialog from "./patients/PatientFormDialog";
 import PatientDetailView from "./patients/PatientDetailView";
+
+const AbhaEnrollmentDialog = React.lazy(() => import("./AbhaEnrollmentDialog").then((module) => ({ default: module.AbhaEnrollmentDialog })));
+const AbdmQrCodeDisplay = React.lazy(() => import("./AbdmQrCodeDisplay"));
+const DuplicatePhoneDialog = React.lazy(() => import("./DuplicatePhoneDialog"));
 
 interface Patient {
   id: string;
@@ -539,13 +539,15 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
         )}
 
         {enrollOpen && organizationId && (
-          <AbhaEnrollmentDialog
-            open={enrollOpen}
-            onOpenChange={setEnrollOpen}
-            organizationId={organizationId}
-            patientId={patientId ?? undefined}
-            onEnrolled={handleEnrolled}
-          />
+          <Suspense fallback={null}>
+            <AbhaEnrollmentDialog
+              open={enrollOpen}
+              onOpenChange={setEnrollOpen}
+              organizationId={organizationId}
+              patientId={patientId ?? undefined}
+              onEnrolled={handleEnrolled}
+            />
+          </Suspense>
         )}
 
         {/* Mismatch resolution dialog */}
@@ -1205,8 +1207,6 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const hasAbdmIdentity = Boolean(abhaNumber || abhaAddress);
       const abdmStatus = hasAbdmIdentity ? formData.abdm_link_status || "linked" : "unlinked";
 
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      
       const { error } = await supabase.from("patients").insert({
         patient_id: patientId,
         full_name: formData.full_name,
@@ -1227,7 +1227,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         organization_id: organizationId,
         lab_id: formData.lab_id || null,
         collection_center_id: formData.collection_center_id || null,
-        created_by: authUser?.id || null,
+        created_by: user?.id || null,
       });
 
       if (error) throw error;
@@ -1608,11 +1608,11 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       return;
     }
 
-    const selectedPackage = quickAssignPackages.find((pkg) => pkg.id === packageId);
+    const selectedPackage = quickAssignPackageById.get(packageId);
     if (!selectedPackage) return;
 
     const packageTestNames = selectedPackage.tests
-      .map((testId) => catalogTests.find((test) => test.id === testId)?.name)
+      .map((testId) => catalogTestNameById.get(testId))
       .filter(Boolean) as string[];
 
     setQuickAssignSelectedTests(packageTestNames);
@@ -1670,7 +1670,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     setQuickAssignSubmitting(true);
     try {
       let selectedCatalogTests = quickAssignSelectedTests
-        .map((name) => catalogTests.find((t) => t.name === name))
+        .map((name) => catalogTestByName.get(name))
         .filter(Boolean) as CatalogTest[];
 
       if (quickAssignSkipDuplicates && quickAssignDuplicateInsights.length > 0) {
@@ -1708,7 +1708,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
       const totalAmount = selectedCatalogTests.reduce((sum, t) => sum + Number(t.price || 0), 0);
 
-      const selectedPackage = quickAssignPackages.find((pkg) => pkg.id === quickAssignSelectedPackageId) || null;
+      const selectedPackage = quickAssignPackageById.get(quickAssignSelectedPackageId) || null;
       let discountAmount = 0;
       if (selectedPackage) {
         const packageTestIds = new Set(selectedPackage.tests);
@@ -1743,6 +1743,10 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
 
       if (invoiceError) throw invoiceError;
 
+      const insertedTestIdByName = new Map(
+        ((insertedTests as Array<{ id: string; test_name: string }> | null) || []).map((test) => [test.test_name, test.id] as const),
+      );
+
       const items = selectedCatalogTests.map((test) => ({
         invoice_id: invoice.id,
         organization_id: organizationId,
@@ -1750,7 +1754,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         unit_price: Number(test.price || 0),
         quantity: 1,
         amount: Number(test.price || 0),
-        patient_test_id: insertedTests?.find((t: any) => t.test_name === test.name)?.id || null,
+        patient_test_id: insertedTestIdByName.get(test.name) || null,
       }));
 
       const { error: itemsError } = await (supabase as any).from("invoice_items").insert(items);
@@ -1861,6 +1865,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     });
 
     try {
+        const { generateMultiTestReportPDF } = await import("@/components/patient/TestReportPDF");
         const success = await generateMultiTestReportPDF(
         {
           full_name: selectedPatient.full_name,
@@ -1985,45 +1990,74 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
     }
   };
 
-  const filteredPatients = patients.filter((patient) => {
+  const catalogTestByName = useMemo(
+    () => new Map(catalogTests.map((test) => [test.name, test] as const)),
+    [catalogTests],
+  );
+  const catalogTestNameById = useMemo(
+    () => new Map(catalogTests.map((test) => [test.id, test.name] as const)),
+    [catalogTests],
+  );
+  const quickAssignPackageById = useMemo(
+    () => new Map(quickAssignPackages.map((pkg) => [pkg.id, pkg] as const)),
+    [quickAssignPackages],
+  );
+
+  const filteredPatients = useMemo(() => {
     const searchLower = search.toLowerCase();
     const searchDigits = search.replace(/[^\d]/g, "");
-    const phoneDigits = patient.phone.replace(/[^\d]/g, "");
-    const matchesSearch = 
-      patient.full_name.toLowerCase().includes(searchLower) ||
-      patient.patient_id.toLowerCase().includes(searchLower) ||
-      formatPhoneForDisplay(patient.phone).toLowerCase().includes(searchLower) ||
-      (searchDigits.length > 0 && phoneDigits.includes(searchDigits));
-    
-    const matchesStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && patient.is_active) ||
-      (filterStatus === "inactive" && !patient.is_active);
 
-    const regDate = patient.created_at ? patient.created_at.slice(0, 10) : null;
-    const matchesDate =
-      (!dateFrom || (regDate && regDate >= dateFrom)) &&
-      (!dateTo || (regDate && regDate <= dateTo));
+    return patients.filter((patient) => {
+      const phoneDigits = patient.phone.replace(/[^\d]/g, "");
+      const matchesSearch =
+        patient.full_name.toLowerCase().includes(searchLower) ||
+        patient.patient_id.toLowerCase().includes(searchLower) ||
+        formatPhoneForDisplay(patient.phone).toLowerCase().includes(searchLower) ||
+        (searchDigits.length > 0 && phoneDigits.includes(searchDigits));
 
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+      const matchesStatus =
+        filterStatus === "all" ||
+        (filterStatus === "active" && patient.is_active) ||
+        (filterStatus === "inactive" && !patient.is_active);
 
-  const filteredQuickAssignTests = catalogTests.filter((test) => {
-    if (!quickAssignSearch.trim()) return true;
+      const regDate = patient.created_at ? patient.created_at.slice(0, 10) : null;
+      const matchesDate =
+        (!dateFrom || (regDate && regDate >= dateFrom)) &&
+        (!dateTo || (regDate && regDate <= dateTo));
+
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+  }, [patients, search, filterStatus, dateFrom, dateTo]);
+
+  const filteredQuickAssignTests = useMemo(() => {
+    if (!quickAssignSearch.trim()) {
+      return catalogTests.slice(0, 80);
+    }
+
     const q = quickAssignSearch.toLowerCase();
-    return test.name.toLowerCase().includes(q) || (test.test_id || "").toLowerCase().includes(q);
-  }).slice(0, 80);
+    return catalogTests
+      .filter((test) => test.name.toLowerCase().includes(q) || (test.test_id || "").toLowerCase().includes(q))
+      .slice(0, 80);
+  }, [catalogTests, quickAssignSearch]);
 
-  const quickAssignRecentSuggestions = Array.from(
-    new Set(patientTests.slice(0, 20).map((t) => t.test_name).filter(Boolean))
-  ).slice(0, 8);
+  const quickAssignRecentSuggestions = useMemo(
+    () => Array.from(new Set(patientTests.slice(0, 20).map((t) => t.test_name).filter(Boolean))).slice(0, 8),
+    [patientTests],
+  );
 
-  const quickAssignTotal = quickAssignSelectedTests.reduce((sum, testName) => {
-    const row = catalogTests.find((t) => t.name === testName);
-    return sum + Number(row?.price || 0);
-  }, 0);
+  const quickAssignTotal = useMemo(
+    () =>
+      quickAssignSelectedTests.reduce((sum, testName) => {
+        const row = catalogTestByName.get(testName);
+        return sum + Number(row?.price || 0);
+      }, 0),
+    [catalogTestByName, quickAssignSelectedTests],
+  );
 
-  const quickAssignSelectedPackage = quickAssignPackages.find((pkg) => pkg.id === quickAssignSelectedPackageId) || null;
+  const quickAssignSelectedPackage = useMemo(
+    () => quickAssignPackages.find((pkg) => pkg.id === quickAssignSelectedPackageId) || null,
+    [quickAssignPackages, quickAssignSelectedPackageId],
+  );
   let quickAssignDiscount = 0;
   if (quickAssignSelectedPackage) {
     const packageTestIds = new Set(quickAssignSelectedPackage.tests);
@@ -2244,7 +2278,9 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
             {organizationId && (
               <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                 <p className="mb-3 text-xs font-medium text-blue-800">Patient Scan QR — show this for Scan &amp; Share intake</p>
-                <AbdmQrCodeDisplay organizationId={organizationId} labId={currentLab?.id} />
+                <Suspense fallback={<div className="text-sm text-muted-foreground">Loading QR code...</div>}>
+                  <AbdmQrCodeDisplay organizationId={organizationId} labId={currentLab?.id} />
+                </Suspense>
               </div>
             )}
             {abdmProfileShares.length === 0 ? (
@@ -2768,17 +2804,21 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       </Dialog>
 
       {/* Duplicate Phone Warning Dialog */}
-      <DuplicatePhoneDialog
-        open={duplicatePhoneDialogOpen}
-        onOpenChange={setDuplicatePhoneDialogOpen}
-        existingPatients={existingPatientsWithPhone}
-        phoneNumber={buildStoragePhoneNumber(formData.country_code, formData.phone) || formData.phone || ""}
-        onContinue={() => createPatient()}
-        onCancel={() => {
-          setDuplicatePhoneDialogOpen(false);
-          setIsSubmitting(false);
-        }}
-      />
+      {duplicatePhoneDialogOpen && (
+        <Suspense fallback={null}>
+          <DuplicatePhoneDialog
+            open={duplicatePhoneDialogOpen}
+            onOpenChange={setDuplicatePhoneDialogOpen}
+            existingPatients={existingPatientsWithPhone}
+            phoneNumber={buildStoragePhoneNumber(formData.country_code, formData.phone) || formData.phone || ""}
+            onContinue={() => createPatient()}
+            onCancel={() => {
+              setDuplicatePhoneDialogOpen(false);
+              setIsSubmitting(false);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

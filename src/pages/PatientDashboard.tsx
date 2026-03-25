@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClipboardList, FileText, FlaskConical, GitBranch, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,6 @@ import { formatAppDate } from "@/lib/date";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import TestResultsTable from "@/components/patient/TestResultsTable";
-import BillingPortal from "@/components/patient/BillingPortal";
-import PatientHistoryTimeline from "@/components/patient/PatientHistoryTimeline";
-import PatientBookTestRequest from "@/components/patient/PatientBookTestRequest";
 import PageErrorBoundary from "@/components/PageErrorBoundary";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { validatePatientPassword } from "@/lib/patientSecurity";
@@ -22,6 +19,10 @@ import { PatientStatsCards } from "@/components/patient/dashboard/PatientStatsCa
 import { PatientQuickActions } from "@/components/patient/dashboard/PatientQuickActions";
 import { PatientProfileTab } from "@/components/patient/dashboard/PatientProfileTab";
 import { PatientSecurityTab } from "@/components/patient/dashboard/PatientSecurityTab";
+
+const BillingPortal = lazy(() => import("@/components/patient/BillingPortal"));
+const PatientHistoryTimeline = lazy(() => import("@/components/patient/PatientHistoryTimeline"));
+const PatientBookTestRequest = lazy(() => import("@/components/patient/PatientBookTestRequest"));
 
 interface PatientTest {
   id: string;
@@ -58,6 +59,14 @@ const MAX_PATIENT_ADDRESS_LENGTH = 250;
 
 const patientTabTriggerClassName =
   "h-14 w-full cursor-pointer flex-row items-center justify-center gap-2.5 rounded-2xl border border-border/70 bg-background/85 px-4 text-center text-sm font-semibold leading-none text-muted-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-background hover:text-foreground hover:shadow-md data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg md:h-16 md:text-base";
+
+const tabFallback = (
+  <Card className="border border-border bg-card shadow-sm">
+    <CardContent className="py-10 text-center text-sm text-muted-foreground">
+      Loading section...
+    </CardContent>
+  </Card>
+);
 
 const PatientDashboard = () => {
   const { branding } = useOrganization();
@@ -140,13 +149,34 @@ const PatientDashboard = () => {
 
         if (error) throw error;
 
-        const withEmployees = await Promise.all(
-          (data || []).map(async (test: any) => {
-            if (!test.result_entered_by) return test;
-            const { data: emp } = await supabase
-              .from("employees").select("full_name").eq("user_id", test.result_entered_by).maybeSingle();
-            return emp?.full_name ? { ...test, entered_by_name: emp.full_name } : test;
-          }),
+        const enteredByIds = Array.from(
+          new Set(
+            (data || [])
+              .map((test: any) => test.result_entered_by)
+              .filter(Boolean),
+          ),
+        );
+
+        const employeeNameMap = new Map<string, string>();
+        if (enteredByIds.length > 0) {
+          const { data: employees, error: employeeError } = await supabase
+            .from("employees")
+            .select("user_id, full_name")
+            .in("user_id", enteredByIds);
+
+          if (employeeError) throw employeeError;
+
+          (employees || []).forEach((employee) => {
+            if (employee.user_id) {
+              employeeNameMap.set(employee.user_id, employee.full_name);
+            }
+          });
+        }
+
+        const withEmployees = (data || []).map((test: any) =>
+          test.result_entered_by && employeeNameMap.has(test.result_entered_by)
+            ? { ...test, entered_by_name: employeeNameMap.get(test.result_entered_by) }
+            : test,
         );
         setTests(withEmployees);
       } catch (err) {
@@ -306,42 +336,49 @@ const PatientDashboard = () => {
               <TestResultsTable
                 tests={tests as any}
                 patient={{ full_name: patient.full_name, patient_id: patient.patient_id, phone: patient.phone, gender: patient.gender, date_of_birth: patient.date_of_birth, blood_group: patient.blood_group }}
-                patientDbId={patient.id}
-                patientOrganizationId={patient.organization_id}
                 loading={testsLoading}
                 onPayNow={() => setActiveTab("billing")}
+                hasOutstandingDues={hasOutstandingDues}
+                outstandingAmount={outstandingAmount}
+                checkingPayment={checkingDues}
               />
             </PageErrorBoundary>
           </TabsContent>
 
           <TabsContent value="billing">
             <PageErrorBoundary title="Billing could not be loaded" description="The billing view hit an unexpected error. You can retry without leaving the portal.">
-              <BillingPortal
-                patientId={patient.id}
-                organizationId={patient.organization_id}
-                patientName={patient.full_name}
-                patientPhone={patient.phone}
-                onPaymentStatusChange={() => { setCheckingDues(true); void refreshDues(); }}
-              />
+              <Suspense fallback={tabFallback}>
+                <BillingPortal
+                  patientId={patient.id}
+                  organizationId={patient.organization_id}
+                  patientName={patient.full_name}
+                  patientPhone={patient.phone}
+                  onPaymentStatusChange={() => { setCheckingDues(true); void refreshDues(); }}
+                />
+              </Suspense>
             </PageErrorBoundary>
           </TabsContent>
 
           <TabsContent value="book">
             <PageErrorBoundary title="Booking form could not be loaded" description="The booking request form hit an unexpected error. You can retry without leaving the portal.">
-              <PatientBookTestRequest
-                patient={{ id: patient.id, full_name: patient.full_name, phone: patient.phone, email: patient.email, address: patient.address, organization_id: patient.organization_id }}
-              />
+              <Suspense fallback={tabFallback}>
+                <PatientBookTestRequest
+                  patient={{ id: patient.id, full_name: patient.full_name, phone: patient.phone, email: patient.email, address: patient.address, organization_id: patient.organization_id }}
+                />
+              </Suspense>
             </PageErrorBoundary>
           </TabsContent>
 
           <TabsContent value="timeline">
             <PageErrorBoundary title="Timeline could not be loaded" description="The timeline view hit an unexpected error. You can retry or use the other portal sections.">
-              <PatientHistoryTimeline
-                tests={tests}
-                hasOutstandingDues={hasOutstandingDues}
-                outstandingAmount={outstandingAmount}
-                onPayNow={() => setActiveTab("billing")}
-              />
+              <Suspense fallback={tabFallback}>
+                <PatientHistoryTimeline
+                  tests={tests}
+                  hasOutstandingDues={hasOutstandingDues}
+                  outstandingAmount={outstandingAmount}
+                  onPayNow={() => setActiveTab("billing")}
+                />
+              </Suspense>
             </PageErrorBoundary>
           </TabsContent>
 

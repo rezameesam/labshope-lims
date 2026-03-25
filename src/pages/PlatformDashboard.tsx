@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { AttentionSection } from "@/components/platform/dashboard/AttentionSection";
-import { DashboardCharts } from "@/components/platform/dashboard/DashboardCharts";
 import { KpiStrip } from "@/components/platform/dashboard/KpiStrip";
 import { LatestLeads } from "@/components/platform/dashboard/LatestLeads";
 import { LatestOnboarding } from "@/components/platform/dashboard/LatestOnboarding";
@@ -35,6 +34,7 @@ const DEFAULT_COUNTS: PlatformCounts = {
 };
 
 const EMPTY_LIST: never[] = [];
+const DashboardCharts = lazy(() => import("@/components/platform/dashboard/DashboardCharts").then((module) => ({ default: module.DashboardCharts })));
 
 const PlatformDashboard = () => {
   const navigate = useNavigate();
@@ -194,7 +194,9 @@ const PlatformDashboard = () => {
       </section>
 
       <section aria-label="Performance charts">
-        <DashboardCharts leadsChartData={leadsChartData} planChartData={planChartData} />
+        <Suspense fallback={<div className="h-[320px] animate-pulse rounded-[28px] bg-muted/40" />}>
+          <DashboardCharts leadsChartData={leadsChartData} planChartData={planChartData} />
+        </Suspense>
       </section>
 
       <section aria-label="Priority actions">

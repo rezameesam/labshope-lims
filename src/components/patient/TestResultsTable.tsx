@@ -7,9 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { generateMultiTestReportPDF } from "./TestReportPDF";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatAppDate } from "@/lib/date";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -23,15 +21,23 @@ import { PendingTests } from "./results/PendingTests";
 interface TestResultsTableProps {
   tests: TestResult[];
   patient: PatientInfo;
-  patientDbId?: string;
-  patientOrganizationId?: string | null;
   loading?: boolean;
   onPayNow?: () => void;
+  hasOutstandingDues?: boolean;
+  outstandingAmount?: number;
+  checkingPayment?: boolean;
 }
 
-const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, loading, onPayNow }: TestResultsTableProps) => {
-  const { organization, branding } = useOrganization();
-  const resolvedOrganizationId = patientOrganizationId || organization?.id || null;
+const TestResultsTable = ({
+  tests,
+  patient,
+  loading,
+  onPayNow,
+  hasOutstandingDues = false,
+  outstandingAmount = 0,
+  checkingPayment = false,
+}: TestResultsTableProps) => {
+  const { branding } = useOrganization();
   const isMobile = useIsMobile();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -44,41 +50,9 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [hasOutstandingDues, setHasOutstandingDues] = useState(false);
-  const [outstandingAmount, setOutstandingAmount] = useState(0);
-  const [checkingPayment, setCheckingPayment] = useState(true);
 
   const completedTests = tests.filter(t => t.status === "completed");
   const pendingTests = tests.filter(t => t.status !== "completed");
-
-  useEffect(() => {
-    const checkPaymentStatus = async () => {
-      if (!patientDbId || !resolvedOrganizationId) {
-        setCheckingPayment(false);
-        setHasOutstandingDues(false);
-        setOutstandingAmount(0);
-        return;
-      }
-      try {
-        const { data: invoices, error } = await supabase
-          .from("invoices")
-          .select("final_amount, paid_amount, payment_status")
-          .eq("patient_id", patientDbId)
-          .eq("organization_id" as any, resolvedOrganizationId);
-        if (error) throw error;
-        const totalBilled = invoices?.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0) || 0;
-        const totalPaid = invoices?.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0) || 0;
-        const outstanding = totalBilled - totalPaid;
-        setHasOutstandingDues(outstanding > 0);
-        setOutstandingAmount(Math.max(0, outstanding));
-      } catch (error) {
-        console.error("Error checking payment status:", error);
-      } finally {
-        setCheckingPayment(false);
-      }
-    };
-    checkPaymentStatus();
-  }, [resolvedOrganizationId, patientDbId]);
 
   const dateFilteredTests = useMemo(() => {
     let filtered = completedTests;
@@ -245,7 +219,14 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
   };
 
   const callPDF = async (testList: TestResult[], options?: { includeHeader: boolean; includeFooter: boolean }, enteredByLabel?: string) =>
-    generateMultiTestReportPDF(getPatientInfo(), testList.map(toTestPdfInput), enteredByLabel, options, undefined, getBrandingConfig());
+    (await import("./TestReportPDF")).generateMultiTestReportPDF(
+      getPatientInfo(),
+      testList.map(toTestPdfInput),
+      enteredByLabel,
+      options,
+      undefined,
+      getBrandingConfig(),
+    );
 
   const handleDownloadAll = (options?: { includeHeader: boolean; includeFooter: boolean }) => {
     checkDues(async () => {

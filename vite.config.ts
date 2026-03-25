@@ -16,6 +16,40 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
 
+          if (
+            id.includes("framer-motion") ||
+            id.includes("motion-dom") ||
+            id.includes("motion-utils")
+          ) {
+            return "vendor-motion";
+          }
+
+          if (
+            id.includes("@radix-ui/") ||
+            id.includes("react-remove-scroll") ||
+            id.includes("aria-hidden") ||
+            id.includes("react-style-singleton") ||
+            id.includes("use-callback-ref") ||
+            id.includes("use-sidecar")
+          ) {
+            return "vendor-radix";
+          }
+
+          if (
+            id.includes("react-router") ||
+            id.includes("@remix-run/router")
+          ) {
+            return "vendor-router";
+          }
+
+          if (id.includes("next-themes")) {
+            return "vendor-theme";
+          }
+
+          if (id.includes("sonner")) {
+            return "vendor-sonner";
+          }
+
           if (id.includes("html2canvas")) {
             return "vendor-html2canvas";
           }
@@ -46,6 +80,9 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      html2canvas: path.resolve(__dirname, "./src/lib/pdf-optional/html2canvas.ts"),
+      dompurify: path.resolve(__dirname, "./src/lib/pdf-optional/dompurify.ts"),
+      canvg: path.resolve(__dirname, "./src/lib/pdf-optional/canvg.ts"),
     },
   },
   test: {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { 
   Users, 
   UserPlus, 
@@ -16,25 +16,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
 import { formatAppDate } from "@/lib/date";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+
+const DashboardOverviewCharts = lazy(() => import("./DashboardOverviewCharts"));
 
 interface Stats {
   employees: number;
@@ -85,6 +73,40 @@ interface TopTest {
   count: number;
   revenue: number;
 }
+
+type RevenueAccumulator = {
+  totalRevenue: number;
+  totalPaid: number;
+  paidInvoices: number;
+  pendingInvoices: number;
+};
+
+type DashboardOverviewStatsRow = {
+  employees: number;
+  patients: number;
+  tests: number;
+  pending_tests: number;
+  in_progress_tests: number;
+  completed_today: number;
+  tests_yesterday: number;
+  new_patients_today: number;
+  new_patients_yesterday: number;
+  new_patients_this_week: number;
+  total_revenue: number;
+  revenue_today: number;
+  revenue_yesterday: number;
+  revenue_this_week: number;
+  revenue_this_month: number;
+  outstanding_dues: number;
+  paid_invoices: number;
+  pending_invoices: number;
+};
+
+type DashboardOverviewAnalyticsRow = {
+  top_tests: TopTest[];
+  revenue_trends: RevenueTrend[];
+  test_trends: TestTrend[];
+};
 
 type DashboardOverviewProps = {
   onNavigate?: (tabId: string) => void;
@@ -144,46 +166,18 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
       try {
         const today = new Date();
-        const yesterday = subDays(today, 1);
-        const weekAgo = subDays(today, 7);
-        const monthAgo = subDays(today, 30);
-        let employeesQuery = (supabase as any).from("employees").select("id", { count: "exact", head: true });
-        let patientsQuery = (supabase as any).from("patients").select("id", { count: "exact", head: true });
-        let testsQuery = (supabase as any).from("patient_tests").select("id", { count: "exact", head: true });
-        let pendingTestsQuery = (supabase as any)
-          .from("patient_tests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending");
-        let completedTodayQuery = (supabase as any)
-          .from("patient_tests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "completed")
-          .gte("updated_at", startOfDay(today).toISOString())
-          .lte("updated_at", endOfDay(today).toISOString());
-        let newPatientsQuery = (supabase as any)
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", weekAgo.toISOString());
-        let newPatientsTodayQuery = (supabase as any)
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", startOfDay(today).toISOString())
-          .lte("created_at", endOfDay(today).toISOString());
-        let newPatientsYesterdayQuery = (supabase as any)
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", startOfDay(yesterday).toISOString())
-          .lte("created_at", endOfDay(yesterday).toISOString());
-        let testsYesterdayQuery = (supabase as any)
-          .from("patient_tests")
-          .select("id", { count: "exact", head: true })
-          .gte("test_date", startOfDay(yesterday).toISOString().split('T')[0])
-          .lte("test_date", endOfDay(yesterday).toISOString().split('T')[0]);
-        let invoicesYesterdayQuery = (supabase as any)
-          .from("invoices")
-          .select("id, paid_amount")
-          .gte("created_at", startOfDay(yesterday).toISOString())
-          .lte("created_at", endOfDay(yesterday).toISOString());
+        const { data: statsRow, error: statsError } = await (supabase as any)
+          .rpc("get_dashboard_overview_stats", { p_organization_id: organization.id })
+          .single();
+
+        if (statsError) throw statsError;
+
+        const { data: analyticsRow, error: analyticsError } = await (supabase as any)
+          .rpc("get_dashboard_overview_analytics", { p_organization_id: organization.id })
+          .single();
+
+        if (analyticsError) throw analyticsError;
+
         let recentTestsQuery = (supabase as any)
           .from("patient_tests")
           .select(`
@@ -198,178 +192,43 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           `)
           .order("created_at", { ascending: false })
           .limit(5);
-        let inProgressQuery = (supabase as any)
-          .from("patient_tests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "in_progress");
-        let allInvoicesQuery = (supabase as any)
-          .from("invoices")
-          .select("id, final_amount, paid_amount, payment_status, created_at");
-        let invoicesTodayQuery = (supabase as any)
-          .from("invoices")
-          .select("id, final_amount, paid_amount")
-          .gte("created_at", startOfDay(today).toISOString())
-          .lte("created_at", endOfDay(today).toISOString());
-        let invoicesWeekQuery = (supabase as any)
-          .from("invoices")
-          .select("id, final_amount, paid_amount")
-          .gte("created_at", weekAgo.toISOString());
-        let invoicesMonthQuery = (supabase as any)
-          .from("invoices")
-          .select("id, final_amount, paid_amount")
-          .gte("created_at", monthAgo.toISOString());
 
-        employeesQuery = employeesQuery.eq("organization_id" as any, organization.id);
-        patientsQuery = patientsQuery.eq("organization_id" as any, organization.id);
-        testsQuery = testsQuery.eq("organization_id" as any, organization.id);
-        pendingTestsQuery = pendingTestsQuery.eq("organization_id" as any, organization.id);
-        completedTodayQuery = completedTodayQuery.eq("organization_id" as any, organization.id);
-        newPatientsQuery = newPatientsQuery.eq("organization_id" as any, organization.id);
         recentTestsQuery = recentTestsQuery.eq("organization_id" as any, organization.id);
-        inProgressQuery = inProgressQuery.eq("organization_id" as any, organization.id);
-        allInvoicesQuery = allInvoicesQuery.eq("organization_id" as any, organization.id);
-        invoicesTodayQuery = invoicesTodayQuery.eq("organization_id" as any, organization.id);
-        invoicesWeekQuery = invoicesWeekQuery.eq("organization_id" as any, organization.id);
-        invoicesMonthQuery = invoicesMonthQuery.eq("organization_id" as any, organization.id);
-        newPatientsTodayQuery = newPatientsTodayQuery.eq("organization_id" as any, organization.id);
-        newPatientsYesterdayQuery = newPatientsYesterdayQuery.eq("organization_id" as any, organization.id);
-        testsYesterdayQuery = testsYesterdayQuery.eq("organization_id" as any, organization.id);
-        invoicesYesterdayQuery = invoicesYesterdayQuery.eq("organization_id" as any, organization.id);
 
-        const [
-          employeesRes, patientsRes, testsRes, pendingRes,
-          completedTodayRes, newPatientsRes, recentTestsRes, inProgressRes,
-          allInvoicesRes, invoicesTodayRes, invoicesWeekRes, invoicesMonthRes,
-          newPatientsTodayRes, newPatientsYesterdayRes, testsYesterdayRes, invoicesYesterdayRes,
-        ] = await Promise.all([
-          employeesQuery, patientsQuery, testsQuery, pendingTestsQuery,
-          completedTodayQuery, newPatientsQuery, recentTestsQuery, inProgressQuery,
-          allInvoicesQuery, invoicesTodayQuery, invoicesWeekQuery, invoicesMonthQuery,
-          newPatientsTodayQuery, newPatientsYesterdayQuery, testsYesterdayQuery, invoicesYesterdayQuery,
-        ]);
+        const [recentTestsRes] = await Promise.all([recentTestsQuery]);
 
-        // Calculate financial stats
-        const allInvoices = allInvoicesRes.data || [];
-        const invoicesToday = invoicesTodayRes.data || [];
-        const invoicesWeek = invoicesWeekRes.data || [];
-        const invoicesMonth = invoicesMonthRes.data || [];
+        const overviewStats = statsRow as DashboardOverviewStatsRow;
+        const analytics = analyticsRow as DashboardOverviewAnalyticsRow;
 
-        const totalRevenue = allInvoices.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
-        const revenueToday = invoicesToday.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
-        const revenueThisWeek = invoicesWeek.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
-        const revenueThisMonth = invoicesMonth.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
-        
-        const totalBilled = allInvoices.reduce((sum, inv) => sum + (Number(inv.final_amount) || 0), 0);
-        const totalPaid = allInvoices.reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
-        const outstandingDues = totalBilled - totalPaid;
-
-        const paidInvoices = allInvoices.filter(inv => {
-          const paid = Number(inv.paid_amount) || 0;
-          const final = Number(inv.final_amount) || 0;
-          return paid >= final;
-        }).length;
-
-        const pendingInvoices = allInvoices.filter(inv => {
-          const paid = Number(inv.paid_amount) || 0;
-          const final = Number(inv.final_amount) || 0;
-          return paid < final;
-        }).length;
-
-        // Get top tests by revenue
-        const invoiceIds = allInvoices
-          .map((invoice) => invoice.id)
-          .filter((invoiceId): invoiceId is string => Boolean(invoiceId));
-
-        let invoiceItemsRes:
-          | {
-              test_name: string;
-              amount: number | null;
-            }[]
-          | null = [];
-
-        if (invoiceIds.length > 0) {
-          const { data } = await (supabase as any)
-            .from("invoice_items")
-            .select("test_name, amount")
-            .in("invoice_id", invoiceIds)
-            .eq("organization_id", organization.id);
-          invoiceItemsRes = data;
-        }
-
-        const testRevenueMap = new Map<string, { count: number; revenue: number }>();
-        invoiceItemsRes?.forEach(item => {
-          const testName = item.test_name;
-          const amount = Number(item.amount) || 0;
-          const existing = testRevenueMap.get(testName) || { count: 0, revenue: 0 };
-          testRevenueMap.set(testName, {
-            count: existing.count + 1,
-            revenue: existing.revenue + amount
-          });
-        });
-
-        const topTestsData = Array.from(testRevenueMap.entries())
-          .map(([test_name, data]) => ({
-            test_name,
-            count: data.count,
-            revenue: data.revenue
-          }))
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 5);
-
-        setTopTests(topTestsData);
-
-        // Generate revenue trends for last 7 days — single query, group in JS
-        const weekStart = startOfDay(subDays(today, 6));
-        let invoicesTrendQuery = (supabase as any)
-          .from("invoices")
-          .select("final_amount, paid_amount, created_at")
-          .gte("created_at", weekStart.toISOString())
-          .lte("created_at", endOfDay(today).toISOString());
-        if (organization?.id) {
-          invoicesTrendQuery = invoicesTrendQuery.eq("organization_id" as any, organization.id);
-        }
-        const { data: invoicesTrendData } = await invoicesTrendQuery;
-
-        const revenueTrendsData: RevenueTrend[] = Array.from({ length: 7 }, (_, i) => {
-          const date = subDays(today, 6 - i);
-          const dayKey = format(date, "yyyy-MM-dd");
-          const dayInvoices = (invoicesTrendData || []).filter((inv: { created_at: string }) =>
-            inv.created_at.slice(0, 10) === dayKey
-          );
-          const dayRevenue = dayInvoices.reduce((sum: number, inv: { final_amount: unknown }) => sum + (Number(inv.final_amount) || 0), 0);
-          const dayPaid = dayInvoices.reduce((sum: number, inv: { paid_amount: unknown }) => sum + (Number(inv.paid_amount) || 0), 0);
-          return { date: format(date, "EEE"), revenue: dayRevenue, paid: dayPaid, pending: dayRevenue - dayPaid };
-        });
-        setRevenueTrends(revenueTrendsData);
-
-        const revenueYesterday = (invoicesYesterdayRes.data || []).reduce((sum, inv) => sum + (Number(inv.paid_amount) || 0), 0);
+        setTopTests(analytics.top_tests || []);
+        setRevenueTrends(analytics.revenue_trends || []);
 
         setStats({
-          employees: employeesRes.count || 0,
-          patients: patientsRes.count || 0,
-          tests: testsRes.count || 0,
-          pendingTests: pendingRes.count || 0,
-          completedToday: completedTodayRes.count || 0,
-          testsYesterday: testsYesterdayRes.count || 0,
-          newPatientsToday: newPatientsTodayRes.count || 0,
-          newPatientsYesterday: newPatientsYesterdayRes.count || 0,
-          newPatientsThisWeek: newPatientsRes.count || 0,
-          totalRevenue,
-          revenueToday,
-          revenueYesterday,
-          revenueThisWeek,
-          revenueThisMonth,
-          outstandingDues: Math.max(0, outstandingDues),
-          paidInvoices,
-          pendingInvoices,
+          employees: overviewStats.employees || 0,
+          patients: overviewStats.patients || 0,
+          tests: overviewStats.tests || 0,
+          pendingTests: overviewStats.pending_tests || 0,
+          completedToday: overviewStats.completed_today || 0,
+          testsYesterday: overviewStats.tests_yesterday || 0,
+          newPatientsToday: overviewStats.new_patients_today || 0,
+          newPatientsYesterday: overviewStats.new_patients_yesterday || 0,
+          newPatientsThisWeek: overviewStats.new_patients_this_week || 0,
+          totalRevenue: Number(overviewStats.total_revenue) || 0,
+          revenueToday: Number(overviewStats.revenue_today) || 0,
+          revenueYesterday: Number(overviewStats.revenue_yesterday) || 0,
+          revenueThisWeek: Number(overviewStats.revenue_this_week) || 0,
+          revenueThisMonth: Number(overviewStats.revenue_this_month) || 0,
+          outstandingDues: Math.max(0, Number(overviewStats.outstanding_dues) || 0),
+          paidInvoices: overviewStats.paid_invoices || 0,
+          pendingInvoices: overviewStats.pending_invoices || 0,
         });
 
         setRecentTests(recentTestsRes.data || []);
 
         // Calculate status distribution
-        const pending = pendingRes.count || 0;
-        const inProgress = inProgressRes.count || 0;
-        const completed = Math.max(0, (testsRes.count || 0) - pending - inProgress);
+        const pending = overviewStats.pending_tests || 0;
+        const inProgress = overviewStats.in_progress_tests || 0;
+        const completed = Math.max(0, (overviewStats.tests || 0) - pending - inProgress);
         
         setStatusDistribution([
           { name: "Completed", value: completed, color: "#10B981" },
@@ -377,26 +236,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           { name: "Pending", value: pending, color: "#F59E0B" },
         ]);
 
-        // Generate trend data for last 7 days — single query, group in JS
-        const testWeekStart = startOfDay(subDays(today, 6)).toISOString().split("T")[0];
-        const testWeekEnd = endOfDay(today).toISOString().split("T")[0];
-        let testsTrendQuery = (supabase as any)
-          .from("patient_tests")
-          .select("id, test_date")
-          .gte("test_date", testWeekStart)
-          .lte("test_date", testWeekEnd);
-        if (organization?.id) {
-          testsTrendQuery = testsTrendQuery.eq("organization_id" as any, organization.id);
-        }
-        const { data: testsTrendData } = await testsTrendQuery;
-
-        const trends: TestTrend[] = Array.from({ length: 7 }, (_, i) => {
-          const date = subDays(today, 6 - i);
-          const dayKey = format(date, "yyyy-MM-dd");
-          const count = (testsTrendData || []).filter((t: { test_date: string }) => t.test_date === dayKey).length;
-          return { date: format(date, "EEE"), tests: count };
-        });
-        setTestTrends(trends);
+        setTestTrends(analytics.test_trends || []);
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {
@@ -525,85 +365,9 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Trends Chart */}
-        <Card className="lg:col-span-2 shadow-md border-0">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                  Revenue Trends
-                </CardTitle>
-                <CardDescription>Revenue over the last 7 days</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <StableResponsiveChart className="h-[250px] min-w-0">
-                <AreaChart data={revenueTrends}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="date" 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs fill-muted-foreground"
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    className="text-xs fill-muted-foreground"
-                    tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                    formatter={(value: number) => `₹${value.toLocaleString()}`}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    stroke="#10B981" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorRevenue)"
-                    name="Billed"
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="paid" 
-                    stroke="#3B82F6" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorPaid)"
-                    name="Paid"
-                  />
-                </AreaChart>
-            </StableResponsiveChart>
-            <div className="flex justify-center gap-4 mt-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-xs text-muted-foreground">Billed</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500" />
-                <span className="text-xs text-muted-foreground">Paid</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Suspense fallback={<div className="lg:col-span-2 h-[360px] animate-pulse rounded-2xl bg-muted/40" />}>
+          <DashboardOverviewCharts revenueTrends={revenueTrends} testTrends={testTrends} />
+        </Suspense>
 
         {/* Top Tests by Revenue */}
         <Card className="shadow-md border-0">
@@ -642,51 +406,6 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Test Activity Chart */}
-      <Card className="shadow-md border-0">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Test Activity
-              </CardTitle>
-              <CardDescription>Tests conducted over the last 7 days</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <StableResponsiveChart className="h-[250px] min-w-0">
-              <BarChart data={testTrends}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="date" 
-                  axisLine={false}
-                  tickLine={false}
-                  className="text-xs fill-muted-foreground"
-                />
-                <YAxis 
-                  axisLine={false}
-                  tickLine={false}
-                  className="text-xs fill-muted-foreground"
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                  }}
-                />
-                <Bar 
-                  dataKey="tests" 
-                  fill="hsl(var(--primary))" 
-                  radius={[8, 8, 0, 0]}
-                />
-              </BarChart>
-          </StableResponsiveChart>
-        </CardContent>
-      </Card>
 
       {/* Recent Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,16 +1,12 @@
 import { Suspense, lazy } from "react";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
-import { AuthProvider } from "@/hooks/useAuth";
-import { PatientAuthProvider } from "@/hooks/usePatientAuth";
-import { LabProvider } from "@/contexts/LabContext";
-import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import CookieConsent from "@/components/privacy/CookieConsent";
+const AppProvidersLayout = lazy(() => import("./components/app/AppProvidersLayout"));
+const PublicAuthLayout = lazy(() => import("./components/app/PublicAuthLayout"));
+const PublicOrganizationLayout = lazy(() => import("./components/app/PublicOrganizationLayout"));
 const Index = lazy(() => import("./pages/Index"));
 const BookDemo = lazy(() => import("./pages/BookDemo"));
 const BookTest = lazy(() => import("./pages/BookTest"));
@@ -40,95 +36,77 @@ const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const Careers = lazy(() => import("./pages/Careers"));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      gcTime: 5 * 60_000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
-
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
   <HelmetProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <AuthProvider>
-            <LabProvider>
-              <OrganizationProvider>
-                <PatientAuthProvider>
-                  <CookieConsent />
-                  <a
-                    href="#main-content"
-                    className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-ring focus:outline-none"
-                  >
-                    Skip to main content
-                  </a>
-                  <Suspense
-                    fallback={
-                      <div className="min-h-screen flex items-center justify-center bg-background">
-                        <div className="animate-pulse text-muted-foreground">Loading...</div>
-                      </div>
-                    }
-                  >
-                    <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/features" element={<Features />} />
-                      <Route path="/pricing" element={<Pricing />} />
-                      <Route path="/contact" element={<Contact />} />
-                      <Route path="/start" element={<Start />} />
-                      <Route path="/book-demo" element={<BookDemo />} />
-                      <Route path="/book-test" element={<BookTest />} />
-                      <Route path="/careers" element={<Careers />} />
-                      <Route path="/work-with-us" element={<Careers />} />
-                      <Route path="/privacy" element={<PrivacyPolicy />} />
-                      <Route path="/terms" element={<TermsOfService />} />
-                      <Route path="/refund-policy" element={<RefundPolicy />} />
-                      <Route path="/auth/patient" element={<PatientAuth />} />
-                      <Route path="/patient/reset-password" element={<PatientResetPassword />} />
-                      <Route path="/patient/dashboard" element={<PatientDashboard />} />
-                      <Route path="/auth/staff" element={<EmployeeAuth />} />
-                      <Route path="/auth/employee" element={<EmployeeAuth />} />
-                      <Route path="/staff/reset-password" element={<EmployeeResetPassword />} />
-                      <Route path="/employee/reset-password" element={<EmployeeResetPassword />} />
-                      <Route path="/admin" element={<AdminDashboard />} />
-                      <Route path="/collector" element={<CollectorDashboard />} />
-                      <Route path="/platform" element={<PlatformDashboard />} />
-                      <Route path="/platform/" element={<PlatformDashboard />} />
-                      <Route path="/platform/login" element={<EmployeeAuth />} />
-                      <Route path="/platform/login/" element={<EmployeeAuth />} />
-                      <Route path="/platform/leads" element={<PlatformLeads />} />
-                      <Route path="/platform/leads/" element={<PlatformLeads />} />
-                      <Route path="/platform/onboarding" element={<PlatformOnboarding />} />
-                      <Route path="/platform/onboarding/" element={<PlatformOnboarding />} />
-                      <Route path="/platform/customers" element={<PlatformCustomers />} />
-                      <Route path="/platform/customers/" element={<PlatformCustomers />} />
-                      <Route path="/platform/customers/:orgId" element={<PlatformCustomerDetail />} />
-                      <Route path="/platform/settings" element={<PlatformSettings />} />
-                      <Route path="/platform/settings/" element={<PlatformSettings />} />
-                      <Route path="/platform/coupons" element={<PlatformCoupons />} />
-                      <Route path="/platform/coupons/" element={<PlatformCoupons />} />
-                      <Route path="/platform/revenue" element={<PlatformRevenue />} />
-                      <Route path="/platform/revenue/" element={<PlatformRevenue />} />
-                      <Route path="/platform/audit-log" element={<PlatformAuditLog />} />
-                      <Route path="/platform/audit-log/" element={<PlatformAuditLog />} />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Suspense>
-                </PatientAuthProvider>
-              </OrganizationProvider>
-            </LabProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <Sonner />
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <CookieConsent />
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-ring focus:outline-none"
+          >
+            Skip to main content
+          </a>
+          <Suspense
+            fallback={
+              <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="animate-pulse text-muted-foreground">Loading...</div>
+              </div>
+            }
+          >
+            <Routes>
+              <Route element={<PublicOrganizationLayout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/features" element={<Features />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/start" element={<Start />} />
+                <Route path="/book-demo" element={<BookDemo />} />
+                <Route path="/book-test" element={<BookTest />} />
+                <Route path="/careers" element={<Careers />} />
+                <Route path="/work-with-us" element={<Careers />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+              </Route>
+              <Route element={<PublicAuthLayout />}>
+                <Route path="/auth/patient" element={<PatientAuth />} />
+                <Route path="/patient/reset-password" element={<PatientResetPassword />} />
+                <Route path="/auth/staff" element={<EmployeeAuth />} />
+                <Route path="/auth/employee" element={<EmployeeAuth />} />
+                <Route path="/staff/reset-password" element={<EmployeeResetPassword />} />
+                <Route path="/employee/reset-password" element={<EmployeeResetPassword />} />
+                <Route path="/platform/login" element={<EmployeeAuth />} />
+                <Route path="/platform/login/" element={<EmployeeAuth />} />
+              </Route>
+              <Route element={<AppProvidersLayout />}>
+                <Route path="/patient/dashboard" element={<PatientDashboard />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/collector" element={<CollectorDashboard />} />
+                <Route path="/platform" element={<PlatformDashboard />} />
+                <Route path="/platform/" element={<PlatformDashboard />} />
+                <Route path="/platform/leads" element={<PlatformLeads />} />
+                <Route path="/platform/leads/" element={<PlatformLeads />} />
+                <Route path="/platform/onboarding" element={<PlatformOnboarding />} />
+                <Route path="/platform/onboarding/" element={<PlatformOnboarding />} />
+                <Route path="/platform/customers" element={<PlatformCustomers />} />
+                <Route path="/platform/customers/" element={<PlatformCustomers />} />
+                <Route path="/platform/customers/:orgId" element={<PlatformCustomerDetail />} />
+                <Route path="/platform/settings" element={<PlatformSettings />} />
+                <Route path="/platform/settings/" element={<PlatformSettings />} />
+                <Route path="/platform/coupons" element={<PlatformCoupons />} />
+                <Route path="/platform/coupons/" element={<PlatformCoupons />} />
+                <Route path="/platform/revenue" element={<PlatformRevenue />} />
+                <Route path="/platform/revenue/" element={<PlatformRevenue />} />
+                <Route path="/platform/audit-log" element={<PlatformAuditLog />} />
+                <Route path="/platform/audit-log/" element={<PlatformAuditLog />} />
+              </Route>
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+    </BrowserRouter>
   </HelmetProvider>
   </ThemeProvider>
 );

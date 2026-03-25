@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import fallbackLogo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useLab } from "@/contexts/LabContext";
+import { useOptionalAuth } from "@/hooks/useAuth";
+import { useOptionalLab } from "@/contexts/LabContext";
 import { getPublicHostname, getPublicSlugCandidate, isDefinitelyPlatformHostname } from "@/lib/publicTenant";
 
 interface OrganizationRecord {
@@ -189,8 +189,12 @@ const deriveBranding = (
 };
 
 export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
-  const { user, loading: authLoading } = useAuth();
-  const { currentLab, loading: labLoading } = useLab();
+  const authContext = useOptionalAuth();
+  const labContext = useOptionalLab();
+  const user = authContext?.user ?? null;
+  const authLoading = authContext?.loading ?? false;
+  const currentLab = labContext?.currentLab ?? null;
+  const labLoading = labContext?.loading ?? false;
   const [organization, setOrganization] = useState<OrganizationRecord | null>(null);
   const [primaryLab, setPrimaryLab] = useState<OrganizationLabRecord | null>(null);
   const [organizationSettings, setOrganizationSettings] = useState<Map<string, string>>(new Map());
@@ -433,3 +437,5 @@ export const useOrganization = () => {
   }
   return context;
 };
+
+export const useOptionalOrganization = () => useContext(OrganizationContext);

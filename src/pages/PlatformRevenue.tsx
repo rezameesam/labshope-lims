@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,17 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { toast } from "sonner";
 import { PLAN_PRICES, resolvePlanTier, type PlanTier } from "@/lib/planLimits";
+
+const PlatformRevenueChart = lazy(() => import("@/components/platform/PlatformRevenueChart"));
 
 const PLAN_LABELS: Record<string, string> = {
   starter: "Starter",
@@ -204,36 +197,9 @@ export default function PlatformRevenue() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="mt-5 h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData}
-                  margin={{ top: 4, right: 4, left: -10, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="plan"
-                    tick={{ fontSize: 12, fill: "#64748b" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: "#94a3b8" }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [
-                      `₹${value.toLocaleString("en-IN")}`,
-                      "Revenue",
-                    ]}
-                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  />
-                  <Bar dataKey="revenue" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <Suspense fallback={<div className="mt-5 h-52 animate-pulse rounded-lg bg-muted/40" />}>
+              <PlatformRevenueChart data={chartData} />
+            </Suspense>
           )}
         </div>
 

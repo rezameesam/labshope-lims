@@ -4,8 +4,6 @@ import {
   IndianRupee, Printer,
   CheckCircle, Clock, XCircle, Edit2,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,10 +140,11 @@ interface TestPrice {
 }
 
 const ManageBilling = () => {
-  const { hasRole, isCollector } = useAuth();
+  const { user, hasRole, isCollector } = useAuth();
   const { branding, organization, loading: organizationLoading } = useOrganization();
   const isAdmin = hasRole("admin");
   const organizationId = organization?.id ?? null;
+  const currentUserId = user?.id ?? null;
   
   // Collectors should not have access to billing
   useEffect(() => {
@@ -347,9 +346,6 @@ const ManageBilling = () => {
     }
 
     try {
-      // Collectors shouldn't access billing, but if they do, restrict to their patients
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      
       let query: any = supabase
         .from("patients")
         .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
@@ -358,8 +354,8 @@ const ManageBilling = () => {
       query = query.eq("organization_id" as any, organizationId);
 
       // Note: Collectors shouldn't be here, but add restriction just in case
-      if (isCollector && authUser?.id) {
-        query = query.eq("created_by", authUser.id);
+      if (isCollector && currentUserId) {
+        query = query.eq("created_by", currentUserId);
       }
 
       const { data, error } = await query.order("full_name");
@@ -369,7 +365,7 @@ const ManageBilling = () => {
     } catch (error) {
       console.error("Error fetching patients:", error);
     }
-  }, [isCollector, organizationId]);
+  }, [currentUserId, isCollector, organizationId]);
 
   const fetchTestsDb = useCallback(async () => {
     if (!organizationId) {
@@ -529,53 +525,60 @@ const ManageBilling = () => {
       const testIds = (data || []).map(t => t.id);
       
       if (testIds.length > 0) {
-        // Get invoice items for these tests
         const { data: invoiceItemsData } = await supabase
           .from("invoice_items")
-          .select("patient_test_id, invoice_id")
+          .select(`
+            patient_test_id,
+            invoice:invoices!invoice_items_invoice_id_fkey (
+              id,
+              invoice_number,
+              payment_status,
+              final_amount,
+              paid_amount
+            )
+          `)
           .in("patient_test_id", testIds)
           .eq("organization_id", organizationId);
 
         if (invoiceItemsData && invoiceItemsData.length > 0) {
-          // Get invoice payment statuses
-          const invoiceIds = Array.from(new Set(invoiceItemsData.map(item => item.invoice_id)));
-          const { data: invoicesData } = await (supabase as any)
-            .from("invoices")
-            .select("id, invoice_number, payment_status, final_amount, paid_amount")
-            .in("id", invoiceIds)
-            .eq("organization_id" as any, organizationId);
+          const testInvoiceMap = new Map<
+            string,
+            { status: string; number: string; isPaid: boolean }
+          >();
 
-          // Create maps for quick lookup
-          const testToInvoiceMap = new Map<string, string>();
-          const invoiceStatusMap = new Map<string, { status: string; number: string; isPaid: boolean }>();
-          
-          invoiceItemsData.forEach(item => {
-            if (item.patient_test_id) {
-              testToInvoiceMap.set(item.patient_test_id, item.invoice_id);
+          (invoiceItemsData as Array<{
+            patient_test_id: string | null;
+            invoice:
+              | {
+                  id: string;
+                  invoice_number: string;
+                  payment_status: string;
+                  final_amount: number;
+                  paid_amount: number;
+                }
+              | null;
+          }>).forEach((item) => {
+            if (!item.patient_test_id || !item.invoice) {
+              return;
             }
-          });
 
-          invoicesData?.forEach(inv => {
-            const isPaid = (inv.paid_amount || 0) >= (inv.final_amount || 0);
-            invoiceStatusMap.set(inv.id, {
-              status: inv.payment_status,
-              number: inv.invoice_number,
-              isPaid
+            const invoice = item.invoice;
+            testInvoiceMap.set(item.patient_test_id, {
+              status: invoice.payment_status,
+              number: invoice.invoice_number,
+              isPaid: (invoice.paid_amount || 0) >= (invoice.final_amount || 0),
             });
           });
 
           // Add invoice status to each test
           const testsWithInvoiceStatus = (data || []).map(test => {
-            const invoiceId = testToInvoiceMap.get(test.id);
-            if (invoiceId) {
-              const invoiceInfo = invoiceStatusMap.get(invoiceId);
-              if (invoiceInfo) {
-                return {
-                  ...test,
-                  invoice_status: invoiceInfo.isPaid ? "paid" : "unpaid",
-                  invoice_number: invoiceInfo.number
-                };
-              }
+            const invoiceInfo = testInvoiceMap.get(test.id);
+            if (invoiceInfo) {
+              return {
+                ...test,
+                invoice_status: invoiceInfo.isPaid ? "paid" : "unpaid",
+                invoice_number: invoiceInfo.number
+              };
             }
             return { ...test, invoice_status: "not_invoiced" as const };
           });
@@ -628,6 +631,9 @@ const ManageBilling = () => {
 
   // Initialize custom prices when tests are loaded - look up prices from testsDb by test name
   useEffect(() => {
+    const testsDbByName = new Map(
+      testsDb.map((test) => [test.name.toLowerCase(), Number(test.price) || 0]),
+    );
     const newPrices = new Map<string, number>();
     patientTests.forEach(t => {
       // First try to get price from linked test
@@ -635,12 +641,7 @@ const ManageBilling = () => {
       
       // If no price, look up in testsDb by test name
       if (price === 0) {
-        const matchedTest = testsDb.find(
-          dbTest => dbTest.name.toLowerCase() === t.test_name.toLowerCase()
-        );
-        if (matchedTest && matchedTest.price) {
-          price = Number(matchedTest.price);
-        }
+        price = testsDbByName.get(t.test_name.toLowerCase()) || 0;
       }
       
       newPrices.set(t.id, price);
@@ -705,7 +706,6 @@ const ManageBilling = () => {
 
     setIsSubmitting(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
       const totalAmount = calculateTotal();
       const appliedDiscount = clampDiscount(discount, totalAmount);
       const finalAmount = totalAmount - appliedDiscount;
@@ -721,10 +721,10 @@ const ManageBilling = () => {
           collection_center_id: selectedPatient?.collection_center_id || null,
           total_amount: totalAmount,
           discount_amount: appliedDiscount,
-          discount_entered_by: appliedDiscount > 0 ? userData.user?.id || null : null,
+          discount_entered_by: appliedDiscount > 0 ? currentUserId : null,
           final_amount: finalAmount,
           notes,
-          created_by: userData.user?.id,
+          created_by: currentUserId,
         })
         .select()
         .single();
@@ -775,8 +775,6 @@ const ManageBilling = () => {
 
     setIsSubmitting(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      
       // Record payment
       const { error: paymentError } = await supabase
         .from("payments")
@@ -787,7 +785,7 @@ const ManageBilling = () => {
           payment_method: paymentMethod,
           transaction_id: transactionId || null,
           notes: paymentNotes || null,
-          received_by: userData.user?.id,
+          received_by: currentUserId,
         });
 
       if (paymentError) throw paymentError;
@@ -915,7 +913,6 @@ const ManageBilling = () => {
 
     setIsSubmitting(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
       const newTotal = calculateEditableTotal();
       const appliedDiscount = clampDiscount(editableDiscount, newTotal);
       const newFinal = newTotal - appliedDiscount;
@@ -928,19 +925,21 @@ const ManageBilling = () => {
             : "pending";
       const newPaidAt = newStatus === "paid" ? selectedInvoice.paid_at || new Date().toISOString() : null;
 
-      // Update invoice items
-      for (const item of editableItems) {
-        const { error } = await supabase
-        .from("invoice_items")
-        .update({
-          unit_price: item.unit_price,
-          amount: item.amount,
-        })
-        .eq("id", item.id)
-        .eq("organization_id", organizationId);
+      // Persist line-item edits in parallel to avoid serial round-trips.
+      await Promise.all(
+        editableItems.map(async (item) => {
+          const { error } = await supabase
+            .from("invoice_items")
+            .update({
+              unit_price: item.unit_price,
+              amount: item.amount,
+            })
+            .eq("id", item.id)
+            .eq("organization_id", organizationId);
 
-        if (error) throw error;
-      }
+          if (error) throw error;
+        }),
+      );
 
       // Update invoice totals
       const { error: invoiceError } = await (supabase as any)
@@ -948,9 +947,9 @@ const ManageBilling = () => {
         .update({
           total_amount: newTotal,
           discount_amount: appliedDiscount,
-          discount_entered_by: appliedDiscount > 0 ? userData.user?.id || null : null,
+          discount_entered_by: appliedDiscount > 0 ? currentUserId : null,
           final_amount: newFinal,
-          updated_by: userData.user?.id || null,
+          updated_by: currentUserId,
           payment_status: newStatus,
           paid_at: newPaidAt,
         })
@@ -1124,6 +1123,11 @@ const ManageBilling = () => {
       toast.error("Failed to fetch payments");
       return;
     }
+
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();

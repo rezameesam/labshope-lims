@@ -3,18 +3,9 @@ import { format, parseISO, isAfter, subMonths } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
+import { SimpleLineAreaChart } from "@/components/ui/simple-charts";
 import { Calendar, TrendingUp, TrendingDown, Minus, FlaskConical, CheckCircle2, AlertCircle, Activity } from "lucide-react";
 import { formatAppDate } from "@/lib/date";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
 
 interface PatientTest {
   id: string;
@@ -253,37 +244,18 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
                     <h4 className="font-medium">{testName}</h4>
                     {getTrendIcon(testName)}
                   </div>
-                  <StableResponsiveChart className="h-[200px] min-w-0">
-                      <LineChart data={data}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis
-                          dataKey="date"
-                          axisLine={false}
-                          tickLine={false}
-                          className="text-xs fill-muted-foreground"
-                        />
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          className="text-xs fill-muted-foreground"
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px",
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                  </StableResponsiveChart>
+                  <SimpleLineAreaChart
+                    className="h-[200px] min-w-0"
+                    series={[
+                      {
+                        key: "value",
+                        color: "hsl(var(--primary))",
+                        titlePrefix: testName,
+                        data,
+                      },
+                    ]}
+                    yTickFormatter={(value) => `${Math.round(value)}`}
+                  />
                 </div>
               ))}
             </div>

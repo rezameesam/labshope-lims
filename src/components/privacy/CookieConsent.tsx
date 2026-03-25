@@ -1,17 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 
 type ConsentState = {
   version: string;
@@ -87,7 +78,9 @@ const getBrowserCountry = (): { country_code: string | null; country_name: strin
 
 const CookieConsent = () => {
   const location = useLocation();
-  const { organization, loading: organizationLoading } = useOrganization();
+  const organizationContext = useOptionalOrganization();
+  const organization = organizationContext?.organization ?? null;
+  const organizationLoading = organizationContext?.loading ?? false;
   const [consent, setConsent] = useState<ConsentState | null>(null);
   const [bannerOpen, setBannerOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -209,80 +202,109 @@ const CookieConsent = () => {
         </div>
       )}
 
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Cookie Preferences</DialogTitle>
-            <DialogDescription>
-              Essential cookies are always on. Choose which optional cookies you allow.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex items-center justify-between rounded-lg border p-3">
+      {manageOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl border bg-background p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-medium">Essential</p>
-                <p className="text-sm text-muted-foreground">
-                  Required for login, security, and basic site functions.
+                <h2 className="text-lg font-semibold">Cookie Preferences</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Essential cookies are always on. Choose which optional cookies you allow.
                 </p>
               </div>
-              <Switch checked disabled />
+              <button
+                type="button"
+                onClick={() => setManageOpen(false)}
+                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close cookie preferences"
+              >
+                ×
+              </button>
             </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="font-medium">Analytics</p>
-                <p className="text-sm text-muted-foreground">
-                  Help us understand usage and improve the site.
-                </p>
+
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="font-medium">Essential</p>
+                  <p className="text-sm text-muted-foreground">
+                    Required for login, security, and basic site functions.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked
+                  disabled
+                  aria-label="Essential cookies always enabled"
+                  className="h-4 w-4 accent-primary"
+                />
               </div>
-              <Switch
-                checked={prefs.analytics}
-                onCheckedChange={(checked) =>
-                  setPrefs((prev) => ({ ...prev, analytics: checked }))
-                }
-              />
+
+              <label className="flex cursor-pointer items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="font-medium">Analytics</p>
+                  <p className="text-sm text-muted-foreground">
+                    Help us understand usage and improve the site.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={prefs.analytics}
+                  onChange={(event) =>
+                    setPrefs((prev) => ({ ...prev, analytics: event.target.checked }))
+                  }
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
+
+              <label className="flex cursor-pointer items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="font-medium">Personalization</p>
+                  <p className="text-sm text-muted-foreground">
+                    Tailor content and experience to you.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={prefs.personalization}
+                  onChange={(event) =>
+                    setPrefs((prev) => ({ ...prev, personalization: event.target.checked }))
+                  }
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
+
+              <label className="flex cursor-pointer items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="font-medium">Ads</p>
+                  <p className="text-sm text-muted-foreground">
+                    Show relevant ads and measure their performance.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={prefs.ads}
+                  onChange={(event) =>
+                    setPrefs((prev) => ({ ...prev, ads: event.target.checked }))
+                  }
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
             </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="font-medium">Personalization</p>
-                <p className="text-sm text-muted-foreground">
-                  Tailor content and experience to you.
-                </p>
-              </div>
-              <Switch
-                checked={prefs.personalization}
-                onCheckedChange={(checked) =>
-                  setPrefs((prev) => ({ ...prev, personalization: checked }))
+
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  applyConsent({ analytics: false, personalization: false, ads: false })
                 }
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="font-medium">Ads</p>
-                <p className="text-sm text-muted-foreground">
-                  Show relevant ads and measure their performance.
-                </p>
-              </div>
-              <Switch
-                checked={prefs.ads}
-                onCheckedChange={(checked) =>
-                  setPrefs((prev) => ({ ...prev, ads: checked }))
-                }
-              />
+              >
+                Reject non-essential
+              </Button>
+              <Button onClick={() => applyConsent(prefs)}>Save Preferences</Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                applyConsent({ analytics: false, personalization: false, ads: false })
-              }
-            >
-              Reject non-essential
-            </Button>
-            <Button onClick={() => applyConsent(prefs)}>Save Preferences</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </>
   );
 };

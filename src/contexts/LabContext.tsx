@@ -175,3 +175,5 @@ export const useLab = () => {
   }
   return context;
 };
+
+export const useOptionalLab = () => useContext(LabContext);

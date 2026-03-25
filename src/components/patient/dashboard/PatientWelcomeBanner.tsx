@@ -52,18 +52,18 @@ export const PatientWelcomeBanner = ({
 
   return (
     <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-      <Card className="overflow-hidden rounded-[28px] border border-primary-foreground/10 bg-hero-gradient text-primary-foreground shadow-sm">
+      <Card className="overflow-hidden rounded-[28px] border border-primary-foreground/10 bg-hero-gradient text-primary-foreground shadow-sm dark:text-white">
         <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
           <div>
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14 border border-white/10 bg-white/10">
-                <AvatarFallback className="bg-white/90 text-lg font-semibold text-primary">
+                <AvatarFallback className="bg-white/90 text-lg font-semibold text-primary dark:bg-white/10 dark:text-white">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h2 className="font-heading text-2xl font-semibold text-primary-foreground">{patientName}</h2>
-                <p className="mt-1 text-sm text-primary-foreground/80">
+                <h2 className="font-heading text-2xl font-semibold text-primary-foreground dark:text-white">{patientName}</h2>
+                <p className="mt-1 text-sm text-primary-foreground/80 dark:text-white/80">
                   Patient ID {patientId} • {formatPhoneForDisplay(phone)}
                 </p>
               </div>
@@ -71,16 +71,16 @@ export const PatientWelcomeBanner = ({
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Reports ready</p>
-                <p className="mt-2 text-2xl font-semibold text-primary-foreground">{completedCount}</p>
+                <p className="text-xs uppercase tracking-wide text-primary-foreground/70 dark:text-white/70">Reports ready</p>
+                <p className="mt-2 text-2xl font-semibold text-primary-foreground dark:text-white">{completedCount}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-xs uppercase tracking-wide text-primary-foreground/70">In progress</p>
-                <p className="mt-2 text-2xl font-semibold text-primary-foreground">{pendingCount}</p>
+                <p className="text-xs uppercase tracking-wide text-primary-foreground/70 dark:text-white/70">In progress</p>
+                <p className="mt-2 text-2xl font-semibold text-primary-foreground dark:text-white">{pendingCount}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-xs uppercase tracking-wide text-primary-foreground/70">Outstanding</p>
-                <p className="mt-2 text-2xl font-semibold text-primary-foreground">
+                <p className="text-xs uppercase tracking-wide text-primary-foreground/70 dark:text-white/70">Outstanding</p>
+                <p className="mt-2 text-2xl font-semibold text-primary-foreground dark:text-white">
                   {checkingDues ? "Checking..." : `Rs. ${outstandingAmount.toFixed(2)}`}
                 </p>
               </div>
@@ -89,14 +89,14 @@ export const PatientWelcomeBanner = ({
 
           <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
             <div>
-              <p className="text-sm font-medium text-primary-foreground">Quick actions</p>
-              <p className="mt-1 text-sm text-primary-foreground/75">
+              <p className="text-sm font-medium text-primary-foreground dark:text-white">Quick actions</p>
+              <p className="mt-1 text-sm text-primary-foreground/75 dark:text-white/75">
                 Start with reports, then use billing or account settings only when needed.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
               <Button
-                className="w-full justify-start gap-2 bg-white text-foreground hover:bg-white/90"
+                className="w-full justify-start gap-2 bg-white text-zinc-900 hover:bg-white/90 dark:border dark:border-white/30 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                 onClick={onViewResults}
               >
                 <FileText className="h-4 w-4 shrink-0" />
@@ -104,7 +104,7 @@ export const PatientWelcomeBanner = ({
               </Button>
               <Button
                 variant="outline"
-                className="w-full justify-start gap-2 border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
+                className="w-full justify-start gap-2 border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground dark:text-white dark:hover:text-white"
                 onClick={onDownloadReports}
               >
                 <Download className="h-4 w-4 shrink-0" />
@@ -112,7 +112,7 @@ export const PatientWelcomeBanner = ({
               </Button>
               <Button
                 variant="outline"
-                className="w-full justify-start gap-2 border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
+                className="w-full justify-start gap-2 border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground dark:text-white dark:hover:text-white"
                 onClick={onBookTest}
               >
                 <Book className="h-4 w-4 shrink-0" />
@@ -120,14 +120,14 @@ export const PatientWelcomeBanner = ({
               </Button>
               <Button
                 variant="outline"
-                className="w-full justify-start gap-2 border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
+                className="w-full justify-start gap-2 border-white/30 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground dark:text-white dark:hover:text-white"
                 onClick={onUpdateProfile}
               >
                 <User className="h-4 w-4 shrink-0" />
                 Update Profile
               </Button>
             </div>
-            <div className="text-xs text-primary-foreground/70">
+            <div className="text-xs text-primary-foreground/70 dark:text-white/70">
               Last password change: {formatTimestamp(lastPasswordChange)}
             </div>
           </div>

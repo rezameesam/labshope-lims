@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { generateMultiTestReportPDF } from "@/components/patient/TestReportPDF";
 import { useLab } from "@/contexts/LabContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -125,6 +124,14 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [duplicateWarningAccepted, setDuplicateWarningAccepted] = useState(false);
   const [favoriteTests, setFavoriteTests] = useState<string[]>([]);
   const lastPreselectedPatientIdRef = useRef<string | null>(null);
+  const testCatalogByName = useMemo(
+    () => new Map(testCatalog.map((test) => [test.name, test] as const)),
+    [testCatalog],
+  );
+  const doctorById = useMemo(
+    () => new Map(doctors.map((doctor) => [doctor.id, doctor] as const)),
+    [doctors],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -811,7 +818,6 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         throw new Error("Organization context is required before adding tests");
       }
 
-      const { data: userData } = await supabase.auth.getUser();
       const packageGroupId = appliedPackage ? crypto.randomUUID() : null;
       const packageTestNames = appliedPackage
         ? new Set(
@@ -831,8 +837,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         test_date: formData.test_date,
         notes: formData.notes || null,
         status: "pending",
-        created_by: userData.user?.id,
-        collected_by: userData.user?.id,
+        created_by: user?.id || null,
+        collected_by: user?.id || null,
         collected_at: new Date().toISOString(),
         lab_id: formData.lab_id || null,
         collection_center_id: formData.collection_center_id || null,
@@ -850,9 +856,13 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
 
       const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
 
+      const insertedTestIdByName = new Map(
+        ((insertedTests as Array<{ id: string; test_name: string }> | null) || []).map((test) => [test.test_name, test.id] as const),
+      );
+
       let totalAmount = 0;
       const invoiceItemsData = selectedTests.map((testName) => {
-        const catalogTest = testCatalog.find(t => t.name === testName);
+        const catalogTest = testCatalogByName.get(testName);
         const price = hasPackageTests && packageTestNames.has(testName)
           ? 0
           : (catalogTest?.price || 0);
@@ -862,7 +872,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           unit_price: price,
           quantity: 1,
           amount: price,
-          patient_test_id: insertedTests?.find(t => t.test_name === testName)?.id || null
+          patient_test_id: insertedTestIdByName.get(testName) || null
         };
       });
       if (hasPackageTests && appliedPackage) {
@@ -887,7 +897,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           collection_center_id: formData.collection_center_id || selectedPatient.collection_center_id || null,
           total_amount: totalAmount,
           final_amount: totalAmount,
-          created_by: userData.user?.id,
+          created_by: user?.id || null,
           notes: `Auto-generated for ${selectedTests.length} test(s)`
         })
         .select()
@@ -908,7 +918,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       if (itemsError) throw itemsError;
 
       if (formData.referred_by !== "self" && formData.referred_by !== "custom") {
-        const selectedDoctor = doctors.find(d => d.id === formData.referred_by);
+        const selectedDoctor = doctorById.get(formData.referred_by);
         if (selectedDoctor) {
           const commissionAmount = selectedDoctor.commission_percentage
             ? (totalAmount * selectedDoctor.commission_percentage) / 100
@@ -1241,23 +1251,26 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     }
   };
 
-  const filteredTests = tests.filter((test) => {
+  const filteredTests = useMemo(() => {
     const searchLower = search.toLowerCase();
-    const matchesSearch =
-      test.test_name?.toLowerCase().includes(searchLower) ||
-      test.patients?.full_name?.toLowerCase().includes(searchLower) ||
-      test.patients?.patient_id?.toLowerCase().includes(searchLower) ||
-      false;
 
-    const matchesStatus = statusFilter === "all" || test.status === statusFilter;
-    const matchesLab = labFilter === "all" || test.lab_id === labFilter;
-    const matchesCollectionCenter = collectionCenterFilter === "all" || test.collection_center_id === collectionCenterFilter;
-    const matchesDate =
-      (!dateFrom || (test.test_date && test.test_date >= dateFrom)) &&
-      (!dateTo || (test.test_date && test.test_date <= dateTo));
+    return tests.filter((test) => {
+      const matchesSearch =
+        test.test_name?.toLowerCase().includes(searchLower) ||
+        test.patients?.full_name?.toLowerCase().includes(searchLower) ||
+        test.patients?.patient_id?.toLowerCase().includes(searchLower) ||
+        false;
 
-    return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter && matchesDate;
-  });
+      const matchesStatus = statusFilter === "all" || test.status === statusFilter;
+      const matchesLab = labFilter === "all" || test.lab_id === labFilter;
+      const matchesCollectionCenter = collectionCenterFilter === "all" || test.collection_center_id === collectionCenterFilter;
+      const matchesDate =
+        (!dateFrom || (test.test_date && test.test_date >= dateFrom)) &&
+        (!dateTo || (test.test_date && test.test_date <= dateTo));
+
+      return matchesSearch && matchesStatus && matchesLab && matchesCollectionCenter && matchesDate;
+    });
+  }, [tests, search, statusFilter, labFilter, collectionCenterFilter, dateFrom, dateTo]);
 
   const groupedRows = useMemo(() => {
     const groupMap = new Map<string, PatientTest[]>();
@@ -1300,9 +1313,22 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     }
   }, [currentPage, safePage]);
 
-  const pendingCount = tests.filter(t => t.status === "pending").length;
-  const inProgressCount = tests.filter(t => t.status === "in_progress").length;
-  const completedCount = tests.filter(t => t.status === "completed").length;
+  const testStatusCounts = useMemo(
+    () =>
+      tests.reduce(
+        (acc, test) => {
+          if (test.status === "pending") acc.pending += 1;
+          else if (test.status === "in_progress") acc.inProgress += 1;
+          else if (test.status === "completed") acc.completed += 1;
+          return acc;
+        },
+        { pending: 0, inProgress: 0, completed: 0 },
+      ),
+    [tests],
+  );
+  const pendingCount = testStatusCounts.pending;
+  const inProgressCount = testStatusCounts.inProgress;
+  const completedCount = testStatusCounts.completed;
 
   const togglePrintSelection = (testId: string) => {
     setSelectedTestIds(prev =>
@@ -1399,6 +1425,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
     let printedCount = 0;
     try {
       for (const patientData of Object.values(testsByPatient)) {
+        const { generateMultiTestReportPDF } = await import("@/components/patient/TestReportPDF");
         const success = await generateMultiTestReportPDF(
           {
             full_name: patientData.patient.full_name,

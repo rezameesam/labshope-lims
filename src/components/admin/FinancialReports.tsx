@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { 
   DollarSign, 
   TrendingUp, 
@@ -28,24 +28,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StableResponsiveChart } from "@/components/ui/stable-responsive-chart";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  BarChart,
-  Bar,
-} from "recharts";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
+
+const FinancialReportsRevenueChart = lazy(() => import("./FinancialReportsRevenueChart"));
 
 interface FinancialStats {
   totalRevenue: number;
@@ -251,7 +240,11 @@ const FinancialReports = () => {
     void fetchFinancialData();
   }, [fetchFinancialData, organizationLoading]);
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF();
     
     // Header
@@ -413,69 +406,9 @@ const FinancialReports = () => {
           <CardDescription>Daily revenue breakdown</CardDescription>
         </CardHeader>
         <CardContent>
-          <StableResponsiveChart className="h-[300px] min-w-0">
-              <AreaChart data={dailyRevenue}>
-                <defs>
-                  <linearGradient id="colorBilled" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="date" 
-                  axisLine={false}
-                  tickLine={false}
-                  className="text-xs fill-muted-foreground"
-                />
-                <YAxis 
-                  axisLine={false}
-                  tickLine={false}
-                  className="text-xs fill-muted-foreground"
-                  tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: number) => `₹${value.toLocaleString()}`}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="billed" 
-                  stroke="#10B981" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorBilled)"
-                  name="Billed"
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="paid" 
-                  stroke="#3B82F6" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorPaid)"
-                  name="Paid"
-                />
-              </AreaChart>
-          </StableResponsiveChart>
-          <div className="flex justify-center gap-4 mt-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="text-xs text-muted-foreground">Billed</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span className="text-xs text-muted-foreground">Paid</span>
-            </div>
-          </div>
+          <Suspense fallback={<div className="h-[300px] animate-pulse rounded-lg bg-muted/40" />}>
+            <FinancialReportsRevenueChart data={dailyRevenue} />
+          </Suspense>
         </CardContent>
       </Card>
 
