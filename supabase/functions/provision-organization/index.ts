@@ -310,12 +310,20 @@ serve(async (req: Request) => {
     };
 
     try {
-      const { data: trialSetting } = await supabaseAdmin
-        .from("system_settings")
-        .select("setting_value")
-        .eq("setting_key", "trial_period_days")
-        .maybeSingle();
+      const [{ data: trialSetting }, { data: catalogTemplateSetting }] = await Promise.all([
+        supabaseAdmin
+          .from("system_settings")
+          .select("setting_value")
+          .eq("setting_key", "trial_period_days")
+          .maybeSingle(),
+        supabaseAdmin
+          .from("system_settings")
+          .select("setting_value")
+          .eq("setting_key", "catalog_template_organization_id")
+          .maybeSingle(),
+      ]);
       const trialDays = Math.max(1, parseInt((trialSetting as any)?.setting_value || "14", 10) || 14);
+      const catalogTemplateOrgId: string | null = (catalogTemplateSetting as any)?.setting_value || null;
 
       const { data: insertedOrganization, error: organizationError } = await supabaseAdmin
         .from("organizations")
@@ -556,6 +564,21 @@ serve(async (req: Request) => {
 
       if (labUserError) {
         throw new Error(`Failed to create lab membership: ${labUserError.message}`);
+      }
+
+      // Clone default test catalog from the template org (best-effort; don't fail provisioning).
+      let catalogCloneResult: Record<string, unknown> | null = null;
+      if (catalogTemplateOrgId && catalogTemplateOrgId !== organizationId) {
+        const { data: cloneData, error: cloneError } = await supabaseAdmin.rpc(
+          "clone_catalog_to_organization",
+          { p_source_org_id: catalogTemplateOrgId, p_target_org_id: organizationId },
+        );
+        if (cloneError) {
+          console.warn("Catalog clone warning (non-fatal):", cloneError.message);
+        } else {
+          catalogCloneResult = cloneData as Record<string, unknown>;
+          console.log("Catalog cloned:", catalogCloneResult);
+        }
       }
 
       return jsonResponse(
