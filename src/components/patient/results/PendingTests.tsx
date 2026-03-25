@@ -8,9 +8,9 @@ import type { TestResult } from "./types";
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
-    case "completed": return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Completed</Badge>;
-    case "pending": return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>;
-    case "in_progress": return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">In Progress</Badge>;
+    case "completed": return <Badge className="bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/20">Completed</Badge>;
+    case "pending": return <Badge className="bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-500/20">Pending</Badge>;
+    case "in_progress": return <Badge className="bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-500/20">In Progress</Badge>;
     default: return <Badge variant="outline">{status}</Badge>;
   }
 }
@@ -26,7 +26,7 @@ export function PendingTests({ tests, isMobile }: PendingTestsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-yellow-700">
+        <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
           <AlertTriangle className="h-5 w-5" />
           Pending Tests
         </CardTitle>

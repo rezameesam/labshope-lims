@@ -304,7 +304,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
       <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
         <CardContent className="py-10 space-y-4">
           <div className="flex items-center gap-3">
-            <Lock className="h-5 w-5 text-amber-600" />
+            <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div>
               <p className="font-semibold text-amber-900 dark:text-amber-100">Results Locked</p>
               <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -330,7 +330,7 @@ const TestResultsTable = ({ tests, patient, patientDbId, patientOrganizationId, 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                 Completed Test Results
               </CardTitle>
               <CardDescription>

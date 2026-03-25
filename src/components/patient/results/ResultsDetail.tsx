@@ -21,7 +21,7 @@ function PanelResults({ test, compact = false }: { test: TestResult; compact?: b
             >
               <div className="flex items-start justify-between gap-3">
                 <span className="font-medium text-foreground">{item.name || "-"}</span>
-                <span className={`text-sm font-semibold ${abnormal ? "text-red-600" : "text-green-700"}`}>
+                <span className={`text-sm font-semibold ${abnormal ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>
                   {item.value ?? "-"}
                 </span>
               </div>
@@ -56,7 +56,7 @@ function PanelResults({ test, compact = false }: { test: TestResult; compact?: b
             }`}
           >
             <span className="font-medium">{item.name || "-"}</span>
-            <span className={abnormal ? "text-red-600 font-semibold" : "text-green-700 font-medium"}>
+            <span className={abnormal ? "text-red-600 dark:text-red-400 font-semibold" : "text-green-700 dark:text-green-400 font-medium"}>
               {item.value ?? "-"}
             </span>
             <span className="text-muted-foreground">{item.unit || "-"}</span>
@@ -75,7 +75,7 @@ interface ResultsDetailProps {
 
 export function ResultsDetail({ test, compact = false }: ResultsDetailProps) {
   const resultText = getDetailedResultText(test);
-  const statusColor = test.is_abnormal ? "text-red-600" : "text-green-700";
+  const statusColor = test.is_abnormal ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400";
 
   return (
     <div className={compact ? "grid gap-4 text-sm" : "grid grid-cols-2 gap-4 text-sm md:grid-cols-4"}>

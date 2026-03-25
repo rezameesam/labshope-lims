@@ -59,11 +59,11 @@ interface BillingDetailProps {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "paid":
-      return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
+      return <Badge className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
     case "partial":
-      return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
+      return <Badge className="bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
     case "pending":
-      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><XCircle className="h-3 w-3 mr-1" />Pending</Badge>;
+      return <Badge className="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20"><XCircle className="h-3 w-3 mr-1" />Pending</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -135,7 +135,7 @@ export const BillingDetail = ({
                 <span>₹{selectedInvoice.total_amount.toLocaleString()}</span>
               </div>
               {selectedInvoice.discount_amount > 0 && (
-                <div className="flex justify-between text-green-600">
+                <div className="flex justify-between text-green-600 dark:text-green-400">
                   <span>Discount</span>
                   <span>-₹{selectedInvoice.discount_amount.toLocaleString()}</span>
                 </div>
@@ -149,7 +149,7 @@ export const BillingDetail = ({
                 <span>₹{selectedInvoice.paid_amount.toLocaleString()}</span>
               </div>
               {getOutstandingAmount(selectedInvoice) > 0 && (
-                <div className="flex justify-between text-amber-600 font-medium border-t pt-2">
+                <div className="flex justify-between text-amber-600 dark:text-amber-400 font-medium border-t pt-2">
                   <span>Outstanding</span>
                   <span>₹{getOutstandingAmount(selectedInvoice).toLocaleString()}</span>
                 </div>
@@ -194,7 +194,7 @@ export const BillingDetail = ({
               <div className="space-y-4">
                 <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <IndianRupee className="h-5 w-5 text-amber-600 mt-0.5" />
+                    <IndianRupee className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <div>
                       <h4 className="font-medium text-amber-900 dark:text-amber-100">Payment Pending</h4>
                       <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">

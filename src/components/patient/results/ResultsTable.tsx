@@ -153,7 +153,7 @@ export function ResultsTable({
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className={test.is_abnormal ? "text-red-600 font-semibold" : "text-green-700 font-medium"}>
+                          <span className={test.is_abnormal ? "text-red-600 dark:text-red-400 font-semibold" : "text-green-700 dark:text-green-400 font-medium"}>
                             {getResultSummary(test)}
                           </span>
                         </TableCell>
@@ -162,9 +162,9 @@ export function ResultsTable({
                         </TableCell>
                         <TableCell className="text-center">
                           {test.is_abnormal ? (
-                            <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Abnormal</Badge>
+                            <Badge className="bg-red-100 dark:bg-red-500/10 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/10">Abnormal</Badge>
                           ) : (
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Normal</Badge>
+                            <Badge className="bg-green-100 dark:bg-green-500/10 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/10">Normal</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -209,7 +209,7 @@ export function ResultsTable({
                   </div>
                 </TableCell>
                 <TableCell className="text-center">
-                  <span className={test.is_abnormal ? "text-red-600 font-semibold" : "text-green-700 font-medium"}>
+                  <span className={test.is_abnormal ? "text-red-600 dark:text-red-400 font-semibold" : "text-green-700 dark:text-green-400 font-medium"}>
                     {getResultSummary(test)}
                   </span>
                 </TableCell>
@@ -218,9 +218,9 @@ export function ResultsTable({
                 </TableCell>
                 <TableCell className="text-center">
                   {test.is_abnormal ? (
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Abnormal</Badge>
+                    <Badge className="bg-red-100 dark:bg-red-500/10 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/10">Abnormal</Badge>
                   ) : (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Normal</Badge>
+                    <Badge className="bg-green-100 dark:bg-green-500/10 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/10">Normal</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">

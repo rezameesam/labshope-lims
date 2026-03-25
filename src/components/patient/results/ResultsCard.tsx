@@ -59,16 +59,16 @@ function SingleTestCard({
           </div>
         </div>
         {test.is_abnormal ? (
-          <Badge className="shrink-0 bg-red-100 text-red-800 hover:bg-red-100">Abnormal</Badge>
+          <Badge className="shrink-0 bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/20">Abnormal</Badge>
         ) : (
-          <Badge className="shrink-0 bg-green-100 text-green-800 hover:bg-green-100">Normal</Badge>
+          <Badge className="shrink-0 bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/20">Normal</Badge>
         )}
       </Button>
 
       <div className="mt-3 grid gap-2 text-sm">
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground">Result</span>
-          <span className={`text-right font-medium ${test.is_abnormal ? "text-red-600" : "text-green-700"}`}>
+          <span className={`text-right font-medium ${test.is_abnormal ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>
             {getResultSummary(test)}
           </span>
         </div>

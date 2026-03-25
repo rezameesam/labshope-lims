@@ -231,12 +231,12 @@ const PatientBookTestRequest = ({ patient }: PatientBookTestRequestProps) => {
         </CardHeader>
         <CardContent>
           {submitted ? (
-            <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800">
+            <div className="space-y-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10 p-5 text-emerald-800 dark:text-emerald-300">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="h-6 w-6" />
                 <div>
                   <p className="font-semibold">Booking request received</p>
-                  <p className="text-sm text-emerald-700">
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400">
                     The lab team can now review your request and contact you on the number linked to this portal.
                   </p>
                 </div>

@@ -123,11 +123,11 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Completed</Badge>;
+        return <Badge className="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20">Completed</Badge>;
       case "pending":
-        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Pending</Badge>;
+        return <Badge className="bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20">Pending</Badge>;
       case "in_progress":
-        return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">In Progress</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20">In Progress</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -156,7 +156,7 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
       <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
         <CardContent className="py-10 space-y-4">
           <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div>
               <p className="font-semibold text-amber-900 dark:text-amber-100">Timeline Locked</p>
               <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -184,8 +184,8 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <FlaskConical className="h-4 w-4 text-blue-600" />
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-500/10">
+                <FlaskConical className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.totalTests}</p>
@@ -197,8 +197,8 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-500/10">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.completed}</p>
@@ -210,8 +210,8 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-violet-100">
-                <Activity className="h-4 w-4 text-violet-600" />
+              <div className="p-2 rounded-lg bg-violet-100 dark:bg-violet-500/10">
+                <Activity className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.uniqueTests}</p>
@@ -223,8 +223,8 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-100">
-                <AlertCircle className="h-4 w-4 text-red-600" />
+              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-500/10">
+                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.abnormal}</p>

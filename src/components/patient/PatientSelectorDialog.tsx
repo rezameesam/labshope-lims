@@ -104,8 +104,8 @@ const PatientSelectorDialog = ({
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-sm text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/40 rounded-lg p-3">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
             <strong>Why multiple accounts?</strong> This happens when family members (e.g., minors,
             elderly) share the same contact number. Each person has their own patient record for
             accurate medical history tracking.

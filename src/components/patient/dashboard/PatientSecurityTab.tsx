@@ -134,12 +134,12 @@ export const PatientSecurityTab = ({
               </div>
             )}
             {patient.abdm_last_verified_at && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-xs uppercase tracking-wide text-emerald-700">Last verified</p>
-                <p className="mt-1 font-medium text-emerald-800">
+              <div className="rounded-2xl border border-emerald-200 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10 p-4">
+                <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Last verified</p>
+                <p className="mt-1 font-medium text-emerald-800 dark:text-emerald-300">
                   {formatAppDate(patient.abdm_last_verified_at)}
                   {patient.abdm_source && (
-                    <span className="ml-2 text-xs capitalize text-emerald-600">
+                    <span className="ml-2 text-xs capitalize text-emerald-600 dark:text-emerald-400">
                       via {patient.abdm_source.replace(/_/g, " ")}
                     </span>
                   )}

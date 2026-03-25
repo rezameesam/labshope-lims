@@ -19,8 +19,8 @@ const actions = (
     icon: BookOpen,
     label: "Book a Test",
     description: "Request a new lab test",
-    accent: "border-blue-200 hover:border-blue-400 hover:bg-blue-50/60",
-    iconWrapper: "bg-blue-50 border-blue-200 text-blue-600",
+    accent: "border-blue-200 dark:border-blue-500/40 hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-500/10",
+    iconWrapper: "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/40 text-blue-600 dark:text-blue-400",
     onClick: onBookTest,
   },
   {
@@ -28,8 +28,8 @@ const actions = (
     icon: BarChart2,
     label: "My Results",
     description: "View all test reports",
-    accent: "border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/60",
-    iconWrapper: "bg-emerald-50 border-emerald-200 text-emerald-600",
+    accent: "border-emerald-200 dark:border-emerald-500/40 hover:border-emerald-400 hover:bg-emerald-50/60 dark:hover:bg-emerald-500/10",
+    iconWrapper: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400",
     onClick: onViewResults,
   },
   {
@@ -37,8 +37,8 @@ const actions = (
     icon: CreditCard,
     label: "Billing",
     description: "Invoices & payments",
-    accent: "border-violet-200 hover:border-violet-400 hover:bg-violet-50/60",
-    iconWrapper: "bg-violet-50 border-violet-200 text-violet-600",
+    accent: "border-violet-200 dark:border-violet-500/40 hover:border-violet-400 hover:bg-violet-50/60 dark:hover:bg-violet-500/10",
+    iconWrapper: "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/40 text-violet-600 dark:text-violet-400",
     onClick: onBilling,
   },
   {
@@ -46,8 +46,8 @@ const actions = (
     icon: Download,
     label: "Download Report",
     description: "Latest report PDF",
-    accent: "border-amber-200 hover:border-amber-400 hover:bg-amber-50/60",
-    iconWrapper: "bg-amber-50 border-amber-200 text-amber-600",
+    accent: "border-amber-200 dark:border-amber-500/40 hover:border-amber-400 hover:bg-amber-50/60 dark:hover:bg-amber-500/10",
+    iconWrapper: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/40 text-amber-600 dark:text-amber-400",
     onClick: onDownload,
   },
 ];

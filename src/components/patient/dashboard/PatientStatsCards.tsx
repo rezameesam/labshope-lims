@@ -20,25 +20,25 @@ export const PatientStatsCards = ({
       label: "Total Tests",
       value: totalTests,
       icon: FlaskConical,
-      tone: "text-cyan-700 bg-cyan-50 border-cyan-200",
+      tone: "text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/40",
     },
     {
       label: "Completed Reports",
       value: completedTests,
       icon: CheckCircle2,
-      tone: "text-emerald-700 bg-emerald-50 border-emerald-200",
+      tone: "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/40",
     },
     {
       label: "Pending / Processing",
       value: pendingTests,
       icon: Clock,
-      tone: "text-amber-700 bg-amber-50 border-amber-200",
+      tone: "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/40",
     },
     {
       label: "Abnormal Results",
       value: abnormalTests,
       icon: Activity,
-      tone: "text-rose-700 bg-rose-50 border-rose-200",
+      tone: "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/40",
     },
   ];
 

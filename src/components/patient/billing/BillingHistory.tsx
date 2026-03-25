@@ -48,11 +48,11 @@ interface BillingHistoryProps {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "paid":
-      return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
+      return <Badge className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
     case "partial":
-      return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
+      return <Badge className="bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
     case "pending":
-      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><XCircle className="h-3 w-3 mr-1" />Pending</Badge>;
+      return <Badge className="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20"><XCircle className="h-3 w-3 mr-1" />Pending</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
