@@ -460,8 +460,37 @@ const AdminDashboard = () => {
     { id: "quick-setup" as TabType, label: "Quick Setup", icon: Sparkles, adminOnly: true },
   ];
 
-  const visibleTabs = tabs.filter(tab => !tab.adminOnly || hasRole("admin"));
+  const isAdmin = hasRole("admin");
+  const visibleTabs = tabs.filter(tab => !tab.adminOnly || isAdmin);
   const formatSidebarCount = (count: number) => (count > 99 ? "99+" : String(count));
+
+  type NavGroup = { label: string; tabs: typeof tabs };
+  const navGroups: NavGroup[] = [
+    {
+      label: "Work",
+      tabs: visibleTabs.filter(t =>
+        ["overview", "notice-board", "booking-requests", "patients", "tests", "billing", "reminders"].includes(t.id)
+      ),
+    },
+    {
+      label: "Catalog",
+      tabs: visibleTabs.filter(t =>
+        ["test-catalog", "test-packages", "test-templates", "inventory", "doctors"].includes(t.id)
+      ),
+    },
+    {
+      label: "Manage",
+      tabs: visibleTabs.filter(t =>
+        ["employees", "labs", "collection-centers", "reports"].includes(t.id)
+      ),
+    },
+    {
+      label: "Account",
+      tabs: visibleTabs.filter(t =>
+        ["subscription", "quick-setup", "system-settings", "notifications", "roles", "security", "visitor-logs"].includes(t.id)
+      ),
+    },
+  ].filter(g => g.tabs.length > 0);
 
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
@@ -485,33 +514,42 @@ const AdminDashboard = () => {
 
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto pr-1">
-            <nav className="space-y-2">
-              {visibleTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setDashboardTab(tab.id);
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    activeTab === tab.id
-                      ? "bg-white/15 text-white"
-                      : "text-white/80 hover:text-white hover:bg-white/10"
-                  }`}
-                >
-                  <tab.icon className="h-5 w-5" />
-                  <span className="flex-1 text-left">{tab.label}</span>
-                  {tab.id === "booking-requests" && sidebarCounts.bookingRequests > 0 && (
-                    <Badge className="bg-amber-500 text-white hover:bg-amber-500">
-                      {formatSidebarCount(sidebarCounts.bookingRequests)}
-                    </Badge>
-                  )}
-                  {tab.id === "notice-board" && sidebarCounts.noticeBoard > 0 && (
-                    <Badge className="bg-rose-500 text-white hover:bg-rose-500">
-                      {formatSidebarCount(sidebarCounts.noticeBoard)}
-                    </Badge>
-                  )}
-                </button>
+            <nav className="space-y-5">
+              {navGroups.map((group) => (
+                <div key={group.label}>
+                  <p className="mb-1 px-4 text-[10px] font-semibold uppercase tracking-widest text-white/35 select-none">
+                    {group.label}
+                  </p>
+                  <div className="space-y-0.5">
+                    {group.tabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setDashboardTab(tab.id);
+                          setSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                          activeTab === tab.id
+                            ? "bg-white/15 text-white font-medium"
+                            : "text-white/70 hover:text-white hover:bg-white/10"
+                        }`}
+                      >
+                        <tab.icon className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 text-left">{tab.label}</span>
+                        {tab.id === "booking-requests" && sidebarCounts.bookingRequests > 0 && (
+                          <Badge className="bg-amber-500 text-white hover:bg-amber-500 text-[10px] px-1.5 py-0">
+                            {formatSidebarCount(sidebarCounts.bookingRequests)}
+                          </Badge>
+                        )}
+                        {tab.id === "notice-board" && sidebarCounts.noticeBoard > 0 && (
+                          <Badge className="bg-rose-500 text-white hover:bg-rose-500 text-[10px] px-1.5 py-0">
+                            {formatSidebarCount(sidebarCounts.noticeBoard)}
+                          </Badge>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </nav>
           </div>
