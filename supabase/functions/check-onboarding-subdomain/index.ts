@@ -49,6 +49,14 @@ const deriveBaseDomain = (hostname: string | null) => {
     return "localhost";
   }
 
+  // Derive base domain from the caller's hostname.
+  // e.g. "labshope.com" → "labshope.com"
+  //      "lims.labshope.com" → "labshope.com"
+  const parts = hostname.split(".");
+  if (parts.length >= 2) {
+    return parts.slice(-2).join(".");
+  }
+
   return null;
 };
 
