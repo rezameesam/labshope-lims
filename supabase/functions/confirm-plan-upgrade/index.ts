@@ -146,7 +146,11 @@ serve(async (req) => {
     // Activate the organization and clear the trial deadline
     const { error: activateError } = await supabaseAdmin
       .from("organizations")
-      .update({ status: "active", trial_ends_at: null })
+      .update({
+        status: "active",
+        trial_ends_at: null,
+        plan_expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      })
       .eq("id", organization_id);
 
     if (activateError) {

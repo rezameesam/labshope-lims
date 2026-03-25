@@ -19,6 +19,9 @@ import {
   FlaskConical,
   Building2,
   Loader2,
+  RefreshCw,
+  CalendarCheck,
+  CalendarX,
 } from "lucide-react";
 
 const PLAN_LABELS: Record<PlanTier, string> = {
@@ -34,43 +37,38 @@ const PLAN_FEATURES: Record<PlanTier, string[]> = {
 };
 
 function daysUntil(dateStr: string): number {
-  const now = new Date();
-  const end = new Date(dateStr);
-  return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+}
+
+function daysAgo(dateStr: string): number {
+  return Math.max(0, Math.ceil((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
+    day: "numeric", month: "long", year: "numeric",
   });
 }
 
+function formatPrice(rupees: number): string {
+  return `₹${rupees.toLocaleString("en-IN")}`;
+}
+
 function StatusBadge({ status }: { status: string }) {
-  if (status === "active")
-    return (
-      <Badge className="gap-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-        <CheckCircle2 className="h-3.5 w-3.5" /> Active
-      </Badge>
-    );
-  if (status === "trial")
-    return (
-      <Badge className="gap-1.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-        <Clock className="h-3.5 w-3.5" /> Trial
-      </Badge>
-    );
-  if (status === "suspended")
-    return (
-      <Badge className="gap-1.5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-        <XCircle className="h-3.5 w-3.5" /> Suspended
-      </Badge>
-    );
-  return (
-    <Badge variant="secondary" className="gap-1.5">
-      <AlertTriangle className="h-3.5 w-3.5" /> {status}
-    </Badge>
-  );
+  const map: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
+    active:    { cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: "Active" },
+    trial:     { cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",       icon: <Clock className="h-3.5 w-3.5" />,        label: "Trial" },
+    suspended: { cls: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",               icon: <XCircle className="h-3.5 w-3.5" />,       label: "Suspended" },
+  };
+  const cfg = map[status] ?? { cls: "bg-muted text-muted-foreground", icon: <AlertTriangle className="h-3.5 w-3.5" />, label: status };
+  return <Badge className={`gap-1.5 ${cfg.cls}`}>{cfg.icon}{cfg.label}</Badge>;
+}
+
+interface OrgData {
+  status: string;
+  trial_ends_at: string | null;
+  plan_expires_at: string | null;
+  created_at: string;
 }
 
 export default function SubscriptionStatus() {
@@ -78,8 +76,7 @@ export default function SubscriptionStatus() {
   const { user } = useAuth();
 
   const [planTier, setPlanTier] = useState<PlanTier>("starter");
-  const [orgStatus, setOrgStatus] = useState<string>("active");
-  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [orgData, setOrgData] = useState<OrgData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
 
@@ -94,15 +91,14 @@ export default function SubscriptionStatus() {
           .eq("organization_id", organization.id)
           .eq("setting_key", "plan_tier")
           .maybeSingle(),
-        supabase
+        (supabase as any)
           .from("organizations")
-          .select("status, trial_ends_at")
+          .select("status, trial_ends_at, plan_expires_at, created_at")
           .eq("id", organization.id)
           .maybeSingle(),
       ]);
       setPlanTier(resolvePlanTier(settingsRes.data?.setting_value));
-      setOrgStatus((orgRes.data as any)?.status ?? "active");
-      setTrialEndsAt((orgRes.data as any)?.trial_ends_at ?? null);
+      setOrgData(orgRes.data ?? null);
     } finally {
       setLoading(false);
     }
@@ -110,8 +106,8 @@ export default function SubscriptionStatus() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleUpgrade = useCallback(async () => {
-    const upgradeTo = NEXT_PLAN[planTier];
+  const handleUpgrade = useCallback(async (targetPlan?: PlanTier) => {
+    const upgradeTo = targetPlan ?? NEXT_PLAN[planTier];
     if (!upgradeTo || !organization?.id || !user) return;
     setUpgrading(true);
     try {
@@ -134,7 +130,7 @@ export default function SubscriptionStatus() {
       await initiateRazorpayPayment(
         orderData.razorpay_order_id,
         orderData.upgrade_amount,
-        `PLAN-UPGRADE-${upgradeTo.toUpperCase()}`,
+        `PLAN-${upgradeTo.toUpperCase()}`,
         user.email ?? "",
         async (paymentId, orderId, signature) => {
           const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-plan-upgrade`, {
@@ -154,7 +150,7 @@ export default function SubscriptionStatus() {
           });
           const confirmData = await confirmRes.json();
           if (!confirmRes.ok) throw new Error(confirmData.error || "Failed to confirm payment");
-          toast.success(`Upgraded to ${PLAN_LABELS[upgradeTo]}! Welcome aboard.`);
+          toast.success(`${PLAN_LABELS[upgradeTo]} plan activated. Thank you!`);
           void load();
         },
       );
@@ -173,49 +169,83 @@ export default function SubscriptionStatus() {
     );
   }
 
+  const status = orgData?.status ?? "active";
+  const trialEndsAt = orgData?.trial_ends_at ?? null;
+  const planExpiresAt = orgData?.plan_expires_at ?? null;
   const nextPlan = NEXT_PLAN[planTier];
-  const trialDays = trialEndsAt ? daysUntil(trialEndsAt) : null;
   const limits = PLAN_LIMITS[planTier];
-  const isTrialUrgent = orgStatus === "trial" && trialDays !== null && trialDays <= 3;
-  const isSuspended = orgStatus === "suspended";
+  const price = PLAN_PRICES[planTier];
+
+  const trialDays = trialEndsAt ? daysUntil(trialEndsAt) : null;
+  const renewalDays = planExpiresAt ? daysUntil(planExpiresAt) : null;
+  const expiredDaysAgo = planExpiresAt && renewalDays === 0 ? daysAgo(planExpiresAt) : null;
+
+  const isTrialUrgent = status === "trial" && trialDays !== null && trialDays <= 3;
+  const isRenewalSoon = status === "active" && renewalDays !== null && renewalDays <= 30;
+  const isExpired = status === "suspended" && expiredDaysAgo !== null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 py-2">
+    <div className="mx-auto max-w-3xl space-y-5 py-2">
 
       {/* Suspended banner */}
-      {isSuspended && (
+      {status === "suspended" && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30">
           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold text-red-700 dark:text-red-400">Account suspended</p>
             <p className="mt-0.5 text-sm text-red-600/80 dark:text-red-400/70">
-              Your account has been suspended. Please contact support or upgrade your plan to restore access.
+              {isExpired
+                ? `Your subscription expired ${expiredDaysAgo} day${expiredDaysAgo === 1 ? "" : "s"} ago.`
+                : "Your account has been suspended."
+              }{" "}
+              Renew your plan below to restore access, or contact support.
             </p>
           </div>
+          <Button size="sm" onClick={() => void handleUpgrade(planTier)} disabled={upgrading} className="shrink-0">
+            {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Renew now"}
+          </Button>
         </div>
       )}
 
-      {/* Trial countdown banner */}
-      {orgStatus === "trial" && trialDays !== null && (
+      {/* Trial countdown */}
+      {status === "trial" && trialDays !== null && (
         <div className={`flex items-start gap-3 rounded-xl border p-4 ${
           isTrialUrgent
             ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
             : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
         }`}>
-          <Clock className={`mt-0.5 h-5 w-5 shrink-0 ${isTrialUrgent ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`} />
+          <Clock className={`mt-0.5 h-5 w-5 shrink-0 ${isTrialUrgent ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400"}`} />
           <div className="flex-1">
             <p className={`font-semibold ${isTrialUrgent ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
-              {trialDays === 0 ? "Trial expires today" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in trial`}
+              {trialDays === 0 ? "Trial expires today" : `${trialDays} day${trialDays === 1 ? "" : "s"} left in your trial`}
             </p>
             <p className={`mt-0.5 text-sm ${isTrialUrgent ? "text-red-600/80 dark:text-red-400/70" : "text-amber-600/80 dark:text-amber-400/70"}`}>
-              Trial ends {formatDate(trialEndsAt!)}. Upgrade now to keep uninterrupted access.
+              Trial ends {formatDate(trialEndsAt!)}. Activate a paid plan to keep uninterrupted access.
             </p>
           </div>
           {nextPlan && (
             <Button size="sm" onClick={() => void handleUpgrade()} disabled={upgrading} className="shrink-0">
-              {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Upgrade now"}
+              {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Activate plan"}
             </Button>
           )}
+        </div>
+      )}
+
+      {/* Renewal reminder */}
+      {isRenewalSoon && planExpiresAt && (
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/30">
+          <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-blue-500 dark:text-blue-400" />
+          <div className="flex-1">
+            <p className="font-semibold text-blue-700 dark:text-blue-400">
+              Renewal due in {renewalDays} day{renewalDays === 1 ? "" : "s"}
+            </p>
+            <p className="mt-0.5 text-sm text-blue-600/80 dark:text-blue-400/70">
+              Your subscription renews on {formatDate(planExpiresAt)}. Renew early to avoid interruption.
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => void handleUpgrade(planTier)} disabled={upgrading} className="shrink-0">
+            {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Renew early"}
+          </Button>
         </div>
       )}
 
@@ -223,33 +253,80 @@ export default function SubscriptionStatus() {
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm text-muted-foreground">Current plan</p>
-            <div className="mt-1 flex items-center gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current plan</p>
+            <div className="mt-1.5 flex items-center gap-2.5">
               <h2 className="text-2xl font-bold text-foreground">{PLAN_LABELS[planTier]}</h2>
-              <StatusBadge status={orgStatus} />
+              <StatusBadge status={status} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              ₹{(PLAN_PRICES[planTier] / 100).toLocaleString("en-IN")} / year
+              {formatPrice(price)} / year + GST
             </p>
           </div>
-          {nextPlan && (
-            <Button onClick={() => void handleUpgrade()} disabled={upgrading} className="gap-2 shrink-0">
-              {upgrading
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
-                : <><ArrowUpCircle className="h-4 w-4" /> Upgrade to {PLAN_LABELS[nextPlan]}</>
-              }
-            </Button>
+          <div className="flex flex-col items-end gap-2">
+            {nextPlan && (
+              <Button onClick={() => void handleUpgrade()} disabled={upgrading} className="gap-2">
+                {upgrading
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
+                  : <><ArrowUpCircle className="h-4 w-4" /> Upgrade to {PLAN_LABELS[nextPlan]}</>
+                }
+              </Button>
+            )}
+            {!nextPlan && (
+              <Badge className="gap-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-3 py-1.5 text-sm">
+                <Zap className="h-3.5 w-3.5" /> Top plan
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <Separator className="my-5" />
+
+        {/* Dates row */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {status === "active" && planExpiresAt && (
+            <div className="flex items-center gap-2.5 text-sm">
+              <CalendarCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+              <span className="text-muted-foreground">Renews</span>
+              <span className="font-medium text-foreground">{formatDate(planExpiresAt)}</span>
+              {renewalDays !== null && renewalDays > 0 && (
+                <span className="text-xs text-muted-foreground">({renewalDays}d)</span>
+              )}
+            </div>
           )}
-          {!nextPlan && (
-            <Badge className="gap-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-3 py-1.5 text-sm">
-              <Zap className="h-3.5 w-3.5" /> Highest plan
-            </Badge>
+          {status === "trial" && trialEndsAt && (
+            <div className="flex items-center gap-2.5 text-sm">
+              <Clock className="h-4 w-4 shrink-0 text-amber-500" />
+              <span className="text-muted-foreground">Trial ends</span>
+              <span className="font-medium text-foreground">{formatDate(trialEndsAt)}</span>
+            </div>
+          )}
+          {status === "suspended" && planExpiresAt && (
+            <div className="flex items-center gap-2.5 text-sm">
+              <CalendarX className="h-4 w-4 shrink-0 text-red-500" />
+              <span className="text-muted-foreground">Expired</span>
+              <span className="font-medium text-foreground">{formatDate(planExpiresAt)}</span>
+            </div>
+          )}
+          {/* Renew same plan button for active orgs */}
+          {status === "active" && (
+            <div className="flex sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-xs"
+                onClick={() => void handleUpgrade(planTier)}
+                disabled={upgrading}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Renew {PLAN_LABELS[planTier]} — {formatPrice(price)}
+              </Button>
+            </div>
           )}
         </div>
 
         <Separator className="my-5" />
 
-        {/* Feature list */}
+        {/* Features */}
         <ul className="grid gap-2 sm:grid-cols-2">
           {PLAN_FEATURES[planTier].map((f) => (
             <li key={f} className="flex items-center gap-2 text-sm text-foreground/80">
@@ -260,42 +337,29 @@ export default function SubscriptionStatus() {
         </ul>
       </div>
 
-      {/* Usage summary */}
+      {/* Usage / limits */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-sm font-semibold text-foreground">Plan limits</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <LimitCard
-            icon={Building2}
-            label="Lab branches"
-            limit={limits.labs === Infinity ? "Unlimited" : String(limits.labs)}
-          />
-          <LimitCard
-            icon={Users}
-            label="Staff accounts"
-            limit={limits.employees === Infinity ? "Unlimited" : String(limits.employees)}
-          />
-          <LimitCard
-            icon={FlaskConical}
-            label="Patients"
-            limit={limits.patients === Infinity ? "Unlimited" : limits.patients.toLocaleString("en-IN")}
-          />
+          <LimitCard icon={Building2} label="Lab branches" limit={limits.labs === Infinity ? "Unlimited" : String(limits.labs)} />
+          <LimitCard icon={Users} label="Staff accounts" limit={limits.employees === Infinity ? "Unlimited" : String(limits.employees)} />
+          <LimitCard icon={FlaskConical} label="Patients" limit={limits.patients === Infinity ? "Unlimited" : limits.patients.toLocaleString("en-IN")} />
         </div>
       </div>
 
-      {/* Next plan teaser */}
+      {/* Upgrade teaser */}
       {nextPlan && (
-        <div className="rounded-2xl border border-border bg-muted/40 p-6">
+        <div className="rounded-2xl border border-border bg-muted/40 p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-foreground">
                 Upgrade to {PLAN_LABELS[nextPlan]}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                ₹{(PLAN_PRICES[nextPlan] / 100).toLocaleString("en-IN")} / year &mdash;{" "}
-                {PLAN_FEATURES[nextPlan].join(", ")}
+                {formatPrice(PLAN_PRICES[nextPlan])} / year + GST &mdash; {PLAN_FEATURES[nextPlan].join(", ")}
               </p>
             </div>
-            <Button variant="outline" onClick={() => void handleUpgrade()} disabled={upgrading} className="shrink-0 gap-2">
+            <Button variant="outline" size="sm" onClick={() => void handleUpgrade()} disabled={upgrading} className="shrink-0 gap-2">
               {upgrading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpCircle className="h-4 w-4" />}
               Upgrade
             </Button>
@@ -303,9 +367,8 @@ export default function SubscriptionStatus() {
         </div>
       )}
 
-      {/* Support link */}
       <p className="text-center text-xs text-muted-foreground">
-        Questions about your plan?{" "}
+        Questions about billing?{" "}
         <a href="mailto:support@labshope.com" className="underline underline-offset-2 hover:text-foreground">
           Contact support
         </a>
