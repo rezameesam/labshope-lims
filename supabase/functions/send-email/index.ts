@@ -72,7 +72,7 @@ serve(async (req) => {
   }
 
   try {
-    const { to, subject, htmlContent, textContent, cc, patientId, organizationId } = await req.json();
+    const { to, subject, htmlContent, textContent, cc, patientId, organizationId, force_provider } = await req.json();
 
     if (!to || !subject || !htmlContent) {
       return new Response(
@@ -166,7 +166,7 @@ serve(async (req) => {
     };
 
     // Try Mailjet first (if API key is configured) - Free 6,000 emails/month
-    if (providerSettings.mailjetApiKey && providerSettings.mailjetSecretKey) {
+    if ((!force_provider || force_provider === "mailjet") && providerSettings.mailjetApiKey && providerSettings.mailjetSecretKey) {
       try {
         const mailjetFromEmail =
           emailFromAddress ||
@@ -243,7 +243,7 @@ serve(async (req) => {
     }
 
     // Try Resend (if API key is configured)
-    if (providerSettings.resendApiKey) {
+    if ((!force_provider || force_provider === "resend") && providerSettings.resendApiKey) {
       try {
         const resendFrom = emailFromAddress || Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
         
@@ -281,7 +281,7 @@ serve(async (req) => {
     // SMTP is not supported in Supabase Edge Functions (no raw TCP).
     
     // Try Mailgun if configured
-    if (providerSettings.mailgunApiKey && providerSettings.mailgunDomain) {
+    if ((!force_provider || force_provider === "mailgun") && providerSettings.mailgunApiKey && providerSettings.mailgunDomain) {
       try {
         const mailgunUrl = `https://api.mailgun.net/v3/${providerSettings.mailgunDomain}/messages`;
         const auth = btoa(`api:${providerSettings.mailgunApiKey}`);
@@ -324,7 +324,7 @@ serve(async (req) => {
     }
 
     // Try SendGrid if configured
-    if (providerSettings.sendgridApiKey) {
+    if ((!force_provider || force_provider === "sendgrid") && providerSettings.sendgridApiKey) {
       try {
         const sendgridFrom =
           emailFromAddress ||
@@ -375,7 +375,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: hasOrgSpecificProvider
+        error: force_provider
+          ? `Provider "${force_provider}" is not configured or failed for this organization.`
+          : hasOrgSpecificProvider
           ? "No working email provider is configured for this organization."
           : "No email service configured. Please set up one of:",
         options: {

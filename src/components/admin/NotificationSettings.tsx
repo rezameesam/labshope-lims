@@ -3,10 +3,12 @@ import { Mail, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { supabase } from "@/integrations/supabase/client";
 import { getWebsiteHostname } from "@/lib/branding";
 
 const EMAIL_PROVIDER_KEYS = [
@@ -16,9 +18,18 @@ const EMAIL_PROVIDER_KEYS = [
   { key: "sendgrid_api_key", label: "SendGrid" },
 ] as const;
 
+const PROVIDER_OPTIONS = [
+  { value: "auto", label: "Auto (priority order)" },
+  { value: "mailjet", label: "Mailjet" },
+  { value: "resend", label: "Resend" },
+  { value: "mailgun", label: "Mailgun" },
+  { value: "sendgrid", label: "SendGrid" },
+] as const;
+
 const NotificationSettings = () => {
   const { branding, settings } = useOrganization();
   const [testEmail, setTestEmail] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("auto");
   const [sendingTest, setSendingTest] = useState(false);
   const fromEmailExample = `no-reply@${getWebsiteHostname(branding.website)}`;
   const edgeFunctionAvailable = Boolean(import.meta.env.VITE_SUPABASE_URL);
@@ -53,18 +64,34 @@ const NotificationSettings = () => {
 
     setSendingTest(true);
     try {
-      const { sendNotification } = await import("@/services/notificationService");
-      const results = await sendNotification({
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+
+      const body: Record<string, string> = {
         to: testEmail,
         subject: "Test Email from Clinic System",
-        message: "This is a test email to verify your email notification system is working correctly.",
-        type: "email",
+        htmlContent: "<p>This is a test email to verify your email notification system is working correctly.</p>",
+        textContent: "This is a test email to verify your email notification system is working correctly.",
+      };
+      if (selectedProvider !== "auto") {
+        body.force_provider = selectedProvider;
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify(body),
       });
 
-      if (results[0]?.success) {
-        toast.success("Test email sent successfully!");
+      const result = await response.json();
+      if (result.success) {
+        const providerLabel = result.service ? ` via ${result.service}` : "";
+        toast.success(`Test email sent successfully${providerLabel}!`);
       } else {
-        toast.error(results[0]?.error || "Failed to send test email");
+        toast.error(result.error || "Failed to send test email");
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to send test email");
@@ -126,25 +153,37 @@ const NotificationSettings = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Label htmlFor="notification-test-email" className="sr-only">
-              Test email address
-            </Label>
-            <Input
-              id="notification-test-email"
-              name="test_email"
-              placeholder="test@example.com"
-              value={testEmail}
-              onChange={(e) => setTestEmail(e.target.value)}
-              className="flex-1"
-              autoComplete="email"
-            />
-            <Button
-              onClick={handleTestEmail}
-              disabled={sendingTest || !edgeFunctionAvailable}
-            >
-              {sendingTest ? "Sending..." : "Send Test Email"}
-            </Button>
+          <div className="space-y-2">
+            <Label htmlFor="notification-test-email">Send test email</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="notification-test-email"
+                name="test_email"
+                placeholder="test@example.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                className="flex-1"
+                autoComplete="email"
+              />
+              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDER_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleTestEmail}
+                disabled={sendingTest || !edgeFunctionAvailable}
+              >
+                {sendingTest ? "Sending..." : "Send Test"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
