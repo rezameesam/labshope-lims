@@ -83,7 +83,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.platform-impersonate-org]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-domain-dns]
 verify_jwt = true
