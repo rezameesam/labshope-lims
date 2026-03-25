@@ -418,6 +418,7 @@ const PlatformCustomerDetail = () => {
         },
         body: JSON.stringify({
           organization_id: organization.id,
+          org_slug: organization.slug,
           fallback_redirect_to: fallbackRedirectTo,
         }),
       });

@@ -53,12 +53,12 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { organization_id, fallback_redirect_to } = await req.json().catch(() => ({}));
+    const { organization_id, org_slug, fallback_redirect_to } = await req.json().catch(() => ({}));
     if (!organization_id) {
       return jsonResponse({ error: "organization_id is required." }, 400);
     }
 
-    // Find the org's primary domain for redirect
+    // Build redirect URL: prefer org's custom domain, then slug.basedomain, then fallback
     const { data: domainData } = await adminClient
       .from("organization_domains" as any)
       .select("domain, is_primary, verified_at")
@@ -66,13 +66,27 @@ serve(async (req: Request): Promise<Response> => {
       .order("is_primary", { ascending: false })
       .limit(1);
 
-    const domain = (domainData as any[])?.[0]?.domain as string | undefined;
+    const customDomain = (domainData as any[])?.[0]?.domain as string | undefined;
 
     let redirectTo: string;
-    if (domain) {
-      const isLocal = domain.endsWith(".localhost");
-      const baseUrl = `${isLocal ? "http" : "https"}://${domain}`;
+    if (customDomain) {
+      const isLocal = customDomain.endsWith(".localhost");
+      const baseUrl = `${isLocal ? "http" : "https"}://${customDomain}`;
       redirectTo = `${baseUrl}/admin?platform_access=1`;
+    } else if (org_slug) {
+      // Build from slug + base domain env var
+      const baseDomain = Deno.env.get("PUBLIC_BASE_DOMAIN") || "";
+      if (baseDomain) {
+        const isLocal = baseDomain.includes("localhost");
+        const protocol = isLocal ? "http" : "https";
+        const port = isLocal ? `:${baseDomain.split(":")[1] || "8080"}` : "";
+        const host = isLocal ? `${org_slug}.localhost` : `${org_slug}.${baseDomain}`;
+        redirectTo = `${protocol}://${host}${port}/admin?platform_access=1`;
+      } else if (fallback_redirect_to) {
+        redirectTo = fallback_redirect_to;
+      } else {
+        return jsonResponse({ error: "No domain configured for this organization." }, 404);
+      }
     } else if (fallback_redirect_to) {
       redirectTo = fallback_redirect_to;
     } else {
