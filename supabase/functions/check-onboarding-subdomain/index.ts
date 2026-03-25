@@ -32,12 +32,15 @@ const normalizeSubdomain = (value: string) =>
     .replace(/[^a-z0-9-]/g, "")
     .replace(/^-+|-+$/g, "");
 
+const isRealDomain = (value: string | null): boolean =>
+  !!value && value !== "localhost" && value !== "127.0.0.1" && !value.endsWith(".localhost");
+
 const deriveBaseDomain = (hostname: string | null) => {
   const configured =
     normalizeHostname(Deno.env.get("PUBLIC_BASE_DOMAIN")) ||
     normalizeHostname(Deno.env.get("VITE_PUBLIC_BASE_DOMAIN"));
 
-  if (configured) {
+  if (configured && isRealDomain(configured)) {
     return configured;
   }
 
@@ -45,7 +48,7 @@ const deriveBaseDomain = (hostname: string | null) => {
     return null;
   }
 
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
+  if (!isRealDomain(hostname)) {
     return "localhost";
   }
 
@@ -53,11 +56,7 @@ const deriveBaseDomain = (hostname: string | null) => {
   // e.g. "labshope.com" → "labshope.com"
   //      "lims.labshope.com" → "labshope.com"
   const parts = hostname.split(".");
-  if (parts.length >= 2) {
-    return parts.slice(-2).join(".");
-  }
-
-  return null;
+  return parts.slice(-2).join(".");
 };
 
 const buildPreviewUrl = (domain: string | null, slug: string) => {
