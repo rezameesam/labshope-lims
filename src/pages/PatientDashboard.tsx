@@ -57,7 +57,7 @@ interface PatientTest {
 const MAX_PATIENT_ADDRESS_LENGTH = 250;
 
 const patientTabTriggerClassName =
-  "h-14 w-full cursor-pointer flex-row items-center justify-center gap-2.5 rounded-2xl border border-border/70 bg-background/85 px-4 text-center text-sm font-semibold leading-none text-clinical-navy/75 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-clinical-navy/20 hover:bg-background hover:text-clinical-navy hover:shadow-md data-[state=active]:border-clinical-navy data-[state=active]:bg-clinical-navy data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg md:h-16 md:text-base";
+  "h-14 w-full cursor-pointer flex-row items-center justify-center gap-2.5 rounded-2xl border border-border/70 bg-background/85 px-4 text-center text-sm font-semibold leading-none text-muted-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-background hover:text-foreground hover:shadow-md data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg md:h-16 md:text-base";
 
 const PatientDashboard = () => {
   const { branding } = useOrganization();
@@ -208,7 +208,7 @@ const PatientDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-subtle-gradient text-clinical-navy">
+      <div className="flex min-h-screen items-center justify-center bg-subtle-gradient text-foreground">
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-muted-foreground">Loading your dashboard...</p>
@@ -222,7 +222,7 @@ const PatientDashboard = () => {
       <div className="flex min-h-screen items-center justify-center bg-subtle-gradient px-6">
         <Card className="w-full max-w-lg border border-border bg-card shadow-lg">
           <CardHeader>
-            <CardTitle className="text-clinical-navy">Loading patient portal</CardTitle>
+            <CardTitle className="text-foreground">Loading patient portal</CardTitle>
             <CardDescription>
               We could not finish loading your patient record yet. If this screen persists, return to login and try again.
             </CardDescription>

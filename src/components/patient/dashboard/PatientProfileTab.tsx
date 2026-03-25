@@ -74,7 +74,7 @@ export const PatientProfileTab = ({
           {fields.map((item) => (
             <div key={item.label} className="rounded-2xl border border-border bg-muted/40 p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-white p-2 shadow-sm">
+                <div className="rounded-xl bg-muted p-2 shadow-sm">
                   <item.icon className={`h-5 w-5 ${item.tone}`} />
                 </div>
                 <div>
@@ -88,7 +88,7 @@ export const PatientProfileTab = ({
           <div className="rounded-2xl border border-border bg-muted/40 p-4 md:col-span-2">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-white p-2 shadow-sm">
+                <div className="rounded-xl bg-muted p-2 shadow-sm">
                   <MapPin className="h-5 w-5 text-foreground" />
                 </div>
                 <div>
