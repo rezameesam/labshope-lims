@@ -980,7 +980,9 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
     void fetchSettings();
   }, [fetchSettings]);
 
-  const handleSave = async () => {
+  const handleSave = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+
     try {
       setSaving(true);
 
@@ -1385,6 +1387,7 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
         </p>
       </div>
 
+      <form onSubmit={(event) => void handleSave(event)} className="space-y-6">
       <Tabs defaultValue="payment" className="space-y-4">
         <TabsList>
           <TabsTrigger value="payment" className="gap-2">
@@ -1787,11 +1790,12 @@ const SystemSettings = ({ platformMode = false }: { platformMode?: boolean } = {
 
       {/* Save Button */}
       <div className="flex justify-end gap-2">
-        <Button onClick={handleSave} disabled={saving} className="gap-2">
+        <Button type="submit" disabled={saving} className="gap-2">
           <Save className="h-4 w-4" />
           {saving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
+      </form>
     </div>
   );
 };

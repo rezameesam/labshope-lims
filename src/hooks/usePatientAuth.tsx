@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session } from "@supabase/supabase-js";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
 
@@ -47,14 +48,25 @@ interface PatientAuthContextType {
 const PatientAuthContext = createContext<PatientAuthContextType | undefined>(undefined);
 
 export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
+  const location = useLocation();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const patientCacheRef = useRef<Map<string, { patient: Patient | null; expiresAt: number }>>(new Map());
   const patientInFlightRef = useRef<Map<string, Promise<Patient | null>>>(new Map());
+  const isPatientRoute =
+    location.pathname.startsWith("/patient") || location.pathname.startsWith("/auth/patient");
 
   useEffect(() => {
+    if (!isPatientRoute) {
+      setPatient(null);
+      setSession(null);
+      setCurrentSessionId(null);
+      setLoading(false);
+      return;
+    }
+
     let isMounted = true;
     let bootstrapRequestId = 0;
 
@@ -194,21 +206,30 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       isMounted = false;
       authListener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [isPatientRoute]);
 
   useEffect(() => {
-    if (!session?.access_token || !patient?.id || !currentSessionId) {
+    if (!isPatientRoute || !session?.access_token || !patient?.id || !currentSessionId) {
       return;
     }
 
     const metadata = getClientSessionMetadata();
     let trackingDisabled = false;
     let isMounted = true;
+    const lastTrackedAt = { current: 0 };
+    const MIN_INTERVAL = 60000;
 
-    const trackSession = async () => {
+    const trackSession = async (force = false) => {
       if (!isMounted || trackingDisabled) {
         return;
       }
+
+      const now = Date.now();
+      if (!force && now - lastTrackedAt.current < MIN_INTERVAL) {
+        return;
+      }
+
+      lastTrackedAt.current = now;
 
       const { error } = await (supabase as any).rpc("upsert_patient_session", {
         _session_id: currentSessionId,
@@ -241,11 +262,11 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    void trackSession();
+    void trackSession(true);
 
     const intervalId = window.setInterval(() => {
       void trackSession();
-    }, 15000);
+    }, 120000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -266,7 +287,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [currentSessionId, patient?.id, session?.access_token]);
+  }, [currentSessionId, isPatientRoute, patient?.id, session?.access_token]);
 
   const login = async (
     identifier: string,
