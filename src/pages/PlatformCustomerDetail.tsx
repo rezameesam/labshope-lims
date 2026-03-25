@@ -8,6 +8,7 @@ import {
   ClipboardCopy,
   CreditCard,
   ExternalLink,
+  Gift,
   Globe,
   Globe2,
   Loader2,
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,7 +41,11 @@ type OrganizationRow = {
   display_name: string;
   status: string;
   trial_ends_at: string | null;
+  plan_expires_at: string | null;
   payment_notes: string | null;
+  is_complimentary: boolean;
+  complimentary_until: string | null;
+  complimentary_note: string | null;
   created_at: string;
   logo_url?: string | null;
 };
@@ -154,6 +160,10 @@ const PlatformCustomerDetail = () => {
   const [trialDateInput, setTrialDateInput] = useState("");
   const [savingTrialStatus, setSavingTrialStatus] = useState(false);
   const [paymentNotesInput, setPaymentNotesInput] = useState("");
+  const [savingComplimentary, setSavingComplimentary] = useState(false);
+  const [complimentaryUntilInput, setComplimentaryUntilInput] = useState("");
+  const [complimentaryNoteInput, setComplimentaryNoteInput] = useState("");
+  const [showComplimentaryForm, setShowComplimentaryForm] = useState(false);
   const [editingPaymentNotes, setEditingPaymentNotes] = useState(false);
   const [savingPaymentNotes, setSavingPaymentNotes] = useState(false);
 
@@ -176,7 +186,7 @@ const PlatformCustomerDetail = () => {
     ] = await Promise.all([
       (supabase as any)
         .from("organizations")
-        .select("id, slug, display_name, status, trial_ends_at, payment_notes, created_at, logo_url")
+        .select("id, slug, display_name, status, trial_ends_at, plan_expires_at, payment_notes, is_complimentary, complimentary_until, complimentary_note, created_at, logo_url")
         .eq("id", orgId)
         .maybeSingle(),
       (supabase as any)
@@ -493,6 +503,38 @@ const PlatformCustomerDetail = () => {
     }
   };
 
+  const handleToggleComplimentary = async (enable: boolean) => {
+    if (!organization?.id) return;
+    setSavingComplimentary(true);
+    try {
+      const update = enable
+        ? {
+            is_complimentary: true,
+            status: "active",
+            trial_ends_at: null,
+            complimentary_until: complimentaryUntilInput ? new Date(complimentaryUntilInput).toISOString() : null,
+            complimentary_note: complimentaryNoteInput.trim() || null,
+          }
+        : {
+            is_complimentary: false,
+            complimentary_until: null,
+            complimentary_note: null,
+          };
+      const { error } = await (supabase as any)
+        .from("organizations")
+        .update(update)
+        .eq("id", organization.id);
+      if (error) throw error;
+      setOrganization((prev) => prev ? { ...prev, ...update } as typeof prev : prev);
+      setShowComplimentaryForm(false);
+      toast.success(enable ? "Complimentary access granted" : "Complimentary access removed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update complimentary access");
+    } finally {
+      setSavingComplimentary(false);
+    }
+  };
+
   const currentPlan: PlanTier = resolvedPlan;
 
   return (
@@ -788,6 +830,76 @@ const PlatformCustomerDetail = () => {
                   <p className="text-sm text-foreground whitespace-pre-wrap">
                     {organization.payment_notes || <span className="text-muted-foreground italic">No notes yet</span>}
                   </p>
+                )}
+              </div>
+
+              {/* Complimentary access */}
+              <div className="border-t border-border pt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <Gift className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Complimentary access</p>
+                      <p className="text-xs text-muted-foreground">Grant free full access — org stays active, billing paused</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={organization.is_complimentary}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setComplimentaryUntilInput("");
+                        setComplimentaryNoteInput("");
+                        setShowComplimentaryForm(true);
+                      } else {
+                        void handleToggleComplimentary(false);
+                      }
+                    }}
+                    disabled={savingComplimentary}
+                  />
+                </div>
+
+                {organization.is_complimentary && !showComplimentaryForm && (
+                  <div className="mt-3 rounded-lg border border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/30 p-3 text-sm">
+                    <p className="font-medium text-purple-700 dark:text-purple-300">Complimentary access active</p>
+                    {organization.complimentary_until && (
+                      <p className="mt-0.5 text-purple-600/80 dark:text-purple-400/70">
+                        Until {new Date(organization.complimentary_until).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                      </p>
+                    )}
+                    {organization.complimentary_note && (
+                      <p className="mt-1 text-purple-600/80 dark:text-purple-400/70 italic">{organization.complimentary_note}</p>
+                    )}
+                  </div>
+                )}
+
+                {showComplimentaryForm && (
+                  <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">Valid until (optional)</p>
+                      <Input
+                        type="date"
+                        value={complimentaryUntilInput}
+                        onChange={(e) => setComplimentaryUntilInput(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">Internal note (optional)</p>
+                      <Input
+                        placeholder="e.g. Partnership deal, demo account…"
+                        value={complimentaryNoteInput}
+                        onChange={(e) => setComplimentaryNoteInput(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void handleToggleComplimentary(true)} disabled={savingComplimentary}>
+                        {savingComplimentary ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                        Grant access
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowComplimentaryForm(false)}>Cancel</Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </CardContent>

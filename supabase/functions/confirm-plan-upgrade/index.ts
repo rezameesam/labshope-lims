@@ -143,13 +143,25 @@ serve(async (req) => {
       return json({ error: "Failed to update plan" }, 500);
     }
 
-    // Activate the organization and clear the trial deadline
+    // Activate the organization — extend plan_expires_at from current expiry or now
+    const { data: currentOrg } = await supabaseAdmin
+      .from("organizations")
+      .select("plan_expires_at")
+      .eq("id", organization_id)
+      .maybeSingle();
+
+    const baseDate = currentOrg?.plan_expires_at && new Date(currentOrg.plan_expires_at) > new Date()
+      ? new Date(currentOrg.plan_expires_at)   // extend from existing expiry (early renewal stacks)
+      : new Date();                             // expired or first payment — extend from now
+
+    const newExpiresAt = new Date(baseDate.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
     const { error: activateError } = await supabaseAdmin
       .from("organizations")
       .update({
         status: "active",
         trial_ends_at: null,
-        plan_expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        plan_expires_at: newExpiresAt,
       })
       .eq("id", organization_id);
 

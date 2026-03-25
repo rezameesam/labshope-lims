@@ -22,6 +22,7 @@ import {
   RefreshCw,
   CalendarCheck,
   CalendarX,
+  Gift,
 } from "lucide-react";
 
 const PLAN_LABELS: Record<PlanTier, string> = {
@@ -68,6 +69,8 @@ interface OrgData {
   status: string;
   trial_ends_at: string | null;
   plan_expires_at: string | null;
+  is_complimentary: boolean;
+  complimentary_until: string | null;
   created_at: string;
 }
 
@@ -93,7 +96,7 @@ export default function SubscriptionStatus() {
           .maybeSingle(),
         (supabase as any)
           .from("organizations")
-          .select("status, trial_ends_at, plan_expires_at, created_at")
+          .select("status, trial_ends_at, plan_expires_at, is_complimentary, complimentary_until, created_at")
           .eq("id", organization.id)
           .maybeSingle(),
       ]);
@@ -172,6 +175,8 @@ export default function SubscriptionStatus() {
   const status = orgData?.status ?? "active";
   const trialEndsAt = orgData?.trial_ends_at ?? null;
   const planExpiresAt = orgData?.plan_expires_at ?? null;
+  const isComplimentary = orgData?.is_complimentary ?? false;
+  const complimentaryUntil = orgData?.complimentary_until ?? null;
   const nextPlan = NEXT_PLAN[planTier];
   const limits = PLAN_LIMITS[planTier];
   const price = PLAN_PRICES[planTier];
@@ -187,8 +192,24 @@ export default function SubscriptionStatus() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 py-2">
 
+      {/* Complimentary access banner */}
+      {isComplimentary && (
+        <div className="flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-950/30">
+          <Gift className="mt-0.5 h-5 w-5 shrink-0 text-purple-500 dark:text-purple-400" />
+          <div>
+            <p className="font-semibold text-purple-700 dark:text-purple-300">Complimentary access</p>
+            <p className="mt-0.5 text-sm text-purple-600/80 dark:text-purple-400/70">
+              {complimentaryUntil
+                ? `Your account has been granted free access until ${formatDate(complimentaryUntil)}.`
+                : "Your account has been granted free access by LabShope."
+              }
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Suspended banner */}
-      {status === "suspended" && (
+      {status === "suspended" && !isComplimentary && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30">
           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
           <div className="flex-1">
@@ -208,7 +229,7 @@ export default function SubscriptionStatus() {
       )}
 
       {/* Trial countdown */}
-      {status === "trial" && trialDays !== null && (
+      {status === "trial" && trialDays !== null && !isComplimentary && (
         <div className={`flex items-start gap-3 rounded-xl border p-4 ${
           isTrialUrgent
             ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
@@ -232,7 +253,7 @@ export default function SubscriptionStatus() {
       )}
 
       {/* Renewal reminder */}
-      {isRenewalSoon && planExpiresAt && (
+      {isRenewalSoon && planExpiresAt && !isComplimentary && (
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/30">
           <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-blue-500 dark:text-blue-400" />
           <div className="flex-1">
@@ -263,7 +284,12 @@ export default function SubscriptionStatus() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {nextPlan && (
+            {isComplimentary && (
+              <Badge className="gap-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-3 py-1.5 text-sm">
+                <Gift className="h-3.5 w-3.5" /> Complimentary
+              </Badge>
+            )}
+            {!isComplimentary && nextPlan && (
               <Button onClick={() => void handleUpgrade()} disabled={upgrading} className="gap-2">
                 {upgrading
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
@@ -271,7 +297,7 @@ export default function SubscriptionStatus() {
                 }
               </Button>
             )}
-            {!nextPlan && (
+            {!isComplimentary && !nextPlan && (
               <Badge className="gap-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-3 py-1.5 text-sm">
                 <Zap className="h-3.5 w-3.5" /> Top plan
               </Badge>
@@ -308,7 +334,7 @@ export default function SubscriptionStatus() {
             </div>
           )}
           {/* Renew same plan button for active orgs */}
-          {status === "active" && (
+          {status === "active" && !isComplimentary && (
             <div className="flex sm:justify-end">
               <Button
                 variant="outline"
@@ -348,7 +374,7 @@ export default function SubscriptionStatus() {
       </div>
 
       {/* Upgrade teaser */}
-      {nextPlan && (
+      {nextPlan && !isComplimentary && (
         <div className="rounded-2xl border border-border bg-muted/40 p-5">
           <div className="flex items-center justify-between gap-4">
             <div>

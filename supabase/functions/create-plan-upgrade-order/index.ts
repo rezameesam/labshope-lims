@@ -65,8 +65,10 @@ serve(async (req) => {
 
     const fromPlan: string = (planSetting as any)?.setting_value || "starter";
     const fromPrice = PLAN_PRICES[fromPlan] ?? 10000;
-    const toPrice = PLAN_PRICES[to_plan] ?? 20000;
-    const upgradeAmount = toPrice - fromPrice;
+    const toPrice = PLAN_PRICES[to_plan] ?? 10000;
+    // Same plan = renewal at full price; upgrade = price difference
+    const isRenewal = fromPlan === to_plan;
+    const upgradeAmount = isRenewal ? toPrice : toPrice - fromPrice;
 
     if (upgradeAmount <= 0) {
       return json({ error: "to_plan must be a higher-tier plan than the current plan" }, 400);
