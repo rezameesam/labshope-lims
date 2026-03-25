@@ -402,13 +402,28 @@ const PlatformCustomerDetail = () => {
     if (!organization?.id) return;
     setAccessingOrg(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated.");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const fallbackRedirectTo = `${window.location.origin}/admin?platform_access=1`;
-      const { data, error } = await supabase.functions.invoke("platform-impersonate-org", {
-        body: { organization_id: organization.id, fallback_redirect_to: fallbackRedirectTo },
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/platform-impersonate-org`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          organization_id: organization.id,
+          fallback_redirect_to: fallbackRedirectTo,
+        }),
       });
-      if (error) throw error;
-      if (!data?.url) throw new Error("No access URL returned.");
-      window.open(data.url, "_blank", "noopener,noreferrer");
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to generate access link.");
+      if (!result.url) throw new Error("No access URL returned.");
+      window.open(result.url, "_blank", "noopener,noreferrer");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to generate access link.");
     } finally {
