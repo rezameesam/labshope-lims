@@ -141,10 +141,18 @@ export function useProvisionOnboardingRequest() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (requestId: string) => {
-      const { data, error } = await supabase.functions.invoke("provision-onboarding-request", {
-        body: { request_id: requestId },
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const response = await fetch(`${supabaseUrl}/functions/v1/provision-onboarding-request`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ request_id: requestId }),
       });
-      if (error) throw error;
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error((data as any)?.error || "Provisioning failed");
       return (data || {}) as Record<string, unknown>;
     },
     onSuccess: () => {
