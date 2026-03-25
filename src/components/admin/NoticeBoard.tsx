@@ -348,7 +348,6 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-clinical-navy">Notice Board</h2>
           <p className="text-muted-foreground">Action items and reminders requiring attention</p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchNotices} disabled={loading}>
