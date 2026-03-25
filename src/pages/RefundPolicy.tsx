@@ -5,7 +5,7 @@ const RefundPolicy = () => {
   return (
     <div className="min-h-screen bg-background">
       <Helmet>
-        <title>Refund Policy | IRM Clinical Laboratory</title>
+        <title>Refund Policy | LabShope LIMS</title>
       </Helmet>
       <div className="container mx-auto px-4 py-10 max-w-3xl">
         <h1 className="text-2xl font-heading font-bold text-foreground mb-2">Refund Policy</h1>
@@ -48,7 +48,7 @@ const RefundPolicy = () => {
             <h2 className="text-lg font-semibold">Contact</h2>
             <p>
               For refund-related queries, contact
-              <span className="ml-1 font-medium">irmclinic@gmail.com</span>.
+              <span className="ml-1 font-medium">info@labshope.com</span>.
             </p>
           </section>
         </div>

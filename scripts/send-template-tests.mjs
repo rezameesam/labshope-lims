@@ -32,11 +32,11 @@ if (!TO_EMAIL) {
 const logoUrl = env.VITE_PUBLIC_LOGO_URL || "";
 
 const brand = {
-  name: "IRM Clinical Laboratory",
-  tagline: "Accurate. Reliable. Timely.",
-  address: "Old Post Office Building, Budgam, Jammu and Kashmir - 191111",
-  phone: "+91-9419034607 | +91-9622635767",
-  email: "irmclinic@gmail.com",
+  name: "LabShope LIMS",
+  tagline: "Modern lab management software for diagnostic labs.",
+  address: "",
+  phone: "",
+  email: "info@labshope.com",
   primary: "#1E3A8A",
   accent: "#3B82F6",
   background: "#F5F8FF",
@@ -133,9 +133,9 @@ const generateTemplate = (title, message, type) => {
 const templates = [
   {
     type: "signup",
-    subject: "Welcome to IRM Clinical Laboratory",
+    subject: "Welcome to LabShope LIMS",
     message:
-      "Dear Patient,\n\nYour patient portal access is ready.\n\nUser ID: IRM-000123\nTemporary Password: IRM-000123\n\nPlease log in and update your password on your first visit.\n\nPortal: https://irmclinic.com/patient",
+      "Dear Patient,\n\nYour patient portal access is ready.\n\nPlease log in and update your password on your first visit.\n\nPortal: https://labshope.com/patient",
   },
   {
     type: "test_result",
@@ -165,7 +165,7 @@ const templates = [
     type: "general",
     subject: "Clinic Update",
     message:
-      "We have extended our collection hours from 7:00 AM to 8:00 PM for your convenience.\n\nThank you for choosing IRM Clinical Laboratory.",
+      "We have extended our collection hours from 7:00 AM to 8:00 PM for your convenience.\n\nThank you for choosing LabShope LIMS.",
   },
 ];
 
@@ -195,7 +195,7 @@ for (const template of templates) {
     continue;
   }
   const htmlContent = generateTemplate(template.subject, template.message, template.type);
-  const textContent = `${template.subject}\n\n${template.message}\n\nIRM Clinical Laboratory`;
+  const textContent = `${template.subject}\n\n${template.message}\n\nLabShope LIMS`;
   const { ok, result } = await sendEmail({
     subject: `[Template: ${template.type}] ${template.subject}`,
     htmlContent,
