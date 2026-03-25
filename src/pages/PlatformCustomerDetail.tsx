@@ -402,8 +402,9 @@ const PlatformCustomerDetail = () => {
     if (!organization?.id) return;
     setAccessingOrg(true);
     try {
+      const fallbackRedirectTo = `${window.location.origin}/admin?platform_access=1`;
       const { data, error } = await supabase.functions.invoke("platform-impersonate-org", {
-        body: { organization_id: organization.id },
+        body: { organization_id: organization.id, fallback_redirect_to: fallbackRedirectTo },
       });
       if (error) throw error;
       if (!data?.url) throw new Error("No access URL returned.");
@@ -537,7 +538,7 @@ const PlatformCustomerDetail = () => {
                         const slug = organization.slug;
                         const staffUrl = primaryDomain
                           ? `${primaryDomain.domain.endsWith(".localhost") ? "http" : "https"}://${primaryDomain.domain}/auth`
-                          : `/auth?org=${slug}`;
+                          : `${window.location.origin}/auth?org=${slug}`;
                         window.open(staffUrl, "_blank", "noopener,noreferrer");
                       }}
                     >
@@ -550,12 +551,8 @@ const PlatformCustomerDetail = () => {
                       onClick={() => {
                         const base = primaryDomain
                           ? `${primaryDomain.domain.endsWith(".localhost") ? "http" : "https"}://${primaryDomain.domain}`
-                          : "";
-                        if (base) {
-                          window.open(`${base}/admin?tab=settings`, "_blank", "noopener,noreferrer");
-                        } else {
-                          toast.info("No domain configured for this tenant yet.");
-                        }
+                          : window.location.origin;
+                        window.open(`${base}/admin?tab=settings`, "_blank", "noopener,noreferrer");
                       }}
                     >
                       <Settings className="mr-1.5 h-3.5 w-3.5" />

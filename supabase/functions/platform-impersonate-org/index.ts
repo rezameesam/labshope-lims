@@ -53,7 +53,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { organization_id } = await req.json().catch(() => ({}));
+    const { organization_id, fallback_redirect_to } = await req.json().catch(() => ({}));
     if (!organization_id) {
       return jsonResponse({ error: "organization_id is required." }, 400);
     }
@@ -67,13 +67,17 @@ serve(async (req: Request): Promise<Response> => {
       .limit(1);
 
     const domain = (domainData as any[])?.[0]?.domain as string | undefined;
-    if (!domain) {
+
+    let redirectTo: string;
+    if (domain) {
+      const isLocal = domain.endsWith(".localhost");
+      const baseUrl = `${isLocal ? "http" : "https"}://${domain}`;
+      redirectTo = `${baseUrl}/admin?platform_access=1`;
+    } else if (fallback_redirect_to) {
+      redirectTo = fallback_redirect_to;
+    } else {
       return jsonResponse({ error: "No domain configured for this organization." }, 404);
     }
-
-    const isLocal = domain.endsWith(".localhost");
-    const baseUrl = `${isLocal ? "http" : "https"}://${domain}`;
-    const redirectTo = `${baseUrl}/admin?platform_access=1`;
 
     // Find the org owner's email
     const { data: memberData } = await adminClient
