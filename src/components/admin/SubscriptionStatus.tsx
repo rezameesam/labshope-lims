@@ -57,9 +57,9 @@ function formatPrice(rupees: number): string {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
-    active:    { cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: "Active" },
-    trial:     { cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",       icon: <Clock className="h-3.5 w-3.5" />,        label: "Trial" },
-    suspended: { cls: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",               icon: <XCircle className="h-3.5 w-3.5" />,       label: "Suspended" },
+    active:    { cls: "bg-emerald-100 text-emerald-700 dark:bg-zinc-800 dark:text-emerald-400", icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: "Active" },
+    trial:     { cls: "bg-amber-100 text-amber-700 dark:bg-zinc-800 dark:text-amber-400",       icon: <Clock className="h-3.5 w-3.5" />,        label: "Trial" },
+    suspended: { cls: "bg-red-100 text-red-700 dark:bg-zinc-800 dark:text-red-400",               icon: <XCircle className="h-3.5 w-3.5" />,       label: "Suspended" },
   };
   const cfg = map[status] ?? { cls: "bg-muted text-muted-foreground", icon: <AlertTriangle className="h-3.5 w-3.5" />, label: status };
   return <Badge className={`gap-1.5 ${cfg.cls}`}>{cfg.icon}{cfg.label}</Badge>;
@@ -194,7 +194,7 @@ export default function SubscriptionStatus() {
 
       {/* Complimentary access banner */}
       {isComplimentary && (
-        <div className="flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-500/50 dark:bg-purple-500/15">
+        <div className="flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-500 dark:bg-zinc-900">
           <Gift className="mt-0.5 h-5 w-5 shrink-0 text-purple-500 dark:text-purple-400" />
           <div>
             <p className="font-semibold text-purple-700 dark:text-purple-300">Complimentary access</p>
@@ -210,7 +210,7 @@ export default function SubscriptionStatus() {
 
       {/* Suspended banner */}
       {status === "suspended" && !isComplimentary && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/50 dark:bg-red-500/15">
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500 dark:bg-zinc-900">
           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
           <div className="flex-1">
             <p className="font-semibold text-red-700 dark:text-red-400">Account suspended</p>
@@ -232,8 +232,8 @@ export default function SubscriptionStatus() {
       {status === "trial" && trialDays !== null && !isComplimentary && (
         <div className={`flex items-start gap-3 rounded-xl border p-4 ${
           isTrialUrgent
-            ? "border-red-200 bg-red-50 dark:border-red-500/50 dark:bg-red-500/15"
-            : "border-amber-200 bg-amber-50 dark:border-amber-500/50 dark:bg-amber-500/15"
+            ? "border-red-200 bg-red-50 dark:border-red-500 dark:bg-zinc-900"
+            : "border-amber-200 bg-amber-50 dark:border-amber-500 dark:bg-zinc-900"
         }`}>
           <Clock className={`mt-0.5 h-5 w-5 shrink-0 ${isTrialUrgent ? "text-red-500 dark:text-red-400" : "text-amber-500 dark:text-amber-400"}`} />
           <div className="flex-1">
@@ -254,7 +254,7 @@ export default function SubscriptionStatus() {
 
       {/* Renewal reminder */}
       {isRenewalSoon && planExpiresAt && !isComplimentary && (
-        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/50 dark:bg-blue-500/15">
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500 dark:bg-zinc-900">
           <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-blue-500 dark:text-blue-400" />
           <div className="flex-1">
             <p className="font-semibold text-blue-700 dark:text-blue-400">
