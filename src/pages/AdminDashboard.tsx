@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Settings,
   Receipt,
+  BadgeCheck,
   Package,
   FlaskConical,
   BarChart3,
@@ -67,13 +68,14 @@ const FinancialReports = lazy(() => import("@/components/admin/FinancialReports"
 const ManageRoles = lazy(() => import("@/components/admin/ManageRoles"));
 const NotificationSettings = lazy(() => import("@/components/admin/NotificationSettings"));
 const SystemSettings = lazy(() => import("@/components/admin/SystemSettings"));
+const SubscriptionStatus = lazy(() => import("@/components/admin/SubscriptionStatus"));
 const NoticeBoard = lazy(() => import("@/components/admin/NoticeBoard"));
 const ActiveSessions = lazy(() => import("@/components/account/ActiveSessions"));
 const ManageVisitorLogs = lazy(() => import("@/components/admin/ManageVisitorLogs"));
 const ManageBookingRequests = lazy(() => import("@/components/admin/ManageBookingRequests"));
 const AdminQuickSetup = lazy(() => import("@/components/admin/AdminQuickSetup"));
 
-type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings";
+type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings" | "subscription";
 
 type PatientSummary = {
   id: string;
@@ -137,6 +139,7 @@ const AdminDashboard = () => {
       "test-packages",
       "test-templates",
       "billing",
+      "subscription",
       "inventory",
       "reports",
       "doctors",
@@ -438,6 +441,7 @@ const AdminDashboard = () => {
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
+    { id: "subscription" as TabType, label: "Subscription", icon: BadgeCheck, adminOnly: true },
     { id: "reminders" as TabType, label: "Reminders", icon: Bell },
     { id: "test-packages" as TabType, label: "Test Packages", icon: Package },
     { id: "inventory" as TabType, label: "Inventory", icon: Package },
@@ -643,6 +647,7 @@ const AdminDashboard = () => {
             {activeTab === "test-packages" && <AdminErrorBoundary tabName="Test Packages"><ManageTestPackages /></AdminErrorBoundary>}
             {activeTab === "test-templates" && <AdminErrorBoundary tabName="Templates"><ManageTestTemplates /></AdminErrorBoundary>}
             {activeTab === "billing" && <AdminErrorBoundary tabName="Billing"><ManageBilling /></AdminErrorBoundary>}
+            {activeTab === "subscription" && <AdminErrorBoundary tabName="Subscription"><SubscriptionStatus /></AdminErrorBoundary>}
             {activeTab === "inventory" && <AdminErrorBoundary tabName="Inventory"><ManageInventory /></AdminErrorBoundary>}
             {activeTab === "doctors" && <AdminErrorBoundary tabName="Doctors"><ManageDoctors /></AdminErrorBoundary>}
             {activeTab === "reminders" && <AdminErrorBoundary tabName="Reminders"><ManageReminders /></AdminErrorBoundary>}
