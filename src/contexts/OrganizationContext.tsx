@@ -58,6 +58,7 @@ interface OrganizationContextType {
   primaryLab: OrganizationLabRecord | null;
   branding: OrganizationBranding;
   settings: Record<string, string>;
+  resolutionError: string | null;
   loading: boolean;
   refreshOrganization: () => Promise<void>;
 }
@@ -198,12 +199,14 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const [organization, setOrganization] = useState<OrganizationRecord | null>(null);
   const [primaryLab, setPrimaryLab] = useState<OrganizationLabRecord | null>(null);
   const [organizationSettings, setOrganizationSettings] = useState<Map<string, string>>(new Map());
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchOrganization = useCallback(async () => {
     if (authLoading || labLoading) return;
 
     setLoading(true);
+    setResolutionError(null);
 
     try {
       let resolvedOrganization: OrganizationRecord | null = null;
@@ -223,6 +226,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           "get_public_organization_context" as any,
           { _domain: hostname, _slug: slugCandidate ?? null }
         );
+        if (publicContextError) {
+          setResolutionError(publicContextError.message || "Unable to resolve the tenant workspace.");
+        }
         if (!publicContextError && publicContext) {
           const payload = publicContext as unknown as PublicOrganizationContextPayload;
           resolvedOrganization = payload.organization || null;
@@ -388,6 +394,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       setOrganizationSettings(resolvedSettings);
     } catch (error) {
       console.error("Error fetching organization:", error);
+      setResolutionError(error instanceof Error ? error.message : "Unable to resolve the tenant workspace.");
       setOrganization(null);
       setPrimaryLab(null);
       setOrganizationSettings(new Map());
@@ -421,6 +428,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         primaryLab,
         branding: deriveBranding(organization, primaryLab, organizationSettings),
         settings: Object.fromEntries(organizationSettings.entries()),
+        resolutionError,
         loading,
         refreshOrganization: fetchOrganization,
       }}
