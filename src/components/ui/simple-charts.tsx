@@ -29,6 +29,25 @@ type LineSeries = {
 
 const DEFAULT_PADDING = { top: 16, right: 16, bottom: 28, left: 44 };
 
+function getVisibleXAxisLabelIndexes(itemCount: number, innerWidth: number, minSpacing = 56) {
+  if (itemCount <= 0) return new Set<number>();
+
+  const maxLabels = Math.max(2, Math.floor(innerWidth / minSpacing));
+  if (itemCount <= maxLabels) {
+    return new Set(Array.from({ length: itemCount }, (_, index) => index));
+  }
+
+  const step = Math.ceil(itemCount / maxLabels);
+  const visibleIndexes = new Set<number>();
+
+  for (let index = 0; index < itemCount; index += step) {
+    visibleIndexes.add(index);
+  }
+
+  visibleIndexes.add(itemCount - 1);
+  return visibleIndexes;
+}
+
 function useMeasuredSize<T extends HTMLElement>() {
   const ref = React.useRef<T | null>(null);
   const [size, setSize] = React.useState({ width: 0, height: 0 });
@@ -103,6 +122,7 @@ export function SimpleLineAreaChart({
         const innerHeight = Math.max(1, height - padding.top - padding.bottom);
         const { max, ticks } = getChartMetrics(values);
         const stepX = labels.length > 1 ? innerWidth / (labels.length - 1) : innerWidth / 2;
+        const visibleLabelIndexes = getVisibleXAxisLabelIndexes(labels.length, innerWidth);
         const scaleY = (value: number) => padding.top + innerHeight - (value / max) * innerHeight;
 
         return (
@@ -119,6 +139,9 @@ export function SimpleLineAreaChart({
               );
             })}
             {labels.map((label, index) => {
+              if (!visibleLabelIndexes.has(index)) {
+                return null;
+              }
               const x = padding.left + (labels.length === 1 ? innerWidth / 2 : index * stepX);
               return (
                 <text key={label + index} x={x} y={height - 8} textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">
@@ -176,6 +199,7 @@ export function SimpleBarChart({
         const { max, ticks } = getChartMetrics(values);
         const gap = data.length > 0 ? Math.min(16, innerWidth * 0.08) : 0;
         const barWidth = data.length > 0 ? (innerWidth - gap * Math.max(0, data.length - 1)) / data.length : innerWidth;
+        const visibleLabelIndexes = getVisibleXAxisLabelIndexes(data.length, innerWidth);
 
         return (
           <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
@@ -197,9 +221,11 @@ export function SimpleBarChart({
               return (
                 <g key={`${item.label}-${index}`}>
                   <rect x={x} y={y} width={Math.max(8, barWidth)} height={barHeight} rx="8" fill={color} />
-                  <text x={x + barWidth / 2} y={height - 8} textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">
-                    {item.label}
-                  </text>
+                  {visibleLabelIndexes.has(index) ? (
+                    <text x={x + barWidth / 2} y={height - 8} textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">
+                      {item.label}
+                    </text>
+                  ) : null}
                   <title>{item.title || `${item.label}: ${item.value.toLocaleString()}`}</title>
                 </g>
               );
