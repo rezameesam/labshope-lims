@@ -317,7 +317,7 @@ export function AbhaEnrollmentDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
+            <Shield className="h-5 w-5 text-primary" />
             {title}
           </DialogTitle>
           <DialogDescription>
@@ -350,19 +350,19 @@ export function AbhaEnrollmentDialog({
                     : "demographic_form"
                   );
                 }}
-                className="w-full flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left hover:bg-blue-50 hover:border-blue-200 transition-colors group"
+                className="group flex w-full items-start gap-3 rounded-xl border border-border/70 bg-muted/35 p-4 text-left transition-colors hover:border-primary/30 hover:bg-muted/60"
               >
-                <div className="mt-0.5 shrink-0 rounded-lg bg-white border border-slate-200 p-2 group-hover:border-blue-200">
-                  <Icon className="h-4 w-4 text-slate-600" />
+                <div className="mt-0.5 shrink-0 rounded-lg border border-border/70 bg-background/85 p-2 transition-colors group-hover:border-primary/30 group-hover:bg-background">
+                  <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">{label}</span>
-                    {badge && <span className="text-[10px] font-semibold rounded-full bg-slate-200 text-slate-600 px-1.5 py-0.5">{badge}</span>}
+                    <span className="text-sm font-semibold text-foreground">{label}</span>
+                    {badge && <span className="rounded-full border border-border/70 bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{badge}</span>}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{desc}</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-slate-400 mt-1 shrink-0 group-hover:text-blue-500" />
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
               </button>
             ))}
             <div className="flex justify-end pt-1">

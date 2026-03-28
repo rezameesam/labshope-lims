@@ -448,7 +448,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
       </div>
 
       {/* ABHA / Health ID */}
-      <div className="md:col-span-2 space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+      <div className="md:col-span-2 space-y-3 rounded-lg border border-border/70 bg-muted/35 p-4">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">ABHA / Health ID <span className="text-muted-foreground font-normal">(Optional)</span></p>
           {organizationId && !formData.abha_number && (
@@ -456,7 +456,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+              className="h-7 gap-1.5 border-primary/30 bg-background/80 text-foreground hover:bg-primary/10 hover:text-foreground"
               onClick={() => setEnrollOpen(true)}
             >
               <Shield className="h-3.5 w-3.5" />
@@ -469,7 +469,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+                className="h-7 gap-1.5 border-primary/25 bg-background/80 text-foreground hover:bg-primary/10 hover:text-foreground"
                 onClick={() => setEnrollOpen(true)}
               >
                 <Shield className="h-3.5 w-3.5" />
@@ -489,16 +489,16 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
         </div>
 
         {formData.abha_number ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 space-y-1">
+          <div className="space-y-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="text-sm font-medium text-emerald-900">ABHA Linked</span>
-              <Badge variant="outline" className="h-5 text-xs border-emerald-300 text-emerald-700">{formData.abdm_link_status || "linked"}</Badge>
+              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">ABHA Linked</span>
+              <Badge variant="outline" className="h-5 border-emerald-500/35 text-xs text-emerald-700 dark:text-emerald-300">{formData.abdm_link_status || "linked"}</Badge>
             </div>
-            <p className="text-sm text-emerald-800 pl-6">Number: <span className="font-mono">{formData.abha_number}</span></p>
-            {formData.abha_address && <p className="text-sm text-emerald-700 pl-6">Address: {formData.abha_address}</p>}
+            <p className="pl-6 text-sm text-emerald-700 dark:text-emerald-300">Number: <span className="font-mono">{formData.abha_number}</span></p>
+            {formData.abha_address && <p className="pl-6 text-sm text-emerald-700/90 dark:text-emerald-300/90">Address: {formData.abha_address}</p>}
             {organizationId && (
-              <Button type="button" variant="ghost" size="sm" className="h-6 pl-6 text-xs text-blue-600 hover:text-blue-800" onClick={() => setEnrollOpen(true)}>
+              <Button type="button" variant="ghost" size="sm" className="h-6 pl-6 text-xs text-primary hover:bg-transparent hover:text-primary/80" onClick={() => setEnrollOpen(true)}>
                 Re-enroll / Change
               </Button>
             )}
