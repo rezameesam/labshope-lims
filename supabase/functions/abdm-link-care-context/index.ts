@@ -5,27 +5,19 @@ import {
   requestAbdmSessionToken,
 } from "../_shared/abdm-settings.ts";
 import { resolveOrganizationIdentity } from "../_shared/organization-settings.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+import { resolveAbdmCorsHeaders, secureJson } from "../_shared/security.ts";
 
 const normalizeText = (v?: string | null) => v?.trim() || null;
 
 serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   const supabaseUrl    = Deno.env.get("SUPABASE_URL")!;
   const anonKey        = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const corsHeaders = await resolveAbdmCorsHeaders(req, supabaseUrl, serviceRoleKey, { allowMethods: "POST, OPTIONS" });
+  const json = (body: unknown, status = 200) => secureJson(body, status, corsHeaders);
+
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
   const supabaseAdmin  = createClient(supabaseUrl, serviceRoleKey);
 
   let linkId: string | null = null;
@@ -150,7 +142,11 @@ serve(async (req: Request): Promise<Response> => {
       patient_id: patientId,
       request_type: "care_context_token",
       request_status: "success",
-      abha_address: abhaAddress,
+      request_payload: {
+        care_context_reference: careContextReference,
+        hi_type: hiType,
+        abha_address_present: true,
+      },
     });
 
     // Step 3: Link care context
@@ -193,8 +189,10 @@ serve(async (req: Request): Promise<Response> => {
       patient_id: patientId,
       request_type: "care_context_link",
       request_status: "success",
-      abha_address: abhaAddress,
-      request_payload: { careContextReference, hiType },
+      request_payload: {
+        care_context_reference: careContextReference,
+        hi_type: hiType,
+      },
     });
 
     // Step 4: Notify patient (non-blocking — failure doesn't break the response)
@@ -230,7 +228,10 @@ serve(async (req: Request): Promise<Response> => {
         patient_id: patientId,
         request_type: "care_context_notify",
         request_status: notifyRes.ok ? "success" : "failed",
-        abha_address: abhaAddress,
+        request_payload: {
+          care_context_reference: careContextReference,
+          hi_type: hiType,
+        },
       });
     } catch (_notifyErr) {
       // Notify failure is non-fatal
@@ -250,6 +251,6 @@ serve(async (req: Request): Promise<Response> => {
       const supabaseAdmin2 = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       await supabaseAdmin2.from("abdm_care_context_links").update({ link_status: "failed", error_message: error.message, updated_at: new Date().toISOString() }).eq("id", linkId);
     }
-    return json({ error: error.message || "Care context linking failed" }, 500);
+    return json({ error: "Care context linking failed" }, 500);
   }
 });

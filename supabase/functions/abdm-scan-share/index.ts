@@ -6,12 +6,7 @@ import {
   resolveAbdmFacilityContext,
 } from "../_shared/abdm-settings.ts";
 import { resolveOrganizationIdentity } from "../_shared/organization-settings.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { resolveAbdmCorsHeaders, secureJson } from "../_shared/security.ts";
 
 interface AbdmScanShareRequest {
   organization_id?: string | null;
@@ -168,13 +163,15 @@ const insertAuditLog = async (
 };
 
 serve(async (req: Request): Promise<Response> => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const corsHeaders = await resolveAbdmCorsHeaders(req, supabaseUrl, serviceRoleKey, { allowMethods: "POST, OPTIONS" });
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
   let organizationId: string | null = null;
@@ -185,10 +182,7 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return secureJson({ error: "Unauthorized" }, 401, corsHeaders);
     }
 
     requestPayload = await req.json();
@@ -208,10 +202,7 @@ serve(async (req: Request): Promise<Response> => {
       !normalizedRequest.abha_address &&
       !normalizedRequest.mobile
     ) {
-      return new Response(
-        JSON.stringify({ error: "Provide ABHA number, ABHA address, or mobile." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return secureJson({ error: "Provide ABHA number, ABHA address, or mobile." }, 400, corsHeaders);
     }
 
     const identity = await resolveOrganizationIdentity({
@@ -226,17 +217,11 @@ serve(async (req: Request): Promise<Response> => {
     userId = identity.userId;
 
     if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authentication token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return secureJson({ error: "Invalid authentication token" }, 401, corsHeaders);
     }
 
     if (!organizationId) {
-      return new Response(
-        JSON.stringify({ error: "Staff user is not linked to an active organization" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return secureJson({ error: "Staff user is not linked to an active organization" }, 403, corsHeaders);
     }
 
     const { data: primaryLab } = await supabaseAdmin
@@ -269,25 +254,19 @@ serve(async (req: Request): Promise<Response> => {
         request_payload: { preflight_only: true },
       });
 
-      return new Response(
-        JSON.stringify({
-          success: preflight.success,
-          mode: "preflight_only",
-          organization_id: organizationId,
-          environment: config.environment,
-          gateway_base_url: config.gatewayBaseUrl,
-          configuration: {
-            has_client_credentials: Boolean(config.clientId && config.clientSecret),
-            client_id_preview: maskSecret(config.clientId),
-            hip_id: config.hipId,
-          },
-          preflight,
-        }),
-        {
-          status: preflight.success ? 200 : 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return secureJson({
+        success: preflight.success,
+        mode: "preflight_only",
+        organization_id: organizationId,
+        environment: config.environment,
+        gateway_base_url: config.gatewayBaseUrl,
+        configuration: {
+          has_client_credentials: Boolean(config.clientId && config.clientSecret),
+          client_id_preview: maskSecret(config.clientId),
+          hip_id: config.hipId,
         },
-      );
+        preflight,
+      }, preflight.success ? 200 : 502, corsHeaders);
     }
 
     if (!config.enabled || !config.scanShareEnabled) {
@@ -297,18 +276,16 @@ serve(async (req: Request): Promise<Response> => {
         user_id: userId,
         request_type: "scan_share_lookup",
         request_status: "failed",
-        abha_number: normalizedRequest.abha_number,
-        abha_address: normalizedRequest.abha_address,
-        mobile: normalizedRequest.mobile,
         error_code: "abdm_disabled",
         error_message: "ABDM Scan and Share is disabled for this organization.",
-        request_payload: normalizedRequest,
+        request_payload: {
+          has_abha_number: Boolean(normalizedRequest.abha_number),
+          has_abha_address: Boolean(normalizedRequest.abha_address),
+          has_mobile: Boolean(normalizedRequest.mobile),
+        },
       });
 
-      return new Response(
-        JSON.stringify({ error: "ABDM Scan and Share is not enabled for this organization." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return secureJson({ error: "ABDM Scan and Share is not enabled for this organization." }, 403, corsHeaders);
     }
 
     if (!config.facilityId) {
@@ -318,18 +295,16 @@ serve(async (req: Request): Promise<Response> => {
         user_id: userId,
         request_type: "scan_share_lookup",
         request_status: "failed",
-        abha_number: normalizedRequest.abha_number,
-        abha_address: normalizedRequest.abha_address,
-        mobile: normalizedRequest.mobile,
         error_code: "facility_missing",
         error_message: "ABDM facility ID is not configured.",
-        request_payload: normalizedRequest,
+        request_payload: {
+          has_abha_number: Boolean(normalizedRequest.abha_number),
+          has_abha_address: Boolean(normalizedRequest.abha_address),
+          has_mobile: Boolean(normalizedRequest.mobile),
+        },
       });
 
-      return new Response(
-        JSON.stringify({ error: "ABDM facility ID is not configured for this organization." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return secureJson({ error: "ABDM facility ID is not configured for this organization." }, 400, corsHeaders);
     }
 
     const normalizedIdentity = buildSandboxIdentity(normalizedRequest);
@@ -354,38 +329,42 @@ serve(async (req: Request): Promise<Response> => {
       user_id: userId,
       request_type: "scan_share_lookup",
       request_status: "success",
-      abha_number: normalizedIdentity.abha_number,
-      abha_address: normalizedIdentity.abha_address,
-      mobile: normalizedIdentity.phone,
-      request_payload: normalizedRequest,
-      response_payload: normalizedIdentity,
+      request_payload: {
+        has_abha_number: Boolean(normalizedRequest.abha_number),
+        has_abha_address: Boolean(normalizedRequest.abha_address),
+        has_mobile: Boolean(normalizedRequest.mobile),
+        preflight_requested: Boolean(normalizedRequest.perform_preflight),
+      },
+      response_payload: {
+        environment: config.environment,
+        facility_id_resolved: Boolean(labFacilityContext.facilityId || config.facilityId),
+        callback_configured: Boolean(config.callbackUrl),
+        client_credentials_configured: Boolean(config.clientId && config.clientSecret),
+      },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        mode: "sandbox_profile_share_preview",
-        organization_id: organizationId,
-        environment: config.environment,
-        facility_id: labFacilityContext.facilityId || config.facilityId,
-        lab_id: labFacilityContext.labId,
-        gateway_base_url: config.gatewayBaseUrl,
-        configuration: {
-          has_client_credentials: Boolean(config.clientId && config.clientSecret),
-          client_id_preview: maskSecret(config.clientId),
-          callback_url: config.callbackUrl,
-          hip_id: config.hipId,
-          hpr_id: config.hprId,
-          cm_id: config.cmId,
-          lab_abdm_enabled: labFacilityContext.labEnabled,
-          lab_facility_id: labFacilityContext.facilityId,
-        },
-        preflight,
-        identity: normalizedIdentity,
-        profile_share_preview: profileSharePreview,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return secureJson({
+      success: true,
+      mode: "sandbox_profile_share_preview",
+      organization_id: organizationId,
+      environment: config.environment,
+      facility_id: labFacilityContext.facilityId || config.facilityId,
+      lab_id: labFacilityContext.labId,
+      gateway_base_url: config.gatewayBaseUrl,
+      configuration: {
+        has_client_credentials: Boolean(config.clientId && config.clientSecret),
+        client_id_preview: maskSecret(config.clientId),
+        callback_url: config.callbackUrl,
+        hip_id: config.hipId,
+        hpr_id: config.hprId,
+        cm_id: config.cmId,
+        lab_abdm_enabled: labFacilityContext.labEnabled,
+        lab_facility_id: labFacilityContext.facilityId,
+      },
+      preflight,
+      identity: normalizedIdentity,
+      profile_share_preview: profileSharePreview,
+    }, 200, corsHeaders);
   } catch (error: any) {
     console.error("Error in abdm-scan-share:", error);
 
@@ -396,18 +375,16 @@ serve(async (req: Request): Promise<Response> => {
         user_id: userId,
         request_type: "scan_share_lookup",
         request_status: "failed",
-        abha_number: normalizeAbhaNumber(requestPayload?.abha_number),
-        abha_address: normalizeText(requestPayload?.abha_address),
-        mobile: normalizeMobile(requestPayload?.mobile),
         error_code: "unexpected_error",
         error_message: error.message || "Unexpected ABDM scan/share failure",
-        request_payload: requestPayload,
+        request_payload: {
+          has_abha_number: Boolean(normalizeAbhaNumber(requestPayload?.abha_number)),
+          has_abha_address: Boolean(normalizeText(requestPayload?.abha_address)),
+          has_mobile: Boolean(normalizeMobile(requestPayload?.mobile)),
+        },
       });
     }
 
-    return new Response(
-      JSON.stringify({ error: error.message || "Failed to resolve ABDM identity" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return secureJson({ error: "Failed to resolve ABDM identity" }, 500, corsHeaders);
   }
 });

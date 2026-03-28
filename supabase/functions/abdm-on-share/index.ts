@@ -1,12 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchOrganizationAbdmConfig, requestAbdmSessionToken } from "../_shared/abdm-settings.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-internal-service-key",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { resolveAbdmCorsHeaders, secureJson } from "../_shared/security.ts";
 
 interface AbdmOnShareRequest {
   organization_id?: string | null;
@@ -22,23 +17,21 @@ const normalizeText = (value?: string | null): string | null => {
   return trimmed ? trimmed : null;
 };
 
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json",
-    },
-  });
-
 serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const corsHeaders = await resolveAbdmCorsHeaders(req, supabaseUrl, serviceRoleKey, {
+      allowMethods: "POST, OPTIONS",
+      allowHeaders: "authorization, x-client-info, apikey, content-type, x-internal-service-key",
+    });
+    const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+      secureJson(body, status, corsHeaders);
+
+    if (req.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders });
+    }
+
     const internalServiceKey = req.headers.get("x-internal-service-key");
 
     if (!serviceRoleKey || internalServiceKey !== serviceRoleKey) {
@@ -107,7 +100,6 @@ serve(async (req: Request): Promise<Response> => {
               (responseBody.error as string | undefined) ||
               (responseBody.message as string | undefined))) ||
           `ABDM on-share returned ${response.status}`,
-        response: responseBody,
       }, 502);
     }
 
@@ -115,10 +107,14 @@ serve(async (req: Request): Promise<Response> => {
       organization_id: organizationId,
       request_type: "profile_share_callback",
       request_status: "success",
-      request_payload: acknowledgementBody,
+      request_payload: {
+        requestId,
+        abhaAddressPresent: Boolean(normalizeText(payload.abha_address)),
+        context: normalizeText(payload.context) || "1",
+        tokenProvided: Boolean(normalizeText(payload.token_number)),
+      },
       response_payload: {
         on_share_status: response.status,
-        body: responseBody,
       },
     });
 
@@ -126,10 +122,9 @@ serve(async (req: Request): Promise<Response> => {
       success: true,
       delivery_status: "sent",
       status: response.status,
-      response: responseBody,
     });
   } catch (error: any) {
     console.error("Error in abdm-on-share:", error);
-    return jsonResponse({ error: error.message || "Failed to deliver ABDM on-share acknowledgement" }, 500);
+    return jsonResponse({ error: "Failed to deliver ABDM on-share acknowledgement" }, 500);
   }
 });

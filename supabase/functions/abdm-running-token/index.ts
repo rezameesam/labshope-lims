@@ -5,18 +5,7 @@ import {
   resolveOrganizationByAbdmHipId,
 } from "../_shared/abdm-settings.ts";
 import { resolveOrganizationIdentity } from "../_shared/organization-settings.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+import { resolveAbdmCorsHeaders, secureJson } from "../_shared/security.ts";
 
 function randomToken(length = 8): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -26,11 +15,14 @@ function randomToken(length = 8): string {
 }
 
 serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   const supabaseUrl    = Deno.env.get("SUPABASE_URL")!;
   const anonKey        = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const corsHeaders = await resolveAbdmCorsHeaders(req, supabaseUrl, serviceRoleKey, { allowMethods: "POST, GET, OPTIONS" });
+  const json = (body: unknown, status = 200) => secureJson(body, status, corsHeaders);
+
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
   const supabaseAdmin  = createClient(supabaseUrl, serviceRoleKey);
 
   const url = new URL(req.url);
@@ -59,7 +51,10 @@ serve(async (req: Request): Promise<Response> => {
         request_type: "running_token_callback",
         request_status: "success",
         request_payload: { hipId: hipIdParam },
-        response_payload: { token_value: (token as any)?.token_value ?? null },
+        response_payload: {
+          token_available: Boolean(token),
+          expires_at: (token as any)?.expires_at ?? null,
+        },
       });
 
       if (!token) {
@@ -71,7 +66,7 @@ serve(async (req: Request): Promise<Response> => {
       return json({ tokenNumber: (token as any).token_value, expiry: remaining, averageWaitMinutes: (token as any).wait_time_minutes });
     } catch (error: any) {
       console.error("abdm-running-token callback error:", error);
-      return json({ error: error.message }, 500);
+      return json({ error: "Failed to resolve running token status" }, 500);
     }
   }
 
@@ -147,6 +142,6 @@ serve(async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error("abdm-running-token error:", error);
-    return json({ error: error.message || "Running token generation failed" }, 500);
+    return json({ error: "Running token generation failed" }, 500);
   }
 });

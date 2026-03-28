@@ -6,14 +6,9 @@ import {
   type AbdmConfig,
 } from "../_shared/abdm-settings.ts";
 import { resolveOrganizationIdentity } from "../_shared/organization-settings.ts";
+import { resolveAbdmCorsHeaders, secureJson } from "../_shared/security.ts";
 // @ts-expect-error node:crypto available in Supabase Edge Runtime (Deno 1.40+)
 import { publicEncrypt, constants } from "node:crypto";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 // ── Certificate cache (6-hour TTL) ──────────────────────────────────────────
 
@@ -67,12 +62,6 @@ function encryptWithCert(plaintext: string, certPem: string): string {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
 const normalizeText = (v?: string | null) => v?.trim() || null;
 
 // Fetch ABHA profile using the X-Token returned after a successful auth/login.
@@ -96,11 +85,13 @@ async function fetchProfile(baseUrl: string, xToken: string | null): Promise<any
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   const supabaseUrl     = Deno.env.get("SUPABASE_URL")!;
   const anonKey         = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const corsHeaders = await resolveAbdmCorsHeaders(req, supabaseUrl, serviceRoleKey, { allowMethods: "POST, OPTIONS" });
+  const json = (body: unknown, status = 200) => secureJson(body, status, corsHeaders);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
   const supabaseAdmin   = createClient(supabaseUrl, serviceRoleKey);
 
   try {
@@ -247,9 +238,12 @@ serve(async (req: Request): Promise<Response> => {
         user_id: userId,
         request_type: "abha_enrollment_verify",
         request_status: "success",
-        abha_number: abhaNumber || null,
         request_payload: { txnId: (session as any).txn_id },
-        response_payload: { abha_number: abhaNumber, full_name: fullName, gender, dob, mobile },
+        response_payload: {
+          abha_number_present: Boolean(abhaNumber),
+          mobile_present: Boolean(mobile),
+          date_of_birth_present: Boolean(dob),
+        },
       });
 
       return json({ session_id: sessionId, abha_number: abhaNumber, full_name: fullName, gender, date_of_birth: dob, mobile });
@@ -350,8 +344,10 @@ serve(async (req: Request): Promise<Response> => {
         patient_id: patientId || null,
         request_type: "abha_enrollment_set_address",
         request_status: "success",
-        abha_number: abhaNumber || null,
-        abha_address: finalAddress,
+        request_payload: {
+          abha_number_present: Boolean(abhaNumber),
+          abha_address_present: Boolean(finalAddress),
+        },
       });
 
       return json({ session_id: sessionId, abha_number: abhaNumber, abha_address: finalAddress, full_name: (session as any).full_name, gender: (session as any).gender, date_of_birth: (session as any).date_of_birth, mobile: (session as any).mobile });
@@ -459,8 +455,11 @@ serve(async (req: Request): Promise<Response> => {
       await supabaseAdmin.from("abdm_scan_logs").insert({
         organization_id: organizationId, user_id: userId, patient_id: patientId || null,
         request_type: "abha_login_otp_verify", request_status: "success",
-        abha_number: abhaNumber || null, abha_address: abhaAddress || null,
-        response_payload: { abha_number: abhaNumber, abha_address: abhaAddress, full_name: fullName },
+        response_payload: {
+          abha_number_present: Boolean(abhaNumber),
+          abha_address_present: Boolean(abhaAddress),
+          full_name_present: Boolean(fullName),
+        },
       });
 
       return json({ session_id: sessionId, abha_number: abhaNumber, abha_address: abhaAddress, full_name: fullName, gender, date_of_birth: dob, mobile });
@@ -570,7 +569,11 @@ serve(async (req: Request): Promise<Response> => {
       await supabaseAdmin.from("abdm_scan_logs").insert({
         organization_id: organizationId, user_id: userId, patient_id: patientId || null,
         request_type: "abha_face_auth_verify", request_status: "success",
-        abha_number: abhaNumber || null, abha_address: abhaAddress || null,
+        response_payload: {
+          abha_number_present: Boolean(abhaNumber),
+          abha_address_present: Boolean(abhaAddress),
+          full_name_present: Boolean(fullName),
+        },
       });
 
       return json({ session_id: sessionId, abha_number: abhaNumber, abha_address: abhaAddress, full_name: fullName, gender, date_of_birth: dob, mobile });
@@ -645,7 +648,14 @@ serve(async (req: Request): Promise<Response> => {
       await supabaseAdmin.from("abdm_scan_logs").insert({
         organization_id: organizationId, user_id: userId, patient_id: patientId || null,
         request_type: "abha_demographic_verify", request_status: "success",
-        abha_number: abhaNumber || null, abha_address: abhaAddress || null,
+        request_payload: {
+          login_hint: loginHint,
+          mobile_present: Boolean(mobile),
+        },
+        response_payload: {
+          abha_number_present: Boolean(abhaNumber),
+          abha_address_present: Boolean(abhaAddress),
+        },
       });
 
       return json({
@@ -659,6 +669,6 @@ serve(async (req: Request): Promise<Response> => {
 
   } catch (error: any) {
     console.error("Error in abdm-enroll-abha:", error);
-    return json({ error: error.message || "ABHA enrollment failed" }, 500);
+    return json({ error: "ABHA enrollment failed" }, 500);
   }
 });

@@ -1,12 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveOrganizationByAbdmHipId } from "../_shared/abdm-settings.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { resolveAbdmCorsHeaders, secureJson } from "../_shared/security.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -90,16 +85,11 @@ const buildDateOfBirth = (
   return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 };
 
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeaders,
-    },
-  });
-
 serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = await resolveAbdmCorsHeaders(req, supabaseUrl, serviceRoleKey, { allowMethods: "POST, OPTIONS" });
+  const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+    secureJson(body, status, corsHeaders);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -221,10 +211,15 @@ serve(async (req: Request): Promise<Response> => {
       patient_id: matchedPatientId,
       request_type: "profile_share_callback",
       request_status: "success",
-      abha_number: abhaNumber,
-      abha_address: abhaAddress,
-      mobile: patientPhone,
-      request_payload: payload,
+      request_payload: {
+        request_id: normalizeText(payload.response?.requestId),
+        hip_id: hipId,
+        context: normalizeText(payload.metaData?.context),
+        token_present: Boolean(normalizeText(payload.profile?.careContext?.tokenNumber)),
+        patient_phone_present: Boolean(patientPhone),
+        abha_number_present: Boolean(abhaNumber),
+        abha_address_present: Boolean(abhaAddress),
+      },
       response_payload: {
         matched_patient_id: matchedPatientId,
         request_status: requestStatus,
@@ -316,6 +311,6 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    return jsonResponse({ error: error.message || "Failed to process ABDM profile-share callback" }, 500);
+    return jsonResponse({ error: "Failed to process ABDM profile-share callback" }, 500);
   }
 });
