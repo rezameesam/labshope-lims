@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -488,11 +489,9 @@ export default function PlatformCoupons() {
                 <Label htmlFor="coupon-valid-until">
                   Valid until <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
-                <Input
-                  id="coupon-valid-until"
-                  type="date"
+                <DatePicker
                   value={form.valid_until}
-                  onChange={(e) => setForm((p) => ({ ...p, valid_until: e.target.value }))}
+                  onChange={(v) => setForm((p) => ({ ...p, valid_until: v }))}
                 />
               </div>
             </div>

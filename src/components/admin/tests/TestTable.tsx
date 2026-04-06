@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { AbdmCareContextButton } from "../AbdmCareContextButton";
-import { Calendar, CheckCircle, Clock, ChevronDown, ChevronUp, History } from "lucide-react";
+import { Calendar, CheckCircle, Clock, ChevronDown, ChevronUp, History, Send } from "lucide-react";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ interface TestTableProps {
   onToggleExpandPackageGroup: (groupId: string) => void;
   onOpenResultDialog: (test: PatientTest) => void;
   onOpenAuditDialog: (test: PatientTest) => void;
+  onOpenOutsourceDialog?: (test: PatientTest) => void;
   getStatusBadge: (status: string) => React.ReactNode;
 }
 
@@ -68,6 +69,7 @@ export const TestTable = ({
   onToggleExpandPackageGroup,
   onOpenResultDialog,
   onOpenAuditDialog,
+  onOpenOutsourceDialog,
   getStatusBadge,
 }: TestTableProps) => {
   return (
@@ -291,7 +293,12 @@ export const TestTable = ({
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
                             </TableCell>
-                            <TableCell>{getStatusBadge(test.status)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {getStatusBadge(test.status)}
+                                {test.external_lab_id && <Badge variant="outline" className="text-[10px] gap-0.5"><Send className="h-2.5 w-2.5" />Out</Badge>}
+                              </div>
+                            </TableCell>
                             <TableCell>
                               {test.result_items && test.result_items.length > 0 ? (
                                 <span className="text-sm font-medium">
@@ -314,6 +321,11 @@ export const TestTable = ({
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
+                                {onOpenOutsourceDialog && !test.external_lab_id && test.status !== "completed" && (
+                                  <Button variant="ghost" size="sm" onClick={() => onOpenOutsourceDialog(test)} className="gap-1 text-muted-foreground hover:text-foreground" title="Outsource to external lab">
+                                    <Send className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -407,7 +419,12 @@ export const TestTable = ({
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
-                    <TableCell>{getStatusBadge(test.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {getStatusBadge(test.status)}
+                        {test.external_lab_id && <Badge variant="outline" className="text-[10px] gap-0.5"><Send className="h-2.5 w-2.5" />Out</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {test.result_items && test.result_items.length > 0 ? (
                         <span className="text-sm font-medium">
@@ -443,6 +460,11 @@ export const TestTable = ({
                             abhaAddress={(test.patients as any)?.abha_address ?? null}
                             initialLinked={linkedTestIds.has(test.id)}
                           />
+                        )}
+                        {onOpenOutsourceDialog && !test.external_lab_id && test.status !== "completed" && (
+                          <Button variant="ghost" size="sm" onClick={() => onOpenOutsourceDialog(test)} className="gap-1 text-muted-foreground hover:text-foreground" title="Outsource to external lab">
+                            <Send className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                         <Button
                           variant="ghost"

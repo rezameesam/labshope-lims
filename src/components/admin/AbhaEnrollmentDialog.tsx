@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -569,7 +570,7 @@ export function AbhaEnrollmentDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Date of Birth</Label>
-                <Input type="date" value={demoDob} onChange={(e) => setDemoDob(e.target.value)} />
+                <DatePicker value={demoDob} onChange={setDemoDob} />
               </div>
               <div className="space-y-1.5">
                 <Label>Gender</Label>

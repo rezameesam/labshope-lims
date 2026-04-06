@@ -156,6 +156,10 @@ const BillingPaymentDialog = ({
           </div>
         )}
 
+        <p className="text-[11px] text-muted-foreground">
+          A journal entry will be created automatically in the Finance module.
+        </p>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

@@ -31,6 +31,7 @@ import { formatAppDateTime } from "@/lib/date";
 import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
 import { TestFilters } from "./tests/TestFilters";
 import { TestTable } from "./tests/TestTable";
+import OutsourceDialog from "./tests/OutsourceDialog";
 import { TestFormDialog } from "./tests/TestFormDialog";
 import { TestResultEntry } from "./tests/TestResultEntry";
 import {
@@ -94,6 +95,8 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
   const [appliedPackage, setAppliedPackage] = useState<TestPackage | null>(null);
   const [showPackageTestsIndividually, setShowPackageTestsIndividually] = useState(false);
   const [expandedPackageGroups, setExpandedPackageGroups] = useState<Set<string>>(new Set());
+  const [outsourceDialogOpen, setOutsourceDialogOpen] = useState(false);
+  const [outsourceTest, setOutsourceTest] = useState<PatientTest | null>(null);
   const [formData, setFormData] = useState({
     test_date: new Date().toISOString().split("T")[0],
     notes: "",
@@ -399,6 +402,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           is_abnormal, normal_range_text, notes, created_at, created_by, updated_by,
           result_entered_by, result_entered_at, test_id, lab_id, collection_center_id, registry_serial,
           collected_by, collected_at,
+          external_lab_id, outsource_cost, outsourced_at,
           patients (
             patient_id,
             full_name,
@@ -1729,6 +1733,13 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       />
 
       {/* Audit History Dialog */}
+      <OutsourceDialog
+        isOpen={outsourceDialogOpen}
+        onOpenChange={setOutsourceDialogOpen}
+        test={outsourceTest}
+        onOutsourced={() => { fetchData(); setOutsourceDialogOpen(false); }}
+      />
+
       <Dialog open={isAuditDialogOpen} onOpenChange={setIsAuditDialogOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -1916,6 +1927,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         onToggleExpandPackageGroup={toggleExpandPackageGroup}
         onOpenResultDialog={openResultDialog}
         onOpenAuditDialog={openAuditDialog}
+        onOpenOutsourceDialog={(test) => { setOutsourceTest(test); setOutsourceDialogOpen(true); }}
         getStatusBadge={getStatusBadge}
       />
     </div>

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -154,23 +155,9 @@ export default function PlatformAuditLog() {
             </SelectContent>
           </Select>
           <label htmlFor="audit-date-from" className="sr-only">From date</label>
-          <Input
-            id="audit-date-from"
-            name="audit_date_from"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="w-40"
-          />
+          <DatePicker value={dateFrom} onChange={setDateFrom} className="w-[200px]" />
           <label htmlFor="audit-date-to" className="sr-only">To date</label>
-          <Input
-            id="audit-date-to"
-            name="audit_date_to"
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="w-40"
-          />
+          <DatePicker value={dateTo} onChange={setDateTo} className="w-[200px]" />
         </div>
 
         {/* Table */}

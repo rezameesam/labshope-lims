@@ -1,8 +1,8 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, CheckCircle2, Building2, Lock, ClipboardList, Shield, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Phone, Mail, MapPin, Calendar, Droplets, User, X, FileText, ChevronRight, Download, Printer, Receipt, IndianRupee, Clock, CheckCircle, CheckCircle2, Building2, Lock, ClipboardList, Shield, FileSpreadsheet, CreditCard } from "lucide-react";
 import { exportToExcel } from "@/lib/exportToExcel";
 import { Button } from "@/components/ui/button";
-import { DateInput } from "@/components/ui/date-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -402,12 +402,9 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
 
       <div className="space-y-2">
         <Label htmlFor="date_of_birth">Date of Birth</Label>
-        <DateInput
-          id="date_of_birth"
-          name="date_of_birth"
+        <DatePicker
           value={formData.date_of_birth}
           onChange={(value) => setFormData({ ...formData, date_of_birth: value })}
-          autoComplete="off"
         />
       </div>
 
@@ -1055,6 +1052,82 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
       console.error("Error fetching billing summary:", error);
       setBillingSummary(null);
     }
+  };
+
+  const [payAllDialogOpen, setPayAllDialogOpen] = useState(false);
+  const [payAllPatientId, setPayAllPatientId] = useState<string | null>(null);
+  const [payAllAmount, setPayAllAmount] = useState(0);
+  const [payAllMethod, setPayAllMethod] = useState("cash");
+  const [payAllTxnId, setPayAllTxnId] = useState("");
+  const [payAllSubmitting, setPayAllSubmitting] = useState(false);
+
+  const openPayAllDialog = (patientId: string, outstanding: number) => {
+    setPayAllPatientId(patientId);
+    setPayAllAmount(outstanding);
+    setPayAllMethod("cash");
+    setPayAllTxnId("");
+    setPayAllDialogOpen(true);
+  };
+
+  const handlePayAll = async () => {
+    if (!organizationId || !payAllPatientId || payAllAmount <= 0) return;
+    setPayAllSubmitting(true);
+    try {
+      // Fetch all unpaid/partial invoices for this patient
+      const { data: invoices, error: fetchErr } = await (supabase as any)
+        .from("invoices")
+        .select("id, invoice_number, final_amount, paid_amount, patient_id")
+        .eq("patient_id", payAllPatientId)
+        .eq("organization_id", organizationId)
+        .in("payment_status", ["pending", "partial"])
+        .order("created_at");
+
+      if (fetchErr) throw fetchErr;
+      if (!invoices || invoices.length === 0) {
+        toast.info("No outstanding invoices found");
+        setPayAllDialogOpen(false);
+        setPayAllSubmitting(false);
+        return;
+      }
+
+      // Pay each invoice fully
+      for (const inv of invoices) {
+        const remaining = inv.final_amount - inv.paid_amount;
+        if (remaining <= 0) continue;
+
+        // Record payment
+        await (supabase as any)
+          .from("payments")
+          .insert({
+            invoice_id: inv.id,
+            organization_id: organizationId,
+            amount: remaining,
+            payment_method: payAllMethod,
+            transaction_id: payAllTxnId || null,
+            received_by: user?.id,
+          });
+
+        // Update invoice to paid
+        await (supabase as any)
+          .from("invoices")
+          .update({
+            paid_amount: inv.final_amount,
+            payment_status: "paid",
+            payment_method: payAllMethod,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", inv.id);
+      }
+
+      toast.success(`All ${invoices.length} invoice(s) marked as paid — ₹${payAllAmount.toLocaleString()}`);
+      setPayAllDialogOpen(false);
+
+      // Refresh billing summary
+      if (payAllPatientId) await fetchBillingSummary(payAllPatientId);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process payments");
+    }
+    setPayAllSubmitting(false);
   };
 
   const fetchAbdmProfileShares = useCallback(async () => {
@@ -2733,6 +2806,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
           setCustomResetPassword("");
           setResetDialogOpen(true);
         }}
+        onPayAll={openPayAllDialog}
         getStatusBadge={getStatusBadge}
         resetDialogOpen={resetDialogOpen}
         onResetDialogOpenChange={setResetDialogOpen}
@@ -2746,6 +2820,54 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
         onPrintOptionsChange={setPrintOptions}
         onPrintTests={handlePrintTests}
       />
+
+      {/* Pay All Dialog */}
+      <Dialog open={payAllDialogOpen} onOpenChange={setPayAllDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Pay All Outstanding
+            </DialogTitle>
+            <DialogDescription>
+              Record payment for all outstanding invoices for this patient.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-center">
+              <p className="text-xs text-muted-foreground">Total Outstanding</p>
+              <p className="text-2xl font-bold font-mono text-amber-700 dark:text-amber-400">₹{payAllAmount.toLocaleString()}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <Select value={payAllMethod} onValueChange={setPayAllMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {payAllMethod !== "cash" && (
+              <div className="space-y-2">
+                <Label>Transaction ID</Label>
+                <Input value={payAllTxnId} onChange={(e) => setPayAllTxnId(e.target.value)} placeholder="Enter transaction reference" />
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              This will mark all outstanding invoices as paid and create journal entries in Finance.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayAllDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handlePayAll} disabled={payAllSubmitting}>
+              {payAllSubmitting ? "Processing..." : `Pay ₹${payAllAmount.toLocaleString()}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Link ABHA profile share to existing patient */}
       <Dialog open={!!matchShareDialogShare} onOpenChange={(open) => { if (!open) { setMatchShareDialogShare(null); setMatchShareSearch(""); } }}>

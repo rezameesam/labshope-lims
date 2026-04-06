@@ -27,6 +27,9 @@ export interface PatientTest {
   collected_at: string | null;
   lab_id: string | null;
   collection_center_id: string | null;
+  external_lab_id: string | null;
+  outsource_cost: number | null;
+  outsourced_at: string | null;
   patients: {
     patient_id: string;
     full_name: string;

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -719,12 +720,7 @@ const PlatformCustomerDetail = () => {
                   </p>
                   {editingTrialDate ? (
                     <div className="flex items-center gap-2">
-                      <Input
-                        type="date"
-                        value={trialDateInput}
-                        onChange={(e) => setTrialDateInput(e.target.value)}
-                        className="w-44"
-                      />
+                      <DatePicker value={trialDateInput} onChange={setTrialDateInput} className="w-[220px]" />
                       <Button size="icon" variant="ghost" onClick={handleSaveTrialDate} disabled={savingTrialStatus || !trialDateInput}>
                         {savingTrialStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-emerald-600" />}
                       </Button>
@@ -876,12 +872,7 @@ const PlatformCustomerDetail = () => {
                   <div className="mt-3 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
                     <div className="space-y-1.5">
                       <p className="text-xs font-medium text-muted-foreground">Valid until (optional)</p>
-                      <Input
-                        type="date"
-                        value={complimentaryUntilInput}
-                        onChange={(e) => setComplimentaryUntilInput(e.target.value)}
-                        className="h-8 text-sm"
-                      />
+                      <DatePicker value={complimentaryUntilInput} onChange={setComplimentaryUntilInput} className="w-full" />
                     </div>
                     <div className="space-y-1.5">
                       <p className="text-xs font-medium text-muted-foreground">Internal note (optional)</p>

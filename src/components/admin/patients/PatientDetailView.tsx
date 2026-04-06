@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Phone,
   Mail,
@@ -21,6 +21,8 @@ import {
   TrendingUp,
   AlertTriangle,
   MessageSquare,
+  CreditCard,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +141,7 @@ export interface PatientDetailViewProps {
   onEditPatient: (patient: Patient) => void;
   onTogglePatientStatus: (patient: Patient) => void;
   onOpenResetDialog: () => void;
+  onPayAll?: (patientId: string, outstanding: number) => void;
   getStatusBadge: (status: string) => React.ReactNode;
   // Reset password dialog
   resetDialogOpen: boolean;
@@ -171,6 +174,7 @@ const PatientDetailView = ({
   onEditPatient,
   onTogglePatientStatus,
   onOpenResetDialog,
+  onPayAll,
   getStatusBadge,
   resetDialogOpen,
   onResetDialogOpenChange,
@@ -569,7 +573,7 @@ const PatientDetailView = ({
                       </p>
                     </div>
                     {billingSummary.outstanding > 0 && (
-                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 col-span-2">
+                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 col-span-2 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-amber-600" />
@@ -579,6 +583,16 @@ const PatientDetailView = ({
                             ₹{billingSummary.outstanding.toLocaleString()}
                           </p>
                         </div>
+                        {onPayAll && selectedPatient && (
+                          <Button
+                            size="sm"
+                            className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+                            onClick={() => onPayAll(selectedPatient.id, billingSummary.outstanding)}
+                          >
+                            <Banknote className="h-4 w-4" />
+                            Pay All — ₹{billingSummary.outstanding.toLocaleString()}
+                          </Button>
+                        )}
                       </div>
                     )}
                     <p className="col-span-2 text-xs text-muted-foreground">

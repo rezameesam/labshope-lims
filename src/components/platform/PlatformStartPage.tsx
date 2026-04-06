@@ -7,6 +7,7 @@ import PlatformSiteHeader from "@/components/platform/PlatformSiteHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -1079,7 +1080,7 @@ const PlatformStartPage = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="go-live-target">Go-live Target</Label>
-                      <Input id="go-live-target" type="date" value={goLiveTarget} onChange={(e) => setGoLiveTarget(e.target.value)} />
+                      <DatePicker value={goLiveTarget} onChange={setGoLiveTarget} />
                     </div>
                   </div>
 

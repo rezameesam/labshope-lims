@@ -28,6 +28,7 @@ import {
   Sparkles,
   TrendingUp,
   Loader2,
+  BookOpen,
 } from "lucide-react";
 import {
   Dialog,
@@ -74,8 +75,10 @@ const ActiveSessions = lazy(() => import("@/components/account/ActiveSessions"))
 const ManageVisitorLogs = lazy(() => import("@/components/admin/ManageVisitorLogs"));
 const ManageBookingRequests = lazy(() => import("@/components/admin/ManageBookingRequests"));
 const AdminQuickSetup = lazy(() => import("@/components/admin/AdminQuickSetup"));
+const ManageFinance = lazy(() => import("@/components/admin/ManageFinance"));
+const ManageExternalLabs = lazy(() => import("@/components/admin/ManageExternalLabs"));
 
-type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings" | "subscription";
+type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "finance" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "external-labs" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings" | "subscription";
 
 type PatientSummary = {
   id: string;
@@ -139,6 +142,7 @@ const AdminDashboard = () => {
       "test-packages",
       "test-templates",
       "billing",
+      "finance",
       "subscription",
       "inventory",
       "reports",
@@ -146,6 +150,7 @@ const AdminDashboard = () => {
       "reminders",
       "labs",
       "collection-centers",
+      "external-labs",
       "roles",
       "security",
       "visitor-logs",
@@ -441,6 +446,7 @@ const AdminDashboard = () => {
     { id: "patients" as TabType, label: "Patients", icon: UserPlus },
     { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
     { id: "billing" as TabType, label: "Billing", icon: Receipt },
+    { id: "finance" as TabType, label: "Finance", icon: BookOpen },
     { id: "subscription" as TabType, label: "Subscription", icon: BadgeCheck, adminOnly: true },
     { id: "reminders" as TabType, label: "Reminders", icon: Bell },
     { id: "test-packages" as TabType, label: "Test Packages", icon: Package },
@@ -451,6 +457,7 @@ const AdminDashboard = () => {
     { id: "employees" as TabType, label: "Employees", icon: Users, adminOnly: true },
     { id: "labs" as TabType, label: "Labs", icon: Building2, adminOnly: true },
     { id: "collection-centers" as TabType, label: "Collection Centers", icon: MapPin },
+    { id: "external-labs" as TabType, label: "External Labs", icon: Building2 },
     { id: "test-templates" as TabType, label: "Templates", icon: FileText },
     { id: "roles" as TabType, label: "Roles & Permissions", icon: Shield, adminOnly: true },
     { id: "security" as TabType, label: "Security", icon: Laptop },
@@ -481,13 +488,13 @@ const AdminDashboard = () => {
     {
       label: "Manage",
       tabs: visibleTabs.filter(t =>
-        ["employees", "labs", "collection-centers", "reports"].includes(t.id)
+        ["employees", "labs", "collection-centers", "external-labs", "reports"].includes(t.id)
       ),
     },
     {
       label: "Account",
       tabs: visibleTabs.filter(t =>
-        ["subscription", "quick-setup", "system-settings", "notifications", "roles", "security", "visitor-logs"].includes(t.id)
+        ["subscription", "finance", "quick-setup", "system-settings", "notifications", "roles", "security", "visitor-logs"].includes(t.id)
       ),
     },
   ].filter(g => g.tabs.length > 0);
@@ -685,12 +692,14 @@ const AdminDashboard = () => {
             {activeTab === "test-packages" && <AdminErrorBoundary tabName="Test Packages"><ManageTestPackages /></AdminErrorBoundary>}
             {activeTab === "test-templates" && <AdminErrorBoundary tabName="Templates"><ManageTestTemplates /></AdminErrorBoundary>}
             {activeTab === "billing" && <AdminErrorBoundary tabName="Billing"><ManageBilling /></AdminErrorBoundary>}
+            {activeTab === "finance" && <AdminErrorBoundary tabName="Finance"><ManageFinance /></AdminErrorBoundary>}
             {activeTab === "subscription" && <AdminErrorBoundary tabName="Subscription"><SubscriptionStatus /></AdminErrorBoundary>}
             {activeTab === "inventory" && <AdminErrorBoundary tabName="Inventory"><ManageInventory /></AdminErrorBoundary>}
             {activeTab === "doctors" && <AdminErrorBoundary tabName="Doctors"><ManageDoctors /></AdminErrorBoundary>}
             {activeTab === "reminders" && <AdminErrorBoundary tabName="Reminders"><ManageReminders /></AdminErrorBoundary>}
             {activeTab === "labs" && <AdminErrorBoundary tabName="Labs"><ManageLabs /></AdminErrorBoundary>}
             {activeTab === "collection-centers" && <AdminErrorBoundary tabName="Collection Centers"><ManageCollectionCenters /></AdminErrorBoundary>}
+            {activeTab === "external-labs" && <AdminErrorBoundary tabName="External Labs"><ManageExternalLabs /></AdminErrorBoundary>}
             {activeTab === "reports" && <AdminErrorBoundary tabName="Reports"><FinancialReports /></AdminErrorBoundary>}
             {activeTab === "roles" && hasRole("admin") && <AdminErrorBoundary tabName="Roles & Permissions"><ManageRoles /></AdminErrorBoundary>}
             {activeTab === "security" && <AdminErrorBoundary tabName="Security"><ActiveSessions /></AdminErrorBoundary>}

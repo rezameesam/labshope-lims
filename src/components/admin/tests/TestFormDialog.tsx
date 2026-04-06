@@ -169,20 +169,20 @@ export const TestFormDialog = ({
 
   return (
     <>
-      <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] flex flex-col p-0">
         <DialogHeader className="border-b px-4 py-3">
           <DialogTitle>Add Tests for Patient</DialogTitle>
           <DialogDescription>
             Select tests and create the invoice in one step.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={(e) => e.preventDefault()} className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <form onSubmit={(e) => e.preventDefault()} className="flex-1 min-h-0 flex flex-col">
           {!isDialogContentReady ? (
             <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
               Loading test form...
             </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <ScrollArea className="h-full">
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

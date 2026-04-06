@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -329,8 +330,8 @@ const FinancialReports = () => {
           </Select>
           {period === "custom" && (
             <>
-              <Input id="financial-from-date" name="financial_from_date" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" />
-              <Input id="financial-to-date" name="financial_to_date" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" />
+              <DatePicker value={fromDate} onChange={setFromDate} className="w-[200px]" />
+              <DatePicker value={toDate} onChange={setToDate} className="w-[200px]" />
             </>
           )}
           <Button onClick={handleExportPDF} className="gap-2">

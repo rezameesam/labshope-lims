@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Eye, Receipt, CreditCard, Banknote,
   IndianRupee, Printer,
-  CheckCircle, Clock, XCircle, Edit2,
+  CheckCircle, Clock, XCircle, Edit2, BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ interface Invoice {
   created_at: string;
   paid_at: string | null;
   updated_by?: string | null;
+  journal_entry_id?: string | null;
   lab_id?: string | null;
   collection_center_id?: string | null;
   patient?: {
@@ -1681,9 +1682,21 @@ const ManageBilling = () => {
                 </div>
               )}
 
+              {/* Finance link */}
+              {selectedInvoice.journal_entry_id && (
+                <a
+                  href="/admin?tab=finance"
+                  className="flex items-center gap-2 p-3 rounded-lg bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                >
+                  <BookOpen className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span className="text-blue-700 dark:text-blue-300">Linked to Finance — Journal Entry recorded</span>
+                  <span className="ml-auto text-blue-500 text-xs">View &rarr;</span>
+                </a>
+              )}
+
               <div className="flex gap-2 pt-4 border-t">
                 {selectedInvoice.payment_status !== "paid" && (
-                  <Button 
+                  <Button
                     className="flex-1"
                     onClick={() => {
                       setIsDetailsOpen(false);
@@ -1695,8 +1708,8 @@ const ManageBilling = () => {
                   </Button>
                 )}
                 {(isAdmin || selectedInvoice.payment_status !== "paid") && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
                     onClick={() => {
                       setIsDetailsOpen(false);
@@ -1707,8 +1720,8 @@ const ManageBilling = () => {
                     Edit Invoice
                   </Button>
                 )}
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1"
                   onClick={() => handlePrintInvoice(selectedInvoice)}
                 >
