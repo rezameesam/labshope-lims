@@ -23,6 +23,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 const DashboardOverviewCharts = lazy(() => import("./DashboardOverviewCharts"));
+const QuickRegisterForm = lazy(() => import("./dashboard/QuickRegisterForm"));
+const PendingResultsWidget = lazy(() => import("./dashboard/PendingResultsWidget"));
 
 interface Stats {
   employees: number;
@@ -361,6 +363,16 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Quick Register + Pending Results */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Suspense fallback={<div className="h-[300px] animate-pulse rounded-2xl bg-muted/40" />}>
+          <QuickRegisterForm onNavigate={onNavigate} />
+        </Suspense>
+        <Suspense fallback={<div className="h-[300px] animate-pulse rounded-2xl bg-muted/40" />}>
+          <PendingResultsWidget onNavigate={onNavigate} />
+        </Suspense>
       </div>
 
       {/* Charts Row */}

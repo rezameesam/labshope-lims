@@ -15,6 +15,12 @@ type DateInputProps = {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Show month/year dropdown selectors (useful for DOB pickers) */
+  captionLayout?: "buttons" | "dropdown" | "dropdown-buttons";
+  fromYear?: number;
+  toYear?: number;
+  toDate?: Date;
+  fromDate?: Date;
   // Legacy props — accepted for backwards compat, not used
   id?: string;
   name?: string;
@@ -26,7 +32,7 @@ type DateInputProps = {
 };
 
 const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
-  ({ value, onChange, className, placeholder, disabled }, _ref) => {
+  ({ value, onChange, className, placeholder, disabled, captionLayout, fromYear, toYear, toDate, fromDate }, _ref) => {
     return (
       <DatePicker
         value={value}
@@ -34,6 +40,11 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
         className={className}
         placeholder={placeholder}
         disabled={disabled}
+        captionLayout={captionLayout}
+        fromYear={fromYear}
+        toYear={toYear}
+        toDate={toDate}
+        fromDate={fromDate}
       />
     );
   },

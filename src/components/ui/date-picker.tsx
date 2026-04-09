@@ -17,9 +17,32 @@ interface DatePickerProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  /** Show month/year dropdown selectors (useful for DOB pickers) */
+  captionLayout?: "buttons" | "dropdown" | "dropdown-buttons";
+  /** Earliest selectable year (required when captionLayout includes dropdown) */
+  fromYear?: number;
+  /** Latest selectable year (required when captionLayout includes dropdown) */
+  toYear?: number;
+  /** Disable dates after this date (e.g. new Date() for no-future) */
+  toDate?: Date;
+  /** Disable dates before this date */
+  fromDate?: Date;
 }
 
-const DatePicker = ({ value, onChange, placeholder = "dd/mm/yyyy", className, disabled }: DatePickerProps) => {
+const CURRENT_YEAR = new Date().getFullYear();
+
+const DatePicker = ({
+  value,
+  onChange,
+  placeholder = "dd/mm/yyyy",
+  className,
+  disabled,
+  captionLayout = "dropdown-buttons",
+  fromYear = 1920,
+  toYear = CURRENT_YEAR + 5,
+  toDate,
+  fromDate,
+}: DatePickerProps) => {
   const [open, setOpen] = React.useState(false);
   const [displayValue, setDisplayValue] = React.useState(() => formatDateInputDisplay(value));
 
@@ -95,6 +118,11 @@ const DatePicker = ({ value, onChange, placeholder = "dd/mm/yyyy", className, di
           selected={selectedDate}
           onSelect={handleCalendarSelect}
           defaultMonth={selectedDate}
+          captionLayout={captionLayout}
+          fromYear={fromYear}
+          toYear={toYear}
+          toDate={toDate}
+          fromDate={fromDate}
           initialFocus
         />
       </PopoverContent>
