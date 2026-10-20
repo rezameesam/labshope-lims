@@ -18,14 +18,18 @@ Written after comparing the live site with this repository (October 2026).
 1. Cloudflare dashboard > Workers & Pages > Create > **Import a repository** > install the Cloudflare GitHub app on the organisation
    that owns this repo and give it access to this repo only.
 2. Production branch: `production`. Build command: `npm ci && npm run build`. Deploy command: `npx wrangler deploy`.
-3. Build variables (Settings > Variables and secrets > *Build* variables). Names only here, take the values from the production
-   settings you already use (they are public values that end up in the browser bundle, never put a service-role key or any
-   other secret in a `VITE_` variable):
+3. Build variables (Settings > Variables and secrets > *Build* variables). Names only here; take the values from the production
+   settings you already use. **Every `VITE_` variable is compiled into the public browser bundle**: only public values belong here
+   (never a service-role key, a Twilio auth token, a Mailjet secret or any other secret). Used by the code at this commit:
    `VITE_PUBLIC_BASE_DOMAIN`, `VITE_PLATFORM_HOSTNAME`, `VITE_PAGES_CNAME_TARGET`, `VITE_PUBLIC_LOGO_URL`, `VITE_PLATFORM_LABEL`,
    `VITE_PLATFORM_PRODUCT_NAME`, `VITE_PLATFORM_COMPANY_NAME`, `VITE_PLATFORM_CONTACT_EMAIL`, `VITE_PLATFORM_TAGLINE`,
-   `VITE_RAZORPAY_KEY_ID`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`, `VITE_TURNSTILE_SITE_KEY`
-   (the list is `.env.example`; check it against the current one). A wrong or missing value builds a site that looks fine and
-   points at the wrong place, so compare with the check below.
+   `VITE_RAZORPAY_KEY_ID`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`, `VITE_TURNSTILE_SITE_KEY`.
+   `.env.example` is out of date: it lacks `VITE_PLATFORM_HOSTNAME` and `VITE_PAGES_CNAME_TARGET`, which the code uses.
+   **Known risk, do not set:** `.env.example` also lists `VITE_TWILIO_ACCOUNT_SID`, `VITE_TWILIO_AUTH_TOKEN` and
+   `VITE_TWILIO_PHONE_NUMBER`, and `src/services/notificationService.ts` reads them in the browser. A real Twilio auth token there
+   would be readable by every visitor. The live site does not contain such a value (checked October 2026). Sending SMS should move to
+   a server-side function (a Supabase Edge Function) before that path is used. A wrong or missing value builds a site that looks fine
+   and points at the wrong place, so compare with the check below.
 4. The first deploy creates the Worker **`labshope-lims-app`** on a `workers.dev` address. It does **not** touch the live site.
 
 ## Check that a build equals what is live
