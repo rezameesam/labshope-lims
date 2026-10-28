@@ -34,6 +34,13 @@
 >   - New Cloudflare Pages project **`labshope-lims-app`** (connected to `LabShope/labshope-lims`, production branch `main`, the 15 `VITE_*` values) built successfully; `https://labshope-lims-app.pages.dev` serves the latest app against the right database.
 > - **Remaining:** move `irmclinic.com` and `www.irmclinic.com` from Pages project `irmclinic` to `labshope-lims-app` in the dashboard (the dashboard also fixes the DNS CNAMEs; the Wrangler login cannot edit DNS).
 >   Then remove the `knownIssue` lines for those hosts in `scripts/live-checks.json`, add the `www.irmclinic.com` row to `organization_domains`, retire `lab.irmclinic.com` (redirect first), and later delete the old Pages projects `irmclinic` (stale queued deployment `c111d2f5`) and `labshope-lims`.
+> - **DONE (late 29 Oct):** `irmclinic.com` and `www.irmclinic.com` now serve the latest app from Pages project `labshope-lims-app` (domains moved; the two DNS CNAMEs
+>   repointed to `labshope-lims-app.pages.dev` with a one-off DNS token; mail records untouched). Health check: 6 of 6 healthy. `lab.irmclinic.com` was retired
+>   (DNS record and Pages custom domain deleted). Data-fix migration `20261029000100` is applied (IRM primary domain + www alias, Lifeline reactivated and renamed).
+>   **Pending: migration `20261029000200` (removes the `lab.irmclinic.com` row from `organization_domains`); apply with `supabase db push --linked --yes`.**
+> - **Still on the old Pages project `labshope-lims`:** `lims.labshope.com`, `abdm.labshope.com`, `www.shuhul.com` (their DNS is in the `labshope.com`/`shuhul.com` zones, not covered by the DNS token). Move them to `labshope-lims-app`,
+>   then delete the old Pages projects `labshope-lims` and `irmclinic` (stale queued deployment `c111d2f5`).
+> - **Security:** a Cloudflare DNS API token was pasted into the chat. It should be deleted (dashboard > My Profile > API Tokens) now that the DNS change is done.
 > - Item 2 below (data comparison) is no longer needed.
 
 
