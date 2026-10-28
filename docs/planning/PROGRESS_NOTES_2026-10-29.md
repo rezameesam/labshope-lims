@@ -28,6 +28,12 @@
 > - The three unpushed notes commits were rewritten to drop the Claude co-author trailer (owner preference); 87 older pushed commits still carry it (left alone on purpose).
 > - Pushing `main` is currently safe: no Cloudflare build is connected to the repo, and `irmclinic` has its build variables. **When a Pages project is reconnected,
 >   remember that every push to its production branch deploys.**
+> - **DONE (29 Oct, evening):**
+>   - Supabase CLI is logged in as the account that owns project `ceyfwoczyhnwipacwhcn` (named "LIMS", Mumbai); the personal account only sees two other projects.
+>   - The `register_visit` migration (`20261029000000`) is **applied to production** (owner ran `supabase db push --linked --yes`; it was the only pending migration). Production types match the committed types.
+>   - New Cloudflare Pages project **`labshope-lims-app`** (connected to `LabShope/labshope-lims`, production branch `main`, the 15 `VITE_*` values) built successfully; `https://labshope-lims-app.pages.dev` serves the latest app against the right database.
+> - **Remaining:** move `irmclinic.com` and `www.irmclinic.com` from Pages project `irmclinic` to `labshope-lims-app` in the dashboard (the dashboard also fixes the DNS CNAMEs; the Wrangler login cannot edit DNS).
+>   Then remove the `knownIssue` lines for those hosts in `scripts/live-checks.json`, add the `www.irmclinic.com` row to `organization_domains`, retire `lab.irmclinic.com` (redirect first), and later delete the old Pages projects `irmclinic` (stale queued deployment `c111d2f5`) and `labshope-lims`.
 > - Item 2 below (data comparison) is no longer needed.
 
 
