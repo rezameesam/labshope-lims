@@ -17,6 +17,17 @@
 >   (the dashboard fixes the DNS records itself; the Wrangler login has no DNS-write scope); or (B) delete and recreate the project with the same name
 >   (no DNS change needed, but it destroys deployment history and the rollback target, with a short outage). A was recommended.
 > - Wrangler OAuth tokens expire in about an hour; run `npx wrangler whoami` to refresh before using the API helper.
+> - Creating a NEW Pages project (`labshope-lims-app`, connected to `LabShope/labshope-lims`, `main`, `npm run build` -> `dist`, the 15 `VITE_*` values) was also
+>   blocked by the auto-mode guard; it needs the owner's explicit approval, or the owner can create it in the dashboard. Then move `irmclinic.com`
+>   and `www.irmclinic.com` to it (dashboard fixes the DNS itself).
+> - **Tests and CI now exist** (`.github/workflows/ci.yml`, green on `main`/`demo`): web (typecheck, lint, unit tests, build), desktop tests, and a database job that
+>   rebuilds Supabase from the migrations and runs `supabase/tests/*.test.sql` plus the real-database integration test (`scripts/test-db.sh`, also `npm run test:db`).
+>   `live-health.yml` runs `scripts/check-live.mjs` every morning (`npm run test:live`): page loads, build points at the right Supabase project, each lab resolves.
+>   `scripts/live-checks.json` marks `irmclinic.com` / `www.irmclinic.com` as known issues (WARN); delete those `knownIssue` lines when they are fixed.
+>   CI caught a real problem on its first run: the date tests only passed on an IST machine (fixed by pinning TZ in `src/test/globalSetup.ts`).
+> - The three unpushed notes commits were rewritten to drop the Claude co-author trailer (owner preference); 87 older pushed commits still carry it (left alone on purpose).
+> - Pushing `main` is currently safe: no Cloudflare build is connected to the repo, and `irmclinic` has its build variables. **When a Pages project is reconnected,
+>   remember that every push to its production branch deploys.**
 > - Item 2 below (data comparison) is no longer needed.
 
 
