@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LabShope LIMS</title>
+  <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+  <main>
+    <h1>Welcome to LabShope LIMS</h1>
+    <p>Enter your lab's workspace to get started. You only need to do this once on this computer.</p>
+    <form id="form" novalidate>
+      <label for="workspace">Lab workspace</label>
+      <input id="workspace" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="your-lab" autofocus>
+      <p class="hint" id="hint">For example <strong>your-lab</strong> or <strong>your-lab.labshope.com</strong>.</p>
+      <p class="error" id="error" role="alert"></p>
+      <div class="row">
+        <button type="button" id="cancel" hidden>Cancel</button>
+        <button type="submit" class="primary" id="submit">Continue</button>
+      </div>
+    </form>
+    <small id="version"></small>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>

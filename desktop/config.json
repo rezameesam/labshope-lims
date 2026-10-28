@@ -1,0 +1,4 @@
+{
+  "baseDomain": "labshope.com",
+  "loginPath": "/auth/staff"
+}

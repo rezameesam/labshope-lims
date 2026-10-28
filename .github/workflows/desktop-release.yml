@@ -1,0 +1,103 @@
+name: Desktop Release
+
+# Builds the LabShope LIMS desktop app for macOS, Ubuntu/Linux and Windows and
+# attaches every bundle to the GitHub release that triggered the run.
+#
+# Run it manually (Actions -> Desktop Release -> Run workflow) to do a dry run:
+# the bundles are built and kept as workflow artifacts, nothing is published.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+    working-directory: desktop
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon + Intel)
+            os: macos-latest
+            builder_args: --mac dmg zip --arm64 --x64
+          - name: Ubuntu / Linux
+            os: ubuntu-22.04
+            builder_args: --linux AppImage deb --x64
+          - name: Windows
+            os: windows-latest
+            builder_args: --win nsis --x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Set app version from the release tag
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Smoke test (boots the real app)
+        if: runner.os != 'Linux'
+        run: npm run smoke
+
+      - name: Build bundles
+        run: npx electron-builder ${{ matrix.builder_args }} --publish never
+
+      - name: List bundles
+        run: ls -lh dist
+
+      - name: Keep bundles as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lims-desktop-${{ runner.os }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach bundles to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cd dist
+          files=$(find . -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.blockmap' -o -name 'latest*.yml' \))
+          echo "Uploading to $TAG:"
+          echo "$files"
+          gh release upload "$TAG" $files --clobber --repo "$GITHUB_REPOSITORY"

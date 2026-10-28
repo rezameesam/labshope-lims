@@ -1,0 +1,79 @@
+{
+  "name": "labshope-lims-desktop",
+  "productName": "LabShope LIMS",
+  "version": "1.0.0",
+  "description": "Desktop app for LabShope LIMS",
+  "type": "commonjs",
+  "main": "main.js",
+  "private": true,
+  "author": {
+    "name": "LabShope",
+    "email": "noreply@labshope.com"
+  },
+  "homepage": "https://labshope.com",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.js\"",
+    "dist": "electron-builder --publish never",
+    "dist:dir": "electron-builder --dir --publish never",
+    "smoke": "electron test/smoke-main.js"
+  },
+  "build": {
+    "appId": "com.labshope.lims",
+    "productName": "LabShope LIMS",
+    "artifactName": "LabShope-LIMS-${version}-${os}-${arch}.${ext}",
+    "copyright": "Copyright \u00a9 LabShope",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "config.json",
+      "lib/**",
+      "renderer/**"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "IRMClinic",
+      "repo": "irmclinic"
+    },
+    "mac": {
+      "category": "public.app-category.medical",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "title": "LabShope LIMS ${version}"
+    },
+    "linux": {
+      "category": "Office",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "maintainer": "LabShope <noreply@labshope.com>",
+      "synopsis": "Laboratory information management system"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  }
+}
