@@ -18,6 +18,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Table2,
   UserCog,
   UserPlus,
   Users,
@@ -30,6 +31,7 @@ export type TabType =
   | "booking-requests"
   | "employees"
   | "patients"
+  | "sheets"
   | "tests"
   | "test-catalog"
   | "test-packages"
@@ -67,6 +69,7 @@ export const ADMIN_DASHBOARD_TABS: AdminDashboardTab[] = [
   { id: "notice-board", label: "Notice Board", icon: Bell },
   { id: "booking-requests", label: "Booking Requests", icon: PhoneCall },
   { id: "patients", label: "Patients", icon: UserPlus },
+  { id: "sheets", label: "Lab Sheets", icon: Table2 },
   { id: "tests", label: "Patient Tests", icon: ClipboardList },
   { id: "billing", label: "Billing", icon: Receipt },
   { id: "finance", label: "Finance", icon: BookOpen },
@@ -97,7 +100,7 @@ export const VALID_ADMIN_DASHBOARD_TABS = new Set<TabType>(
 const ADMIN_DASHBOARD_NAV_GROUPS: AdminDashboardNavGroupDefinition[] = [
   {
     label: "Work",
-    tabIds: ["overview", "notice-board", "booking-requests", "patients", "tests", "billing", "reminders"],
+    tabIds: ["overview", "notice-board", "booking-requests", "patients", "sheets", "tests", "billing", "reminders"],
   },
   {
     label: "Catalog",

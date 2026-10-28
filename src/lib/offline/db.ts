@@ -112,6 +112,36 @@ export interface OutboxItem {
   result: VisitResult | null;
 }
 
+export interface LocalInvoice {
+  id: string;
+  invoice_number: string;
+  patient_id: string;
+  total_amount: number;
+  final_amount: number;
+  paid_amount: number;
+  payment_status: string | null;
+  payment_method: string | null;
+  lab_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PatientPatch = Partial<
+  Pick<LocalPatient, "full_name" | "phone" | "gender" | "date_of_birth">
+>;
+
+/** An edit to an already-synced patient, waiting to be sent. One row per patient (last write wins). */
+export interface PatientEdit {
+  id: string;
+  patch: PatientPatch;
+  /** The values before the first unsent edit, used to revert if the server refuses. */
+  previous: PatientPatch;
+  status: "pending" | "syncing" | "failed";
+  last_error: string | null;
+  attempts: number;
+  updated_at: number;
+}
+
 export interface MetaRow {
   key: string;
   value: unknown;
@@ -126,6 +156,8 @@ export class LabDB extends Dexie {
   labs!: Table<LabRef, string>;
   centers!: Table<CenterRef, string>;
   patients!: Table<LocalPatient, string>;
+  invoices!: Table<LocalInvoice, string>;
+  edits!: Table<PatientEdit, string>;
   outbox!: Table<OutboxItem, string>;
   meta!: Table<MetaRow, string>;
 
@@ -141,6 +173,10 @@ export class LabDB extends Dexie {
       patients: "id, patient_id, phone, updated_at, pending",
       outbox: "visit_id, status, created_at",
       meta: "key",
+    });
+    this.version(2).stores({
+      invoices: "id, created_at, patient_id",
+      edits: "id, status",
     });
   }
 }

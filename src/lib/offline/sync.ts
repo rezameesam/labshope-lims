@@ -125,57 +125,144 @@ export const toLocalPatient = (row: PatientRow, pending: 0 | 1 = 0): LocalPatien
   pending,
 });
 
-interface PatientCursor {
+interface KeysetCursor {
   updated_at: string;
   id: string;
 }
 
+const INVOICE_CURSOR_KEY = "invoices_cursor";
+const INVOICE_PAGE_SIZE = 1000;
+/** First sync only fetches this much invoice history; older data stays on the server. */
+export const INVOICE_HISTORY_DAYS = 90;
+
 /**
- * Incrementally pulls patients changed since the last run. Uses a keyset cursor
- * on (updated_at, id) so rows sharing a timestamp are never skipped at a page
+ * Pages through rows changed since the saved cursor. Uses a keyset cursor on
+ * (updated_at, id) so rows sharing a timestamp are never skipped at a page
  * boundary. Returns the number of rows applied.
  */
+async function pullKeyset<Row extends { id: string; updated_at: string }>(
+  db: LabDB,
+  cursorKey: string,
+  pageSize: number,
+  maxPages: number | undefined,
+  fetchPage: (cursor: KeysetCursor | undefined) => PromiseLike<{ data: unknown; error: unknown }>,
+  apply: (rows: Row[]) => Promise<void>,
+): Promise<number> {
+  let cursor = await getMeta<KeysetCursor>(db, cursorKey);
+  let applied = 0;
+
+  for (let page = 0; page < (maxPages ?? Infinity); page += 1) {
+    const { data, error } = await fetchPage(cursor);
+    if (error) throw error;
+    const rows = (data ?? []) as Row[];
+    if (rows.length === 0) break;
+
+    await apply(rows);
+    const last = rows[rows.length - 1];
+    cursor = { updated_at: last.updated_at, id: last.id };
+    await setMeta(db, cursorKey, cursor);
+    applied += rows.length;
+
+    if (rows.length < pageSize) break;
+  }
+  return applied;
+}
+
+const afterCursor = (cursor: KeysetCursor) =>
+  `updated_at.gt.${cursor.updated_at},and(updated_at.eq.${cursor.updated_at},id.gt.${cursor.id})`;
+
+/** Incrementally pulls patients changed since the last run. */
 export async function syncPatients(
   db: LabDB,
   supabase: SupabaseLike,
   organizationId: string,
   options: { maxPages?: number } = {},
 ): Promise<number> {
-  let cursor = await getMeta<PatientCursor>(db, PATIENT_CURSOR_KEY);
-  let applied = 0;
+  return pullKeyset<PatientRow>(
+    db,
+    PATIENT_CURSOR_KEY,
+    PATIENT_PAGE_SIZE,
+    options.maxPages,
+    (cursor) => {
+      let query = supabase
+        .from("patients")
+        .select(
+          "id, patient_id, full_name, phone, gender, date_of_birth, lab_id, collection_center_id, is_active, created_by, updated_at",
+        )
+        .eq("organization_id", organizationId)
+        .order("updated_at", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(PATIENT_PAGE_SIZE);
+      if (cursor) query = query.or(afterCursor(cursor));
+      return query;
+    },
+    async (rows) => {
+      // Never overwrite a local change that has not reached the server yet.
+      const unsent = new Set((await db.edits.toCollection().primaryKeys()) as string[]);
+      await db.patients.bulkPut(rows.filter((row) => !unsent.has(row.id)).map((row) => toLocalPatient(row)));
+    },
+  );
+}
 
-  for (let page = 0; page < (options.maxPages ?? Infinity); page += 1) {
-    let query = supabase
-      .from("patients")
-      .select(
-        "id, patient_id, full_name, phone, gender, date_of_birth, lab_id, collection_center_id, is_active, created_by, updated_at",
-      )
-      .eq("organization_id", organizationId)
-      .order("updated_at", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(PATIENT_PAGE_SIZE);
+interface InvoiceRow {
+  id: string;
+  invoice_number: string;
+  patient_id: string;
+  total_amount: number | null;
+  final_amount: number | null;
+  paid_amount: number | null;
+  payment_status: string | null;
+  payment_method: string | null;
+  lab_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
-    if (cursor) {
-      query = query.or(
-        `updated_at.gt.${cursor.updated_at},and(updated_at.eq.${cursor.updated_at},id.gt.${cursor.id})`,
+/** Pulls recent invoices (last 90 days on first run, then only changes). */
+export async function syncInvoices(
+  db: LabDB,
+  supabase: SupabaseLike,
+  organizationId: string,
+  options: { maxPages?: number; now?: number } = {},
+): Promise<number> {
+  const floor = new Date((options.now ?? Date.now()) - INVOICE_HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return pullKeyset<InvoiceRow>(
+    db,
+    INVOICE_CURSOR_KEY,
+    INVOICE_PAGE_SIZE,
+    options.maxPages,
+    (cursor) => {
+      let query = supabase
+        .from("invoices")
+        .select(
+          "id, invoice_number, patient_id, total_amount, final_amount, paid_amount, payment_status, payment_method, lab_id, created_at, updated_at",
+        )
+        .eq("organization_id", organizationId)
+        .order("updated_at", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(INVOICE_PAGE_SIZE);
+      query = cursor ? query.or(afterCursor(cursor)) : query.gte("created_at", floor);
+      return query;
+    },
+    async (rows) => {
+      await db.invoices.bulkPut(
+        rows.map((row) => ({
+          id: row.id,
+          invoice_number: row.invoice_number,
+          patient_id: row.patient_id,
+          total_amount: Number(row.total_amount ?? 0),
+          final_amount: Number(row.final_amount ?? row.total_amount ?? 0),
+          paid_amount: Number(row.paid_amount ?? 0),
+          payment_status: row.payment_status,
+          payment_method: row.payment_method,
+          lab_id: row.lab_id,
+          // Normalized so local date-range queries compare reliably; updated_at stays exact for the cursor.
+          created_at: new Date(row.created_at).toISOString(),
+          updated_at: row.updated_at,
+        })),
       );
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    const rows = (data ?? []) as PatientRow[];
-    if (rows.length === 0) break;
-
-    // Rows pulled from the server replace any local-only copy with the same id.
-    await db.patients.bulkPut(rows.map((row) => toLocalPatient(row)));
-    const last = rows[rows.length - 1];
-    cursor = { updated_at: last.updated_at, id: last.id };
-    await setMeta(db, PATIENT_CURSOR_KEY, cursor);
-    applied += rows.length;
-
-    if (rows.length < PATIENT_PAGE_SIZE) break;
-  }
-  return applied;
+    },
+  );
 }
 
 /** Fast local patient search by name, phone or patient code. */

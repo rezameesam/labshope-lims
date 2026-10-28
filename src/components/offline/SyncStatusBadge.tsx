@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, CloudOff, Loader2, RefreshCw } from "lucid
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useOffline } from "@/contexts/OfflineContext";
+import { revertEdit, retryEdit } from "@/lib/offline/edits";
 import { discardFailed, retryFailed } from "@/lib/offline/outbox";
 import { useLive } from "@/lib/offline/useLive";
 
@@ -11,6 +12,13 @@ const formatTime = (value: number | null) =>
 const SyncStatusBadge = () => {
   const { db, status, syncNow } = useOffline();
   const items = useLive(db ? () => db.outbox.orderBy("created_at").reverse().limit(30).toArray() : null, [db], []);
+
+  const edits = useLive(db ? () => db.edits.toArray() : null, [db], []);
+  const patientNames = useLive(
+    db ? async () => Object.fromEntries((await db.patients.bulkGet(edits.map((edit) => edit.id))).map((p) => [p?.id ?? "", p?.full_name ?? "Patient"])) : null,
+    [db, edits],
+    {} as Record<string, string>,
+  );
 
   if (!db) return null;
 
@@ -60,10 +68,35 @@ const SyncStatusBadge = () => {
           </p>
         )}
 
-        {open.length === 0 ? (
+        {open.length === 0 && edits.length === 0 ? (
           <p className="text-xs text-muted-foreground">Nothing waiting to upload.</p>
         ) : (
           <ul className="max-h-64 space-y-2 overflow-y-auto">
+            {edits.map((edit) => (
+              <li key={`edit-${edit.id}`} className="rounded-md border p-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{patientNames[edit.id] ?? "Patient"}</span>
+                  <span className="text-muted-foreground">edit</span>
+                </div>
+                {edit.status === "failed" ? (
+                  <>
+                    <p className="mt-1 text-destructive">{edit.last_error}</p>
+                    <div className="mt-2 flex gap-2">
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => void retryEdit(db, edit.id).then(syncNow)}>
+                        Retry
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-destructive" onClick={() => void revertEdit(db, edit.id)}>
+                        Undo change
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">
+                    {edit.attempts > 0 && edit.last_error ? `Will retry · ${edit.last_error}` : "Waiting to upload"}
+                  </p>
+                )}
+              </li>
+            ))}
             {open.map((item) => (
               <li key={item.visit_id} className="rounded-md border p-2 text-xs">
                 <div className="flex items-center justify-between gap-2">

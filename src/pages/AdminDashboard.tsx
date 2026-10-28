@@ -42,6 +42,7 @@ const ManageEmployees = lazy(() => import("@/components/admin/ManageEmployees"))
 const ManagePatients = lazy(() => import("@/components/admin/ManagePatients"));
 const ManageTests = lazy(() => import("@/components/admin/ManageTests"));
 const ManageBilling = lazy(() => import("@/components/admin/ManageBilling"));
+const LabSheets = lazy(() => import("@/components/sheet/LabSheets"));
 const ManageInventory = lazy(() => import("@/components/admin/ManageInventory"));
 const ManageTestCatalog = lazy(() => import("@/components/admin/ManageTestCatalog"));
 const ManageTestPackages = lazy(() => import("@/components/admin/ManageTestPackages"));
@@ -367,6 +368,7 @@ const AdminDashboard = () => {
             {activeTab === "test-catalog" && <AdminErrorBoundary tabName="Test Catalog"><ManageTestCatalog /></AdminErrorBoundary>}
             {activeTab === "test-packages" && <AdminErrorBoundary tabName="Test Packages"><ManageTestPackages /></AdminErrorBoundary>}
             {activeTab === "test-templates" && <AdminErrorBoundary tabName="Templates"><ManageTestTemplates /></AdminErrorBoundary>}
+            {activeTab === "sheets" && <AdminErrorBoundary tabName="Lab Sheets"><LabSheets /></AdminErrorBoundary>}
             {activeTab === "billing" && <AdminErrorBoundary tabName="Billing"><ManageBilling /></AdminErrorBoundary>}
             {activeTab === "finance" && <AdminErrorBoundary tabName="Finance"><ManageFinance /></AdminErrorBoundary>}
             {activeTab === "subscription" && <AdminErrorBoundary tabName="Subscription"><SubscriptionStatus /></AdminErrorBoundary>}

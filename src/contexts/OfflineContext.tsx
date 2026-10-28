@@ -4,7 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getLabDb, type LabDB } from "@/lib/offline/db";
 import { flushOutbox } from "@/lib/offline/outbox";
-import { refreshCatalog, syncPatients } from "@/lib/offline/sync";
+import { editPatient as queuePatientEdit, flushEdits } from "@/lib/offline/edits";
+import { refreshCatalog, syncInvoices, syncPatients } from "@/lib/offline/sync";
+import type { PatientPatch } from "@/lib/offline/db";
 import { registerVisit, type RegisterVisitInput, type RegisterVisitOutcome } from "@/lib/offline/visit";
 import { useLive } from "@/lib/offline/useLive";
 import type { SupabaseLike } from "@/lib/offline/types";
@@ -28,6 +30,8 @@ interface OfflineContextValue {
   organizationId: string | null;
   status: SyncStatus;
   syncNow: () => Promise<void>;
+  /** Saves a patient change on this device immediately and uploads it in the background. */
+  editPatient: (patientId: string, patch: PatientPatch) => Promise<void>;
   registerVisit: (input: Omit<RegisterVisitInput, "organizationId">) => Promise<RegisterVisitOutcome>;
 }
 
@@ -45,6 +49,9 @@ const OfflineContext = createContext<OfflineContextValue>({
   organizationId: null,
   status: idleStatus,
   syncNow: async () => undefined,
+  editPatient: async () => {
+    throw new Error("Offline data is not available yet");
+  },
   registerVisit: async () => {
     throw new Error("Offline data is not available yet");
   },
@@ -67,8 +74,12 @@ export const OfflineProvider = ({ children }: { children: ReactNode }) => {
   const running = useRef(false);
 
   const outbox = useLive(db ? () => db.outbox.toArray() : null, [db], []);
-  const waiting = outbox.filter((item) => item.status === "pending" || item.status === "syncing").length;
-  const failed = outbox.filter((item) => item.status === "failed").length;
+  const edits = useLive(db ? () => db.edits.toArray() : null, [db], []);
+  const waiting =
+    outbox.filter((item) => item.status === "pending" || item.status === "syncing").length +
+    edits.filter((edit) => edit.status !== "failed").length;
+  const failed =
+    outbox.filter((item) => item.status === "failed").length + edits.filter((edit) => edit.status === "failed").length;
 
   const syncNow = useCallback(async () => {
     if (!db || !organizationId || running.current) return;
@@ -77,8 +88,13 @@ export const OfflineProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Send our own changes first so the pull below already includes them.
       const flushed = await flushOutbox(db, client);
-      await Promise.all([refreshCatalog(db, client, organizationId), syncPatients(db, client, organizationId)]);
-      if (flushed.stoppedBy === "network") {
+      const edited = flushed.stoppedBy ? null : await flushEdits(db, client);
+      await Promise.all([
+        refreshCatalog(db, client, organizationId),
+        syncPatients(db, client, organizationId),
+        syncInvoices(db, client, organizationId),
+      ]);
+      if (flushed.stoppedBy === "network" || edited?.stoppedBy === "network") {
         setOnline(false);
       } else {
         setOnline(true);
@@ -131,15 +147,27 @@ export const OfflineProvider = ({ children }: { children: ReactNode }) => {
     [db, organizationId],
   );
 
+  const editPatient = useCallback(
+    async (patientId: string, patch: PatientPatch) => {
+      if (!db) throw new Error("Offline data is not available yet");
+      await queuePatientEdit(db, patientId, patch);
+      void flushEdits(db, client).then((outcome) => {
+        if (outcome.stoppedBy === "network") setOnline(false);
+      });
+    },
+    [db],
+  );
+
   const value = useMemo<OfflineContextValue>(
     () => ({
       db,
       organizationId,
       status: { online, syncing, waiting, failed, lastSyncedAt, lastError },
       syncNow,
+      editPatient,
       registerVisit: register,
     }),
-    [db, organizationId, online, syncing, waiting, failed, lastSyncedAt, lastError, syncNow, register],
+    [db, organizationId, online, syncing, waiting, failed, lastSyncedAt, lastError, syncNow, editPatient, register],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;
