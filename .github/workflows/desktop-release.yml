@@ -51,7 +51,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
 
       - name: Set app version from the release tag
         if: github.event_name == 'release'
@@ -59,15 +61,45 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
 
-      - name: Install dependencies
+      - name: Install desktop dependencies
         run: npm ci
+
+      - name: Install web app dependencies
+        working-directory: .
+        run: npm ci
+
+      # The installer ships its own copy of the web app so it opens instantly
+      # from disk. Configure these under Settings -> Secrets and variables ->
+      # Actions -> Variables (they are public client-side values).
+      - name: Build bundled web app
+        working-directory: .
+        run: node desktop/scripts/prepare-web.js
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PROJECT_ID: ${{ vars.VITE_SUPABASE_PROJECT_ID }}
+          VITE_PUBLIC_BASE_DOMAIN: ${{ vars.VITE_PUBLIC_BASE_DOMAIN }}
+          VITE_PLATFORM_HOSTNAME: ${{ vars.VITE_PLATFORM_HOSTNAME }}
+          VITE_PUBLIC_LOGO_URL: ${{ vars.VITE_PUBLIC_LOGO_URL }}
+          VITE_PLATFORM_LABEL: ${{ vars.VITE_PLATFORM_LABEL }}
+          VITE_PLATFORM_PRODUCT_NAME: ${{ vars.VITE_PLATFORM_PRODUCT_NAME }}
+          VITE_PLATFORM_COMPANY_NAME: ${{ vars.VITE_PLATFORM_COMPANY_NAME }}
+          VITE_PLATFORM_CONTACT_EMAIL: ${{ vars.VITE_PLATFORM_CONTACT_EMAIL }}
+          VITE_PLATFORM_TAGLINE: ${{ vars.VITE_PLATFORM_TAGLINE }}
+          VITE_RAZORPAY_KEY_ID: ${{ vars.VITE_RAZORPAY_KEY_ID }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          VITE_PAGES_CNAME_TARGET: ${{ vars.VITE_PAGES_CNAME_TARGET }}
 
       - name: Unit tests
         run: npm test
 
+      # Linux runners need a display and a SUID sandbox for Electron, so the
+      # boot checks run on macOS and Windows only.
       - name: Smoke test (boots the real app)
         if: runner.os != 'Linux'
-        run: npm run smoke
+        run: |
+          npm run smoke
+          npm run smoke:bundled
 
       - name: Build bundles
         run: npx electron-builder ${{ matrix.builder_args }} --publish never

@@ -2,6 +2,7 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
+const { pathToFileURL } = require("node:url");
 const {
   app,
   BrowserWindow,
@@ -13,14 +14,20 @@ const {
   screen,
   session,
 } = require("electron");
-const { resolveWorkspace } = require("./lib/workspace");
+const { resolveWorkspace, resolveTarget } = require("./lib/workspace");
 const config = require("./config.json");
 
 const BASE_DOMAIN = (process.env.LIMS_BASE_DOMAIN || config.baseDomain || "").trim().toLowerCase();
 const LOGIN_PATH = config.loginPath || "/auth/staff";
 const RELEASES_URL = "https://github.com/IRMClinic/irmclinic/releases";
 const REACHABILITY_TIMEOUT_MS = 8000;
-const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+
+// The web app is built into the installer so it opens from disk. In a packaged
+// app it lives in resources/web; in development it is desktop/app. Without a
+// build (or with LIMS_REMOTE=1) the app falls back to the live site.
+const bundleDir = app.isPackaged ? path.join(process.resourcesPath, "web") : path.join(__dirname, "app");
+const bundleAvailable = !process.env.LIMS_REMOTE && fs.existsSync(path.join(bundleDir, "index.html"));
 
 let mainWindow = null;
 let workspaceOrigin = null;
@@ -90,6 +97,68 @@ async function checkReachable(origin) {
   }
 }
 
+// ── bundled web app ─────────────────────────────────────────────────────────
+
+const NOT_FOUND = () => new Response("Not found", { status: 404 });
+
+async function serveBundled(requestUrl) {
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(requestUrl).pathname);
+  } catch {
+    return NOT_FOUND();
+  }
+
+  const requested = path.resolve(bundleDir, `.${pathname}`);
+  const insideBundle = requested === bundleDir || requested.startsWith(bundleDir + path.sep);
+  if (!insideBundle) return NOT_FOUND();
+
+  let file = requested;
+  let isFile = false;
+  try {
+    isFile = fs.statSync(file).isFile();
+  } catch {
+    // Fall through to the SPA fallback below.
+  }
+
+  if (!isFile) {
+    // Missing assets must 404; anything that looks like an app route gets index.html.
+    if (path.extname(pathname)) return NOT_FOUND();
+    file = path.join(bundleDir, "index.html");
+  }
+
+  const response = await net.fetch(pathToFileURL(file).toString());
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", pathname.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
+  return new Response(response.body, { status: response.status, headers });
+}
+
+function setupBundledApp() {
+  if (!bundleAvailable) return;
+
+  // Serve http://<slug>.localhost (no port) from the bundle. Everything else
+  // passes straight through. The page origin is one the server already treats
+  // as local, so existing origin and captcha rules apply unchanged.
+  session.defaultSession.protocol.handle("http", (request) => {
+    const url = new URL(request.url);
+    if (url.hostname.endsWith(".localhost") && url.port === "") return serveBundled(request.url);
+    return net.fetch(request, { bypassCustomProtocolHandlers: true });
+  });
+
+  // The ABDM functions only echo allow-listed origins in their CORS headers.
+  // Let the app's own pages read those responses.
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ["https://*/functions/v1/abdm-*"] },
+    (details, callback) => {
+      const headers = Object.fromEntries(
+        Object.entries(details.responseHeaders || {}).filter(([name]) => name.toLowerCase() !== "access-control-allow-origin"),
+      );
+      if (workspaceOrigin) headers["Access-Control-Allow-Origin"] = [workspaceOrigin];
+      callback({ responseHeaders: headers });
+    },
+  );
+}
+
 // ── window ──────────────────────────────────────────────────────────────────
 
 function restoredBounds() {
@@ -119,8 +188,9 @@ function loadWorkspace() {
     showSetup();
     return;
   }
-  workspaceOrigin = resolved.origin;
-  void mainWindow.loadURL(`${resolved.origin}${LOGIN_PATH}`);
+  const target = resolveTarget(resolved, BASE_DOMAIN, bundleAvailable);
+  workspaceOrigin = target.origin;
+  void mainWindow.loadURL(`${target.origin}${LOGIN_PATH}`);
 }
 
 function createWindow() {
@@ -344,6 +414,7 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     buildMenu();
+    setupBundledApp();
     createWindow();
     setupAutoUpdate();
 

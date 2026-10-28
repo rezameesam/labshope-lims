@@ -14,9 +14,11 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test \"test/*.test.js\"",
-    "dist": "electron-builder --publish never",
-    "dist:dir": "electron-builder --dir --publish never",
-    "smoke": "electron test/smoke-main.js"
+    "dist": "npm run prepare:web && electron-builder --publish never",
+    "dist:dir": "npm run prepare:web && electron-builder --dir --publish never",
+    "smoke": "electron test/smoke-main.js",
+    "prepare:web": "node scripts/prepare-web.js",
+    "smoke:bundled": "electron test/smoke-bundled.js"
   },
   "build": {
     "appId": "com.labshope.lims",
@@ -67,7 +69,13 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "extraResources": [
+      {
+        "from": "app",
+        "to": "web"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^45.1.0",

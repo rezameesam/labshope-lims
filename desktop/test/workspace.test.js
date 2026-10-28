@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { resolveWorkspace } = require("../lib/workspace");
+const { resolveWorkspace, resolveTarget } = require("../lib/workspace");
 
 const BASE = "labshope.com";
 
@@ -10,6 +10,7 @@ test("a bare workspace name expands to the base domain", () => {
   assert.deepEqual(resolveWorkspace("Demo", BASE), {
     ok: true,
     host: "demo.labshope.com",
+    port: "",
     origin: "https://demo.labshope.com",
   });
 });
@@ -41,4 +42,26 @@ test("empty and malformed input is rejected", () => {
 
 test("a bare name fails when no base domain is configured", () => {
   assert.equal(resolveWorkspace("demo", "").ok, false);
+});
+
+test("workspaces under the base domain open from the bundled copy", () => {
+  const target = resolveTarget(resolveWorkspace("demo", BASE), BASE, true);
+  assert.deepEqual(target, { mode: "bundled", slug: "demo", origin: "http://demo.localhost" });
+});
+
+test("a .localhost workspace without a port is bundled too", () => {
+  assert.equal(resolveTarget(resolveWorkspace("demo.localhost", BASE), BASE, true).mode, "bundled");
+});
+
+test("custom domains, dev ports and missing bundles fall back to the live site", () => {
+  assert.equal(resolveTarget(resolveWorkspace("lab.example.com", BASE), BASE, true).mode, "remote");
+  assert.equal(resolveTarget(resolveWorkspace("demo.localhost:8080", BASE), BASE, true).mode, "remote");
+  assert.deepEqual(resolveTarget(resolveWorkspace("demo", BASE), BASE, false), {
+    mode: "remote",
+    origin: "https://demo.labshope.com",
+  });
+});
+
+test("multi-level subdomains are not treated as a slug", () => {
+  assert.equal(resolveTarget(resolveWorkspace("a.b.labshope.com", BASE), BASE, true).mode, "remote");
 });

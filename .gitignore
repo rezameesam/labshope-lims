@@ -30,3 +30,7 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Desktop app: bundled web build
+desktop/app/
+desktop/.env.desktop

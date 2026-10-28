@@ -53,7 +53,31 @@ function resolveWorkspace(input, baseDomain) {
   }
 
   const protocol = isLocalHost(host) ? "http" : "https";
-  return { ok: true, host, origin: `${protocol}://${host}${port}` };
+  return { ok: true, host, port, origin: `${protocol}://${host}${port}` };
 }
 
-module.exports = { resolveWorkspace };
+/**
+ * Decides how to open a resolved workspace.
+ *
+ * "bundled": the app serves its own copy of the web app from disk at
+ *   http://<slug>.localhost (no port). Only possible for workspaces under the
+ *   base domain, because tenant lookup works from that slug.
+ * "remote": load the live site (custom domains, local dev servers, or when no
+ *   bundled copy was built into this app).
+ */
+function resolveTarget(resolved, baseDomain, bundledAvailable) {
+  if (bundledAvailable && !resolved.port) {
+    let slug = null;
+    if (resolved.host.endsWith(".localhost")) {
+      slug = resolved.host.slice(0, -".localhost".length);
+    } else if (baseDomain && resolved.host.endsWith(`.${baseDomain}`)) {
+      slug = resolved.host.slice(0, -(baseDomain.length + 1));
+    }
+    if (slug && SLUG_PATTERN.test(slug)) {
+      return { mode: "bundled", slug, origin: `http://${slug}.localhost` };
+    }
+  }
+  return { mode: "remote", origin: resolved.origin };
+}
+
+module.exports = { resolveWorkspace, resolveTarget };
