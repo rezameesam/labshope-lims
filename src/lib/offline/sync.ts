@@ -105,6 +105,7 @@ interface PatientRow {
   lab_id: string | null;
   collection_center_id: string | null;
   is_active: boolean;
+  created_by?: string | null;
   updated_at: string;
 }
 
@@ -118,6 +119,7 @@ export const toLocalPatient = (row: PatientRow, pending: 0 | 1 = 0): LocalPatien
   lab_id: row.lab_id ?? null,
   collection_center_id: row.collection_center_id ?? null,
   is_active: row.is_active !== false,
+  created_by: row.created_by ?? null,
   updated_at: row.updated_at,
   search: buildPatientSearch(row.full_name, row.phone, row.patient_id),
   pending,
@@ -146,7 +148,7 @@ export async function syncPatients(
     let query = supabase
       .from("patients")
       .select(
-        "id, patient_id, full_name, phone, gender, date_of_birth, lab_id, collection_center_id, is_active, updated_at",
+        "id, patient_id, full_name, phone, gender, date_of_birth, lab_id, collection_center_id, is_active, created_by, updated_at",
       )
       .eq("organization_id", organizationId)
       .order("updated_at", { ascending: true })

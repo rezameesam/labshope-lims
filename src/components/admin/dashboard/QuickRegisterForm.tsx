@@ -36,12 +36,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useLab } from "@/contexts/LabContext";
-import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
+import { useOffline } from "@/contexts/OfflineContext";
+import { searchPatients } from "@/lib/offline/sync";
+import { useLive } from "@/lib/offline/useLive";
 import {
   DEFAULT_COUNTRY_CODE,
   PHONE_COUNTRY_OPTIONS,
@@ -143,73 +144,29 @@ const QuickRegisterForm = ({ onNavigate }: QuickRegisterFormProps) => {
     }
   }, [labs, currentLab?.id, labId]);
 
-  // Load catalog data
+  // Catalog comes from the local database: instant, and works offline.
+  const { db, registerVisit: registerVisitOffline } = useOffline();
+  const liveTests = useLive(db ? () => db.tests.toArray() : null, [db], null as CatalogTest[] | null);
+  const liveCategories = useLive(db ? () => db.categories.toArray() : null, [db], [] as TestCategory[]);
+  const livePackages = useLive(db ? () => db.packages.toArray() : null, [db], [] as TestPackage[]);
+  const liveDoctors = useLive(db ? () => db.doctors.toArray() : null, [db], [] as Doctor[]);
+  const liveLabs = useLive(db ? () => db.labs.toArray() : null, [db], [] as Array<{ id: string; name: string; lab_code: string }>);
+  const liveCenters = useLive(
+    db ? () => db.centers.toArray() : null,
+    [db],
+    [] as Array<{ id: string; name: string; code: string; lab_id: string }>,
+  );
+
   useEffect(() => {
-    if (!organizationId) return;
-
-    const loadCatalog = async () => {
-      try {
-        const [catalogRes, categoriesRes, packagesRes, packageTestsRes, doctorsRes, labsRes, ccRes] = await Promise.all([
-          (supabase as any)
-            .from("tests")
-            .select("id, test_id, name, price, category_id")
-            .eq("is_active", true)
-            .eq("organization_id", organizationId),
-          (supabase as any)
-            .from("test_categories")
-            .select("id, name")
-            .eq("organization_id", organizationId),
-          (supabase as any)
-            .from("test_packages")
-            .select("id, name, price, discount_percentage, is_active")
-            .eq("is_active", true)
-            .eq("organization_id", organizationId),
-          (supabase as any).from("test_package_tests").select("package_id, test_id"),
-          (supabase as any)
-            .from("doctors")
-            .select("id, name, specialization, commission_percentage")
-            .eq("is_active", true)
-            .eq("organization_id", organizationId),
-          (supabase as any)
-            .from("labs")
-            .select("id, name, lab_code")
-            .eq("is_active", true)
-            .eq("organization_id", organizationId)
-            .order("name"),
-          (supabase as any)
-            .from("collection_centers")
-            .select("id, name, code, lab_id")
-            .eq("is_active", true)
-            .eq("organization_id", organizationId)
-            .order("name"),
-        ]);
-
-        setTestCatalog((catalogRes.data || []) as CatalogTest[]);
-        setCategories(categoriesRes.data || []);
-        setDoctors(doctorsRes.data || []);
-        setLabs(labsRes.data || []);
-        setCollectionCenters(ccRes.data || []);
-
-        const packageTestsMap = new Map<string, string[]>();
-        (packageTestsRes.data || []).forEach((row: any) => {
-          const existing = packageTestsMap.get(row.package_id) || [];
-          packageTestsMap.set(row.package_id, [...existing, row.test_id]);
-        });
-        setTestPackages(
-          (packagesRes.data || []).map((pkg: any) => ({
-            ...pkg,
-            tests: packageTestsMap.get(pkg.id) || [],
-          }))
-        );
-
-        setDataLoaded(true);
-      } catch (error) {
-        console.error("Error loading catalog:", error);
-      }
-    };
-
-    void loadCatalog();
-  }, [organizationId]);
+    if (liveTests === null) return;
+    setTestCatalog(liveTests);
+    setCategories(liveCategories);
+    setTestPackages(livePackages);
+    setDoctors(liveDoctors);
+    setLabs(liveLabs);
+    setCollectionCenters(liveCenters);
+    setDataLoaded(true);
+  }, [liveTests, liveCategories, livePackages, liveDoctors, liveLabs, liveCenters]);
 
   // Load favorites
   useEffect(() => {
@@ -226,42 +183,33 @@ const QuickRegisterForm = ({ onNavigate }: QuickRegisterFormProps) => {
     }
   }, [currentLab?.id, organizationId]);
 
-  // Patient search with debounce
+  // Patient search runs against the local copy, so results appear as you type.
   useEffect(() => {
-    if (!patientSearch.trim() || !organizationId) {
+    if (!patientSearch.trim() || !db) {
       setMatchedPatients([]);
       return;
     }
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setSearchingPatients(true);
       try {
-        const searchLower = patientSearch.toLowerCase();
-        let query: any = (supabase as any)
-          .from("patients")
-          .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
-          .eq("is_active", true)
-          .eq("organization_id", organizationId);
-
-        if (isCollector && user?.id) {
-          query = query.eq("created_by", user.id);
-        }
-
-        // Search by name or phone
-        query = query.or(`full_name.ilike.%${searchLower}%,phone.ilike.%${patientSearch}%,patient_id.ilike.%${searchLower}%`);
-
-        const { data, error } = await query.limit(8);
-        if (error) throw error;
-        setMatchedPatients(data || []);
+        const found = await searchPatients(db, patientSearch, 30);
+        // Collectors only see the patients they registered themselves.
+        const visible = isCollector && user?.id ? found.filter((p) => p.created_by === user.id) : found;
+        if (!cancelled) setMatchedPatients(visible.slice(0, 8));
       } catch (error) {
         console.error("Patient search error:", error);
       } finally {
-        setSearchingPatients(false);
+        if (!cancelled) setSearchingPatients(false);
       }
-    }, 300);
+    }, 80);
 
-    return () => clearTimeout(timer);
-  }, [patientSearch, organizationId, isCollector, user?.id]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [patientSearch, db, isCollector, user?.id]);
 
   const testCatalogByName = useMemo(
     () => new Map(testCatalog.map((t) => [t.name, t] as const)),
@@ -328,13 +276,6 @@ const QuickRegisterForm = ({ onNavigate }: QuickRegisterFormProps) => {
     setSelectedTests((prev) => Array.from(new Set([...prev, ...packageTestNames])));
     setAppliedPackage(pkg);
     toast.success(`Added ${packageTestNames.length} tests from ${pkg.name}`);
-  };
-
-  const generatePatientId = () => {
-    const prefix = "PAT";
-    const year = new Date().getFullYear().toString().slice(-2);
-    const random = Math.floor(1000 + Math.random() * 9000);
-    return `${prefix}${year}${random}`;
   };
 
   const handleSelectPatient = (patient: Patient) => {
@@ -425,9 +366,7 @@ const QuickRegisterForm = ({ onNavigate }: QuickRegisterFormProps) => {
     setIsSubmitting(true);
 
     try {
-      let patientId = selectedPatient?.id;
-
-      // Create new patient if needed
+      let patientInput: Parameters<typeof registerVisitOffline>[0]["patient"];
       if (isNewPatient) {
         const normalizedPhone = buildStoragePhoneNumber(newPatientCountryCode, newPatientPhone);
         if (!normalizedPhone) {
@@ -435,57 +374,25 @@ const QuickRegisterForm = ({ onNavigate }: QuickRegisterFormProps) => {
           setIsSubmitting(false);
           return;
         }
-
-        // Check for existing patients with same phone
-        const phoneLookupVariants = getPhoneLookupVariants(normalizedPhone, newPatientCountryCode);
-        const { data: existingPatients } = await (supabase as any)
-          .from("patients")
-          .select("id, patient_id, full_name, phone")
-          .in("phone", phoneLookupVariants)
-          .eq("is_active", true)
-          .eq("organization_id", organizationId);
-
-        if (existingPatients && existingPatients.length > 0) {
-          const existing = existingPatients[0];
-          toast.info(
-            `Patient "${existing.full_name}" already exists with this phone. Using existing record.`,
-          );
-          patientId = existing.id;
-        } else {
-          const newId = generatePatientId();
-
-          const { data: insertedPatient, error: patientError } = await (supabase as any)
-            .from("patients")
-            .insert({
-              patient_id: newId,
-              full_name: newPatientName.trim(),
-              phone: normalizedPhone,
-              gender: newPatientGender || null,
-              date_of_birth: newPatientDob || null,
-              password_reset_required: false,
-              organization_id: organizationId,
-              lab_id: labId || null,
-              collection_center_id: collectionCenterId || null,
-              created_by: user?.id || null,
-            })
-            .select("id")
-            .single();
-
-          if (patientError) throw patientError;
-          patientId = (insertedPatient as any).id;
-
-          toast.success(`Patient "${newPatientName.trim()}" created`);
+        patientInput = {
+          new: {
+            full_name: newPatientName.trim(),
+            phone: normalizedPhone,
+            phoneVariants: getPhoneLookupVariants(normalizedPhone, newPatientCountryCode),
+            gender: newPatientGender || null,
+            date_of_birth: newPatientDob || null,
+          },
+        };
+      } else {
+        const existing = selectedPatient ? await db?.patients.get(selectedPatient.id) : undefined;
+        if (!existing) {
+          toast.error("No patient selected");
+          setIsSubmitting(false);
+          return;
         }
+        patientInput = { existing };
       }
 
-      if (!patientId) {
-        toast.error("No patient selected");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Insert tests
-      const packageGroupId = appliedPackage ? crypto.randomUUID() : null;
       const packageTestNames = appliedPackage
         ? new Set(
             testCatalog
@@ -497,120 +404,49 @@ const QuickRegisterForm = ({ onNavigate }: QuickRegisterFormProps) => {
         ? selectedTests.some((n) => packageTestNames.has(n))
         : false;
 
-      const testsToInsert = selectedTests.map((testName) => ({
-        patient_id: patientId,
-        organization_id: organizationId,
-        test_name: testName,
-        test_date: testDate,
+      const outcome = await registerVisitOffline({
+        labId: labId || null,
+        collectionCenterId: collectionCenterId || null,
+        testDate,
         notes: notes || null,
-        status: "pending",
-        created_by: user?.id || null,
-        collected_by: user?.id || null,
-        collected_at: new Date().toISOString(),
-        lab_id: labId || null,
-        collection_center_id: collectionCenterId || null,
-        test_package_id: hasPackageTests && appliedPackage ? appliedPackage.id : null,
-        test_package_name: hasPackageTests && appliedPackage ? appliedPackage.name : null,
-        test_package_group_id: hasPackageTests && appliedPackage ? packageGroupId : null,
-      }));
-
-      const { data: insertedTests, error: testError } = await (supabase as any)
-        .from("patient_tests")
-        .insert(testsToInsert)
-        .select();
-
-      if (testError) throw testError;
-
-      // Create invoice
-      const invoiceNumber = await generateScopedInvoiceNumber(organizationId);
-
-      const insertedTestIdByName = new Map(
-        ((insertedTests as Array<{ id: string; test_name: string }> | null) || []).map(
-          (t) => [t.test_name, t.id] as const,
-        ),
-      );
-
-      let totalAmount = 0;
-      const invoiceItemsData = selectedTests.map((testName) => {
-        const catalogTest = testCatalogByName.get(testName);
-        const price =
-          hasPackageTests && packageTestNames.has(testName) ? 0 : catalogTest?.price || 0;
-        totalAmount += price;
-        return {
+        createdBy: user?.id ?? null,
+        patient: patientInput,
+        tests: selectedTests.map((testName) => ({
           test_name: testName,
-          unit_price: price,
-          quantity: 1,
-          amount: price,
-          patient_test_id: insertedTestIdByName.get(testName) || null,
-        };
+          price: testCatalogByName.get(testName)?.price || 0,
+          in_package: hasPackageTests && packageTestNames.has(testName),
+        })),
+        package:
+          hasPackageTests && appliedPackage
+            ? { id: appliedPackage.id, name: appliedPackage.name, price: appliedPackage.price || 0 }
+            : null,
+        referral:
+          referredBy !== "self" && referredBy !== "custom"
+            ? { doctor_id: referredBy, custom_name: customDoctorName || null }
+            : null,
       });
 
-      if (hasPackageTests && appliedPackage) {
-        const packagePrice = appliedPackage.price || 0;
-        totalAmount += packagePrice;
-        invoiceItemsData.push({
-          test_name: `${appliedPackage.name} (Package)`,
-          unit_price: packagePrice,
-          quantity: 1,
-          amount: packagePrice,
-          patient_test_id: null,
-        });
+      if (outcome.status === "failed") {
+        toast.error(outcome.error);
+        setIsSubmitting(false);
+        return;
       }
 
-      const { data: invoice, error: invoiceError } = await (supabase as any)
-        .from("invoices")
-        .insert({
-          invoice_number: invoiceNumber,
-          patient_id: patientId,
-          organization_id: organizationId,
-          lab_id: labId || null,
-          collection_center_id: collectionCenterId || null,
-          total_amount: totalAmount,
-          final_amount: totalAmount,
-          created_by: user?.id || null,
-          notes: `Auto-generated for ${selectedTests.length} test(s)`,
-        })
-        .select()
-        .single();
-
-      if (invoiceError) throw invoiceError;
-
-      const invoiceItems = invoiceItemsData.map((item) => ({
-        ...item,
-        invoice_id: invoice.id,
-        organization_id: organizationId,
-      }));
-
-      const { error: itemsError } = await (supabase as any)
-        .from("invoice_items")
-        .insert(invoiceItems);
-
-      if (itemsError) throw itemsError;
-
-      // Doctor referral
-      if (referredBy !== "self" && referredBy !== "custom") {
-        const selectedDoctor = doctors.find((d) => d.id === referredBy);
-        if (selectedDoctor) {
-          const commissionAmount = selectedDoctor.commission_percentage
-            ? (totalAmount * selectedDoctor.commission_percentage) / 100
-            : 0;
-
-          await (supabase as any).from("doctor_referrals").insert({
-            doctor_id: selectedDoctor.id,
-            patient_id: patientId,
-            organization_id: organizationId,
-            invoice_id: invoice.id,
-            invoice_number: invoiceNumber,
-            invoice_amount: totalAmount,
-            commission_amount: commissionAmount,
-            notes: customDoctorName || null,
-          });
-        }
+      const matched = outcome.reusedPatient || (outcome.status === "synced" && outcome.result.patient_matched);
+      if (isNewPatient && matched) {
+        toast.info("A patient with this phone already exists. Using the existing record.");
       }
 
-      toast.success(
-        `${selectedTests.length} test(s) assigned. Invoice ${invoiceNumber} created (${"\u20B9"}${totalAmount}).`,
-      );
+      const total = outcome.status === "synced" ? outcome.result.total_amount : outcome.item.total_amount;
+      if (outcome.status === "synced") {
+        toast.success(
+          `${selectedTests.length} test(s) assigned. Invoice ${outcome.result.invoice_number} created (${"\u20B9"}${total}).`,
+        );
+      } else {
+        toast.success(
+          `Saved (${"\u20B9"}${total}). It will upload automatically and the invoice number appears once synced.`,
+        );
+      }
       resetForm();
 
       // Notify PendingResultsWidget to refresh

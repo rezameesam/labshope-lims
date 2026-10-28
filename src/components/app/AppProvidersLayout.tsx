@@ -10,6 +10,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { PatientAuthProvider } from "@/hooks/usePatientAuth";
 import { LabProvider } from "@/contexts/LabContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
+import { OfflineProvider } from "@/contexts/OfflineContext";
 
 const getErrorStatus = (error: unknown) => {
   if (typeof error !== "object" || error === null) {
@@ -87,9 +88,11 @@ const AppProvidersLayout = () => (
       <AuthProvider>
         <LabProvider>
           <OrganizationProvider>
-            <PatientAuthProvider>
-              <Outlet />
-            </PatientAuthProvider>
+            <OfflineProvider>
+              <PatientAuthProvider>
+                <Outlet />
+              </PatientAuthProvider>
+            </OfflineProvider>
           </OrganizationProvider>
         </LabProvider>
       </AuthProvider>

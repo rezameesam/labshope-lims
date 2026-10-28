@@ -50,6 +50,7 @@ export interface LocalPatient {
   lab_id: string | null;
   collection_center_id: string | null;
   is_active: boolean;
+  created_by?: string | null;
   updated_at: string;
   /** Lower-cased "name phone code" used for fast local search. */
   search: string;

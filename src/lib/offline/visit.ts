@@ -16,6 +16,7 @@ export interface RegisterVisitInput {
   collectionCenterId?: string | null;
   testDate: string;
   notes?: string | null;
+  createdBy?: string | null;
   patient:
     | { existing: LocalPatient }
     | {
@@ -112,6 +113,7 @@ export async function registerVisit(
         lab_id: input.labId,
         collection_center_id: input.collectionCenterId ?? null,
         is_active: true,
+        created_by: input.createdBy ?? null,
         updated_at: now,
         search: buildPatientSearch(fresh.full_name.trim(), fresh.phone, code),
         pending: 1,

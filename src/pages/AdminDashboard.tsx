@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import SyncStatusBadge from "@/components/offline/SyncStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -281,6 +282,7 @@ const AdminDashboard = () => {
               </h1>
             </div>
             <div className="flex items-center gap-2">
+              <SyncStatusBadge />
               <ThemeToggle />
               <LabSelector />
               {isPlatformAdmin && (

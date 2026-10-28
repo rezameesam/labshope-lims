@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import SyncStatusBadge from "@/components/offline/SyncStatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
@@ -164,6 +165,7 @@ const CollectorDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <SyncStatusBadge />
             <ThemeToggle />
             <div className="text-right">
               <p className="text-sm font-medium">{user?.email}</p>
