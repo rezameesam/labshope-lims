@@ -47,6 +47,11 @@
 >   `url.hostname = "labshope-lims.pages.dev"`). A separate Worker `abdm-callback-proxy` (route `abdm.labshope.com/*`) forwards the ABDM callback `/api/v3/hip/patient/share` to the Supabase function; leave it alone.
 > - `www.shuhul.com` (DNS at GoDaddy, test only) is ignored on purpose and will stop working when the old Pages project is deleted.
 > - **Next:** delete the old Pages projects `labshope-lims` and `irmclinic` (before deleting `labshope-lims`, check that `lims.labshope.com` still answers: it is also a custom domain there). Revoke the pasted DNS token.
+> - **DEPLOY GATE (late 29 Oct, verified both ways):** Pages project `labshope-lims-app` now deploys production from the **`release`** branch, not `main`. The CI `promote` job fast-forwards
+>   `release` to a commit only after the web, desktop and database jobs all pass on `main`. Pushing to `main` or `demo` alone never deploys (they only create inert "preview, queued" entries).
+>   Verified: a commit with a deliberately failing test left `release` untouched; the revert passed and went live. Emergency manual deploy: `git push origin <commit>:release`.
+>   Undo the gate: `python3 /tmp/gate_pages.py main` (sets the Pages production branch back to `main`).
+>   GitHub branch protection is not available (Free plan, private repo), which is why the gate sits in front of deployment.
 > - Item 2 below (data comparison) is no longer needed.
 
 
@@ -61,7 +66,7 @@ The new registration form needs a database function that has **not been confirme
 
 ## DO NOT (until the plan below is done)
 
-- **Do not push to `main`.** The Cloudflare Pages project `irmclinic` builds `main` with **no build variables**, so a push rebuilds `irmclinic.com` with no database address and breaks it for IRM. This already happened once (28 Oct 20:13 UTC) and was rolled back.
+- (Superseded, see the update at the top.) Pushing to `main` used to rebuild `irmclinic.com` with no database address; production is now deployed from `release` after CI passes.
 - **A push to `demo` redeploys production** for `lims.labshope.com`, `abdm.labshope.com`, `lab.irmclinic.com` and `www.shuhul.com` (Pages project `labshope-lims`, production branch `demo`). Fine when intended, not for casual commits.
 - **Do not delete `lab.irmclinic.com`** until `irmclinic.com` serves the latest app. Today it is the only IRM address running the new app.
 - Never run `supabase db push`; the owner applies migrations to the remote project by hand.
