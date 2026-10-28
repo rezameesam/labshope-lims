@@ -150,7 +150,7 @@ const FinancialReports = () => {
         .lte("created_at", endDate.toISOString())
         .order("created_at", { ascending: false });
 
-      invoicesQuery = invoicesQuery.eq("organization_id" as any, organization.id);
+      invoicesQuery = invoicesQuery.eq("organization_id", organization.id);
 
       const { data: invoices, error } = await invoicesQuery;
 

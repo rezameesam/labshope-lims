@@ -769,7 +769,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
           )
         `);
 
-      query = query.eq("organization_id" as any, organizationId);
+      query = query.eq("organization_id", organizationId);
 
       // If user is a collector (and not admin/employee), only show patients they created
       if (isCollector && user?.id) {
@@ -870,7 +870,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
         .from("labs")
         .select("id, name, lab_code")
         .eq("is_active", true)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("name");
 
       const { data, error } = await query;
@@ -901,7 +901,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
         .from("collection_centers")
         .select("id, name, code, lab_id")
         .eq("is_active", true)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("name");
 
       const { data, error } = await query;
@@ -956,7 +956,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
           )
         `)
         .eq("patient_id", patientId)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("test_date", { ascending: false });
 
       if (error) throw error;
@@ -1033,7 +1033,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
         .from("invoices")
         .select("final_amount, paid_amount")
         .eq("patient_id", patientId)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       const { data, error } = await query;
 
@@ -1561,7 +1561,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
         .from("abdm_profile_shares" as any)
         .update({ matched_patient_id: patient.id, request_status: "matched" })
         .eq("id", share.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
       if (shareError) throw shareError;
 
       // Write ABHA identity onto the patient record
@@ -1576,7 +1576,7 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
         .from("patients")
         .update(abhaUpdate as any)
         .eq("id", patient.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
       if (patientError) throw patientError;
 
       // Refresh shares list

@@ -121,7 +121,7 @@ const ManageDoctors = () => {
         .from("doctors")
         .select("*")
         .order("name")
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (doctorsError) throw doctorsError;
       const scopedDoctors = doctorsData || [];
@@ -141,7 +141,7 @@ const ManageDoctors = () => {
           *,
           doctor:doctors(*)
         `)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .in("doctor_id", doctorIds)
         .order("referral_date", { ascending: false });
 
@@ -155,7 +155,7 @@ const ManageDoctors = () => {
               .from("patients")
               .select("full_name, patient_id")
               .eq("id", ref.patient_id)
-              .eq("organization_id" as any, organizationId)
+              .eq("organization_id", organizationId)
               .single();
 
             return {
@@ -254,7 +254,7 @@ const ManageDoctors = () => {
           .from("doctors")
           .update(doctorData)
           .eq("id", editingDoctor.id)
-          .eq("organization_id" as any, organizationId);
+          .eq("organization_id", organizationId);
 
         if (error) throw error;
         toast.success("Doctor updated successfully");
@@ -288,7 +288,7 @@ const ManageDoctors = () => {
         .from("doctors")
         .delete()
         .eq("id", doctorToDelete)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (error) throw error;
 
@@ -313,7 +313,7 @@ const ManageDoctors = () => {
         .from("doctor_referrals")
         .update({ commission_paid: true })
         .eq("id", referralId)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (error) throw error;
       toast.success("Commission marked as paid");

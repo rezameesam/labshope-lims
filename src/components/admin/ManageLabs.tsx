@@ -216,7 +216,7 @@ const ManageLabs = () => {
         .order("name");
 
       if (organizationId) {
-        query = query.eq("organization_id" as any, organizationId);
+        query = query.eq("organization_id", organizationId);
       }
 
       const { data: labsData, error } = await query;

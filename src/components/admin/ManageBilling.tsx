@@ -279,7 +279,7 @@ const ManageBilling = () => {
             )
           `)
           .order("created_at", { ascending: false })
-          .eq("organization_id" as any, organizationId);
+          .eq("organization_id", organizationId);
         
         data = (result.data as unknown as Invoice[] | null) ?? null;
         error = result.error;
@@ -293,7 +293,7 @@ const ManageBilling = () => {
               patient:patients(full_name, patient_id, phone, abha_address)
             `)
             .order("created_at", { ascending: false })
-            .eq("organization_id" as any, organizationId);
+            .eq("organization_id", organizationId);
           
           data = (basicResult.data as unknown as Invoice[] | null) ?? null;
           error = basicResult.error;
@@ -307,7 +307,7 @@ const ManageBilling = () => {
             patient:patients(full_name, patient_id, phone, abha_address)
           `)
           .order("created_at", { ascending: false })
-          .eq("organization_id" as any, organizationId);
+          .eq("organization_id", organizationId);
 
         data = (basicResult.data as unknown as Invoice[] | null) ?? null;
         error = basicResult.error;
@@ -325,7 +325,7 @@ const ManageBilling = () => {
         const { data: linkData } = await (supabase as any)
           .from("abdm_care_context_links" as any)
           .select("invoice_id")
-          .eq("organization_id" as any, organizationId)
+          .eq("organization_id", organizationId)
           .in("invoice_id", invoiceIds)
           .in("link_status", ["linked", "notified"]);
         const ids = new Set<string>((linkData || []).map((r: any) => r.invoice_id).filter(Boolean));
@@ -353,7 +353,7 @@ const ManageBilling = () => {
         .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
         .eq("is_active", true);
 
-      query = query.eq("organization_id" as any, organizationId);
+      query = query.eq("organization_id", organizationId);
 
       // Note: Collectors shouldn't be here, but add restriction just in case
       if (isCollector && currentUserId) {
@@ -517,7 +517,7 @@ const ManageBilling = () => {
         .eq("patient_id", patientId)
         .order("test_date", { ascending: false });
 
-      query = query.eq("organization_id" as any, organizationId);
+      query = query.eq("organization_id", organizationId);
 
       const { data, error } = await query;
 
@@ -805,7 +805,7 @@ const ManageBilling = () => {
           paid_at: newStatus === "paid" ? new Date().toISOString() : null,
         })
         .eq("id", selectedInvoice.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (updateError) throw updateError;
 
@@ -956,7 +956,7 @@ const ManageBilling = () => {
           paid_at: newPaidAt,
         })
         .eq("id", selectedInvoice.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (invoiceError) throw invoiceError;
 
@@ -984,7 +984,7 @@ const ManageBilling = () => {
               )
             `)
             .eq("id", selectedInvoice.id)
-            .eq("organization_id" as any, organizationId)
+            .eq("organization_id", organizationId)
             .single();
 
           if (!result.error && result.data) {
@@ -1013,7 +1013,7 @@ const ManageBilling = () => {
                 patient:patients(full_name, patient_id, phone, abha_address)
               `)
               .eq("id", selectedInvoice.id)
-              .eq("organization_id" as any, organizationId)
+              .eq("organization_id", organizationId)
               .single();
 
             if (!basicResult.error && basicResult.data) {

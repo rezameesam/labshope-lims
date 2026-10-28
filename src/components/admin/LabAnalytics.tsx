@@ -108,7 +108,7 @@ const LabAnalytics = ({ labId, labName, labCode }: LabAnalyticsProps) => {
         .select("id, status, test_name, created_at, patients!inner(full_name, patient_id)")
         .eq("lab_id", labId);
 
-      query = query.eq("organization_id" as any, organization.id);
+      query = query.eq("organization_id", organization.id);
 
       if (dateRange !== "all") {
         const dateThreshold = dateRange === "7d" 

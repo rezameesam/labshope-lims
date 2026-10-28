@@ -194,7 +194,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         `)
         .order("created_at", { ascending: false });
 
-      query = query.eq("organization_id" as any, organizationId);
+      query = query.eq("organization_id", organizationId);
 
       const [requestsResult, patientsCountResult] = await Promise.all([
         query,
@@ -326,7 +326,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
-    query = query.eq("organization_id" as any, organizationId);
+    query = query.eq("organization_id", organizationId);
 
     const { data, error } = await query;
 
@@ -381,7 +381,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         .order("created_at", { ascending: false })
         .limit(10);
 
-      patientQuery = patientQuery.eq("organization_id" as any, organizationId);
+      patientQuery = patientQuery.eq("organization_id", organizationId);
 
       const { data, error } = await patientQuery;
 
@@ -426,7 +426,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         .from("booking_requests")
         .update({ status: reviewStatus })
         .eq("id", selectedRequest.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (error) {
         throw error;
@@ -463,7 +463,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         .from("booking_requests")
         .update(updates)
         .eq("id", selectedRequest.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (error) {
         throw error;
@@ -515,7 +515,7 @@ const ManageBookingRequests = ({ onCountChange }: ManageBookingRequestsProps) =>
         .eq("is_active", true)
         .order("created_at", { ascending: false });
 
-      duplicateQuery = duplicateQuery.eq("organization_id" as any, organizationId);
+      duplicateQuery = duplicateQuery.eq("organization_id", organizationId);
 
       const { data: existingPatients, error: checkError } = await duplicateQuery;
 

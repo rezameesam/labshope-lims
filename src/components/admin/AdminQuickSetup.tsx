@@ -458,7 +458,7 @@ const AdminQuickSetup = ({ onNavigate }: AdminQuickSetupProps) => {
           },
         } as any)
         .eq("id", primaryLab.id)
-        .eq("organization_id" as any, organization.id);
+        .eq("organization_id", organization.id);
 
       const settingsPayload = [
         {

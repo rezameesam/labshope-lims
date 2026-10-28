@@ -921,7 +921,7 @@ export const generateMultiTestReportPDF = async (
         .eq("id", firstTest.lab_id);
 
       if (branding?.organizationId) {
-        labQuery = labQuery.eq("organization_id" as any, branding.organizationId);
+        labQuery = labQuery.eq("organization_id", branding.organizationId);
       }
 
       const { data: labRow } = await labQuery.maybeSingle();

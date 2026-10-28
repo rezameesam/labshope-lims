@@ -73,8 +73,8 @@ const ManageInventory = () => {
     if (!organizationId) { setItems([]); setCategories([]); setPurchases([]); setUsages([]); setMaintenances([]); setLoading(false); return; }
     try {
       const [itemsRes, categoriesRes] = await Promise.all([
-        (supabase as any).from("inventory_items").select("*").eq("organization_id" as any, organizationId).order("name"),
-        (supabase as any).from("inventory_categories").select("*").eq("organization_id" as any, organizationId).order("name"),
+        (supabase as any).from("inventory_items").select("*").eq("organization_id", organizationId).order("name"),
+        (supabase as any).from("inventory_categories").select("*").eq("organization_id", organizationId).order("name"),
       ]);
       if (itemsRes.error) throw itemsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
@@ -152,7 +152,7 @@ const ManageInventory = () => {
     if (!organizationId) { toast.error("Organization context required"); return; }
     try {
       if (editingItem) {
-        const { error } = await (supabase as any).from("inventory_items").update({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null }).eq("id", editingItem.id).eq("organization_id" as any, organizationId);
+        const { error } = await (supabase as any).from("inventory_items").update({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null }).eq("id", editingItem.id).eq("organization_id", organizationId);
         if (error) throw error; toast.success("Item updated");
       } else {
         const { error } = await supabase.from("inventory_items").insert({ ...itemForm, organization_id: organizationId, category_id: itemForm.category_id || null });

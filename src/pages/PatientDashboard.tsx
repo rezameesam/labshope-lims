@@ -102,7 +102,7 @@ const PatientDashboard = () => {
         .from("invoices")
         .select("final_amount, paid_amount, payment_status")
         .eq("patient_id", patient.id);
-      if (patient.organization_id) query = query.eq("organization_id" as any, patient.organization_id);
+      if (patient.organization_id) query = query.eq("organization_id", patient.organization_id);
       const { data: invoices, error } = await query;
       if (error) throw error;
       const billed = invoices?.reduce((s, i) => s + (Number(i.final_amount) || 0), 0) || 0;
@@ -129,20 +129,20 @@ const PatientDashboard = () => {
             .from("patient_tests")
             .select("*, labs(id,name,lab_code), collection_centers(id,name,code)")
             .eq("patient_id", patient.id);
-          if (patient.organization_id) q = q.eq("organization_id" as any, patient.organization_id);
+          if (patient.organization_id) q = q.eq("organization_id", patient.organization_id);
           const res = await q.order("created_at", { ascending: false });
           data = res.data; error = res.error;
 
           if (error && (error.code === "PGRST116" || error.code === "PGRST201" || error.code === "42P01" ||
             error.message?.includes("Could not find") || error.message?.includes("relationship"))) {
             let bq = supabase.from("patient_tests").select("*").eq("patient_id", patient.id);
-            if (patient.organization_id) bq = bq.eq("organization_id" as any, patient.organization_id);
+            if (patient.organization_id) bq = bq.eq("organization_id", patient.organization_id);
             const br = await bq.order("created_at", { ascending: false });
             data = br.data; error = br.error;
           }
         } catch {
           let bq = supabase.from("patient_tests").select("*").eq("patient_id", patient.id);
-          if (patient.organization_id) bq = bq.eq("organization_id" as any, patient.organization_id);
+          if (patient.organization_id) bq = bq.eq("organization_id", patient.organization_id);
           const br = await bq.order("created_at", { ascending: false });
           data = br.data; error = br.error;
         }

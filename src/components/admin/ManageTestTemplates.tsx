@@ -339,7 +339,7 @@ const ManageTestTemplates = () => {
       const templatesQuery = (supabase as any)
         .from("test_templates")
         .select("*")
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("name");
 
       const [templatesResult, categoriesResult, testsResult] = await Promise.all([

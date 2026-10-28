@@ -179,7 +179,7 @@ const ManageReminders = () => {
         .select("*")
         .order("reminder_date", { ascending: true });
 
-      remindersQuery = remindersQuery.eq("organization_id" as any, organizationId);
+      remindersQuery = remindersQuery.eq("organization_id", organizationId);
 
       // Fetch reminders
       const { data: remindersData, error: remindersError } = await remindersQuery;
@@ -195,7 +195,7 @@ const ManageReminders = () => {
               .select("full_name, patient_id, phone")
               .eq("id", rem.patient_id);
 
-            patientQuery = patientQuery.eq("organization_id" as any, organizationId);
+            patientQuery = patientQuery.eq("organization_id", organizationId);
 
             const { data: patientData } = await patientQuery.single();
 
@@ -222,7 +222,7 @@ const ManageReminders = () => {
         .eq("is_active", true)
         .order("full_name");
 
-      patientsQuery = patientsQuery.eq("organization_id" as any, organizationId);
+      patientsQuery = patientsQuery.eq("organization_id", organizationId);
 
       const { data: patientsData, error: patientsError } = await patientsQuery;
 

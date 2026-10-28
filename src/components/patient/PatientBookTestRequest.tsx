@@ -82,14 +82,14 @@ const PatientBookTestRequest = ({ patient }: PatientBookTestRequestProps) => {
         .from("labs")
         .select("id, name, lab_code")
         .eq("is_active", true)
-        .eq("organization_id" as any, resolvedOrganizationId)
+        .eq("organization_id", resolvedOrganizationId)
         .order("name");
 
       const centersQuery = supabase
         .from("collection_centers")
         .select("id, name, code, lab_id")
         .eq("is_active", true)
-        .eq("organization_id" as any, resolvedOrganizationId)
+        .eq("organization_id", resolvedOrganizationId)
         .order("name");
 
       const [labsRes, centersRes] = await Promise.all([labsQuery, centersQuery]);

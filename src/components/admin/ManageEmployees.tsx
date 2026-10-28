@@ -219,7 +219,7 @@ const ManageEmployees = () => {
       const { data: platformAdminsData } = await (supabase as any).from("platform_admins").select("user_id");
       const platformAdminUserIds: string[] = (platformAdminsData || []).map((row: { user_id: string }) => row.user_id);
 
-      let employeesQuery = (supabase as any).from("employees").select("*").eq("organization_id" as any, organizationId).order("created_at", { ascending: false });
+      let employeesQuery = (supabase as any).from("employees").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false });
       if (currentLab?.id && !isAdmin) employeesQuery = (employeesQuery as any).eq("lab_id", currentLab.id);
       if (platformAdminUserIds.length > 0) employeesQuery = (employeesQuery as any).not("user_id", "in", `(${platformAdminUserIds.join(",")})`);
 

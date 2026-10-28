@@ -130,15 +130,15 @@ const AdminSetupChecklist = ({ onNavigate }: AdminSetupChecklistProps) => {
         (supabase as any)
           .from("employees")
           .select("id", { count: "exact", head: true })
-          .eq("organization_id" as any, organization.id),
+          .eq("organization_id", organization.id),
         (supabase as any)
           .from("tests")
           .select("id", { count: "exact", head: true })
-          .eq("organization_id" as any, organization.id),
+          .eq("organization_id", organization.id),
         (supabase as any)
           .from("test_templates")
           .select("id", { count: "exact", head: true })
-          .eq("organization_id" as any, organization.id),
+          .eq("organization_id", organization.id),
         (supabase as any)
           .from("organization_settings" as any)
           .select("setting_key, setting_value")

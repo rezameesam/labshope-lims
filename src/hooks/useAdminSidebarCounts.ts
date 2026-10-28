@@ -56,7 +56,7 @@ export const useAdminSidebarCounts = ({
         .from("patient_tests")
         .select("id", { count: "exact", head: true })
         .in("status", ["pending", "in_progress"])
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (isCollector && userId) {
         testsQuery = testsQuery.eq("collected_by", userId);
@@ -66,20 +66,20 @@ export const useAdminSidebarCounts = ({
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "new")
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       const remindersQuery = (supabase as any)
         .from("patient_reminders")
         .select("id, reminder_date, due_date, is_completed")
         .eq("is_completed", false)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .limit(100);
 
       const invoicesQuery = (supabase as any)
         .from("invoices")
         .select("id", { count: "exact", head: true })
         .neq("payment_status", "paid")
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       const [bookingRequestsResult, pendingTestsResult, remindersResult, invoicesResult] =
         await Promise.all([

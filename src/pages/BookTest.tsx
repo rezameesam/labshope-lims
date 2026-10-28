@@ -72,8 +72,8 @@ const BookTest = () => {
         .order("name");
 
       if (resolvedOrganizationId) {
-        labsQuery = labsQuery.eq("organization_id" as any, resolvedOrganizationId);
-        centersQuery = centersQuery.eq("organization_id" as any, resolvedOrganizationId);
+        labsQuery = labsQuery.eq("organization_id", resolvedOrganizationId);
+        centersQuery = centersQuery.eq("organization_id", resolvedOrganizationId);
       }
 
       const [labsRes, centersRes] = await Promise.all([labsQuery, centersQuery]);

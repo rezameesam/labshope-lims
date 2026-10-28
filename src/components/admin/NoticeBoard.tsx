@@ -131,7 +131,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         testsQuery = testsQuery.eq("collected_by", user?.id);
       }
 
-      testsQuery = testsQuery.eq("organization_id" as any, organization.id);
+      testsQuery = testsQuery.eq("organization_id", organization.id);
 
       const { data: tests, error: testsError } = await testsQuery;
 
@@ -180,7 +180,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         .order("reminder_date", { ascending: true })
         .limit(50);
 
-      remindersQuery = remindersQuery.eq("organization_id" as any, organization.id);
+      remindersQuery = remindersQuery.eq("organization_id", organization.id);
 
       const { data: reminders, error: remindersError } = await remindersQuery;
 
@@ -229,7 +229,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
         .order("created_at", { ascending: true })
         .limit(50);
 
-      invoicesQuery = invoicesQuery.eq("organization_id" as any, organization.id);
+      invoicesQuery = invoicesQuery.eq("organization_id", organization.id);
 
       const { data: invoices, error: invoicesError } = await invoicesQuery;
 

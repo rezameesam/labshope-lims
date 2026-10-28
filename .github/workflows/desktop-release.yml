@@ -68,6 +68,12 @@ jobs:
         working-directory: .
         run: npm ci
 
+      - name: Typecheck and lint web app
+        working-directory: .
+        run: |
+          npm run typecheck
+          npm run lint
+
       # The installer ships its own copy of the web app so it opens instantly
       # from disk. Configure these under Settings -> Secrets and variables ->
       # Actions -> Variables (they are public client-side values).

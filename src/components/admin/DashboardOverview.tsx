@@ -195,7 +195,7 @@ const DashboardOverview = ({ onNavigate }: DashboardOverviewProps) => {
           .order("created_at", { ascending: false })
           .limit(5);
 
-        recentTestsQuery = recentTestsQuery.eq("organization_id" as any, organization.id);
+        recentTestsQuery = recentTestsQuery.eq("organization_id", organization.id);
 
         const [recentTestsRes] = await Promise.all([recentTestsQuery]);
 

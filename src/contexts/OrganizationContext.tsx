@@ -271,7 +271,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           .limit(1);
 
         if (!membershipError && membershipData && membershipData.length > 0) {
-          const membership = membershipData[0] as {
+          const membership = membershipData[0] as unknown as {
             organization_id: string;
             organization?: OrganizationRecord | null;
           };
@@ -287,7 +287,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
             .maybeSingle();
 
           if (!organizationError && organizationData) {
-            resolvedOrganization = organizationData as OrganizationRecord;
+            resolvedOrganization = organizationData as unknown as OrganizationRecord;
           }
         }
       }
@@ -296,7 +296,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         const { data: labData, error: labError } = await supabase
           .from("labs")
           .select("id, organization_id, name, type, address, city, state, pincode, phone, email, logo_url, settings")
-          .eq("organization_id" as any, organizationId)
+          .eq("organization_id", organizationId)
           .eq("is_active", true)
           .order("type", { ascending: true })
           .order("created_at", { ascending: true })
@@ -319,7 +319,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
             .maybeSingle();
 
         if (!organizationError && organizationData) {
-          resolvedOrganization = organizationData as OrganizationRecord;
+          resolvedOrganization = organizationData as unknown as OrganizationRecord;
         }
       }
 
@@ -364,7 +364,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
 
         if (!settingsError && settingsData) {
           resolvedSettings = new Map(
-            (settingsData as OrganizationSettingRecord[]).map((setting) => [
+            (settingsData as unknown as OrganizationSettingRecord[]).map((setting) => [
               setting.setting_key,
               setting.setting_value || "",
             ])
@@ -382,7 +382,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
             .in("setting_key", ["razorpay_key_id", "phonepe_merchant_id", "payu_key"]);
 
           if (!paymentSettingsError && paymentSettingsData) {
-            for (const setting of paymentSettingsData as OrganizationSettingRecord[]) {
+            for (const setting of paymentSettingsData as unknown as OrganizationSettingRecord[]) {
               resolvedSettings.set(setting.setting_key, setting.setting_value || "");
             }
           }

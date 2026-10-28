@@ -69,7 +69,7 @@ const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, o
   const fetchInvoices = useCallback(async () => {
     if (!organizationId) { setInvoices([]); setLoading(false); return; }
     try {
-      const { data, error } = await supabase.from("invoices").select("*").eq("patient_id", patientId).eq("organization_id" as any, organizationId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("invoices").select("*").eq("patient_id", patientId).eq("organization_id", organizationId).order("created_at", { ascending: false });
       if (error) throw error;
       setInvoices(data || []);
     } catch (error) { console.error("Error fetching invoices:", error); toast.error("Failed to load billing information"); }
@@ -79,7 +79,7 @@ const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, o
   const fetchInvoiceDetails = async (invoiceId: string) => {
     if (!organizationId) { setSelectedInvoice(null); setInvoiceItems([]); setPayments([]); return; }
     try {
-      const { data: inv, error: invErr } = await supabase.from("invoices").select("*").eq("id", invoiceId).eq("organization_id" as any, organizationId).single();
+      const { data: inv, error: invErr } = await supabase.from("invoices").select("*").eq("id", invoiceId).eq("organization_id", organizationId).single();
       if (invErr) throw invErr;
       if (inv) setSelectedInvoice(inv);
       const { data: items, error: itemsErr } = await supabase.from("invoice_items").select("*").eq("invoice_id", invoiceId).eq("organization_id", organizationId);

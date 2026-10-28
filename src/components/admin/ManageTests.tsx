@@ -425,13 +425,13 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
           )
         `);
 
-      testsQuery = testsQuery.eq("organization_id" as any, organizationId);
+      testsQuery = testsQuery.eq("organization_id", organizationId);
 
       let patientsQuery: any = (supabase as any)
         .from("patients")
         .select("id, patient_id, full_name, phone, lab_id, collection_center_id")
         .eq("is_active", true)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (isCollector && user?.id) {
         patientsQuery = patientsQuery.eq("created_by", user.id);
@@ -440,7 +440,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       const templatesQuery = (supabase as any)
         .from("test_templates")
         .select("id, name, is_default")
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("name");
 
       const categoriesQuery = (supabase as any)
@@ -464,7 +464,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .from("doctors")
         .select("id, name, specialization, commission_percentage")
         .eq("is_active", true)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       const [testsRes, patientsRes, categoriesRes, catalogRes, doctorsRes, packagesRes, packageTestsRes, templatesRes] = await Promise.all([
         testsQuery.order("created_at", { ascending: false }),
@@ -506,7 +506,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         const { data: linkData } = await (supabase as any)
           .from("abdm_care_context_links" as any)
           .select("patient_test_id")
-          .eq("organization_id" as any, organizationId)
+          .eq("organization_id", organizationId)
           .in("patient_test_id", completedTestIds)
           .in("link_status", ["linked", "notified"]);
         const ids = new Set<string>((linkData || []).map((r: any) => r.patient_test_id).filter(Boolean));
@@ -556,7 +556,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .from("labs")
         .select("id, name, lab_code")
         .eq("is_active", true)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("name");
 
       if (error) {
@@ -584,7 +584,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .from("collection_centers")
         .select("id, name, code, lab_id")
         .eq("is_active", true)
-        .eq("organization_id" as any, organizationId)
+        .eq("organization_id", organizationId)
         .order("name");
 
       if (error) {
@@ -1082,7 +1082,7 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
         .from("patient_tests")
         .update(updateData)
         .eq("id", selectedTest.id)
-        .eq("organization_id" as any, organizationId);
+        .eq("organization_id", organizationId);
 
       if (error) throw error;
 

@@ -114,7 +114,7 @@ const ManageCollectionCenters = () => {
         .order("name");
 
       if (organizationId) {
-        query = query.eq("organization_id" as any, organizationId);
+        query = query.eq("organization_id", organizationId);
       }
 
       // If not admin, filter by current lab
@@ -213,7 +213,7 @@ const ManageCollectionCenters = () => {
           .from("collection_centers")
           .update(centerData)
           .eq("id", editingCenter.id)
-          .eq("organization_id" as any, organizationId);
+          .eq("organization_id", organizationId);
         const { error } = await updateQuery;
 
         if (error) throw error;
