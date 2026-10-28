@@ -5,6 +5,9 @@ name: CI
 #   desktop   the desktop app's own tests
 #   database  a migration that no longer applies from scratch, a failing SQL test, or a
 #             broken register_visit / RLS / offline-sync integration
+#   promote   (main only) moves the `release` branch to the tested commit. Cloudflare Pages
+#             deploys production from `release`, so nothing reaches the live lab sites unless
+#             all three jobs above passed. Pushing to main alone never deploys.
 
 on:
   push:
@@ -98,3 +101,28 @@ jobs:
 
       - name: Rebuild the database from migrations and run the database tests
         run: scripts/test-db.sh
+
+  promote:
+    name: Promote to production (release branch)
+    needs: [web, desktop, database]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward release to the tested commit
+        run: |
+          if git ls-remote --exit-code --heads origin release >/dev/null 2>&1; then
+            git fetch origin release
+            if ! git merge-base --is-ancestor origin/release HEAD; then
+              echo "::error::release has commits that are not on main. Refusing to overwrite it."
+              exit 1
+            fi
+          fi
+          git push origin HEAD:refs/heads/release
+          echo "release is now at $(git rev-parse --short HEAD)"

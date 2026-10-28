@@ -37,6 +37,11 @@ cp .env.example .env.local
 | `npm run test:live` | looks at the deployed sites from the outside: page loads, the build points at the right Supabase project, each lab resolves |
 | `cd desktop && npm test` | the desktop app's tests |
 
+**Deploy gate:** Cloudflare Pages deploys production from the `release` branch, and CI moves `release` forward only after the
+web, desktop and database jobs all pass on `main`. A broken commit on `main` never reaches the lab sites. (GitHub branch protection
+needs a paid plan for private repositories, so the gate sits in front of deployment instead.) To deploy by hand in an emergency,
+fast-forward `release` yourself: `git push origin <commit>:release`.
+
 GitHub Actions runs the first, second and fourth on every push and pull request (`.github/workflows/ci.yml`) and the live check every morning
 (`.github/workflows/live-health.yml`). A red job names the part that broke.
 
