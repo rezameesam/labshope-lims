@@ -1,5 +1,19 @@
 # Progress notes, 29 October 2026 (resume from here)
 
+> **UPDATE, later the same day (read this first):** the owner said data does not matter and nothing is operational yet, so
+> `irmclinic.com` should move to the latest app. Done since the notes below were written:
+> - The 15 public `VITE_*` build variables were **copied onto the `irmclinic` Pages project** (Production and Preview). So a `main` push no longer breaks the site's database config.
+> - A production rebuild of `cf00714` was started (deployment `c111d2f5`) but is **stuck in "queued"**: both Pages projects still record the old git owner
+>   (`IRMClinic`, owner_id `109570620`, repo_id `1124547642`, repo `irmclinic`), and the repo now lives in `LabShope/labshope-lims` (same repo id).
+>   The Cloudflare GitHub app **is installed on the LabShope org (all repos, since 2026-10-21)**; it is not installed on the IRMClinic org.
+> - **Blocked, needs the owner:** updating each project's git source to `LabShope/labshope-lims` (API: `PATCH /accounts/<id>/pages/projects/<name>` with
+>   `source.config.owner='LabShope'`, `owner_id=<LabShope org id>`, `repo_name='labshope-lims'`), or doing it in the dashboard. Until then no new
+>   push or retry builds, for either Pages project (the `6671e4e` push was never built). When the connection is fixed, the queued `c111d2f5` should build and
+>   become the new `irmclinic.com` production (this is intended; apply the `register_visit` migration first).
+> - `irmclinic.com` still serves the old 21 March app (works). Rollback id if the new one misbehaves: `1f3f7df4-9616-4e70-a4d9-c2acd69bf40d`.
+> - Item 2 below (data comparison) is no longer needed.
+
+
 Written at the end of a long working session so the work can be picked up later. Nothing here contains a secret.
 
 ## The one-paragraph state
