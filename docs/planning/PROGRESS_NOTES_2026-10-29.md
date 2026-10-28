@@ -11,6 +11,12 @@
 >   push or retry builds, for either Pages project (the `6671e4e` push was never built). When the connection is fixed, the queued `c111d2f5` should build and
 >   become the new `irmclinic.com` production (this is intended; apply the `register_visit` migration first).
 > - `irmclinic.com` still serves the old 21 March app (works). Rollback id if the new one misbehaves: `1f3f7df4-9616-4e70-a4d9-c2acd69bf40d`.
+> - **Tried and failed:** `PATCH` of the Pages project `source` returns success but Cloudflare ignores it (the project still shows `IRMClinic/irmclinic`).
+>   A Pages project cannot be re-pointed to a transferred repo through the API. Options: (A) create a NEW Pages project connected to
+>   `LabShope/labshope-lims` (build `npm run build`, output `dist`, branch `main`, the 15 `VITE_*` values), then move the domains to it in the dashboard
+>   (the dashboard fixes the DNS records itself; the Wrangler login has no DNS-write scope); or (B) delete and recreate the project with the same name
+>   (no DNS change needed, but it destroys deployment history and the rollback target, with a short outage). A was recommended.
+> - Wrangler OAuth tokens expire in about an hour; run `npx wrangler whoami` to refresh before using the API helper.
 > - Item 2 below (data comparison) is no longer needed.
 
 
