@@ -38,8 +38,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "IRMClinic",
-      "repo": "irmclinic"
+      "owner": "LabShope",
+      "repo": "labshope-lims"
     },
     "mac": {
       "category": "public.app-category.medical",

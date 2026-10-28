@@ -19,7 +19,7 @@ const config = require("./config.json");
 
 const BASE_DOMAIN = (process.env.LIMS_BASE_DOMAIN || config.baseDomain || "").trim().toLowerCase();
 const LOGIN_PATH = config.loginPath || "/auth/staff";
-const RELEASES_URL = "https://github.com/IRMClinic/irmclinic/releases";
+const RELEASES_URL = "https://github.com/LabShope/labshope-lims/releases";
 const REACHABILITY_TIMEOUT_MS = 8000;
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
