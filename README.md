@@ -28,6 +28,18 @@ If you need a starting point for environment variables, copy:
 cp .env.example .env.local
 ```
 
+## Tests
+
+| Command | What it checks |
+| --- | --- |
+| `npm run check` | typecheck + lint + unit tests (this is what CI runs for the web app) |
+| `npm run test:db` | rebuilds a throw-away Supabase from the migrations, then runs the SQL tests and the real-database integration test (needs Docker, the Supabase CLI and psql) |
+| `npm run test:live` | looks at the deployed sites from the outside: page loads, the build points at the right Supabase project, each lab resolves |
+| `cd desktop && npm test` | the desktop app's tests |
+
+GitHub Actions runs the first, second and fourth on every push and pull request (`.github/workflows/ci.yml`) and the live check every morning
+(`.github/workflows/live-health.yml`). A red job names the part that broke.
+
 ## Local Supabase
 
 Start the local stack and rebuild the database from migrations:

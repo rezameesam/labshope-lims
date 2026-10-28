@@ -1,0 +1,100 @@
+name: CI
+
+# Runs on every push and pull request. A red job tells you which part broke:
+#   web       type errors, lint errors, failing unit tests, or a build that no longer compiles
+#   desktop   the desktop app's own tests
+#   database  a migration that no longer applies from scratch, a failing SQL test, or a
+#             broken register_visit / RLS / offline-sync integration
+
+on:
+  push:
+    branches: [main, demo, production]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web app (typecheck, lint, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time values only; nothing here is a secret.
+          VITE_SUPABASE_URL: https://ci.invalid
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-key
+          VITE_PUBLIC_BASE_DOMAIN: example.test
+
+  desktop:
+    name: Desktop app (tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Syntax check
+        run: node --check main.js && node --check preload.js
+
+      - name: Tests
+        run: npm test
+
+  database:
+    name: Database (migrations, SQL tests, integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.72.7
+
+      - name: Install
+        run: npm ci
+
+      - name: Rebuild the database from migrations and run the database tests
+        run: scripts/test-db.sh

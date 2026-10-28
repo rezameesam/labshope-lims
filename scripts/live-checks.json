@@ -1,0 +1,19 @@
+{
+  "supabaseProject": "ceyfwoczyhnwipacwhcn",
+  "hosts": [
+    { "host": "lims.labshope.com" },
+    { "host": "demo.labshope.com", "tenant": "demo" },
+    { "host": "irm.labshope.com", "tenant": "irm" },
+    { "host": "lab.irmclinic.com", "tenant": "irm" },
+    {
+      "host": "irmclinic.com",
+      "tenant": "irm",
+      "knownIssue": "serves the old single-lab IRM build until its Pages project is connected to LabShope/labshope-lims (see docs/planning/PROGRESS_NOTES_2026-10-29.md). Remove this line once irmclinic.com is on the latest app."
+    },
+    {
+      "host": "www.irmclinic.com",
+      "tenant": "irm",
+      "knownIssue": "same as irmclinic.com; also needs a www.irmclinic.com row in organization_domains."
+    }
+  ]
+}

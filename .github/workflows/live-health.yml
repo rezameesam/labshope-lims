@@ -1,0 +1,27 @@
+name: Live health check
+
+# Looks at the deployed sites from the outside every morning (and on demand) and fails
+# if one is broken: wrong or missing database in the build, a lab that no longer resolves
+# (for example a suspended trial), or a page that does not load. A failed run emails the
+# repository owner through GitHub notifications.
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Deployed sites
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the live sites
+        run: node scripts/check-live.mjs

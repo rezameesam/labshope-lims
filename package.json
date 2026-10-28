@@ -11,7 +11,9 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "check": "npm run typecheck && npm run lint && npm test",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:db": "scripts/test-db.sh",
+    "test:live": "node scripts/check-live.mjs"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",
