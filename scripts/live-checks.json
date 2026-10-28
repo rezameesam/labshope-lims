@@ -13,6 +13,10 @@
       "tenant": "irm"
     },
     {
+      "host": "lifeline.labshope.com",
+      "tenant": "lifeline"
+    },
+    {
       "host": "irmclinic.com",
       "tenant": "irm"
     },

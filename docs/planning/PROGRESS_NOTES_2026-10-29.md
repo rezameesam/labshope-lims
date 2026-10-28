@@ -41,6 +41,12 @@
 > - **Still on the old Pages project `labshope-lims`:** `lims.labshope.com`, `abdm.labshope.com`, `www.shuhul.com` (their DNS is in the `labshope.com`/`shuhul.com` zones, not covered by the DNS token). Move them to `labshope-lims-app`,
 >   then delete the old Pages projects `labshope-lims` and `irmclinic` (stale queued deployment `c111d2f5`).
 > - **Security:** a Cloudflare DNS API token was pasted into the chat. It should be deleted (dashboard > My Profile > API Tokens) now that the DNS change is done.
+> - **How the sites are really served (important):** the Cloudflare Worker `tight-river-11a4` has the route `*.labshope.com/*` and is a 5-line proxy that rewrites the hostname and fetches
+>   from a Pages project. It used to forward to the old, frozen Pages project `labshope-lims`; **since late 29 Oct it forwards to `labshope-lims-app.pages.dev`** (owner-approved), so every lab subdomain
+>   (`demo`, `irm`, `lifeline`, ...) updates with each push to `main`. **Rollback:** upload the previous code (saved at `/tmp/tight-river-11a4.before.js`; it is the same 5 lines with
+>   `url.hostname = "labshope-lims.pages.dev"`). A separate Worker `abdm-callback-proxy` (route `abdm.labshope.com/*`) forwards the ABDM callback `/api/v3/hip/patient/share` to the Supabase function; leave it alone.
+> - `www.shuhul.com` (DNS at GoDaddy, test only) is ignored on purpose and will stop working when the old Pages project is deleted.
+> - **Next:** delete the old Pages projects `labshope-lims` and `irmclinic` (before deleting `labshope-lims`, check that `lims.labshope.com` still answers: it is also a custom domain there). Revoke the pasted DNS token.
 > - Item 2 below (data comparison) is no longer needed.
 
 
