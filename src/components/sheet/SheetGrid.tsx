@@ -418,7 +418,7 @@ function SheetGrid<T>({
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div className={`flex min-h-0 flex-col rounded-lg border border-border bg-card ${className ?? ""}`}>
+    <div className={`flex min-h-0 min-w-0 max-w-full flex-col rounded-lg border border-border bg-card ${className ?? ""}`}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-2">
         <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

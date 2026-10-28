@@ -6,9 +6,10 @@ downloading the app on every start. Data still comes from your lab's Supabase
 backend. It also has a first-run workspace picker, window state, native
 printing and downloads, and automatic updates.
 
-> Today the app needs an internet connection for data. The next phase adds a
-> local database and a sync queue so reads are instant and registration works
-> offline.
+> The app keeps a local copy of your catalog, patients and recent invoices, so
+> lookups are instant and you can register patients and edit records offline.
+> Everything uploads automatically when the connection returns (see the sync
+> badge in the header). A first-ever login still needs internet.
 
 ## How it opens your lab
 
@@ -86,11 +87,17 @@ the AppImage, the Windows installer and (once signed) macOS. The `.deb` does not
 self-update. If the repository is private, the updater needs a read token baked
 into the app, so keep the releases repository public or host updates elsewhere.
 
-## Offline phase (planned)
+## How offline works
 
-Next: a local database (IndexedDB) holding the test catalog, packages, doctors
-and recent patients, so lookups and pickers are instant; and a write queue so
-registering a patient or ordering a test saves locally at once and syncs in the
-background with idempotent retries. Needs a server-side "register patient"
-function that accepts a client-generated id, and a plan for offline patient and
-invoice numbers.
+- **Local database** (IndexedDB, one per lab): test catalog, packages, doctors,
+  labs, patients and the last 90 days of invoices. Searches and the Lab Sheets
+  read from it, so they don't wait on the network.
+- **Registering a visit** is one `register_visit` server call (patient, tests,
+  invoice, referral) that is atomic and safe to retry. Offline, the visit is
+  saved locally and queued; the invoice number appears once it syncs.
+- **Editing a patient** applies instantly and uploads in the background.
+- **Starting offline**: the last known workspace and roles are remembered, so the
+  app opens without a connection, even after the login's access token expired.
+  The server still enforces every permission once it is reachable.
+- Needs the `register_visit` migration applied
+  (`supabase/migrations/20261029000000_register_visit_rpc.sql`).

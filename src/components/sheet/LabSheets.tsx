@@ -9,7 +9,7 @@ const LabSheets = () => {
   const [sheet, setSheet] = useState<SheetKey>("visits");
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 max-w-full space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">Lab Sheets</h2>

@@ -267,7 +267,7 @@ const AdminDashboard = () => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 min-h-screen">
+      <main className="min-w-0 flex-1 min-h-screen">
         {/* Header */}
         <header className="bg-card border-b border-border p-4 sticky top-0 z-30">
           <div className="flex items-center justify-between">

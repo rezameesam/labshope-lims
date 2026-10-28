@@ -3,12 +3,18 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
 import { getPublicHostname, getPublicSlugCandidate, isDefinitelyPlatformHostname } from "@/lib/publicTenant";
+import { TIMED_OUT, clearCachedRoles, raceTimeout, readCachedRoles, readStoredSession, writeCachedRoles } from "@/lib/offline/authCache";
 
 // Capture hash at module load before Supabase processes and clears it.
 const initialHashHasMagicLink =
   typeof window !== "undefined" && window.location.hash.includes("type=magiclink");
 
 type UserRole = "admin" | "employee" | "patient" | "collector";
+
+/** How long to wait for Supabase to confirm the session before opening with the stored login. */
+const OFFLINE_SESSION_WAIT_MS = 4000;
+/** How long to wait for the roles lookup when this user's roles are already remembered. */
+const ROLE_FETCH_TIMEOUT_MS = 4000;
 
 interface AuthContextType {
   user: User | null;
@@ -62,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [staffPasswordResetRequired, setStaffPasswordResetRequired] = useState(false);
   const roleRequestIdRef = useRef(0);
+  const offlineSessionRef = useRef(false);
   const roleCacheRef = useRef<Map<string, { roles: UserRole[]; expiresAt: number }>>(new Map());
   const roleInFlightRef = useRef<Map<string, Promise<UserRole[]>>>(new Map());
 
@@ -79,22 +86,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const request = (async () => {
       try {
-        const { data, error } = await supabase
+        const remembered = readCachedRoles<UserRole>(userId);
+        const query = supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", userId);
+        // Supabase queues every call behind a stuck token refresh when offline, so if we
+        // already know this user's roles, don't make the app wait for the server.
+        const response = remembered ? await raceTimeout(query, ROLE_FETCH_TIMEOUT_MS) : await query;
+        if (response === TIMED_OUT) {
+          return remembered ?? [];
+        }
+        const { data, error } = response;
 
         if (error) {
           console.error("Error fetching roles:", error);
-          return [];
+          // Server unreachable: keep the access this user had when last online.
+          return readCachedRoles<UserRole>(userId) ?? [];
         }
 
         const nextRoles = (data?.map((r) => r.role as UserRole)) || [];
         roleCacheRef.current.set(userId, { roles: nextRoles, expiresAt: Date.now() + 60_000 });
+        writeCachedRoles(userId, nextRoles);
         return nextRoles;
       } catch (error) {
         console.error("Error fetching roles:", error);
-        return [];
+        return readCachedRoles<UserRole>(userId) ?? [];
       } finally {
         roleInFlightRef.current.delete(userId);
       }
@@ -164,19 +181,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     // THEN check for existing session
+    const storageKey = (supabase.auth as unknown as { storageKey?: string }).storageKey;
+    const applyInitialSession = (nextSession: Session | null) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      syncRolesForSession(nextSession);
+      // NOTE: setLoading(false) is handled inside syncRolesForSession.
+    };
+
+    // With an expired access token and no network, Supabase retries the refresh in
+    // the background for ~30s before answering, which would leave the app stuck on
+    // its loading screen. If the answer is slow and a login is stored, open the app
+    // with that login now; the real answer upgrades or replaces it when it arrives.
+    let settled = false;
+    const slowStartTimer = window.setTimeout(() => {
+      if (!isMounted || settled) return;
+      const stored = readStoredSession(storageKey);
+      if (!stored) return;
+      settled = true;
+      offlineSessionRef.current = true;
+      applyInitialSession(stored);
+    }, OFFLINE_SESSION_WAIT_MS);
+
     void supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      window.clearTimeout(slowStartTimer);
       if (!isMounted) {
         return;
       }
 
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      syncRolesForSession(initialSession);
-      // NOTE: setLoading(false) is handled inside syncRolesForSession.
+      if (settled) {
+        // We already opened with the stored login. Take the real session if there is one;
+        // if Supabase dropped the login (revoked/invalid) while the stored copy is gone, sign out.
+        if (initialSession) {
+          offlineSessionRef.current = false;
+          applyInitialSession(initialSession);
+        } else if (!readStoredSession(storageKey)) {
+          offlineSessionRef.current = false;
+          applyInitialSession(null);
+        }
+        return;
+      }
+      settled = true;
+
+      // An expired access token that cannot be refreshed makes Supabase report no
+      // session while the login is still stored: stay signed in locally and reconcile
+      // when the network returns.
+      const stored = initialSession ? null : readStoredSession(storageKey);
+      offlineSessionRef.current = !initialSession && Boolean(stored);
+      applyInitialSession(initialSession ?? stored);
     });
+
+    // Back online after starting offline: refresh the real session now.
+    const reconcileOfflineSession = () => {
+      if (!offlineSessionRef.current) return;
+      void supabase.auth.getSession().then(({ data: { session: fresh } }) => {
+        if (!isMounted || !fresh) return;
+        offlineSessionRef.current = false;
+        setSession(fresh);
+        setUser(fresh.user);
+        syncRolesForSession(fresh);
+      });
+    };
+    window.addEventListener("online", reconcileOfflineSession);
 
     return () => {
       isMounted = false;
+      window.clearTimeout(slowStartTimer);
+      window.removeEventListener("online", reconcileOfflineSession);
       subscription.unsubscribe();
     };
   }, []);
@@ -306,9 +377,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async (scope: "local" | "global" | "others" = "local") => {
+    const signingOutUserId = user?.id;
     const { error } = await supabase.auth.signOut({ scope });
 
     if (!error && scope !== "others") {
+      if (signingOutUserId) clearCachedRoles(signingOutUserId);
       setUser(null);
       setSession(null);
       setRoles([]);

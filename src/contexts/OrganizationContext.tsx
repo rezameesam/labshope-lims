@@ -1,3 +1,4 @@
+import { TIMED_OUT, raceTimeout, readCachedOrgContext, writeCachedOrgContext } from "@/lib/offline/authCache";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import fallbackLogo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
@@ -189,6 +190,9 @@ const deriveBranding = (
   };
 };
 
+/** How long to wait for the workspace lookup when the last answer is already remembered. */
+const ORG_LOOKUP_TIMEOUT_MS = 4000;
+
 export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const authContext = useOptionalAuth();
   const labContext = useOptionalLab();
@@ -203,7 +207,13 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchOrganization = useCallback(async () => {
-    if (authLoading || labLoading) return;
+    // The lab list is only needed when the workspace can't be identified from the address.
+    // If we remember this workspace, don't wait for it (it can be stuck behind a refresh).
+    const startHostname = getPublicHostname();
+    const rememberedWorkspace = Boolean(
+      readCachedOrgContext<unknown>(getPublicSlugCandidate(startHostname) ?? startHostname ?? ""),
+    );
+    if (authLoading || (labLoading && !rememberedWorkspace)) return;
 
     setLoading(true);
     setResolutionError(null);
@@ -222,10 +232,32 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       const slugCandidate = getPublicSlugCandidate(hostname);
       const isCustomDomain = !isDefinitelyPlatformHostname(hostname) && !slugCandidate;
       if (slugCandidate || isCustomDomain) {
-        const { data: publicContext, error: publicContextError } = await supabase.rpc(
+        const orgCacheKey = slugCandidate ?? hostname ?? "";
+        let usedRememberedWorkspace = false;
+        const rememberedContext = readCachedOrgContext<unknown>(orgCacheKey);
+        const rpcCall = supabase.rpc(
           "get_public_organization_context" as any,
           { _domain: hostname, _slug: slugCandidate ?? null }
         );
+        // With a remembered workspace, don't make the app wait on a slow or unreachable server.
+        const rpcOutcome = rememberedContext ? await raceTimeout(rpcCall, ORG_LOOKUP_TIMEOUT_MS) : await rpcCall;
+        const rpcResult =
+          rpcOutcome === TIMED_OUT
+            ? { data: null, error: { message: "Timed out reaching the server" } as { message: string } | null }
+            : rpcOutcome;
+        let publicContext = rpcResult.data;
+        let publicContextError = rpcResult.error;
+        if (!publicContextError && publicContext) {
+          writeCachedOrgContext(orgCacheKey, publicContext);
+        } else if (publicContextError) {
+          // Server unreachable: use the last workspace details we saw so the app still opens.
+          const remembered = readCachedOrgContext<typeof publicContext>(orgCacheKey);
+          if (remembered) {
+            publicContext = remembered;
+            publicContextError = null;
+            usedRememberedWorkspace = true;
+          }
+        }
         if (publicContextError) {
           setResolutionError(publicContextError.message || "Unable to resolve the tenant workspace.");
         }
@@ -237,6 +269,14 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           resolvedSettings = new Map(
             Object.entries(payload.settings || {}).map(([key, value]) => [key, value || ""])
           );
+          if (usedRememberedWorkspace && resolvedOrganization) {
+            // The server could not be reached: show the workspace now instead of waiting
+            // behind the follow-up queries below. Fresh data replaces this when they finish.
+            setOrganization(resolvedOrganization);
+            setPrimaryLab(resolvedLab);
+            setOrganizationSettings(resolvedSettings);
+            setLoading(false);
+          }
         }
       }
 
