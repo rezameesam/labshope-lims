@@ -767,7 +767,6 @@ export const TestFormDialog = ({
                         id="test_date"
                         value={formData.test_date}
                         onChange={(value) => onFormDataChange({ ...formData, test_date: value })}
-                        required
                       />
                     </div>
                     <div className="space-y-2">

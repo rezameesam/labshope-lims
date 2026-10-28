@@ -84,7 +84,7 @@ export function AbdmCareContextButton({
           <span>
             <Button variant="outline" size="sm" disabled className="gap-1.5 opacity-50">
               <Link2 className="h-3.5 w-3.5" />
-              Link to ABHA
+              ABHA
             </Button>
           </span>
         </TooltipTrigger>
@@ -106,7 +106,7 @@ export function AbdmCareContextButton({
     <>
       <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
         <Link2 className="h-3.5 w-3.5" />
-        Link to ABHA
+        ABHA
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

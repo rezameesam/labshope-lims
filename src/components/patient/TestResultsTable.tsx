@@ -37,7 +37,7 @@ const TestResultsTable = ({
   outstandingAmount = 0,
   checkingPayment = false,
 }: TestResultsTableProps) => {
-  const { branding } = useOrganization();
+  const { branding, organization } = useOrganization();
   const isMobile = useIsMobile();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -201,7 +201,7 @@ const TestResultsTable = ({
   });
 
   const getBrandingConfig = () => ({
-    organizationId: resolvedOrganizationId || undefined, name: branding.displayName, tagline: branding.tagline,
+    organizationId: organization?.id || undefined, name: branding.displayName, tagline: branding.tagline,
     address: branding.addressLines.join(", "), phone: branding.phoneNumbers.join(" | "),
     email: branding.email, website: branding.website, logoUrl: branding.logoUrl,
     reportTagline: branding.reportTagline, reportFooterNote: branding.reportFooterNote,

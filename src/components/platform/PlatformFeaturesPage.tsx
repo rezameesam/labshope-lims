@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Stethoscope,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import PlatformSiteFooter from "@/components/platform/PlatformSiteFooter";
@@ -124,7 +125,7 @@ const PlatformFeaturesPage = () => {
                   <h2 className="font-heading text-2xl font-semibold text-foreground">{group.title}</h2>
                   <p className="mt-3 text-sm leading-7 text-muted-foreground">{group.description}</p>
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    {group.items.map(([label, Icon]) => (
+                    {(group.items as [string, LucideIcon][]).map(([label, Icon]) => (
                       <div key={label} className="rounded-2xl border border-border/70 bg-background px-4 py-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-clinical-blue-light text-clinical-blue">
                           <Icon className="h-5 w-5" />

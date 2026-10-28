@@ -65,7 +65,7 @@ import PatientFormDialog from "./patients/PatientFormDialog";
 import PatientDetailView from "./patients/PatientDetailView";
 
 const AbhaEnrollmentDialog = React.lazy(() => import("./AbhaEnrollmentDialog").then((module) => ({ default: module.AbhaEnrollmentDialog })));
-const AbdmQrCodeDisplay = React.lazy(() => import("./AbdmQrCodeDisplay"));
+const AbdmQrCodeDisplay = React.lazy(() => import("./AbdmQrCodeDisplay").then((module) => ({ default: module.AbdmQrCodeDisplay })));
 const DuplicatePhoneDialog = React.lazy(() => import("./DuplicatePhoneDialog"));
 
 interface Patient {
@@ -236,6 +236,7 @@ interface PatientFormProps {
 
 interface ManagePatientsProps {
   onAssignTests?: (patient: Patient) => void;
+  onOpenBilling?: () => void;
 }
 
 interface AbhaMismatchField {
@@ -666,7 +667,7 @@ const PatientForm = ({ formData, setFormData, onSubmit, isEdit = false, isSubmit
   );
 };
 
-const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
+const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) => {
   const { currentLab } = useLab();
   const { organization, branding, settings, loading: organizationLoading } = useOrganization();
   const organizationId = organization?.id ?? null;
@@ -2550,7 +2551,7 @@ const ManagePatients = ({ onAssignTests }: ManagePatientsProps) => {
                   <p><span className="text-muted-foreground">Final Amount:</span> ₹{quickAssignSuccess.finalAmount.toLocaleString()}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => { setTab("billing"); setQuickAssignOpen(false); }}>
+                  <Button variant="outline" size="sm" onClick={() => { onOpenBilling?.(); setQuickAssignOpen(false); }}>
                     Open Billing
                   </Button>
                   <Button size="sm" onClick={() => {

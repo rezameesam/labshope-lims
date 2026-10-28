@@ -200,7 +200,7 @@ const PatientDetailView = ({
       title: t.test_name,
       date: t.test_date,
       status: t.status,
-      type: "test" as const,
+      type: "test" as "test" | "billing",
     }));
 
   if (billingSummary?.invoiceCount) {

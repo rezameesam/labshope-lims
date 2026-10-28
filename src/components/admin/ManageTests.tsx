@@ -795,6 +795,11 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
       return;
     }
 
+    if (!formData.test_date) {
+      toast.error("Please select a test date");
+      return;
+    }
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const duplicateTests = Array.from(

@@ -21,6 +21,7 @@ interface PhonePeButtonProps {
 
 export const PhonePeButton = ({
   invoiceId,
+  invoices,
   amount,
   patientName,
   patientEmail,
@@ -60,6 +61,7 @@ export const PhonePeButton = ({
       const { data, error } = await supabase.functions.invoke("create-phonepe-order", {
         body: {
           invoice_id: invoiceId,
+          invoice_ids: isBulkPayment ? invoices?.map((inv) => inv.id) : undefined,
           amount,
           patient_name: patientName,
           patient_email: patientEmail,

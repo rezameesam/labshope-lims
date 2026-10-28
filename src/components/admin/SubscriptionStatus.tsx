@@ -133,31 +133,42 @@ export default function SubscriptionStatus() {
       if (!res.ok) throw new Error(orderData.error || "Failed to create order");
 
       await initiateRazorpayPayment(
-        orderData.razorpay_order_id,
+        orderData.key_id,
+        orderData.order_id,
         orderData.upgrade_amount,
         `PLAN-${upgradeTo.toUpperCase()}`,
+        organization.slug,
         user.email ?? "",
-        async (paymentId, orderId, signature) => {
-          const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-plan-upgrade`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session?.access_token}`,
-              apikey: supabaseAnonKey,
-            },
-            body: JSON.stringify({
-              organization_id: organization.id,
-              to_plan: upgradeTo,
-              years,
-              razorpay_payment_id: paymentId,
-              razorpay_order_id: orderId,
-              razorpay_signature: signature,
-            }),
-          });
-          const confirmData = await confirmRes.json();
-          if (!confirmRes.ok) throw new Error(confirmData.error || "Failed to confirm payment");
-          toast.success(`${PLAN_LABELS[upgradeTo]} plan activated. Thank you!`);
-          void load();
+        user.email ?? "",
+        "",
+        async (razorpayResponse) => {
+          try {
+            const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-plan-upgrade`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session?.access_token}`,
+                apikey: supabaseAnonKey,
+              },
+              body: JSON.stringify({
+                organization_id: organization.id,
+                to_plan: upgradeTo,
+                years,
+                razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                razorpay_order_id: razorpayResponse.razorpay_order_id,
+                razorpay_signature: razorpayResponse.razorpay_signature,
+              }),
+            });
+            const confirmData = await confirmRes.json();
+            if (!confirmRes.ok) throw new Error(confirmData.error || "Failed to confirm payment");
+            toast.success(`${PLAN_LABELS[upgradeTo]} plan activated. Thank you!`);
+            void load();
+          } catch (confirmErr: unknown) {
+            toast.error(confirmErr instanceof Error ? confirmErr.message : "Plan activation failed. Contact support with your payment ID.");
+          }
+        },
+        (errMsg) => {
+          if (errMsg !== "Payment cancelled by user") toast.error(errMsg);
         },
       );
     } catch (err: unknown) {
@@ -165,7 +176,7 @@ export default function SubscriptionStatus() {
     } finally {
       setUpgrading(false);
     }
-  }, [planTier, organization?.id, user, load]);
+  }, [planTier, organization?.id, organization?.slug, user, load]);
 
   if (loading) {
     return (

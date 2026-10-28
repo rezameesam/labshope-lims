@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
 import { generateScopedInvoiceNumber } from "@/lib/invoiceNumbers";
+import { loadPdfDependencies } from "@/lib/pdf/loadPdfDependencies";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import BillingSummary from "@/components/admin/billing/BillingSummary";
@@ -1125,10 +1126,7 @@ const ManageBilling = () => {
       return;
     }
 
-    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ]);
+    const { jsPDF, autoTable } = await loadPdfDependencies();
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();

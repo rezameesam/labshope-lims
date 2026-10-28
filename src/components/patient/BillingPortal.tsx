@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { sendPaymentSuccessNotification } from "@/services/notificationService";
 import { formatAppDate } from "@/lib/date";
+import { loadPdfDependencies } from "@/lib/pdf/loadPdfDependencies";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BillingHistory } from "./billing/BillingHistory";
 import { BillingDetail } from "./billing/BillingDetail";
@@ -121,10 +122,7 @@ const BillingPortal = ({ patientId, organizationId, patientName, patientPhone, o
   const generateInvoicePDF = async (invoicesToDownload: Invoice[]) => {
     if (invoicesToDownload.length === 0) { toast.error("No invoices selected"); return; }
     try {
-      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-        import("jspdf"),
-        import("jspdf-autotable"),
-      ]);
+      const { jsPDF, autoTable } = await loadPdfDependencies();
       const doc = new jsPDF();
       let yOffset = 20;
       for (let i = 0; i < invoicesToDownload.length; i++) {

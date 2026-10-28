@@ -1,34 +1,13 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Users,
-  UserPlus,
-  Stethoscope,
   LogOut,
   Menu,
   X,
   Home,
-  ClipboardList,
-  Settings,
-  Receipt,
-  BadgeCheck,
-  Package,
-  FlaskConical,
-  BarChart3,
-  UserCog,
-  FileText,
-  Bell,
-  Building2,
-  MapPin,
-  Shield,
-  Laptop,
-  Globe,
-  PhoneCall,
-  Sparkles,
   TrendingUp,
   Loader2,
-  BookOpen,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,16 +20,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Badge } from "@/components/ui/badge";
-import { NEXT_PLAN, PLAN_LIMITS, PLAN_PRICES, resolvePlanTier } from "@/lib/planLimits";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { initiateRazorpayPayment } from "@/services/razorpayService";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import LabSelector from "@/components/admin/LabSelector";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import AdminErrorBoundary from "@/components/admin/AdminErrorBoundary";
+import {
+  formatAdminDashboardSidebarCount,
+  getAdminDashboardNavGroups,
+  getVisibleAdminDashboardTabs,
+  VALID_ADMIN_DASHBOARD_TABS,
+} from "@/components/admin/adminDashboardConfig";
+import type { TabType } from "@/components/admin/adminDashboardConfig";
+import { useAdminSidebarCounts } from "@/hooks/useAdminSidebarCounts";
+import { useAdminPlanLimit } from "@/hooks/useAdminPlanLimit";
 
 const ManageEmployees = lazy(() => import("@/components/admin/ManageEmployees"));
 const ManagePatients = lazy(() => import("@/components/admin/ManagePatients"));
@@ -78,8 +63,6 @@ const AdminQuickSetup = lazy(() => import("@/components/admin/AdminQuickSetup"))
 const ManageFinance = lazy(() => import("@/components/admin/ManageFinance"));
 const ManageExternalLabs = lazy(() => import("@/components/admin/ManageExternalLabs"));
 
-type TabType = "overview" | "quick-setup" | "notice-board" | "booking-requests" | "employees" | "patients" | "tests" | "test-catalog" | "test-packages" | "test-templates" | "billing" | "finance" | "inventory" | "reports" | "doctors" | "reminders" | "labs" | "collection-centers" | "external-labs" | "roles" | "security" | "visitor-logs" | "notifications" | "system-settings" | "subscription";
-
 type PatientSummary = {
   id: string;
   patient_id: string;
@@ -98,24 +81,34 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPatientForTests, setSelectedPatientForTests] = useState<PatientSummary | null>(null);
-  const [sidebarCounts, setSidebarCounts] = useState({
-    bookingRequests: 0,
-    noticeBoard: 0,
+  const requestedTab = searchParams.get("tab");
+  const isAdmin = hasRole("admin");
+  const visibleTabs = getVisibleAdminDashboardTabs(isAdmin);
+  const navGroups = getAdminDashboardNavGroups(visibleTabs);
+  const activeTabLabel = visibleTabs.find((tab) => tab.id === activeTab)?.label;
+  const {
+    sidebarCounts,
+    setSidebarCounts,
+  } = useAdminSidebarCounts({
+    enabled: Boolean(user && isStaff && !organizationLoading),
+    organizationId: organization?.id,
+    isCollector,
+    userId: user?.id,
+  });
+  const {
+    planLimitInfo,
+    planLimitOpen,
+    upgradingPlan,
+    dismissPlanLimit,
+    handlePlanLimitOpenChange,
+    handleUpgradeNow,
+  } = useAdminPlanLimit({
+    organizationId: organization?.id,
+    organizationLoading,
+    organizationSlug: organization?.slug,
+    userEmail: user?.email,
   });
 
-  type PlanLimitInfo = {
-    currentPlan: string;
-    exceededMetric: string;
-    currentValue: number;
-    limit: number;
-    upgradeTo: string;
-    upgradePrice: number;
-  };
-  const [planLimitOpen, setPlanLimitOpen] = useState(false);
-  const [planLimitInfo, setPlanLimitInfo] = useState<PlanLimitInfo | null>(null);
-  const [upgradingPlan, setUpgradingPlan] = useState(false);
-
-  const requestedTab = searchParams.get("tab");
   const setDashboardTab = (tab: TabType) => {
     setActiveTab(tab);
     const nextParams = new URLSearchParams(searchParams);
@@ -130,35 +123,7 @@ const AdminDashboard = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    const validTabs = new Set<TabType>([
-      "overview",
-      "quick-setup",
-      "notice-board",
-      "booking-requests",
-      "employees",
-      "patients",
-      "tests",
-      "test-catalog",
-      "test-packages",
-      "test-templates",
-      "billing",
-      "finance",
-      "subscription",
-      "inventory",
-      "reports",
-      "doctors",
-      "reminders",
-      "labs",
-      "collection-centers",
-      "external-labs",
-      "roles",
-      "security",
-      "visitor-logs",
-      "notifications",
-      "system-settings",
-    ]);
-
-    if (requestedTab && validTabs.has(requestedTab as TabType) && requestedTab !== activeTab) {
+    if (requestedTab && VALID_ADMIN_DASHBOARD_TABS.has(requestedTab as TabType) && requestedTab !== activeTab) {
       setActiveTab(requestedTab as TabType);
     }
   }, [activeTab, requestedTab]);
@@ -189,238 +154,6 @@ const AdminDashboard = () => {
     }
   }, [activeTab, selectedPatientForTests]);
 
-  useEffect(() => {
-    if (!user || !isStaff || organizationLoading) {
-      return;
-    }
-
-    if (!organization?.id) {
-      setSidebarCounts({
-        bookingRequests: 0,
-        noticeBoard: 0,
-      });
-      return;
-    }
-
-    const fetchSidebarCounts = async () => {
-      try {
-        let testsQuery = supabase
-          .from("patient_tests")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["pending", "in_progress"]);
-
-        if (isCollector) {
-          testsQuery = testsQuery.eq("collected_by", user.id);
-        }
-
-        if (organization?.id) {
-          testsQuery = testsQuery.eq("organization_id" as any, organization.id);
-        }
-
-        let bookingRequestsQuery = supabase
-          .from("booking_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "new");
-
-        let remindersQuery = supabase
-          .from("patient_reminders")
-          .select("id, reminder_date, due_date, is_completed")
-          .eq("is_completed", false)
-          .limit(100);
-
-        let invoicesQuery = supabase
-          .from("invoices")
-          .select("id", { count: "exact", head: true })
-          .neq("payment_status", "paid");
-
-        bookingRequestsQuery = bookingRequestsQuery.eq("organization_id" as any, organization.id);
-        remindersQuery = remindersQuery.eq("organization_id" as any, organization.id);
-        invoicesQuery = invoicesQuery.eq("organization_id" as any, organization.id);
-
-        const [
-          bookingRequestsResult,
-          pendingTestsResult,
-          remindersResult,
-          invoicesResult,
-        ] = await Promise.all([
-          bookingRequestsQuery,
-          testsQuery,
-          remindersQuery,
-          invoicesQuery,
-        ]);
-
-        const today = new Date();
-        const reminderCount = (remindersResult.data || []).filter((reminder) => {
-          const reminderDate = new Date(reminder.reminder_date);
-          const dueDate = reminder.due_date ? new Date(reminder.due_date) : null;
-          const isOverdue = reminderDate < today;
-          const isUpcoming = reminderDate.toDateString() === today.toDateString() || (dueDate ? dueDate < today : false);
-          return isOverdue || isUpcoming;
-        }).length;
-
-        setSidebarCounts({
-          bookingRequests: bookingRequestsResult.count || 0,
-          noticeBoard: (pendingTestsResult.count || 0) + reminderCount + (invoicesResult.count || 0),
-        });
-      } catch (error) {
-        console.error("Error fetching admin sidebar counts:", error);
-      }
-    };
-
-    void fetchSidebarCounts();
-    const intervalId = window.setInterval(() => {
-      void fetchSidebarCounts();
-    }, 60000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [user, isStaff, isCollector, organization?.id, organizationLoading]);
-
-  useEffect(() => {
-    if (!organization?.id || organizationLoading) return;
-    // Only show once per session per org
-    const dismissKey = `plan_limit_dismissed_${organization.id}`;
-    if (sessionStorage.getItem(dismissKey)) return;
-
-    const checkPlanLimits = async () => {
-      const [settingsResult, patientsResult, labsResult, employeesResult] = await Promise.all([
-        (supabase as any)
-          .from("organization_settings")
-          .select("setting_value")
-          .eq("organization_id", organization.id)
-          .eq("setting_key", "plan_tier")
-          .maybeSingle(),
-        (supabase as any)
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", organization.id),
-        (supabase as any)
-          .from("labs")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", organization.id),
-        (supabase as any)
-          .from("employees")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", organization.id)
-          .eq("is_active", true),
-      ]);
-
-      const currentPlan = resolvePlanTier(settingsResult.data?.setting_value);
-      const patientCount: number = patientsResult.count ?? 0;
-      const labCount: number = labsResult.count ?? 0;
-      const employeeCount: number = employeesResult.count ?? 0;
-      const limits = PLAN_LIMITS[currentPlan];
-      const upgradeTo = NEXT_PLAN[currentPlan];
-
-      const exceeded =
-        (Number.isFinite(limits.labs) && labCount > limits.labs && {
-          exceededMetric: "labs",
-          currentValue: labCount,
-          limit: limits.labs,
-        }) ||
-        (Number.isFinite(limits.employees) && employeeCount > limits.employees && {
-          exceededMetric: "active employees",
-          currentValue: employeeCount,
-          limit: limits.employees,
-        }) ||
-        (Number.isFinite(limits.patients) && patientCount > limits.patients && {
-          exceededMetric: "active patients",
-          currentValue: patientCount,
-          limit: limits.patients,
-        });
-
-      if (exceeded && upgradeTo) {
-        setPlanLimitInfo({
-          currentPlan,
-          exceededMetric: exceeded.exceededMetric,
-          currentValue: exceeded.currentValue,
-          limit: exceeded.limit,
-          upgradeTo,
-          upgradePrice: (PLAN_PRICES[upgradeTo] ?? 0) - (PLAN_PRICES[currentPlan] ?? 0),
-        });
-        setPlanLimitOpen(true);
-      }
-    };
-
-    void checkPlanLimits();
-  }, [organization?.id, organizationLoading]);
-
-  const handleUpgradeNow = useCallback(async () => {
-    if (!planLimitInfo || !organization?.id) return;
-    setUpgradingPlan(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-plan-upgrade-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({
-            organization_id: organization.id,
-            to_plan: planLimitInfo.upgradeTo,
-          }),
-        },
-      );
-      const orderData = await resp.json();
-      if (!resp.ok) throw new Error(orderData.error || "Failed to create order");
-
-      await initiateRazorpayPayment(
-        orderData.key_id,
-        orderData.order_id,
-        orderData.upgrade_amount,
-        `PLAN-UPGRADE-${planLimitInfo.upgradeTo.toUpperCase()}`,
-        organization.slug,
-        user?.email ?? "",
-        user?.email ?? "",
-        "",
-        async (razorpayResponse) => {
-          // Verify payment server-side and activate upgrade
-          try {
-            const confirmResp = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-plan-upgrade`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${session?.access_token}`,
-                },
-                body: JSON.stringify({
-                  organization_id: organization.id,
-                  to_plan: planLimitInfo.upgradeTo,
-                  razorpay_payment_id: razorpayResponse.razorpay_payment_id,
-                  razorpay_order_id: razorpayResponse.razorpay_order_id,
-                  razorpay_signature: razorpayResponse.razorpay_signature,
-                }),
-              },
-            );
-            const confirmData = await confirmResp.json();
-            if (!confirmResp.ok) throw new Error(confirmData.error || "Plan activation failed");
-
-            toast.success(`Plan upgraded to ${planLimitInfo.upgradeTo}! Thank you.`);
-            setPlanLimitOpen(false);
-            sessionStorage.removeItem(`plan_limit_dismissed_${organization.id}`);
-          } catch (confirmErr: any) {
-            toast.error(confirmErr.message || "Plan activation failed. Contact support with your payment ID.");
-          } finally {
-            setUpgradingPlan(false);
-          }
-        },
-        (errMsg) => {
-          if (errMsg !== "Payment cancelled by user") toast.error(errMsg);
-          setUpgradingPlan(false);
-        },
-      );
-    } catch (e: any) {
-      toast.error(e.message || "Upgrade failed. Please try again.");
-    } finally {
-      setUpgradingPlan(false);
-    }
-  }, [planLimitInfo, organization, user]);
-
   const handleSignOut = async () => {
     await signOut();
     toast.success("Signed out successfully");
@@ -438,66 +171,6 @@ const AdminDashboard = () => {
   if (!user || !isStaff) {
     return null;
   }
-
-  const tabs = [
-    { id: "overview" as TabType, label: "Overview", icon: Home },
-    { id: "notice-board" as TabType, label: "Notice Board", icon: Bell },
-    { id: "booking-requests" as TabType, label: "Booking Requests", icon: PhoneCall },
-    { id: "patients" as TabType, label: "Patients", icon: UserPlus },
-    { id: "tests" as TabType, label: "Patient Tests", icon: ClipboardList },
-    { id: "billing" as TabType, label: "Billing", icon: Receipt },
-    { id: "finance" as TabType, label: "Finance", icon: BookOpen },
-    { id: "subscription" as TabType, label: "Subscription", icon: BadgeCheck, adminOnly: true },
-    { id: "reminders" as TabType, label: "Reminders", icon: Bell },
-    { id: "test-packages" as TabType, label: "Test Packages", icon: Package },
-    { id: "inventory" as TabType, label: "Inventory", icon: Package },
-    { id: "reports" as TabType, label: "Reports", icon: BarChart3 },
-    { id: "test-catalog" as TabType, label: "Test Catalog", icon: FlaskConical },
-    { id: "doctors" as TabType, label: "Doctors", icon: UserCog },
-    { id: "employees" as TabType, label: "Employees", icon: Users, adminOnly: true },
-    { id: "labs" as TabType, label: "Labs", icon: Building2, adminOnly: true },
-    { id: "collection-centers" as TabType, label: "Collection Centers", icon: MapPin },
-    { id: "external-labs" as TabType, label: "External Labs", icon: Building2 },
-    { id: "test-templates" as TabType, label: "Templates", icon: FileText },
-    { id: "roles" as TabType, label: "Roles & Permissions", icon: Shield, adminOnly: true },
-    { id: "security" as TabType, label: "Security", icon: Laptop },
-    { id: "visitor-logs" as TabType, label: "Visitor Logs", icon: Globe, adminOnly: true },
-    { id: "notifications" as TabType, label: "Notifications", icon: Bell, adminOnly: true },
-    { id: "system-settings" as TabType, label: "System Settings", icon: Settings, adminOnly: true },
-    { id: "quick-setup" as TabType, label: "Quick Setup", icon: Sparkles, adminOnly: true },
-  ];
-
-  const isAdmin = hasRole("admin");
-  const visibleTabs = tabs.filter(tab => !tab.adminOnly || isAdmin);
-  const formatSidebarCount = (count: number) => (count > 99 ? "99+" : String(count));
-
-  type NavGroup = { label: string; tabs: typeof tabs };
-  const navGroups: NavGroup[] = [
-    {
-      label: "Work",
-      tabs: visibleTabs.filter(t =>
-        ["overview", "notice-board", "booking-requests", "patients", "tests", "billing", "reminders"].includes(t.id)
-      ),
-    },
-    {
-      label: "Catalog",
-      tabs: visibleTabs.filter(t =>
-        ["test-catalog", "test-packages", "test-templates", "inventory", "doctors"].includes(t.id)
-      ),
-    },
-    {
-      label: "Manage",
-      tabs: visibleTabs.filter(t =>
-        ["employees", "labs", "collection-centers", "external-labs", "reports"].includes(t.id)
-      ),
-    },
-    {
-      label: "Account",
-      tabs: visibleTabs.filter(t =>
-        ["subscription", "finance", "quick-setup", "system-settings", "notifications", "roles", "security", "visitor-logs"].includes(t.id)
-      ),
-    },
-  ].filter(g => g.tabs.length > 0);
 
   return (
     <div className="min-h-screen bg-subtle-gradient flex">
@@ -545,12 +218,12 @@ const AdminDashboard = () => {
                         <span className="flex-1 text-left">{tab.label}</span>
                         {tab.id === "booking-requests" && sidebarCounts.bookingRequests > 0 && (
                           <Badge className="bg-amber-500 text-white hover:bg-amber-500 text-[10px] px-1.5 py-0">
-                            {formatSidebarCount(sidebarCounts.bookingRequests)}
+                            {formatAdminDashboardSidebarCount(sidebarCounts.bookingRequests)}
                           </Badge>
                         )}
                         {tab.id === "notice-board" && sidebarCounts.noticeBoard > 0 && (
                           <Badge className="bg-rose-500 text-white hover:bg-rose-500 text-[10px] px-1.5 py-0">
-                            {formatSidebarCount(sidebarCounts.noticeBoard)}
+                            {formatAdminDashboardSidebarCount(sidebarCounts.noticeBoard)}
                           </Badge>
                         )}
                       </button>
@@ -604,7 +277,7 @@ const AdminDashboard = () => {
                 {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
               <h1 className="text-xl font-heading font-bold text-foreground">
-                {visibleTabs.find((t) => t.id === activeTab)?.label}
+                {activeTabLabel}
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -680,6 +353,7 @@ const AdminDashboard = () => {
             {activeTab === "patients" && (
               <AdminErrorBoundary tabName="Patients">
                 <ManagePatients
+                  onOpenBilling={() => setDashboardTab("billing")}
                   onAssignTests={(patient) => {
                     setSelectedPatientForTests(patient);
                     setDashboardTab("tests");
@@ -715,12 +389,7 @@ const AdminDashboard = () => {
       {planLimitInfo && (
         <Dialog
           open={planLimitOpen}
-          onOpenChange={(open) => {
-            if (!open && organization?.id) {
-              sessionStorage.setItem(`plan_limit_dismissed_${organization.id}`, "1");
-            }
-            setPlanLimitOpen(open);
-          }}
+          onOpenChange={handlePlanLimitOpenChange}
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -759,10 +428,7 @@ const AdminDashboard = () => {
                 variant="outline"
                 className="flex-1"
                 disabled={upgradingPlan}
-                onClick={() => {
-                  if (organization?.id) sessionStorage.setItem(`plan_limit_dismissed_${organization.id}`, "1");
-                  setPlanLimitOpen(false);
-                }}
+                onClick={dismissPlanLimit}
               >
                 Remind me later
               </Button>

@@ -32,6 +32,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
+import { loadPdfDependencies } from "@/lib/pdf/loadPdfDependencies";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -242,10 +243,7 @@ const FinancialReports = () => {
   }, [fetchFinancialData, organizationLoading]);
 
   const handleExportPDF = async () => {
-    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ]);
+    const { jsPDF, autoTable } = await loadPdfDependencies();
     const doc = new jsPDF();
     
     // Header

@@ -1,9 +1,8 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { differenceInMonths, differenceInYears, format, isValid, parseISO } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { formatAppDate, formatAppDateTime } from "@/lib/date";
+import { loadPdfDependencies, type JsPdfDocument } from "@/lib/pdf/loadPdfDependencies";
 import { formatPhoneForDisplay } from "@/lib/phone";
 import { renderReportTemplateText, type ReportTemplatePreviewContext } from "@/lib/reportTemplates";
 
@@ -232,7 +231,11 @@ const getResolvedReportDate = (reportDate: string, sampleCollectionDate?: string
     : sampleCollectionDate || reportDate;
 };
 
-const addReportWatermark = async (doc: jsPDF, options: ReportOptions, logoSource: string) => {
+const addReportWatermark = async (
+  doc: JsPdfDocument,
+  options: ReportOptions,
+  logoSource: string
+) => {
   if (options.includeWatermark === false) {
     return;
   }
@@ -336,6 +339,7 @@ const resolveReportTemplate = async (
 
 export const generateTestReportPDF = async (data: ReportData) => {
   try {
+    const { jsPDF, autoTable } = await loadPdfDependencies();
     const doc = new jsPDF();
   const resolvedReportDate = getResolvedReportDate(data.test_date, data.sample_collection_date);
   const pageWidth = doc.internal.pageSize.getWidth();

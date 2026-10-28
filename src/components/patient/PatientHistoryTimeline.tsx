@@ -251,7 +251,7 @@ const PatientHistoryTimeline = ({ tests, hasOutstandingDues = false, outstanding
                         key: "value",
                         color: "hsl(var(--primary))",
                         titlePrefix: testName,
-                        data,
+                        data: data.map((point) => ({ label: point.date, value: point.value })),
                       },
                     ]}
                     yTickFormatter={(value) => `${Math.round(value)}`}
