@@ -74,7 +74,7 @@ public partial class ResultsView : UserControl
         _current = row;
         MessageText.Text = "";
         var on = row is not null;
-        ValueBox.IsEnabled = UnitBox.IsEnabled = AbnormalBox.IsEnabled = SaveButton.IsEnabled = PanelToggle.IsEnabled = on;
+        ValueBox.IsEnabled = UnitBox.IsEnabled = AbnormalBox.IsEnabled = SaveButton.IsEnabled = PanelToggle.IsEnabled = ReportButton.IsEnabled = on;
         if (row is null) { EntryHeading.Text = "Select a test"; RangeText.Text = ""; _panel.Clear(); ShowMode(); return; }
 
         var (unit, range) = _results.Defaults(row.TestName);
@@ -100,6 +100,15 @@ public partial class ResultsView : UserControl
         PanelPanel.IsVisible = panel;
         SinglePanel.IsVisible = !panel;
         if (panel && _panel.Count == 0) _panel.Add(new PanelRow());
+    }
+
+    private void OnPrintReport(object? sender, RoutedEventArgs e)
+    {
+        if (_current is null) return;
+        var report = ReportBuilder.For(_session.Store, _session.Workspace.OrganizationName, _current.Test.PatientId, _current.Test.TestDate);
+        if (report is null) { MessageText.Text = "No completed results for this patient on that date yet."; return; }
+        MessageText.Text = "";
+        ReceiptPrinter.OpenHtml($"report-{report.PatientCode}-{report.ReportDate}", ReportHtml.Build(report));
     }
 
     private void OnAddRow(object? sender, RoutedEventArgs e) => _panel.Add(new PanelRow());

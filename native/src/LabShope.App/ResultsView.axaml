@@ -38,6 +38,8 @@
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
           <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="#B00020" />
+          <Button x:Name="ReportButton" Content="Print this patient's report" Click="OnPrintReport" IsEnabled="False"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
           <Button x:Name="SaveButton" Content="Save result (Enter)" IsDefault="True" IsEnabled="False" Click="OnSave"
                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
         </StackPanel>

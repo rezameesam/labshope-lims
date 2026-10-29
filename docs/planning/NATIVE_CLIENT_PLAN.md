@@ -84,3 +84,11 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   (Mailjet/Resend) and `send-whatsapp` edge functions; Twilio/SMS is NOT configured and is not used. The native app must call those same
   functions. Multi-parameter panels (result_items, e.g. CBC components) and report templates are next.
 - Pending production migrations (the user applies them): 20261029000300 (reserved lab names), 000400 (record_payment), 000500 (test ids).
+
+## Update: panel results and printed reports (milestone 2)
+- Panel (multi-value) results use the website's `result_items` format exactly (name, value, unit, normal_range_min/max, normal_range_text);
+  CBC opens with the website's 20 built-in rows, any other test can be switched to a panel. Abnormal when any row is outside its numeric range.
+- Printed report: `ReportBuilder` + `ReportHtml` (A4, opens in the system browser, prints on any printer): patient block, one table per
+  completed test (panels as tables), reference ranges, abnormal marked in bold with `*`, "Preliminary" banner while results are unsent.
+- Not yet: the website's report templates (test_templates header/footer/format), lab logo/address/phone branding, reports for the patient portal
+  (the portal builds its own PDF from the synced results), notification to the patient on completion (existing send-email / send-whatsapp only).
