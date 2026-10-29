@@ -18,7 +18,7 @@
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
         <Button x:Name="LabelButton" Click="OnPrintLabels"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="BarcodeScan" Width="17" Height="17" /><TextBlock Text="Labels" /></StackPanel></Button>
         <Button x:Name="ReceiptButton" Click="OnPrintReceipt"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="PrinterOutline" Width="17" Height="17" /><TextBlock Text="Last receipt" /></StackPanel></Button>
-        <Button x:Name="ReceiveButton" Classes="primary" Click="OnReceive"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CashPlus" Width="18" Height="18" /><TextBlock Text="Receive payment (F6)" /></StackPanel></Button>
+        <Button x:Name="ReceiveButton" Classes="primary" Click="OnReceive"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CashPlus" Width="18" Height="18" /><TextBlock Text="Receive payment (F10)" /></StackPanel></Button>
       </StackPanel>
     </Grid>
     <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="2,10,0,0" Foreground="{StaticResource SuccessBrush}" FontWeight="Medium" />

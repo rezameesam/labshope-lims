@@ -22,7 +22,7 @@ public partial class BillsView : UserControl
         SearchBox.TextChanged += (_, _) => Refresh();
         UnpaidOnly.IsCheckedChanged += (_, _) => Refresh();
         Grid.DoubleTapped += (_, _) => OnReceive(null, null!);
-        KeyDown += (_, e) => { if (e.Key == Key.F6) { OnReceive(null, null!); e.Handled = true; } };
+        KeyDown += (_, e) => { if (e.Key == Key.F10) { OnReceive(null, null!); e.Handled = true; } };
         Refresh();
     }
 

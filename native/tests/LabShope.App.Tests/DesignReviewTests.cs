@@ -61,7 +61,7 @@ public class DesignReviewTests : IDisposable
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         if (dir is null) { window.Close(); return; }
 
-        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash" })
+        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports" })
         {
             window.Show(page);
             if (page == "register")

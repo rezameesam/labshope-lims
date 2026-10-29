@@ -72,6 +72,7 @@ public partial class MainWindow : Window
                 return v;
             }),
             new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
+            new("reports", "Reports", MaterialIconKind.ChartBoxOutline, Key.F6, () => new ReportsView(session)),
         ];
 
         foreach (var n in _nav)
@@ -127,6 +128,7 @@ public partial class MainWindow : Window
             case BillsView b: b.Refresh(); break;
             case ResultsView r: r.Refresh(); break;
             case CashBookView c: c.Refresh(); break;
+            case ReportsView rv: rv.Refresh(); break;
             case RegisterVisitView v: v.ReloadCatalog(); break;
         }
     }

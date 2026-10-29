@@ -66,3 +66,12 @@ public sealed record WorklistRow(PatientTest Test, string PatientName, string Pa
 
 /// <summary>The numbers on the home screen.</summary>
 public sealed record DashboardNumbers(int VisitsToday, int TestsToDo, decimal TakingsToday, decimal UnpaidBalance, int UnpaidBills, int NeedAttention, int Waiting);
+
+public sealed record DayAmount(string Day, decimal Amount);
+public sealed record MethodAmount(string Method, decimal Amount, int Count);
+public sealed record TestCount(string TestName, int Count);
+
+/// <summary>A period summary for the Reports screen, worked out entirely from this PC's data.</summary>
+public sealed record ReportSummary(
+    int Visits, decimal Billed, decimal Collected, decimal Outstanding, int TestsOrdered, int TestsCompleted,
+    IReadOnlyList<DayAmount> DailyCollections, IReadOnlyList<MethodAmount> ByMethod, IReadOnlyList<TestCount> TopTests);

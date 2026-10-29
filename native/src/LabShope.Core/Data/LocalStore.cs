@@ -181,6 +181,57 @@ public sealed class LocalStore : IDisposable
             failed, waiting);
     }
 
+    /// <summary>
+    /// Totals for a period. <paramref name="fromDay"/> and <paramref name="toDay"/> are local calendar days (inclusive, yyyy-MM-dd);
+    /// <paramref name="utcOffsetMinutes"/> turns the stored UTC times into those local days.
+    /// </summary>
+    public ReportSummary GetReport(string fromDay, string toDay, int utcOffsetMinutes)
+    {
+        var shift = $"{(utcOffsetMinutes >= 0 ? "+" : "-")}{Math.Abs(utcOffsetMinutes)} minutes";
+        void Days(SqliteCommand c) { c.Parameters.AddWithValue("$from", fromDay); c.Parameters.AddWithValue("$to", toDay); c.Parameters.AddWithValue("$shift", shift); }
+        T Scalar<T>(string sql, Func<object?, T> convert)
+        {
+            using var c = _db.CreateCommand(); c.CommandText = sql; Days(c); return convert(c.ExecuteScalar());
+        }
+
+        const string InvDay = "date(created_at, $shift) BETWEEN $from AND $to AND COALESCE(payment_status,'pending') <> 'cancelled'";
+        var visits = Scalar($"SELECT COUNT(*) FROM invoices WHERE {InvDay}", Convert.ToInt32);
+        var billed = Scalar($"SELECT COALESCE(SUM(total_amount),0) FROM invoices WHERE {InvDay}", Convert.ToDecimal);
+        var collected = Scalar("SELECT COALESCE(SUM(amount),0) FROM payments WHERE date(paid_at, $shift) BETWEEN $from AND $to", Convert.ToDecimal);
+        var outstanding = Scalar($"SELECT COALESCE(SUM(total_amount - paid_amount),0) FROM invoices WHERE {InvDay} AND total_amount > paid_amount", Convert.ToDecimal);
+        var ordered = Scalar("SELECT COUNT(*) FROM patient_tests WHERE test_date BETWEEN $from AND $to", Convert.ToInt32);
+        var completed = Scalar("SELECT COUNT(*) FROM patient_tests WHERE status = 'completed' AND test_date BETWEEN $from AND $to", Convert.ToInt32);
+
+        var daily = new List<DayAmount>();
+        using (var c = _db.CreateCommand())
+        {
+            c.CommandText = "SELECT date(paid_at, $shift) d, SUM(amount) FROM payments WHERE date(paid_at, $shift) BETWEEN $from AND $to GROUP BY d ORDER BY d";
+            Days(c);
+            using var r = c.ExecuteReader();
+            while (r.Read()) daily.Add(new DayAmount(r.GetString(0), (decimal)r.GetDouble(1)));
+        }
+
+        var methods = new List<MethodAmount>();
+        using (var c = _db.CreateCommand())
+        {
+            c.CommandText = "SELECT method, SUM(amount), COUNT(*) FROM payments WHERE date(paid_at, $shift) BETWEEN $from AND $to GROUP BY method ORDER BY SUM(amount) DESC";
+            Days(c);
+            using var r = c.ExecuteReader();
+            while (r.Read()) methods.Add(new MethodAmount(r.GetString(0), (decimal)r.GetDouble(1), r.GetInt32(2)));
+        }
+
+        var top = new List<TestCount>();
+        using (var c = _db.CreateCommand())
+        {
+            c.CommandText = "SELECT test_name, COUNT(*) FROM patient_tests WHERE test_date BETWEEN $from AND $to GROUP BY test_name ORDER BY COUNT(*) DESC, test_name LIMIT 8";
+            Days(c);
+            using var r = c.ExecuteReader();
+            while (r.Read()) top.Add(new TestCount(r.GetString(0), r.GetInt32(1)));
+        }
+
+        return new ReportSummary(visits, billed, collected, outstanding, ordered, completed, daily, methods, top);
+    }
+
     public long InvoiceCount()
     {
         using var cmd = _db.CreateCommand();

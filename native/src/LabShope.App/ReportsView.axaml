@@ -1,0 +1,55 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.ReportsView">
+  <ScrollViewer>
+    <StackPanel Spacing="18" MaxWidth="1180" HorizontalAlignment="Stretch">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button x:Name="TodayButton" Classes="seg on" Content="Today" Click="OnPeriod" Tag="today" />
+        <Button x:Name="WeekButton" Classes="seg" Content="Last 7 days" Click="OnPeriod" Tag="week" />
+        <Button x:Name="MonthButton" Classes="seg" Content="Last 30 days" Click="OnPeriod" Tag="month" />
+        <Button x:Name="ThisMonthButton" Classes="seg" Content="This month" Click="OnPeriod" Tag="thismonth" />
+        <TextBlock x:Name="RangeText" Classes="muted" VerticalAlignment="Center" Margin="12,0,0,0" />
+      </StackPanel>
+
+      <UniformGrid Columns="4">
+        <Border Classes="card" Margin="0,0,14,0"><StackPanel Spacing="6">
+          <TextBlock Text="BILLED" Classes="label" /><TextBlock x:Name="BilledValue" FontSize="28" FontWeight="SemiBold" />
+          <TextBlock x:Name="VisitsSub" Classes="muted" /></StackPanel></Border>
+        <Border Classes="card" Margin="0,0,14,0"><StackPanel Spacing="6">
+          <TextBlock Text="COLLECTED" Classes="label" /><TextBlock x:Name="CollectedValue" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" />
+          <TextBlock Text="payments received" Classes="muted" /></StackPanel></Border>
+        <Border Classes="card" Margin="0,0,14,0"><StackPanel Spacing="6">
+          <TextBlock Text="OUTSTANDING" Classes="label" /><TextBlock x:Name="OutstandingValue" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource WarnBrush}" />
+          <TextBlock Text="on this period's bills" Classes="muted" /></StackPanel></Border>
+        <Border Classes="card"><StackPanel Spacing="6">
+          <TextBlock Text="TESTS" Classes="label" /><TextBlock x:Name="TestsValue" FontSize="28" FontWeight="SemiBold" />
+          <TextBlock x:Name="TestsSub" Classes="muted" /></StackPanel></Border>
+      </UniformGrid>
+
+      <Grid ColumnDefinitions="2*,16,*">
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Collections by day" Classes="h2" />
+            <Grid x:Name="Chart" Height="220" />
+            <TextBlock x:Name="ChartEmpty" Text="No payments in this period." Classes="muted" IsVisible="False" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2" Classes="card">
+          <StackPanel Spacing="12">
+            <TextBlock Text="By payment method" Classes="h2" />
+            <StackPanel x:Name="Methods" Spacing="12" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Most ordered tests" Classes="h2" />
+          <StackPanel x:Name="TopTests" Spacing="10" />
+          <TextBlock x:Name="TopEmpty" Text="No tests in this period." Classes="muted" IsVisible="False" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -101,3 +101,71 @@ public class DashboardTests : IDisposable
         File.Delete(_path);
     }
 }
+
+public class ReportSummaryTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+
+    public ReportSummaryTests()
+    {
+        _store = new LocalStore(_path);
+        _store.UpsertPatient(new Patient("p1", "IRM-1", "Asha", "+919876543210", null, null));
+        // Times are stored in UTC. With a +05:30 offset, 20:00Z on the 28th is already 01:30 on the 29th locally.
+        _store.UpsertInvoice(new Invoice("i1", "INV1", "p1", 500m, 500m, "paid", "2026-10-28T20:00:00+00:00"));
+        _store.UpsertInvoice(new Invoice("i2", "INV2", "p1", 400m, 100m, "partial", "2026-10-29T06:00:00+00:00"));
+        _store.UpsertInvoice(new Invoice("i3", "INV3", "p1", 300m, 0m, "pending", "2026-10-25T06:00:00+00:00")); // before the window
+        _store.UpsertInvoice(new Invoice("i4", "INV4", "p1", 999m, 0m, "cancelled", "2026-10-29T07:00:00+00:00"));
+        _store.AddPayment(new LocalPayment("a", "i1", 500m, "cash", null, null, "2026-10-28T20:05:00.000Z", true));
+        _store.AddPayment(new LocalPayment("b", "i2", 100m, "upi", null, null, "2026-10-29T06:05:00.000Z", true));
+        foreach (var (id, name, status) in new[] { ("t1", "CBC", "completed"), ("t2", "CBC", "pending"), ("t3", "LFT", "completed") })
+            _store.UpsertPatientTest(new PatientTest(id, "p1", name, "2026-10-29", status));
+        _store.UpsertPatientTest(new PatientTest("t4", "p1", "TSH", "2026-10-20", "completed")); // outside the window
+    }
+
+    [Fact]
+    public void SummarisesAPeriodInTheLocalCalendar()
+    {
+        var r = _store.GetReport("2026-10-29", "2026-10-29", utcOffsetMinutes: 330);
+
+        Assert.Equal(2, r.Visits);                  // i1 counts: it is the 29th in India
+        Assert.Equal(900m, r.Billed);               // cancelled bills never count
+        Assert.Equal(600m, r.Collected);
+        Assert.Equal(300m, r.Outstanding);
+        Assert.Equal((3, 2), (r.TestsOrdered, r.TestsCompleted));
+        Assert.Equal(600m, r.DailyCollections.Sum(d => d.Amount));
+        Assert.Equal(["cash", "upi"], r.ByMethod.Select(m => m.Method));
+        Assert.Equal([("CBC", 2), ("LFT", 1)], r.TopTests.Select(t => (t.TestName, t.Count)));
+    }
+
+    [Fact]
+    public void ADifferentTimeZoneMovesTheDayBoundary()
+    {
+        var utc = _store.GetReport("2026-10-29", "2026-10-29", utcOffsetMinutes: 0);
+        Assert.Equal(1, utc.Visits);     // i1 is still the 28th in UTC
+        Assert.Equal(100m, utc.Collected);
+    }
+
+    [Fact]
+    public void AnEmptyPeriodIsAllZeros()
+    {
+        var r = _store.GetReport("2025-01-01", "2025-01-31", 330);
+        Assert.Equal((0, 0m, 0m), (r.Visits, r.Billed, r.Collected));
+        Assert.Empty(r.DailyCollections);
+        Assert.Empty(r.TopTests);
+    }
+
+    [Fact]
+    public void CollectionsAreGroupedByLocalDay()
+    {
+        var r = _store.GetReport("2026-10-28", "2026-10-29", 330);
+        Assert.Equal([("2026-10-29", 600m)], r.DailyCollections.Select(d => (d.Day, d.Amount))); // both payments fall on the 29th in India
+    }
+
+    public void Dispose()
+    {
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
