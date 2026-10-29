@@ -32,6 +32,14 @@ public partial class StaffDialog : Window
         Opened += (_, _) => NameBox.Focus();
     }
 
+    private void OnToggleEye(object? sender, RoutedEventArgs e)
+    {
+        var show = PasswordEye.IsChecked == true;
+        PasswordBox.RevealPassword = show;
+        PasswordEyeIcon.Kind = show ? Material.Icons.MaterialIconKind.EyeOffOutline : Material.Icons.MaterialIconKind.EyeOutline;
+        PasswordBox.Focus();
+    }
+
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
         SaveButton.IsEnabled = false;

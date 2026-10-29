@@ -22,6 +22,14 @@ public partial class LoginWindow : Window
         Opened += (_, _) => (string.IsNullOrEmpty(EmailBox.Text) ? EmailBox : PasswordBox).Focus();
     }
 
+    private void OnToggleEye(object? sender, RoutedEventArgs e)
+    {
+        var show = PasswordEye.IsChecked == true;
+        PasswordBox.RevealPassword = show;
+        PasswordEyeIcon.Kind = show ? Material.Icons.MaterialIconKind.EyeOffOutline : Material.Icons.MaterialIconKind.EyeOutline;
+        PasswordBox.Focus();
+    }
+
     private async void OnForgot(object? sender, RoutedEventArgs e)
     {
         ForgotButton.IsEnabled = false;
