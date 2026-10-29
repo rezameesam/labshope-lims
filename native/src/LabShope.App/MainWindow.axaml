@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.MainWindow"
+        Title="LabShope LIMS" Width="1280" Height="800" MinWidth="960" MinHeight="600">
+  <DockPanel>
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_Sync now" HotKey="F9" Click="OnSync" />
+        <Separator />
+        <MenuItem Header="E_xit" HotKey="Alt+F4" Click="OnExit" />
+      </MenuItem>
+      <MenuItem Header="_Patient">
+        <MenuItem Header="_Patient Register" HotKey="F2" Click="OnOpenPatients" />
+      </MenuItem>
+      <MenuItem Header="_Billing" />
+      <MenuItem Header="_Results" />
+      <MenuItem Header="Re_ports" />
+      <MenuItem Header="_Masters" />
+      <MenuItem Header="_Tools" />
+      <MenuItem Header="_Help">
+        <MenuItem Header="_About" Click="OnAbout" />
+      </MenuItem>
+    </Menu>
+
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4" Spacing="2">
+      <Button Classes="tool" Content="Patients (F2)" Click="OnOpenPatients" />
+      <Button Classes="tool" Content="Billing (F3)" IsEnabled="False" />
+      <Button Classes="tool" Content="Results (F4)" IsEnabled="False" />
+      <Button Classes="tool" Content="Reports (F5)" IsEnabled="False" />
+      <Button Classes="tool" Content="Sync (F9)" Click="OnSync" />
+    </StackPanel>
+
+    <Border DockPanel.Dock="Bottom" Background="#EEF1F5" BorderBrush="#C9CFD8" BorderThickness="0,1,0,0" Padding="8,3">
+      <DockPanel>
+        <TextBlock x:Name="ClockText" DockPanel.Dock="Right" />
+        <TextBlock x:Name="ScanText" DockPanel.Dock="Right" Margin="0,0,24,0" Foreground="#555" />
+        <TextBlock x:Name="StatusText" Text="Ready" />
+      </DockPanel>
+    </Border>
+
+    <TabControl x:Name="Windows" Margin="4" />
+  </DockPanel>
+</Window>

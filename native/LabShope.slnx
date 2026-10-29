@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LabShope.App/LabShope.App.csproj" />
+    <Project Path="src/LabShope.Core/LabShope.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LabShope.Core.Tests/LabShope.Core.Tests.csproj" />
+  </Folder>
+</Solution>

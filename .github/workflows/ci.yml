@@ -55,6 +55,23 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-key
           VITE_PUBLIC_BASE_DOMAIN: example.test
 
+  native:
+    name: Native app (build, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and test
+        working-directory: native
+        run: |
+          dotnet build -c Release
+          dotnet test -c Release --no-build
+
   desktop:
     name: Desktop app (tests)
     runs-on: ubuntu-latest
@@ -104,7 +121,7 @@ jobs:
 
   promote:
     name: Promote to production (release branch)
-    needs: [web, desktop, database]
+    needs: [web, desktop, native, database]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
