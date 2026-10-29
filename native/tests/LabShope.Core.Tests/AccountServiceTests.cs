@@ -161,3 +161,49 @@ public class AccountServiceTests : IDisposable
 
     public void Dispose() { if (Directory.Exists(_dir)) Directory.Delete(_dir, true); }
 }
+
+public class SessionPersistenceTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), $"labshope-sess-{Guid.NewGuid():N}");
+    private string SettingsPath => Path.Combine(_dir, "account.json");
+
+    private static string Token(string refresh, int expiresIn) =>
+        "{\"access_token\":\"a-" + refresh + "\",\"refresh_token\":\"" + refresh + "\",\"expires_in\":" + expiresIn + ",\"user\":{\"id\":\"user-1\",\"email\":\"a@b.c\"}}";
+
+    private static (HttpStatusCode, string) Server(HttpRequestMessage req, ref int refreshes)
+    {
+        var path = req.RequestUri!.AbsolutePath;
+        var query = req.RequestUri.Query;
+        if (path.EndsWith("/token") && query.Contains("grant_type=password")) return (HttpStatusCode.OK, Token("refresh-1", 1)); // expires at once so the next call renews it
+        if (path.EndsWith("/token") && query.Contains("grant_type=refresh_token")) return (HttpStatusCode.OK, Token($"refresh-{++refreshes + 1}", 3600));
+        if (path.EndsWith("/user_roles")) return (HttpStatusCode.OK, """[{"role":"employee"}]""");
+        if (path.EndsWith("/employees")) return (HttpStatusCode.OK, """[{"organization_id":"org-1","is_active":true,"two_factor_email_enabled":false}]""");
+        if (path.EndsWith("/organization_users")) return (HttpStatusCode.OK, """[{"organization_id":"org-1"}]""");
+        if (path.EndsWith("/organizations")) return (HttpStatusCode.OK, """[{"id":"org-1","slug":"demo","display_name":"Demo","status":"active"}]""");
+        if (path.EndsWith("/labs")) return (HttpStatusCode.OK, """[{"id":"lab-1"}]""");
+        return (HttpStatusCode.OK, "[]");
+    }
+
+    [Fact]
+    public async Task ARenewedLoginIsSavedSoTheNextStartStillWorks()
+    {
+        var refreshes = 0;
+        var server = new FakeServer();
+        server.Handler = (req, _) => Server(req, ref refreshes);
+        var api = new SupabaseApi(new HttpClient(server), "https://x.supabase.co", "anon");
+        var account = new AccountService(api, SettingsPath);
+        Assert.True((await account.SignInAsync("a@b.c", "pw")).Ok);
+        Assert.Contains(api.Session!.RefreshToken, File.ReadAllText(SettingsPath)); // what is saved is what the server currently honours
+
+        // Later the app renews its login again while syncing (the token expired at once).
+        var before = api.Session!.RefreshToken;
+        api.Session = api.Session with { ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(5) }; // about to expire
+        await api.SelectAsync("patients", "select=id");
+
+        Assert.NotEqual(before, api.Session!.RefreshToken);                           // it really was renewed...
+        Assert.Contains(api.Session.RefreshToken, File.ReadAllText(SettingsPath));    // ...and the newest one is on disk
+        Assert.DoesNotContain("\"" + before + "\"", File.ReadAllText(SettingsPath));  // the stale one is gone
+    }
+
+    public void Dispose() { if (Directory.Exists(_dir)) Directory.Delete(_dir, true); }
+}

@@ -1,0 +1,14 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        x:Class="LabShope.App.AlreadyRunningWindow"
+        Icon="/Assets/icon.png" Title="LabShope LIMS" Width="440" SizeToContent="Height" CanResize="False" WindowStartupLocation="CenterScreen" Background="White">
+  <StackPanel Margin="30" Spacing="12">
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <mi:MaterialIcon Kind="InformationOutline" Width="26" Height="26" Foreground="{StaticResource PrimaryBrush}" />
+      <TextBlock Text="LabShope is already open" Classes="h2" VerticalAlignment="Center" />
+    </StackPanel>
+    <TextBlock Text="Look for it in your taskbar or dock. Only one copy can run on this computer at a time, so your data stays safe." Classes="muted" TextWrapping="Wrap" />
+    <Button Classes="primary" Content="OK" Click="OnOk" HorizontalAlignment="Right" Padding="26,9" />
+  </StackPanel>
+</Window>

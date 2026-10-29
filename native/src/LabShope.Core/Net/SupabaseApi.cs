@@ -15,6 +15,12 @@ public sealed class SupabaseApi
 
     public AuthSession? Session { get; set; }
 
+    /// <summary>
+    /// Raised whenever the login is renewed. The server hands out a new refresh token each time and only honours the newest,
+    /// so whoever stores the login must save every one of these, not just the first.
+    /// </summary>
+    public event Action<AuthSession>? SessionRenewed;
+
     public SupabaseApi(HttpClient http, string baseUrl, string anonKey)
     {
         _http = http;
@@ -26,7 +32,8 @@ public sealed class SupabaseApi
     {
         var result = await SendAsync(HttpMethod.Post, "/auth/v1/token?grant_type=password",
             JsonSerializer.Serialize(new { email, password }), authenticated: false, ct);
-        return (result.Ok ? Session = ParseSession(result.Body!.Value) : null, result);
+        if (result.Ok) { Session = ParseSession(result.Body!.Value); SessionRenewed?.Invoke(Session); }
+        return (result.Ok ? Session : null, result);
     }
 
     /// <summary>Gets a fresh access token. Returns false when the refresh token is no longer valid.</summary>
@@ -37,6 +44,7 @@ public sealed class SupabaseApi
             JsonSerializer.Serialize(new { refresh_token = Session.RefreshToken }), authenticated: false, ct);
         if (!result.Ok) return false;
         Session = ParseSession(result.Body!.Value);
+        SessionRenewed?.Invoke(Session);
         return true;
     }
 

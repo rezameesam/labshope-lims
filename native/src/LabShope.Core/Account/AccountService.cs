@@ -18,6 +18,7 @@ public sealed class AccountService
     {
         _api = api;
         _settingsPath = settingsPath;
+        _api.SessionRenewed += OnSessionRenewed;
     }
 
     private sealed record Saved(string Slug, string OrganizationId, string OrganizationName, string? LabId, string RefreshToken, string UserId, string? Email, List<string>? Roles = null);
@@ -139,6 +140,14 @@ public sealed class AccountService
     {
         _api.Session = null;
         if (File.Exists(_settingsPath)) File.Delete(_settingsPath);
+    }
+
+    /// <summary>Keeps the saved login in step with the newest refresh token (the older ones stop working).</summary>
+    private void OnSessionRenewed(AuthSession session)
+    {
+        var saved = Load();
+        if (saved is not null && saved.UserId == session.UserId && saved.RefreshToken != session.RefreshToken)
+            Save(saved with { RefreshToken = session.RefreshToken });
     }
 
     public string? SavedEmail => Load()?.Email;

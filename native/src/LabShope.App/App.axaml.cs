@@ -20,7 +20,13 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
-            _ = StartAsync(desktop);
+            if (Program.AlreadyRunning)
+            {
+                var notice = new AlreadyRunningWindow();
+                notice.Closed += (_, _) => desktop.Shutdown();
+                notice.Show();
+            }
+            else _ = StartAsync(desktop);
         }
         base.OnFrameworkInitializationCompleted();
     }

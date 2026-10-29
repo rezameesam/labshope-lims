@@ -176,3 +176,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   Verified against the real database: the row is updated, the journal entry is linked, and the books still balance.
 - IMPORTANT: that rule silently posts nothing if the lab's chart of accounts has no 5009 and 2004 (the website seeds them with seed_outsource_accounts). Check each lab has them.
 - Managing the vendor list (add/edit external labs) stays on the website.
+
+## Update: review pass (bugs found and fixed)
+- FIXED (serious): the server issues a new refresh token each time the app renews its login and honours only the newest. The app saved only the first, so after about an
+  hour the saved login would be stale and staff would be signed out at the next start. Every renewal is now saved immediately (test: ARenewedLoginIsSavedSo...).
+- ADDED: single-instance guard (a second copy shows "LabShope is already open" instead of fighting the first over the local database).
+- Known limitations (not fixed): the saved login (refresh token) is stored in a file readable only by the user, not in the operating system's keychain; installers are unsigned;
+  no auto-update yet; offline official bill numbers (bills carry a provisional L- number until synced).
