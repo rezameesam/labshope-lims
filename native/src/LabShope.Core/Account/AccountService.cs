@@ -189,7 +189,19 @@ public sealed class AccountService
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
         var tmp = _settingsPath + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(saved));
-        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        RestrictToOwner(tmp);
         File.Move(tmp, _settingsPath, overwrite: true);
+    }
+
+    /// <summary>On macOS and Linux the saved sign-in is readable by its owner only (Windows keeps it in the user's own profile folder).</summary>
+    private static void RestrictToOwner(string file)
+    {
+        if (OperatingSystem.IsWindows()) return;
+#if NET7_0_OR_GREATER
+        File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+#else
+        try { using var chmod = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("chmod", $"600 \"{file}\"") { UseShellExecute = false, CreateNoWindow = true }); chmod?.WaitForExit(2000); }
+        catch (Exception) { /* best effort */ }
+#endif
     }
 }

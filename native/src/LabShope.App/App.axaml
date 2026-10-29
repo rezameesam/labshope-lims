@@ -120,6 +120,21 @@
       <Setter Property="BorderBrush" Value="#C7D8E1" />
     </Style>
     <Style Selector="ComboBox"><Setter Property="CornerRadius" Value="8" /><Setter Property="MinHeight" Value="38" /><Setter Property="BorderBrush" Value="#C7D8E1" /></Style>
+    <Style Selector="ToggleButton.eye">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="ToggleButton.eye:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.eye:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+    </Style>
     <Style Selector="DatePicker"><Setter Property="CornerRadius" Value="8" /></Style>
 
     <!-- Lists (search results) -->

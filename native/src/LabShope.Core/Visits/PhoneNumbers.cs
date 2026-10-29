@@ -6,7 +6,7 @@ public static class PhoneNumbers
     public const string DefaultCountryCode = "91";
     private static readonly string[] KnownCodes = ["971", "91", "44", "61", "65", "81", "1"];
 
-    private static string Digits(string? v) => new((v ?? "").Where(char.IsAsciiDigit).ToArray());
+    private static string Digits(string? v) => new((v ?? "").Where(c => c is >= '0' and <= '9').ToArray());
     private static bool ValidLength(string digits) => digits.Length is >= 8 and <= 15;
 
     /// <summary>Returns the number in storage form (+919876543210), or null when it isn't a usable number.</summary>

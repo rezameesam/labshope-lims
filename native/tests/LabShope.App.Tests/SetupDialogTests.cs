@@ -139,4 +139,24 @@ public class SetupDialogTests
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }
+
+    [AvaloniaFact]
+    public void TheEyeShowsAndHidesThePasswordWhileTyping()
+    {
+        var dialog = new StaffDialog(Api(new Server(HttpStatusCode.OK, "{}")), "org-1", [new LabRef("l1", "Main Lab", "ML")], "l1");
+        dialog.Show();
+        var box = dialog.FindControl<TextBox>("PasswordBox")!;
+        var eye = dialog.FindControl<Avalonia.Controls.Primitives.ToggleButton>("PasswordEye")!;
+        box.Text = "longenough1";
+
+        Assert.False(box.RevealPassword); // hidden to begin with
+        eye.IsChecked = true;
+        eye.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(box.RevealPassword);
+        Assert.Equal("longenough1", box.Text); // the typed text is untouched
+
+        eye.IsChecked = false;
+        eye.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.False(box.RevealPassword);
+    }
 }

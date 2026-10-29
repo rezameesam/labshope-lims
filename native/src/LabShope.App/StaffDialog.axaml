@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="LabShope.App.StaffDialog"
         Title="Add staff" Width="480" Height="640" CanResize="False" WindowStartupLocation="CenterOwner">
   <StackPanel Margin="26" Spacing="8">
@@ -10,7 +11,12 @@
     <TextBlock Text="EMAIL" Classes="label" Margin="0,6,0,0" />
     <TextBox x:Name="EmailBox" />
     <TextBlock Text="PASSWORD (at least 8 characters)" Classes="label" Margin="0,6,0,0" />
-    <TextBox x:Name="PasswordBox" PasswordChar="●" />
+    <Grid>
+      <TextBox x:Name="PasswordBox" PasswordChar="●" Padding="12,0,44,0" />
+      <ToggleButton x:Name="PasswordEye" Classes="eye" HorizontalAlignment="Right" Margin="0,0,6,0" ToolTip.Tip="Show or hide the password" Click="OnToggleEye">
+        <mi:MaterialIcon x:Name="PasswordEyeIcon" Kind="EyeOutline" Width="18" Height="18" />
+      </ToggleButton>
+    </Grid>
     <TextBlock Text="ROLE" Classes="label" Margin="0,6,0,0" />
     <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch" />
     <TextBlock Text="LAB" Classes="label" Margin="0,6,0,0" />
