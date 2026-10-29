@@ -114,3 +114,13 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   empty states, a new split-panel login. Screens are checked by rendering them headless (DesignReviewTests with LABSHOPE_SHOT_DIR=...).
 - Branding: name, address, phone, email, logo (embedded for offline printing), report tagline and footer wording come from the same public lab
   lookup the website uses (get_public_organization_context) and are used on receipts and reports. Refreshed at most every 6 hours.
+
+## Update: Reports, Finance, Test catalog
+- Reports (F6, offline): billed / collected / outstanding / visits / tests, collections by day (bar chart), by payment method, most ordered tests, for
+  Today / 7 days / 30 days / this month. Local calendar days (UTC offset applied); cancelled bills excluded.
+- Finance (admin/employee only, needs internet): trial balance and recent posted journal entries, same method as the website (accounts + posted entries
+  + lines, chunked). Says whether the books balance. Verified against the real database: bill + payments posted automatically and tally.
+- Test catalog: tests (price, unit, normal range), packages, doctors, searchable offline. Admins can edit a test's price/unit/range/active flag (PATCH of the
+  tests row, online); the new values reach the PC with the next catalog pull. Verified against the real database.
+- Not yet native: employees/roles, labs & collection centres, external labs, inventory, booking requests, notice board, report templates, settings,
+  subscription. Analyzer integration waits for the machine models.

@@ -104,6 +104,13 @@ public class IntegrationLocalTests
         Assert.True(await engine.PullBrandingAsync("it-org", "fallback", force: true));
         Assert.Equal("IT Org", store.GetBranding("fallback").Name);
 
+        // A manager can change a test's price and range on the server, and it reaches this PC with the next catalog pull.
+        var change = await CatalogAdmin.UpdateTestAsync(api, org, cbc.Id.Length > 0 ? store.GetCatalog().Tests.First(t => t.Name == "CBC").Id : "", new TestEdit("325", "x10^9/L", "4", "11", "", true));
+        Assert.True(change.Ok, change.Error);
+        await engine.PullCatalogAsync(force: true);
+        var cbcTest = store.GetCatalog().Tests.Single(t => t.Name == "CBC");
+        Assert.Equal((325m, "x10^9/L", 4m, 11m), (cbcTest.Price, cbcTest.Unit, cbcTest.NormalMin, cbcTest.NormalMax));
+
         // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
         var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
         Assert.Null(books.Error);

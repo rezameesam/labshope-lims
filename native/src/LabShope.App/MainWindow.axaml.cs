@@ -73,6 +73,12 @@ public partial class MainWindow : Window
             }),
             new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
             new("reports", "Reports", MaterialIconKind.ChartBoxOutline, Key.F6, () => new ReportsView(session)),
+            new("catalog", "Test catalog", MaterialIconKind.FlaskOutline, Key.None, () =>
+            {
+                var v = new CatalogView(session);
+                v.CatalogChanged += async () => { await ForceCatalogAsync(); };
+                return v;
+            }),
         ];
         // The books are for admins and staff, not collectors.
         if (session.Workspace.Roles is null || session.Workspace.Roles.Any(r => r is "admin" or "employee"))
@@ -133,6 +139,7 @@ public partial class MainWindow : Window
             case ResultsView r: r.Refresh(); break;
             case CashBookView c: c.Refresh(); break;
             case ReportsView rv: rv.Refresh(); break;
+            case CatalogView cv: cv.Refresh(); break;
             case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;
         }
@@ -185,6 +192,13 @@ public partial class MainWindow : Window
         _scanHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
         _scanHide.Tick += (_, _) => { ScanChip.IsVisible = false; _scanHide!.Stop(); };
         _scanHide.Start();
+    }
+
+    /// <summary>After a catalog change, pull the new values straight away instead of waiting for the next refresh.</summary>
+    private async Task ForceCatalogAsync()
+    {
+        if (_session.Engine is not null) { try { await _session.Engine.PullCatalogAsync(force: true); } catch (SyncException) { } }
+        RefreshPages();
     }
 
     private async void OnSync(object? sender, RoutedEventArgs e) => await SyncAsync();

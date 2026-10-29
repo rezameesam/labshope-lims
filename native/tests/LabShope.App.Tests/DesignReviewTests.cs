@@ -53,6 +53,27 @@ public class DesignReviewTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void TheCatalogBrowsesTestsPackagesAndDoctorsAndSearches()
+    {
+        var view = new CatalogView(_session);
+        var window = new Window { Width = 1200, Height = 600, Content = view };
+        window.Show();
+
+        Assert.Equal(5, view.FindControl<DataGrid>("TestGrid")!.ItemsSource.Cast<object>().Count());
+        view.FindControl<TextBox>("SearchBox")!.Text = "vitamin";
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["Vitamin D"], view.FindControl<DataGrid>("TestGrid")!.ItemsSource.Cast<CatalogTest>().Select(t => t.Name));
+        Assert.False(view.FindControl<Button>("EditButton")!.IsVisible); // no server connection in this session: no editing
+
+        view.FindControl<TextBox>("SearchBox")!.Text = "";
+        view.FindControl<Button>("PackagesButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(["Basic Health Check"], view.FindControl<DataGrid>("PackageGrid")!.ItemsSource.Cast<TestPackage>().Select(p => p.Name));
+        view.FindControl<Button>("DoctorsButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(["Dr Rao"], view.FindControl<DataGrid>("DoctorGrid")!.ItemsSource.Cast<Doctor>().Select(d => d.Name));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void TakesScreenshotsOfEveryScreen()
     {
         var dir = Environment.GetEnvironmentVariable("LABSHOPE_SHOT_DIR");
@@ -61,7 +82,7 @@ public class DesignReviewTests : IDisposable
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         if (dir is null) { window.Close(); return; }
 
-        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports" })
+        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog" })
         {
             window.Show(page);
             if (page == "register")

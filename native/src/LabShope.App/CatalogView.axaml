@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.CatalogView">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <StackPanel Orientation="Horizontal" Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button x:Name="TestsButton" Classes="seg on" Content="Tests" Click="OnTab" Tag="tests" />
+          <Button x:Name="PackagesButton" Classes="seg" Content="Packages" Click="OnTab" Tag="packages" />
+          <Button x:Name="DoctorsButton" Classes="seg" Content="Doctors" Click="OnTab" Tag="doctors" />
+        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*">
+          <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
+          <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+          <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="260" PlaceholderText="Search" />
+        </Grid>
+        <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
+      </StackPanel>
+      <Button x:Name="EditButton" Grid.Column="1" Classes="primary" Click="OnEdit">
+        <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="PencilOutline" Width="17" Height="17" /><TextBlock Text="Edit price and range" /></StackPanel>
+      </Button>
+    </Grid>
+    <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="2,10,0,0" TextWrapping="Wrap" />
+    <Grid>
+      <DataGrid x:Name="TestGrid" x:DataType="data:CatalogTest" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="CODE" Binding="{Binding TestCode}" Width="110" />
+          <DataGridTextColumn Header="TEST" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="PRICE" Binding="{Binding Price}" Width="100" />
+          <DataGridTextColumn Header="UNIT" Binding="{Binding Unit}" Width="110" />
+          <DataGridTextColumn Header="NORMAL RANGE" Binding="{Binding Range}" Width="200" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="PackageGrid" x:DataType="data:TestPackage" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="PACKAGE" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="PRICE" Binding="{Binding Price}" Width="110" />
+          <DataGridTextColumn Header="TESTS" Binding="{Binding TestCount}" Width="100" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="DoctorGrid" x:DataType="data:Doctor" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="DOCTOR" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="SPECIALISATION" Binding="{Binding Specialization}" Width="220" />
+          <DataGridTextColumn Header="COMMISSION %" Binding="{Binding CommissionPercentage}" Width="140" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+  </DockPanel>
+</UserControl>
