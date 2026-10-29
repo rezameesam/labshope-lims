@@ -31,10 +31,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims" }
-          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   icon: assets/icon.icns, extra: "--bundleId com.labshope.lims" }
-          - { name: "Windows",               os: windows-latest, rid: win-x64,  icon: assets/icon.ico, extra: "" }
-          - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  icon: assets/icon.png, extra: "" }
+          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
+          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
+          - { name: "Windows",               os: windows-latest, rid: win-x64,  icon: assets/icon.ico, extra: "", exe: LabShope.exe }
+          - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  icon: assets/icon.png, extra: "", exe: LabShope }
 
     steps:
       - uses: actions/checkout@v5
@@ -69,7 +69,7 @@ jobs:
       - name: Build the installer
         working-directory: native
         run: >
-          vpk pack -u LabShopeLIMS -v ${{ steps.version.outputs.value }} -p publish -e LabShope
+          vpk pack -u LabShopeLIMS -v ${{ steps.version.outputs.value }} -p publish -e ${{ matrix.exe }}
           -o installers -r ${{ matrix.rid }} --packTitle "LabShope LIMS" --packAuthors "LabShope"
           --icon ${{ matrix.icon }} ${{ matrix.extra }}
 
