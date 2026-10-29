@@ -68,10 +68,6 @@ enabled = false
 EOF
 
 echo "==> Starting a throw-away Supabase (project irm-lims-db-tests)"
-# GitHub's registry (ghcr.io) was refusing image pulls from CI for long stretches ("toomanyrequests"); AWS's public
-# registry carries the same images and does not. Set SUPABASE_INTERNAL_IMAGE_REGISTRY yourself to use another.
-if [ -n "${CI:-}" ]; then export SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws; fi
-
 # The container registry sometimes refuses image pulls ("toomanyrequests") when many CI jobs share its address,
 # so try again with a growing pause. Images that were already downloaded are not fetched again.
 started=0
