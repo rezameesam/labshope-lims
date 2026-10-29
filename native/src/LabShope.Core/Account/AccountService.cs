@@ -12,6 +12,7 @@ public sealed class AccountService
 {
     private readonly SupabaseApi _api;
     private readonly string _settingsPath;
+    private IReadOnlyList<string> _roles = [];
 
     public AccountService(SupabaseApi api, string settingsPath)
     {
@@ -19,41 +20,95 @@ public sealed class AccountService
         _settingsPath = settingsPath;
     }
 
-    private sealed record Saved(string Slug, string OrganizationId, string OrganizationName, string? LabId, string RefreshToken, string UserId, string? Email);
+    private sealed record Saved(string Slug, string OrganizationId, string OrganizationName, string? LabId, string RefreshToken, string UserId, string? Email, List<string>? Roles = null);
 
-    public async Task<LoginResult> SignInAsync(string labName, string email, string password, CancellationToken ct = default)
+    /// <summary>
+    /// Signs in with just email and password; the lab is found from the account (customers sign up on the
+    /// website, they never need to know a lab name). If the account belongs to several labs the caller gets
+    /// the list to choose from and then calls <see cref="ChooseAsync"/>.
+    /// </summary>
+    public async Task<LoginResult> SignInAsync(string email, string password, CancellationToken ct = default)
     {
-        var slug = labName.Trim().ToLowerInvariant();
-        if (slug.Length == 0) return new(false, "Enter your lab name.");
         if (email.Trim().Length == 0 || password.Length == 0) return new(false, "Enter your email and password.");
 
-        // 1. Which lab is this? (public lookup, no sign-in needed)
-        var context = await _api.RpcAsync("get_public_organization_context", new { _domain = (string?)null, _slug = slug }, ct);
-        if (context.NetworkFailure) return new(false, "Can't reach the server. Check the internet connection.");
-        if (!context.Ok) return new(false, "Could not look up that lab. Try again.");
-        if (context.Body is not { ValueKind: JsonValueKind.Object } body || !body.TryGetProperty("organization", out var org) || org.ValueKind != JsonValueKind.Object)
-            return new(false, $"No active lab named \"{slug}\".");
-
-        var orgId = org.GetProperty("id").GetString()!;
-        var orgName = org.TryGetProperty("display_name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : slug;
-        string? labId = body.TryGetProperty("primary_lab", out var lab) && lab.ValueKind == JsonValueKind.Object && lab.TryGetProperty("id", out var l) ? l.GetString() : null;
-
-        // 2. Sign in.
         var (session, signIn) = await _api.SignInAsync(email.Trim(), password, ct);
-        if (signIn.NetworkFailure) return new(false, "Can't reach the server. Check the internet connection.");
+        if (signIn.NetworkFailure) return new(false, "Can't reach the server. Check the internet connection. (The first sign-in on a computer needs internet.)");
         if (session is null)
             return new(false, signIn.Status is 400 or 401 or 422 ? "Wrong email or password." : signIn.ErrorMessage ?? "Sign-in failed.");
 
-        // 3. They must belong to this lab.
-        var member = await _api.SelectAsync("organization_users", $"select=user_id&user_id=eq.{session.UserId}&organization_id=eq.{orgId}&limit=1", ct);
-        if (!member.Ok || member.Body is not { ValueKind: JsonValueKind.Array } rows || rows.GetArrayLength() == 0)
+        // The same rules the web login applies: a staff role, and (for staff) an active employee record.
+        var rolesResult = await _api.SelectAsync("user_roles", $"select=role&user_id=eq.{session.UserId}", ct);
+        var roles = rolesResult.Body is { ValueKind: JsonValueKind.Array } roleRows
+            ? roleRows.EnumerateArray().Select(r => r.GetProperty("role").GetString()!).ToList()
+            : [];
+        if (!roles.Any(r => r is "admin" or "employee" or "collector"))
         {
             _api.Session = null;
-            return new(false, "This account doesn't have access to that lab.");
+            return new(false, "Your account does not have staff access.");
+        }
+        _roles = roles;
+
+        var employee = await _api.SelectAsync("employees", $"select=organization_id,is_active,two_factor_email_enabled&user_id=eq.{session.UserId}&limit=1", ct);
+        string? employeeOrg = null;
+        if (employee.Body is { ValueKind: JsonValueKind.Array } empRows && empRows.GetArrayLength() > 0)
+        {
+            var row = empRows[0];
+            if (row.TryGetProperty("is_active", out var active) && active.ValueKind == JsonValueKind.False)
+            {
+                _api.Session = null;
+                return new(false, "Your staff account is inactive. Ask your lab admin.");
+            }
+            if (row.TryGetProperty("two_factor_email_enabled", out var tf) && tf.ValueKind == JsonValueKind.True)
+            {
+                _api.Session = null;
+                return new(false, "This account uses email two-step verification, which the desktop app doesn't support yet. Ask your admin to turn it off for this account, or use the website.");
+            }
+            employeeOrg = row.TryGetProperty("organization_id", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() : null;
         }
 
-        var workspace = new Workspace(slug, orgId, orgName, labId);
-        Save(new Saved(slug, orgId, orgName, labId, session.RefreshToken, session.UserId, session.Email));
+        // Staff go to their own lab. Owners and platform admins without an employee record use their memberships.
+        var memberships = await _api.SelectAsync("organization_users", $"select=organization_id&user_id=eq.{session.UserId}&is_active=eq.true", ct);
+        var orgIds = memberships.Body is { ValueKind: JsonValueKind.Array } rows
+            ? rows.EnumerateArray().Select(r => r.GetProperty("organization_id").GetString()!).Distinct().ToList()
+            : [];
+        if (employeeOrg is not null) orgIds = orgIds.Where(id => id == employeeOrg).ToList();
+
+        if (!memberships.Ok || orgIds.Count == 0)
+        {
+            _api.Session = null;
+            return new(false, "This account isn't linked to a lab yet. Finish setting up your lab on the website first.");
+        }
+
+        var orgs = await _api.SelectAsync("organizations", $"select=id,slug,display_name,status&id=in.({string.Join(",", orgIds)})", ct);
+        var choices = new List<Workspace>();
+        if (orgs.Body is { ValueKind: JsonValueKind.Array } list)
+        {
+            foreach (var o in list.EnumerateArray())
+            {
+                var status = o.GetProperty("status").GetString();
+                if (status is not ("trial" or "active")) continue;
+                var id = o.GetProperty("id").GetString()!;
+                var slug = o.GetProperty("slug").GetString()!;
+                var name = o.TryGetProperty("display_name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : slug;
+                choices.Add(new Workspace(slug, id, name, null, roles));
+            }
+        }
+
+        if (choices.Count == 0) { _api.Session = null; return new(false, "Your lab's subscription isn't active. Please contact support."); }
+        if (choices.Count > 1) return new(true, Choices: choices);
+        return await ChooseAsync(choices[0], ct);
+    }
+
+    /// <summary>Finishes sign-in for the chosen lab: finds its main lab and remembers the login.</summary>
+    public async Task<LoginResult> ChooseAsync(Workspace choice, CancellationToken ct = default)
+    {
+        if (_api.Session is null) return new(false, "Please sign in again.");
+
+        var labs = await _api.SelectAsync("labs", $"select=id&organization_id=eq.{choice.OrganizationId}&is_active=eq.true&order=created_at.asc&limit=1", ct);
+        string? labId = labs.Body is { ValueKind: JsonValueKind.Array } arr && arr.GetArrayLength() > 0 ? arr[0].GetProperty("id").GetString() : null;
+
+        var workspace = choice with { LabId = labId, Roles = _roles };
+        Save(new Saved(workspace.Slug, workspace.OrganizationId, workspace.OrganizationName, labId, _api.Session.RefreshToken, _api.Session.UserId, _api.Session.Email, _roles.ToList()));
         return new(true, Workspace: workspace);
     }
 
@@ -66,7 +121,7 @@ public sealed class AccountService
         var saved = Load();
         if (saved is null) return (null, false);
 
-        var workspace = new Workspace(saved.Slug, saved.OrganizationId, saved.OrganizationName, saved.LabId);
+        var workspace = new Workspace(saved.Slug, saved.OrganizationId, saved.OrganizationName, saved.LabId, saved.Roles);
         _api.Session = new AuthSession("", saved.RefreshToken, DateTimeOffset.MinValue, saved.UserId, saved.Email);
 
         if (await _api.RefreshAsync(ct))

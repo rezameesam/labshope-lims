@@ -1,19 +1,21 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LabShope.App.LoginWindow"
-        Title="LabShope LIMS - Sign in" Width="420" Height="400" CanResize="False"
+        Title="LabShope LIMS - Sign in" Width="420" Height="420" CanResize="False"
         WindowStartupLocation="CenterScreen">
   <StackPanel Margin="32" Spacing="12" VerticalAlignment="Center">
     <TextBlock Text="LabShope LIMS" FontSize="24" FontWeight="SemiBold" />
-    <TextBlock Text="Sign in to your lab" Foreground="#666" Margin="0,0,0,8" />
+    <TextBlock Text="Sign in with the email and password you used on the website" Foreground="#666" Margin="0,0,0,8" />
 
-    <TextBlock Text="Lab name" />
-    <TextBox x:Name="LabBox" Watermark="e.g. irm" />
     <TextBlock Text="Email" />
     <TextBox x:Name="EmailBox" />
     <TextBlock Text="Password" />
     <TextBox x:Name="PasswordBox" PasswordChar="●" />
 
+    <StackPanel x:Name="ChoicePanel" IsVisible="False" Spacing="6">
+      <TextBlock Text="Which lab?" />
+      <ComboBox x:Name="LabChoice" HorizontalAlignment="Stretch" />
+    </StackPanel>
     <TextBlock x:Name="ErrorText" Foreground="#B00020" TextWrapping="Wrap" IsVisible="False" />
     <Button x:Name="SignInButton" Content="Sign in" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
             IsDefault="True" Click="OnSignIn" Margin="0,8,0,0" />

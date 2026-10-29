@@ -28,6 +28,8 @@ public sealed class LocalStore : IDisposable
               paid_amount REAL NOT NULL, payment_status TEXT, created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_invoices_number ON invoices(invoice_number COLLATE NOCASE);
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE IF NOT EXISTS catalog (kind TEXT NOT NULL, id TEXT NOT NULL, sort TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id));
+            CREATE INDEX IF NOT EXISTS ix_catalog_sort ON catalog(kind, sort COLLATE NOCASE);
             CREATE TABLE IF NOT EXISTS outbox (
               visit_id TEXT PRIMARY KEY, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
               last_error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
@@ -171,6 +173,59 @@ public sealed class LocalStore : IDisposable
                 r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetInt32(6) == 1));
         }
         return list;
+    }
+
+    // ── catalog (tests, packages, doctors, labs, centers) ───────────────────
+
+    /// <summary>Replaces the whole catalog in one step, so a half-finished refresh never leaves it empty.</summary>
+    public void ReplaceCatalog(Catalog catalog)
+    {
+        InTransaction(() =>
+        {
+            Exec("DELETE FROM catalog");
+            foreach (var t in catalog.Tests) PutCatalog("test", t.Id, t.Name, t);
+            foreach (var p in catalog.Packages) PutCatalog("package", p.Id, p.Name, p);
+            foreach (var d in catalog.Doctors) PutCatalog("doctor", d.Id, d.Name, d);
+            foreach (var l in catalog.Labs) PutCatalog("lab", l.Id, l.Name, l);
+            foreach (var c in catalog.Centers) PutCatalog("center", c.Id, c.Name, c);
+        });
+    }
+
+    public Catalog GetCatalog() => new(
+        ReadCatalog<CatalogTest>("test"), ReadCatalog<TestPackage>("package"), ReadCatalog<Doctor>("doctor"),
+        ReadCatalog<LabRef>("lab"), ReadCatalog<CenterRef>("center"));
+
+    private void PutCatalog<T>(string kind, string id, string sort, T value)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO catalog (kind, id, sort, json) VALUES ($k, $i, $s, $j)";
+        cmd.Parameters.AddWithValue("$k", kind);
+        cmd.Parameters.AddWithValue("$i", id);
+        cmd.Parameters.AddWithValue("$s", sort);
+        cmd.Parameters.AddWithValue("$j", System.Text.Json.JsonSerializer.Serialize(value));
+        cmd.ExecuteNonQuery();
+    }
+
+    private List<T> ReadCatalog<T>(string kind)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT json FROM catalog WHERE kind = $k ORDER BY sort COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("$k", kind);
+        var list = new List<T>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(System.Text.Json.JsonSerializer.Deserialize<T>(r.GetString(0))!);
+        return list;
+    }
+
+    public Patient? FindPatientByPhone(IEnumerable<string> variants)
+    {
+        var list = variants.ToList();
+        if (list.Count == 0) return null;
+        using var cmd = _db.CreateCommand();
+        var names = list.Select((_, n) => $"$p{n}").ToList();
+        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY pending, id LIMIT 1";
+        for (var n = 0; n < list.Count; n++) cmd.Parameters.AddWithValue(names[n], list[n]);
+        return ReadPatients(cmd).FirstOrDefault();
     }
 
     // ── meta (cursors, session, settings) ──────────────────────────────────

@@ -44,3 +44,11 @@ Already true: opens from the saved login offline, all screens read local SQLite,
 ## Update: login + live data wired into the window
 Login window, saved-login restore (offline-safe), sync every 60 s + on open, Patients and Bills grids on real local data,
 sidebar-style menu mirroring the web app's Work / Catalog / Manage groups (only Patients and Bills enabled so far).
+
+## Update: sign-in is email + password only
+Customers sign up on the website, then download the app. They never need a lab name: after sign-in the app finds the lab from the
+account, using the same rules as the web login (staff role, active employee record, active membership, active/trial subscription).
+Employees created by an admin use the email + password they were given and land in their own lab. Owners/platform admins with several
+labs get a short list to pick from. The first sign-in on a computer needs internet; after that the app opens offline from the saved login.
+Known gap: accounts with email two-step verification are refused with a clear message until the desktop app supports it.
+Also built (no screen yet): phone normalisation, catalog storage, `VisitService` (register a visit locally, queue it, instant, offline).

@@ -19,7 +19,7 @@ public partial class LoginWindow : Window
         InitializeComponent();
         Shot.Attach(this);
         EmailBox.Text = lastEmail;
-        Opened += (_, _) => (string.IsNullOrEmpty(LabBox.Text) ? LabBox : PasswordBox).Focus();
+        Opened += (_, _) => (string.IsNullOrEmpty(EmailBox.Text) ? EmailBox : PasswordBox).Focus();
     }
 
     private async void OnSignIn(object? sender, RoutedEventArgs e)
@@ -28,12 +28,26 @@ public partial class LoginWindow : Window
         SignInButton.Content = "Signing in…";
         ErrorText.IsVisible = false;
 
-        var result = await _account.SignInAsync(LabBox.Text ?? "", EmailBox.Text ?? "", PasswordBox.Text ?? "");
+        // Second step: the account has several labs and one was picked.
+        var result = LabChoice.SelectedItem is Workspace choice && ChoicePanel.IsVisible
+            ? await _account.ChooseAsync(choice)
+            : await _account.SignInAsync(EmailBox.Text ?? "", PasswordBox.Text ?? "");
 
-        if (result.Ok)
+        if (result.Ok && result.Workspace is not null)
         {
             Result = result.Workspace;
             Close();
+            return;
+        }
+
+        if (result.Ok && result.Choices is { Count: > 0 } choices)
+        {
+            LabChoice.ItemsSource = choices;
+            LabChoice.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(Workspace.OrganizationName));
+            LabChoice.SelectedIndex = 0;
+            ChoicePanel.IsVisible = true;
+            SignInButton.IsEnabled = true;
+            SignInButton.Content = "Continue";
             return;
         }
 
