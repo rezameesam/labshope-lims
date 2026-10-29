@@ -25,7 +25,61 @@ public partial class SettingsView : UserControl
         _session = session;
         InitializeComponent();
         QueueGrid.SelectionChanged += (_, _) => UpdateButtons();
+        LoadPrinter();
         Refresh();
+    }
+
+    private void LoadPrinter()
+    {
+        var p = LabShope.Core.Printing.PrinterSettings.Load(_session.Store);
+        PrinterSerial.ItemsSource = System.IO.Ports.SerialPort.GetPortNames().OrderBy(n => n).ToList();
+        PrinterMode.SelectedIndex = (int)p.Mode;
+        PrinterHost.Text = p.Host;
+        PrinterPort.Text = p.Port.ToString();
+        PrinterSerial.SelectedItem = p.SerialPort.Length > 0 ? p.SerialPort : null;
+        PrinterBaud.Text = p.SerialBaud.ToString();
+        PrinterWidth.SelectedIndex = p.Columns <= 36 ? 1 : 0;
+        ShowPrinterFields();
+    }
+
+    private void OnPrinterModeChanged(object? sender, SelectionChangedEventArgs e) => ShowPrinterFields();
+
+    private void ShowPrinterFields()
+    {
+        var mode = (LabShope.Core.Printing.PrinterMode)Math.Max(PrinterMode.SelectedIndex, 0);
+        HostLabel.IsVisible = HostRow.IsVisible = mode == LabShope.Core.Printing.PrinterMode.Network;
+        SerialLabel.IsVisible = SerialRow.IsVisible = mode == LabShope.Core.Printing.PrinterMode.Serial;
+        TestPrinterButton.IsVisible = mode != LabShope.Core.Printing.PrinterMode.Browser;
+    }
+
+    private LabShope.Core.Printing.PrinterSettings ReadPrinter() => new(
+        (LabShope.Core.Printing.PrinterMode)Math.Max(PrinterMode.SelectedIndex, 0), (PrinterHost.Text ?? "").Trim(),
+        int.TryParse(PrinterPort.Text, out var port) ? port : 0, PrinterSerial.SelectedItem as string ?? "",
+        int.TryParse(PrinterBaud.Text, out var baud) ? baud : 0, PrinterWidth.SelectedIndex == 1 ? 32 : LabShope.Core.Printing.EscPos.DefaultColumns);
+
+    private void ShowPrinterMessage(string text, bool ok)
+    {
+        PrinterMessage.Text = text;
+        PrinterMessage.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource(ok ? "SuccessBrush" : "DangerBrush")!;
+    }
+
+    private void OnSavePrinter(object? sender, RoutedEventArgs e)
+    {
+        var settings = ReadPrinter();
+        if (settings.Problem() is { } problem) { ShowPrinterMessage(problem, false); return; }
+        settings.Save(_session.Store);
+        ShowPrinterMessage(settings.Mode == LabShope.Core.Printing.PrinterMode.Browser ? "Saved. Receipts open in the browser." : "Saved. Receipts now print straight to the printer.", true);
+    }
+
+    private async void OnTestPrinter(object? sender, RoutedEventArgs e)
+    {
+        var settings = ReadPrinter();
+        if (settings.Problem() is { } problem) { ShowPrinterMessage(problem, false); return; }
+        TestPrinterButton.IsEnabled = false;
+        ShowPrinterMessage("Printing…", true);
+        var outcome = await LabShope.Core.Printing.RawPrinter.SendAsync(settings, LabShope.Core.Printing.EscPos.TestPage(_session.Workspace.OrganizationName, settings.Columns));
+        ShowPrinterMessage(outcome.Ok ? "Sent. If a page came out with a full-width line of = signs, the width is right." : outcome.Error!, outcome.Ok);
+        TestPrinterButton.IsEnabled = true;
     }
 
     public void ShowStatus(SyncStatus status) { _status = status; Refresh(); }
