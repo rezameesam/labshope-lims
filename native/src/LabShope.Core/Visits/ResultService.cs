@@ -30,6 +30,40 @@ public sealed class ResultService
         return (c?.Unit, c?.NormalRangeText ?? (c?.NormalMin is { } lo && c.NormalMax is { } hi ? $"{lo:0.##} - {hi:0.##}" : null));
     }
 
+    /// <summary>Saves a multi-value result (such as a CBC). Abnormal when any row is out of its numeric range, or the person marks it.</summary>
+    public PatientTest EnterPanel(string testId, IReadOnlyList<ResultItem> items, bool markedAbnormal = false)
+    {
+        var test = _store.GetPatientTest(testId) ?? throw new ArgumentException("That test isn't on this computer.");
+        var kept = items.Where(i => !i.IsEmpty).ToList();
+        if (kept.Count == 0 || kept.All(i => i.Value.Trim() == "")) throw new ArgumentException("Enter at least one value.");
+
+        var abnormal = markedAbnormal || kept.Any(i => i.IsAbnormal);
+        var itemsJson = ResultItem.ToJsonArray(kept);
+        var enteredAt = _now().UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+
+        var done = test with
+        {
+            Status = "completed", Result = null, ResultValue = null, ResultUnit = null, NormalRangeText = null,
+            IsAbnormal = abnormal, Waiting = true, ResultItemsJson = itemsJson,
+        };
+
+        var patch = new JsonObject
+        {
+            ["status"] = "completed", ["result"] = null, ["result_value"] = null, ["result_unit"] = null, ["normal_range_text"] = null,
+            ["result_items"] = JsonNode.Parse(itemsJson), ["is_abnormal"] = abnormal,
+            ["result_entered_by"] = _userId, ["result_entered_at"] = enteredAt, ["updated_by"] = _userId,
+        };
+        var payload = new JsonObject { ["id"] = testId, ["organization_id"] = _organizationId, ["patch"] = patch };
+
+        _store.InTransaction(() =>
+        {
+            _store.UpsertPatientTest(done);
+            _store.EnqueueVisit(new OutboxItem($"result-{testId}-{enteredAt}", payload.ToJsonString(), "pending", 0, null,
+                _store.GetPatient(test.PatientId)?.FullName ?? "", 0m, Kind: "result"));
+        });
+        return done;
+    }
+
     public PatientTest Enter(string testId, string valueText, string? unit = null, bool markedAbnormal = false)
     {
         var test = _store.GetPatientTest(testId) ?? throw new ArgumentException("That test isn't on this computer.");

@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using LabShope.Core.Data;
@@ -5,12 +7,33 @@ using LabShope.Core.Visits;
 
 namespace LabShope.App;
 
+/// <summary>One editable line of a panel result; the flag updates as the value is typed.</summary>
+public sealed class PanelRow : INotifyPropertyChanged
+{
+    private string _value = "", _min = "", _max = "";
+    public string Name { get; set; } = "";
+    public string Unit { get; set; } = "";
+    public string RangeText { get; set; } = "";
+
+    public string Value { get => _value; set { _value = value ?? ""; Changed(nameof(Value)); Changed(nameof(Flag)); } }
+    public string Min { get => _min; set { _min = value ?? ""; Changed(nameof(Min)); Changed(nameof(Flag)); } }
+    public string Max { get => _max; set { _max = value ?? ""; Changed(nameof(Max)); Changed(nameof(Flag)); } }
+
+    public ResultItem ToItem() => new(Name, Value, Unit, Min, Max, RangeText);
+    public string Flag => ToItem().IsAbnormal ? "ABNORMAL" : "";
+    public static PanelRow From(ResultItem i) => new() { Name = i.Name, Value = i.Value, Unit = i.Unit, Min = i.Min, Max = i.Max, RangeText = i.RangeText };
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Changed(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
 /// <summary>The bench worklist: pick a test, type the result, Enter, next. Works offline.</summary>
 public partial class ResultsView : UserControl
 {
     private readonly AppSession _session;
     private readonly ResultService _results;
     private WorklistRow? _current;
+    private readonly ObservableCollection<PanelRow> _panel = [];
 
     /// <summary>Raised after a result is saved so the window can send it.</summary>
     public event Action? ResultSaved;
@@ -22,6 +45,8 @@ public partial class ResultsView : UserControl
         _session = session;
         _results = new ResultService(session.Store, session.Workspace.OrganizationId, session.Account.SavedUserId);
         InitializeComponent();
+        PanelGrid.ItemsSource = _panel;
+        PanelToggle.IsCheckedChanged += (_, _) => ShowMode();
         FilterBox.SelectionChanged += (_, _) => Refresh();
         SearchBox.TextChanged += (_, _) => Refresh();
         Grid.SelectionChanged += (_, _) => Pick(Grid.SelectedItem as WorklistRow);
@@ -49,8 +74,8 @@ public partial class ResultsView : UserControl
         _current = row;
         MessageText.Text = "";
         var on = row is not null;
-        ValueBox.IsEnabled = UnitBox.IsEnabled = AbnormalBox.IsEnabled = SaveButton.IsEnabled = on;
-        if (row is null) { EntryHeading.Text = "Select a test"; RangeText.Text = ""; return; }
+        ValueBox.IsEnabled = UnitBox.IsEnabled = AbnormalBox.IsEnabled = SaveButton.IsEnabled = PanelToggle.IsEnabled = on;
+        if (row is null) { EntryHeading.Text = "Select a test"; RangeText.Text = ""; _panel.Clear(); ShowMode(); return; }
 
         var (unit, range) = _results.Defaults(row.TestName);
         EntryHeading.Text = $"{row.PatientName} - {row.TestName}";
@@ -58,16 +83,35 @@ public partial class ResultsView : UserControl
         ValueBox.Text = row.Test.ResultValue is { } v ? v.ToString("0.##") : row.Test.Result ?? "";
         UnitBox.Text = row.Test.ResultUnit ?? unit ?? "";
         AbnormalBox.IsChecked = row.Test.IsAbnormal;
-        ValueBox.Focus();
-        ValueBox.SelectAll();
+
+        // A panel opens with its saved rows, or the standard rows for the test (CBC), or stays a single value.
+        var saved = ResultItem.ParseAll(row.Test.ResultItemsJson);
+        var rows = saved.Count > 0 ? saved : PanelDefaults.For(row.TestName);
+        _panel.Clear();
+        foreach (var i in rows) _panel.Add(PanelRow.From(i));
+        PanelToggle.IsChecked = rows.Count > 0;
+        ShowMode();
+        if (rows.Count == 0) { ValueBox.Focus(); ValueBox.SelectAll(); } else PanelGrid.Focus();
     }
+
+    private void ShowMode()
+    {
+        var panel = PanelToggle.IsChecked == true;
+        PanelPanel.IsVisible = panel;
+        SinglePanel.IsVisible = !panel;
+        if (panel && _panel.Count == 0) _panel.Add(new PanelRow());
+    }
+
+    private void OnAddRow(object? sender, RoutedEventArgs e) => _panel.Add(new PanelRow());
 
     private void OnSave(object? sender, RoutedEventArgs e)
     {
         if (_current is null) return;
         try
         {
-            var saved = _results.Enter(_current.Id, ValueBox.Text ?? "", UnitBox.Text, AbnormalBox.IsChecked == true);
+            var saved = PanelToggle.IsChecked == true
+                ? _results.EnterPanel(_current.Id, _panel.Select(r => r.ToItem()).ToList(), AbnormalBox.IsChecked == true)
+                : _results.Enter(_current.Id, ValueBox.Text ?? "", UnitBox.Text, AbnormalBox.IsChecked == true);
             var next = NextAfter(_current.Id);
             Refresh();
             MessageText.Text = "";

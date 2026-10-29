@@ -40,7 +40,7 @@ public sealed class LocalStore : IDisposable
             CREATE TABLE IF NOT EXISTS patient_tests (
               id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, test_name TEXT NOT NULL, test_date TEXT NOT NULL, status TEXT NOT NULL,
               result TEXT, result_value REAL, result_unit TEXT, normal_range_text TEXT, is_abnormal INTEGER NOT NULL DEFAULT 0,
-              waiting INTEGER NOT NULL DEFAULT 0);
+              waiting INTEGER NOT NULL DEFAULT 0, result_items TEXT);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_status ON patient_tests(status);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_patient ON patient_tests(patient_id);
             CREATE TABLE IF NOT EXISTS payments (
@@ -48,6 +48,12 @@ public sealed class LocalStore : IDisposable
               transaction_id TEXT, notes TEXT, paid_at TEXT NOT NULL, synced INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS ix_payments_invoice ON payments(invoice_id);
             """);
+        // Databases created before panel results existed have no result_items column.
+        using (var info2 = _db.CreateCommand())
+        {
+            info2.CommandText = "SELECT COUNT(*) FROM pragma_table_info('patient_tests') WHERE name = 'result_items'";
+            if ((long)info2.ExecuteScalar()! == 0) Exec("ALTER TABLE patient_tests ADD COLUMN result_items TEXT");
+        }
         // Databases created before payments existed have no "kind" column on the outbox.
         using (var info = _db.CreateCommand())
         {
@@ -376,10 +382,10 @@ public sealed class LocalStore : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO patient_tests (id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting)
-            VALUES ($id,$pid,$name,$date,$status,$result,$value,$unit,$range,$abn,$waiting)
+            INSERT INTO patient_tests (id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items)
+            VALUES ($id,$pid,$name,$date,$status,$result,$value,$unit,$range,$abn,$waiting,$items)
             ON CONFLICT(id) DO UPDATE SET patient_id=$pid, test_name=$name, test_date=$date, status=$status, result=$result,
-              result_value=$value, result_unit=$unit, normal_range_text=$range, is_abnormal=$abn, waiting=$waiting
+              result_value=$value, result_unit=$unit, normal_range_text=$range, is_abnormal=$abn, waiting=$waiting, result_items=$items
             WHERE $fromServer = 0 OR patient_tests.waiting = 0;
             """;
         cmd.Parameters.AddWithValue("$id", t.Id);
@@ -393,6 +399,7 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$range", (object?)t.NormalRangeText ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$abn", t.IsAbnormal ? 1 : 0);
         cmd.Parameters.AddWithValue("$waiting", t.Waiting ? 1 : 0);
+        cmd.Parameters.AddWithValue("$items", (object?)t.ResultItemsJson ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$fromServer", fromServer ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
@@ -400,7 +407,7 @@ public sealed class LocalStore : IDisposable
     public PatientTest? GetPatientTest(string id)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting FROM patient_tests WHERE id = $id";
+        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items FROM patient_tests WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", id);
         using var r = cmd.ExecuteReader();
         return r.Read() ? ReadTest(r) : null;
@@ -414,7 +421,7 @@ public sealed class LocalStore : IDisposable
         var where = words.Select((_, n) => $"(LOWER(t.test_name) LIKE $w{n} OR p.search LIKE $w{n})").ToList();
         if (statuses is { Count: > 0 })
             where.Add($"t.status IN ({string.Join(",", statuses.Select((_, n) => $"$s{n}"))})");
-        cmd.CommandText = "SELECT t.id, t.patient_id, t.test_name, t.test_date, t.status, t.result, t.result_value, t.result_unit, t.normal_range_text, t.is_abnormal, t.waiting, " +
+        cmd.CommandText = "SELECT t.id, t.patient_id, t.test_name, t.test_date, t.status, t.result, t.result_value, t.result_unit, t.normal_range_text, t.is_abnormal, t.waiting, t.result_items, " +
                           "COALESCE(p.full_name,''), COALESCE(p.patient_code,'') FROM patient_tests t LEFT JOIN patients p ON p.id = t.patient_id " +
                           (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "") +
                           "ORDER BY t.test_date, t.rowid LIMIT $limit";
@@ -423,7 +430,7 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$limit", limit);
         var list = new List<WorklistRow>();
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add(new WorklistRow(ReadTest(r), r.GetString(11), r.GetString(12)));
+        while (r.Read()) list.Add(new WorklistRow(ReadTest(r), r.GetString(12), r.GetString(13)));
         return list;
     }
 
@@ -446,7 +453,7 @@ public sealed class LocalStore : IDisposable
     private static PatientTest ReadTest(SqliteDataReader r) => new(
         r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
         r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : (decimal)r.GetDouble(6), r.IsDBNull(7) ? null : r.GetString(7),
-        r.IsDBNull(8) ? null : r.GetString(8), r.GetInt32(9) == 1, r.GetInt32(10) == 1);
+        r.IsDBNull(8) ? null : r.GetString(8), r.GetInt32(9) == 1, r.GetInt32(10) == 1, r.IsDBNull(11) ? null : r.GetString(11));
 
     // ── bills and payments ────────────────────────────────────────────────
 

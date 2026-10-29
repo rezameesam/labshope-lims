@@ -153,6 +153,87 @@ public class ResultTests : IDisposable
         Assert.Equal(5m, _store.GetPatientTest(rows[1].Id)!.ResultValue);       // someone else's: taken
     }
 
+    // ── panel (multi-value) results ────────────────────────────────────────
+
+    [Fact]
+    public void CbcStartsWithTheWebsitesTwentyRowsAndOtherTestsStartEmpty()
+    {
+        var cbc = PanelDefaults.For("CBC (Complete Blood Count)");
+        Assert.Equal(20, cbc.Count);
+        Assert.Equal(("HGB", "g/dL", "11.5", "16.5"), (cbc[7].Name, cbc[7].Unit, cbc[7].Min, cbc[7].Max));
+        Assert.Empty(PanelDefaults.For("Blood Group"));
+        Assert.Equal(20, PanelDefaults.For("complete blood picture").Count);
+    }
+
+    [Fact]
+    public void APanelIsAbnormalWhenAnyRowIsOutsideItsRange()
+    {
+        var (_, rows) = Order("CBC");
+        var items = PanelDefaults.For("CBC").Select(i => i.Name switch { "HGB" => i with { Value = "9.8" }, "WBC" => i with { Value = "6.1" }, _ => i }).ToList();
+
+        var done = _results.EnterPanel(rows[0].Id, items);
+
+        Assert.True(done.IsAbnormal);
+        Assert.Equal("completed", done.Status);
+        Assert.Null(done.ResultValue);
+        var stored = ResultItem.ParseAll(_store.GetPatientTest(rows[0].Id)!.ResultItemsJson);
+        Assert.Equal(20, stored.Count); // like the website, every named row is kept, filled or not
+        Assert.Equal(["WBC", "HGB"], stored.Where(i => i.Value != "").Select(i => i.Name));
+        Assert.Equal("2 values", _store.SearchWorklist("", ["completed"]).Single().ResultText);
+    }
+
+    [Fact]
+    public void APanelWithEverythingInRangeIsNormalAndTextValuesAreAllowed()
+    {
+        var (_, rows) = Order("CBC");
+        var done = _results.EnterPanel(rows[0].Id, [new ResultItem("WBC", "6.1", "10^9/L", "3.5", "10.0", ""), new ResultItem("Film", "Normocytic", "", "", "", "")]);
+        Assert.False(done.IsAbnormal);
+    }
+
+    [Fact]
+    public void ARowWithoutAnyValueIsRefused()
+    {
+        var (_, rows) = Order("CBC");
+        Assert.Throws<ArgumentException>(() => _results.EnterPanel(rows[0].Id, PanelDefaults.For("CBC")));
+        Assert.Throws<ArgumentException>(() => _results.EnterPanel(rows[0].Id, []));
+    }
+
+    [Fact]
+    public async Task APanelIsSentInTheWebsitesFormat()
+    {
+        var (visit, rows) = Order("CBC");
+        _store.SetVisitStatus(visit.VisitId, "done");
+        _results.EnterPanel(rows[0].Id, [new ResultItem("HGB", "9.8", "g/dL", "11.5", "16.5", ""), new ResultItem("Film", "Normocytic", "", "", "", "RBC morphology")]);
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, "[{\"id\":\"x\"}]") };
+
+        await new SyncEngine(_store, Api(server), Org).FlushOutboxAsync();
+
+        var body = JsonDocument.Parse(server.Requests.Single().Body).RootElement;
+        var items = body.GetProperty("result_items");
+        Assert.Equal(("HGB", 9.8m, "g/dL", 11.5m, 16.5m), (items[0].GetProperty("name").GetString(), items[0].GetProperty("value").GetDecimal(), items[0].GetProperty("unit").GetString(),
+            items[0].GetProperty("normal_range_min").GetDecimal(), items[0].GetProperty("normal_range_max").GetDecimal()));
+        Assert.Equal("Normocytic", items[1].GetProperty("value").GetString()); // a word stays a word
+        Assert.Equal(JsonValueKind.Null, items[1].GetProperty("normal_range_min").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("result_value").ValueKind);
+        Assert.True(body.GetProperty("is_abnormal").GetBoolean());
+    }
+
+    [Fact]
+    public async Task APullBringsPanelResultsEnteredElsewhere()
+    {
+        var (visit, rows) = Order("CBC");
+        _store.SetVisitStatus(visit.VisitId, "done");
+        var pid = _store.GetPatientTest(rows[0].Id)!.PatientId;
+        var row = "[{\"id\":\"" + rows[0].Id + "\",\"patient_id\":\"" + pid + "\",\"test_name\":\"CBC\",\"test_date\":\"2026-10-29\",\"status\":\"completed\",\"result\":null,\"result_value\":null,\"result_unit\":null,\"normal_range_text\":null,\"is_abnormal\":true," +
+                  "\"result_items\":[{\"name\":\"HGB\",\"value\":9.8,\"unit\":\"g/dL\",\"normal_range_min\":11.5,\"normal_range_max\":16.5,\"normal_range_text\":null}],\"updated_at\":\"2026-10-29T07:00:00+00:00\"}]";
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, row) };
+
+        await new SyncEngine(_store, Api(server), Org).PullPatientTestsAsync();
+
+        var items = ResultItem.ParseAll(_store.GetPatientTest(rows[0].Id)!.ResultItemsJson);
+        Assert.Equal(("HGB", "9.8", true), (items[0].Name, items[0].Value, items[0].IsAbnormal));
+    }
+
     public void Dispose()
     {
         _store.Dispose();

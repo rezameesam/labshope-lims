@@ -83,13 +83,14 @@ public sealed class SyncEngine
     public Task<int> PullPatientTestsAsync(CancellationToken ct = default)
     {
         var floor = DateTimeOffset.UtcNow.AddDays(-WorklistHistoryDays).ToString("yyyy-MM-dd");
-        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,updated_at", "patient_tests_cursor", row =>
+        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,result_items,updated_at", "patient_tests_cursor", row =>
         {
             _store.UpsertPatientTest(new PatientTest(
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!, row.GetProperty("test_name").GetString()!,
                 Opt(row, "test_date") ?? "", Opt(row, "status") ?? "pending", Opt(row, "result"),
                 NumOrNull(row, "result_value"), Opt(row, "result_unit"), Opt(row, "normal_range_text"),
-                row.TryGetProperty("is_abnormal", out var a) && a.ValueKind == JsonValueKind.True), fromServer: true);
+                row.TryGetProperty("is_abnormal", out var a) && a.ValueKind == JsonValueKind.True,
+                ResultItemsJson: row.TryGetProperty("result_items", out var items) && items.ValueKind == JsonValueKind.Array ? items.GetRawText() : null), fromServer: true);
         }, "test_date=gte." + floor, ct);
     }
 
@@ -225,7 +226,7 @@ public sealed class SyncEngine
     {
         var id = payload.GetProperty("id").GetString()!;
         var test = _store.GetPatientTest(id);
-        if (test is not null) _store.UpsertPatientTest(test with { Status = "pending", Result = null, ResultValue = null, IsAbnormal = false, Waiting = false });
+        if (test is not null) _store.UpsertPatientTest(test with { Status = "pending", Result = null, ResultValue = null, IsAbnormal = false, Waiting = false, ResultItemsJson = null });
     }
 
     private void ApplyVisitResult(string visitId, JsonElement payload, JsonElement result)

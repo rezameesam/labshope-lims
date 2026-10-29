@@ -1,8 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
              x:Class="LabShope.App.ResultsView">
-  <Grid ColumnDefinitions="*,12,360" Margin="8">
+  <Grid ColumnDefinitions="*,12,470" Margin="8">
     <DockPanel Grid.Column="0">
       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
         <TextBlock Text="Show:" VerticalAlignment="Center" />
@@ -17,30 +18,53 @@
       <DataGrid x:Name="Grid" x:DataType="data:WorklistRow" AutoGenerateColumns="False" IsReadOnly="True"
                 CanUserSortColumns="True" GridLinesVisibility="All" SelectionMode="Single">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" />
-          <DataGridTextColumn Header="ID" Binding="{Binding PatientCode}" Width="100" />
-          <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="170" />
-          <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="100" />
-          <DataGridTextColumn Header="Result" Binding="{Binding ResultText}" Width="120" />
-          <DataGridTextColumn Header="" Binding="{Binding Flag}" Width="90" />
-          <DataGridTextColumn Header="Sent" Binding="{Binding SyncText}" Width="80" />
+          <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" MinWidth="150" />
+          <DataGridTextColumn Header="ID" Binding="{Binding PatientCode}" Width="90" />
+          <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="130" />
+          <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="95" />
+          <DataGridTextColumn Header="Result" Binding="{Binding ResultText}" Width="95" />
+          <DataGridTextColumn Header="" Binding="{Binding Flag}" Width="85" />
+          <DataGridTextColumn Header="Sent" Binding="{Binding SyncText}" Width="70" />
         </DataGrid.Columns>
       </DataGrid>
     </DockPanel>
 
     <Border Grid.Column="2" BorderBrush="#C9CFD8" BorderThickness="1" Padding="14" CornerRadius="3">
-      <StackPanel Spacing="8">
-        <TextBlock x:Name="EntryHeading" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a test" />
-        <TextBlock x:Name="RangeText" Foreground="#555" TextWrapping="Wrap" />
-        <TextBlock Text="Result" />
-        <TextBox x:Name="ValueBox" IsEnabled="False" />
-        <TextBlock Text="Unit" />
-        <TextBox x:Name="UnitBox" IsEnabled="False" />
-        <CheckBox x:Name="AbnormalBox" Content="Mark as abnormal (used when there is no numeric range)" IsEnabled="False" />
-        <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="#B00020" />
-        <Button x:Name="SaveButton" Content="Save result (Enter)" IsDefault="True" IsEnabled="False" Click="OnSave"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-      </StackPanel>
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="6">
+          <TextBlock x:Name="EntryHeading" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a test" />
+          <TextBlock x:Name="RangeText" Foreground="#555" TextWrapping="Wrap" />
+          <CheckBox x:Name="PanelToggle" Content="Several values (panel, e.g. CBC)" IsEnabled="False" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+          <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="#B00020" />
+          <Button x:Name="SaveButton" Content="Save result (Enter)" IsDefault="True" IsEnabled="False" Click="OnSave"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel x:Name="SinglePanel" Spacing="6" Margin="0,8,0,0">
+          <TextBlock Text="Result" />
+          <TextBox x:Name="ValueBox" IsEnabled="False" />
+          <TextBlock Text="Unit" />
+          <TextBox x:Name="UnitBox" IsEnabled="False" />
+          <CheckBox x:Name="AbnormalBox" Content="Mark as abnormal (used when there is no numeric range)" IsEnabled="False" />
+        </StackPanel>
+
+        <DockPanel x:Name="PanelPanel" IsVisible="False" Margin="0,8,0,0">
+          <Button DockPanel.Dock="Bottom" Content="Add row" Click="OnAddRow" HorizontalAlignment="Left" Margin="0,6,0,0" />
+          <DataGrid x:Name="PanelGrid" x:DataType="app:PanelRow" AutoGenerateColumns="False" GridLinesVisibility="All"
+                    CanUserSortColumns="False" MinHeight="300">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Test" Binding="{Binding Name}" Width="*" />
+              <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="72" />
+              <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="72" />
+              <DataGridTextColumn Header="Min" Binding="{Binding Min}" Width="64" />
+              <DataGridTextColumn Header="Max" Binding="{Binding Max}" Width="64" />
+              <DataGridTextColumn Header="" Binding="{Binding Flag}" IsReadOnly="True" Width="95" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </DockPanel>
     </Border>
   </Grid>
 </UserControl>

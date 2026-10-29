@@ -47,7 +47,7 @@ public sealed record PaymentRow(string Id, string PaidAt, string InvoiceNumber, 
 public sealed record PatientTest(
     string Id, string PatientId, string TestName, string TestDate, string Status,
     string? Result = null, decimal? ResultValue = null, string? ResultUnit = null,
-    string? NormalRangeText = null, bool IsAbnormal = false, bool Waiting = false);
+    string? NormalRangeText = null, bool IsAbnormal = false, bool Waiting = false, string? ResultItemsJson = null);
 
 /// <summary>A worklist line as the bench sees it: the test with who it is for.</summary>
 public sealed record WorklistRow(PatientTest Test, string PatientName, string PatientCode)
@@ -56,7 +56,8 @@ public sealed record WorklistRow(PatientTest Test, string PatientName, string Pa
     public string TestName => Test.TestName;
     public string Status => Test.Status;
     public string Date => Test.TestDate;
-    public string ResultText => Test.ResultValue is { } v ? $"{v:0.##} {Test.ResultUnit}".Trim() : Test.Result ?? "";
+    public string ResultText => Test.ResultItemsJson is { Length: > 2 } json ? $"{LabShope.Core.Visits.ResultItem.ParseAll(json).Count(i => i.Value.Trim() != "")} values"
+        : Test.ResultValue is { } v ? $"{v:0.##} {Test.ResultUnit}".Trim() : Test.Result ?? "";
     public string Flag => Test.Status != "completed" ? "" : Test.IsAbnormal ? "ABNORMAL" : "normal";
     public string SyncText => Test.Waiting ? "waiting" : "";
 }

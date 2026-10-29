@@ -246,7 +246,7 @@ public class ResultsViewTests : IDisposable
     private (Window Window, ResultsView View) Show()
     {
         var view = new ResultsView(_session);
-        var window = new Window { Width = 1200, Height = 600, Content = view };
+        var window = new Window { Width = 1280, Height = 640, Content = view };
         window.Show();
         _windows.Add(window);
         return (window, view);
@@ -282,6 +282,57 @@ public class ResultsViewTests : IDisposable
         Assert.Equal(["Blood Group"], todo.Select(r => r.TestName)); // the saved one left the to-do list
         Assert.Equal("Blood Group", ((WorklistRow)grid.SelectedItem!).TestName); // and the next one is ready
         Assert.Equal((2, 0), _store.OutboxCounts()); // the visit and the result
+    }
+
+    [AvaloniaFact]
+    public void ACbcOpensAsAPanelAndFlagsAbnormalRowsAsTheyAreTyped()
+    {
+        new Core.Visits.VisitService(_store).Register(new Core.Visits.RegisterVisitInput("org-1", "l1", "2026-10-29",
+            [new Core.Visits.VisitTest("CBC", 300)], ExistingPatient: _store.GetPatient("p1")));
+        var (_, view) = Show();
+        var grid = Find<DataGrid>(view, "Grid");
+        grid.SelectedItem = grid.ItemsSource.Cast<WorklistRow>().Single(r => r.TestName == "CBC");
+
+        Assert.True(Find<DataGrid>(view, "PanelGrid").IsVisible || Find<Control>(view, "PanelPanel").IsVisible);
+        var rows = Find<DataGrid>(view, "PanelGrid").ItemsSource.Cast<PanelRow>().ToList();
+        Assert.Equal(20, rows.Count);
+        Assert.False(Find<Control>(view, "SinglePanel").IsVisible);
+
+        rows.Single(r => r.Name == "HGB").Value = "9.8";
+        rows.Single(r => r.Name == "WBC").Value = "6.1";
+        Assert.Equal("ABNORMAL", rows.Single(r => r.Name == "HGB").Flag);
+        Assert.Equal("", rows.Single(r => r.Name == "WBC").Flag);
+
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        var saved = _store.SearchWorklist("", ["completed"]).Single();
+        Assert.Equal(("2 values", "ABNORMAL"), (saved.ResultText, saved.Flag));
+    }
+
+    [AvaloniaFact]
+    public void ASingleValueTestStaysASingleValue()
+    {
+        var (_, view) = Show();
+        Find<DataGrid>(view, "Grid").SelectedIndex = 0;
+        Assert.True(Find<Control>(view, "SinglePanel").IsVisible);
+        Assert.False(Find<Control>(view, "PanelPanel").IsVisible);
+    }
+
+    [AvaloniaFact]
+    public void TakesAResultsScreenshotForReview()
+    {
+        new Core.Visits.VisitService(_store).Register(new Core.Visits.RegisterVisitInput("org-1", "l1", "2026-10-29",
+            [new Core.Visits.VisitTest("CBC", 300)], ExistingPatient: _store.GetPatient("p1")));
+        var (window, view) = Show();
+        var grid = Find<DataGrid>(view, "Grid");
+        grid.SelectedItem = grid.ItemsSource.Cast<WorklistRow>().Single(r => r.TestName == "CBC");
+        var rows = Find<DataGrid>(view, "PanelGrid").ItemsSource.Cast<PanelRow>().ToList();
+        rows.Single(r => r.Name == "HGB").Value = "9.8"; rows.Single(r => r.Name == "WBC").Value = "6.1"; rows.Single(r => r.Name == "PLT").Value = "250";
+
+        var shot = Environment.GetEnvironmentVariable("LABSHOPE_SHOT_DIR");
+        if (shot is null) return;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame()!.Save(Path.Combine(shot, "results.png"));
     }
 
     [AvaloniaFact]
