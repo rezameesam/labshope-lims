@@ -1,7 +1,7 @@
 # LabShope LIMS: native desktop app
 
 The desktop software for lab front desks and benches (macOS, Windows, Ubuntu). It works fully offline and syncs with the
-same LabShope account and database as the website. Built with .NET 10 and Avalonia.
+same LabShope account and database as the website. Built with .NET 6 and Avalonia 11 so that it runs on old computers too.
 
 ## For labs
 
@@ -11,8 +11,15 @@ password you use on the LabShope website. The first sign-in needs internet; afte
 | System | File |
 |---|---|
 | macOS (Apple Silicon / Intel) | `LabShopeLIMS-osx-Setup.pkg` |
-| Windows | `LabShopeLIMS-win-Setup.exe` |
+| Windows 10 / 11, 8.1, 8, 7 (64-bit) | `LabShopeLIMS-win-Setup.exe` |
+| Windows (32-bit) | `LabShopeLIMS-win-x86-Setup.exe` |
 | Ubuntu / Linux | `LabShopeLIMS-linux-Setup.AppImage` |
+
+**Supported systems:** Windows 7 SP1, 8, 8.1, 10 and 11 (32 and 64-bit), macOS 10.15 or newer (Apple Silicon and Intel), and Ubuntu 20.04 or newer.
+Nothing else needs to be installed: the app carries its own runtime.
+**Windows 7 and 8 need updates installed first** (Windows Update does this): Windows 7 needs Service Pack 1, the "Universal C Runtime" update (KB2999226 / KB3063858)
+and TLS 1.2 support (KB3140245), otherwise the app cannot connect to the server over HTTPS. Microsoft no longer supports these versions, so keep them off
+the open internet where you can.
 
 The installers are not signed yet, so macOS and Windows show a warning the first time you open them.
 

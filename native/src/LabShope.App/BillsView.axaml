@@ -10,7 +10,7 @@
         <Grid ColumnDefinitions="Auto,*">
           <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
           <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
-          <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="320" PlaceholderText="Bill number, name, phone or ID" />
+          <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="320" Watermark="Bill number, name, phone or ID" />
         </Grid>
         <CheckBox x:Name="UnpaidOnly" Content="Only unpaid" VerticalAlignment="Center" />
         <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />

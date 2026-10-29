@@ -33,7 +33,8 @@ jobs:
         include:
           - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
           - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
-          - { name: "Windows",               os: windows-latest, rid: win-x64,  icon: assets/icon.ico, extra: "", exe: LabShope.exe }
+          - { name: "Windows (64-bit)",       os: windows-latest, rid: win-x64,  icon: assets/icon.ico, extra: "", exe: LabShope.exe }
+          - { name: "Windows (32-bit)",       os: windows-latest, rid: win-x86,  icon: assets/icon.ico, extra: "--channel win-x86", exe: LabShope.exe }
           - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  icon: assets/icon.png, extra: "", exe: LabShope }
 
     steps:

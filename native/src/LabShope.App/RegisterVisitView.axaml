@@ -18,7 +18,7 @@
             </StackPanel>
 
             <StackPanel x:Name="ExistingPanel" Spacing="8">
-              <TextBox x:Name="PatientSearch" PlaceholderText="Search by name, phone or patient ID (or scan the card)" />
+              <TextBox x:Name="PatientSearch" Watermark="Search by name, phone or patient ID (or scan the card)" />
               <ListBox x:Name="PatientResults" MaxHeight="200" />
               <Border x:Name="PickedChip" Classes="pill" Background="{StaticResource SuccessBgBrush}" HorizontalAlignment="Left" IsVisible="False">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -33,7 +33,7 @@
               <TextBox x:Name="NewName" Grid.Column="1" />
               <TextBlock Text="Phone" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
               <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-                <TextBox x:Name="NewPhone" PlaceholderText="10-digit mobile number" />
+                <TextBox x:Name="NewPhone" Watermark="10-digit mobile number" />
                 <CheckBox x:Name="NoPhoneBox" Content="No phone number" IsCheckedChanged="OnNoPhoneChanged" />
               </StackPanel>
               <TextBlock Text="Gender" Classes="muted" Grid.Row="2" VerticalAlignment="Center" />
@@ -80,7 +80,7 @@
               <ComboBoxItem>online</ComboBoxItem>
               <ComboBoxItem>bank_transfer</ComboBoxItem>
             </ComboBox>
-            <TextBox x:Name="PayRef" Grid.Column="4" PlaceholderText="Reference" />
+            <TextBox x:Name="PayRef" Grid.Column="4" Watermark="Reference" />
           </Grid>
           <DockPanel>
             <TextBlock x:Name="TotalText" DockPanel.Dock="Right" FontSize="24" FontWeight="SemiBold" Text="Total 0" />
@@ -97,7 +97,7 @@
         <StackPanel DockPanel.Dock="Top" Spacing="10">
           <TextBlock Text="Tests" Classes="h2" />
           <ComboBox x:Name="PackageBox" HorizontalAlignment="Stretch" />
-          <TextBox x:Name="TestSearch" PlaceholderText="Search tests - Enter adds the highlighted one" />
+          <TextBox x:Name="TestSearch" Watermark="Search tests - Enter adds the highlighted one" />
           <ListBox x:Name="TestResults" MaxHeight="170">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="data:CatalogTest">

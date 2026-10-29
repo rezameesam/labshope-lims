@@ -60,7 +60,7 @@
             </ComboBox>
             <TextBlock x:Name="HostLabel" Text="Printer address" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
             <StackPanel x:Name="HostRow" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-              <TextBox x:Name="PrinterHost" Width="220" PlaceholderText="192.168.1.50" />
+              <TextBox x:Name="PrinterHost" Width="220" Watermark="192.168.1.50" />
               <TextBlock Text="port" Classes="muted" VerticalAlignment="Center" />
               <TextBox x:Name="PrinterPort" Width="80" Text="9100" />
             </StackPanel>

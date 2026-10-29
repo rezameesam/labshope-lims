@@ -9,7 +9,7 @@
       <Grid ColumnDefinitions="Auto,*" MaxWidth="460" HorizontalAlignment="Left">
         <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
         <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
-        <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="420" PlaceholderText="Search by name, phone or patient ID" />
+        <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="420" Watermark="Search by name, phone or patient ID" />
       </Grid>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
         <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" Margin="0,0,6,0" />
