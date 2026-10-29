@@ -82,7 +82,7 @@ public partial class ResultsView : UserControl
         var (unit, range) = _results.Defaults(row.TestName);
         EntryHeading.Text = $"{row.PatientName} - {row.TestName}";
         RangeText.Text = range is null ? "No reference range set for this test." : $"Normal range: {range}" + (unit is null ? "" : $" {unit}");
-        ValueBox.Text = row.Test.ResultValue is { } v ? v.ToString("0.##") : row.Test.Result ?? "";
+        ValueBox.Text = row.Test.ResultValue is { } v ? LabShope.Core.Data.ResultFormat.Number(v) : row.Test.Result ?? "";
         UnitBox.Text = row.Test.ResultUnit ?? unit ?? "";
         AbnormalBox.IsChecked = row.Test.IsAbnormal;
 

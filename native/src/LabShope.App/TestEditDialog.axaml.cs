@@ -26,8 +26,8 @@ public partial class TestEditDialog : Window
         Heading.Text = test.Name;
         PriceBox.Text = test.Price.ToString("0.##");
         UnitBox.Text = test.Unit;
-        MinBox.Text = test.NormalMin?.ToString("0.##");
-        MaxBox.Text = test.NormalMax?.ToString("0.##");
+        MinBox.Text = test.NormalMin is { } lo ? LabShope.Core.Data.ResultFormat.Number(lo) : null;
+        MaxBox.Text = test.NormalMax is { } hi ? LabShope.Core.Data.ResultFormat.Number(hi) : null;
         RangeBox.Text = test.NormalRangeText;
         ActiveBox.IsChecked = true;
         Opened += (_, _) => { PriceBox.Focus(); PriceBox.SelectAll(); };

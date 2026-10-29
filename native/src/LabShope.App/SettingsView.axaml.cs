@@ -51,7 +51,7 @@ public partial class SettingsView : UserControl
         LabLine.Text = _session.Workspace.OrganizationName;
         RoleLine.Text = _session.Workspace.Roles is { Count: > 0 } roles ? string.Join(", ", roles) : "";
         VersionLine.Text = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "";
-        var latest = LabShope.Core.Data.DatabaseGuard.Backups(System.IO.Path.Combine(AppConfig.DataDirectory, "backups")).OrderByDescending(f => f).FirstOrDefault();
+        var latest = LabShope.Core.Data.DatabaseGuard.Backups(System.IO.Path.Combine(AppConfig.DataDirectory, "backups", _session.Workspace.OrganizationId)).OrderByDescending(f => f).FirstOrDefault();
         DataLine.Text = AppConfig.DataDirectory + (latest is null ? "" : $"   ·   last backup {System.IO.File.GetLastWriteTime(latest):d MMM HH:mm}")
             + (string.IsNullOrEmpty(_session.Store.GetMeta("notify_last_error")) ? "" : $"\nThe last patient email could not be sent: {_session.Store.GetMeta("notify_last_error")}");
     }

@@ -64,7 +64,7 @@ public sealed record WorklistRow(PatientTest Test, string PatientName, string Pa
     public string Status => Test.Status;
     public string Date => Test.TestDate;
     public string ResultText => Test.ResultItemsJson is { Length: > 2 } json ? $"{LabShope.Core.Visits.ResultItem.ParseAll(json).Count(i => i.Value.Trim() != "")} values"
-        : Test.ResultValue is { } v ? $"{v:0.##} {Test.ResultUnit}".Trim() : Test.Result ?? "";
+        : Test.ResultValue is { } v ? $"{ResultFormat.Number(v)} {Test.ResultUnit}".Trim() : Test.Result ?? "";
     public string Flag => Test.Status != "completed" ? "" : Test.IsAbnormal ? "ABNORMAL" : "normal";
     public string SyncText => Test.Waiting ? "waiting" : "";
     /// <summary>The one-word badge shown in the table: pending, normal or abnormal.</summary>
@@ -118,4 +118,10 @@ public sealed record InstrumentEntry(
 {
     public string Received => DateTimeOffset.TryParse(ReceivedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : ReceivedAt;
     public int ParameterCount => LabShope.Core.Visits.InstrumentInbox.ParseParameters(ParametersJson).Count;
+}
+
+/// <summary>Shows a result number as it was entered (up to 6 decimals, never rounded to 2: TSH 0.004 must not print as 0).</summary>
+public static class ResultFormat
+{
+    public static string Number(decimal value) => value.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
 }

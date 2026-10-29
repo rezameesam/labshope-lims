@@ -20,7 +20,10 @@ public class ResultTests : IDisposable
         _store = new LocalStore(_path);
         _store.ReplaceCatalog(new Catalog(
             [new CatalogTest("t1", "HB", "Haemoglobin", 200m, null, Unit: "g/dL", NormalRangeText: "13 - 17", NormalMin: 13m, NormalMax: 17m),
-             new CatalogTest("t2", "BG", "Blood Group", 100m, null)],
+             new CatalogTest("t2", "BG", "Blood Group", 100m, null),
+             new CatalogTest("t3", "CRP", "CRP", 300m, null, Unit: "mg/L", NormalMax: 6m), // only an upper limit
+             new CatalogTest("t4", "VITD", "Vitamin D", 900m, null, Unit: "ng/mL", NormalMin: 30m), // only a lower limit
+             new CatalogTest("t5", "TSH", "TSH", 400m, null, Unit: "mIU/L", NormalMin: 0.004m, NormalMax: 4m)],
             [], [], [], []));
         _visits = new VisitService(_store);
         _results = new ResultService(_store, Org, "user-1", () => new DateTimeOffset(2026, 10, 29, 6, 0, 0, TimeSpan.Zero));
@@ -46,6 +49,31 @@ public class ResultTests : IDisposable
 
         var payload = JsonDocument.Parse(_store.GetVisit(visit.VisitId)!.PayloadJson).RootElement.GetProperty("tests");
         Assert.Equal(rows.Select(r => r.Id), payload.EnumerateArray().Select(t => t.GetProperty("id").GetString()));
+    }
+
+    [Theory]
+    [InlineData("CRP", "48", true)]
+    [InlineData("CRP", "5", false)]
+    [InlineData("Vitamin D", "12", true)]
+    [InlineData("Vitamin D", "45", false)]
+    public void ARangeWithOnlyOneLimitStillFlagsTheOtherSide(string test, string value, bool abnormal)
+    {
+        var (_, rows) = Order(test);
+        Assert.Equal(abnormal, _results.Enter(rows[0].Id, value).IsAbnormal);
+    }
+
+    [Fact]
+    public void SmallValuesAreNeverRoundedAwayOnTheWorklistOrTheReport()
+    {
+        var (_, rows) = Order("TSH");
+        var saved = _results.Enter(rows[0].Id, "0.004");
+
+        Assert.Equal(0.004m, saved.ResultValue);
+        Assert.Equal("0.004", ResultFormat.Number(saved.ResultValue!.Value));
+        Assert.Equal("0.004 mIU/L", _store.SearchWorklist("", ["completed"]).Single().ResultText);
+        Assert.Equal("12.345", ResultFormat.Number(12.345m));
+        Assert.Equal("5.5", ResultFormat.Number(5.50m));
+        Assert.Equal("1250", ResultFormat.Number(1250m));
     }
 
     [Fact]

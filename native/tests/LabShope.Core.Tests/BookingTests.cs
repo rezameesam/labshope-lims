@@ -35,6 +35,17 @@ public class BookingTests : IDisposable
     }
 
     [Fact]
+    public void AnItemThatKeepsFailingToSendIsCountedAsNeedingAttentionEvenWhileStillRetrying()
+    {
+        _bookings.SetStatus("b1", "contacted");
+        var id = _store.NextPendingVisit()!.VisitId;
+        for (var i = 0; i < 4; i++) _store.SetVisitStatus(id, "pending", "Server error", countAttempt: true);
+        Assert.Equal((1, 0), _store.OutboxCounts()); // four failures: still just waiting
+        _store.SetVisitStatus(id, "pending", "Server error", countAttempt: true);
+        Assert.Equal((1, 1), _store.OutboxCounts()); // the fifth: staff are told
+    }
+
+    [Fact]
     public void ChangingTheStatusShowsAtOnceAndQueuesAnUpdateOfThatBooking()
     {
         var done = _bookings.SetStatus("b1", "contacted");

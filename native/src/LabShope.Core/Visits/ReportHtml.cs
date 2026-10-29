@@ -56,8 +56,8 @@ public static class ReportBuilder
         }
 
         var catalog = store.FindCatalogTest(t.TestName);
-        var reference = t.NormalRangeText ?? catalog?.NormalRangeText ?? RangeOf(catalog?.NormalMin?.ToString("0.##") ?? "", catalog?.NormalMax?.ToString("0.##") ?? "", null);
-        var value = t.ResultValue is { } v ? v.ToString("0.##") : t.Result ?? "";
+        var reference = t.NormalRangeText ?? catalog?.NormalRangeText ?? RangeOf(catalog?.NormalMin is { } lo ? ResultFormat.Number(lo) : "", catalog?.NormalMax is { } hi ? ResultFormat.Number(hi) : "", null);
+        var value = t.ResultValue is { } v ? ResultFormat.Number(v) : t.Result ?? "";
         return new ReportSection(t.TestName, [new ReportLine(t.TestName, value, t.ResultUnit ?? "", reference, t.IsAbnormal)], IsPanel: false);
     }
 

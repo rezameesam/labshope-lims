@@ -15,6 +15,8 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        LabShope.Core.AppCulture.Apply(); // numbers and dates behave the same on every computer
+
         // Must run first: handles the installer's own start-up calls (install, update, uninstall) and exits.
         VelopackApp.Build().Run();
 

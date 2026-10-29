@@ -28,6 +28,8 @@ public sealed class SupabaseApi
         _anonKey = anonKey;
     }
 
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+
     public async Task<(AuthSession? Session, ApiResult Result)> SignInAsync(string email, string password, CancellationToken ct = default)
     {
         var result = await SendAsync(HttpMethod.Post, "/auth/v1/token?grant_type=password",
@@ -43,9 +45,25 @@ public sealed class SupabaseApi
     /// <summary>Gets a fresh access token. Returns false when the refresh token is no longer valid.</summary>
     public async Task<bool> RefreshAsync(CancellationToken ct = default)
     {
-        if (Session is null) return false;
+        var observed = Session?.AccessToken;
+        if (observed is null) return false;
+
+        // Refresh tokens are single-use: two calls renewing at the same moment would make the second one fail and can end the login.
+        // So one renews and the others wait, then simply use what it got.
+        await _refreshGate.WaitAsync(ct);
+        try
+        {
+            if (Session is null) return false;
+            if (Session.AccessToken != observed && Session.ExpiresAt - DateTimeOffset.UtcNow > TimeSpan.FromSeconds(30)) return true;
+            return await RenewAsync(ct);
+        }
+        finally { _refreshGate.Release(); }
+    }
+
+    private async Task<bool> RenewAsync(CancellationToken ct)
+    {
         var result = await SendAsync(HttpMethod.Post, "/auth/v1/token?grant_type=refresh_token",
-            JsonSerializer.Serialize(new { refresh_token = Session.RefreshToken }), authenticated: false, ct);
+            JsonSerializer.Serialize(new { refresh_token = Session!.RefreshToken }), authenticated: false, ct);
         if (!result.Ok) return false;
         Session = ParseSession(result.Body!.Value);
         SessionRenewed?.Invoke(Session);
