@@ -47,11 +47,13 @@ public sealed record PaymentRow(string Id, string PaidAt, string InvoiceNumber, 
 public sealed record PatientTest(
     string Id, string PatientId, string TestName, string TestDate, string Status,
     string? Result = null, decimal? ResultValue = null, string? ResultUnit = null,
-    string? NormalRangeText = null, bool IsAbnormal = false, bool Waiting = false, string? ResultItemsJson = null);
+    string? NormalRangeText = null, bool IsAbnormal = false, bool Waiting = false, string? ResultItemsJson = null,
+    string? ExternalLabId = null, decimal? OutsourceCost = null);
 
 /// <summary>A worklist line as the bench sees it: the test with who it is for.</summary>
-public sealed record WorklistRow(PatientTest Test, string PatientName, string PatientCode)
+public sealed record WorklistRow(PatientTest Test, string PatientName, string PatientCode, string? OutsourcedTo = null)
 {
+    public string TestLabel => OutsourcedTo is null ? Test.TestName : $"{Test.TestName}  →  {OutsourcedTo}";
     public string Id => Test.Id;
     public string TestName => Test.TestName;
     public string Status => Test.Status;
@@ -95,6 +97,7 @@ public sealed record OutboxEntry(string Id, string Kind, string Status, int Atte
         "result" => "Test result",
         "patient" => "Patient change",
         "booking" => "Booking update",
+        "outsource" => "Sent to external lab",
         _ => Kind,
     };
     public string Badge => Status == "failed" ? "failed" : "waiting";

@@ -103,7 +103,9 @@ insert into booking_requests (id, full_name, phone, booking_type, status, organi
 insert into inventory_items (name, type, unit, current_stock, min_stock_level, unit_price, organization_id, is_active) values ('IT Reagent', 'supply', 'ml', 50, 10, 4, '$ORG', true);
 -- the standard chart of accounts the finance triggers post to
 insert into accounts (organization_id, code, name, type) values
-  ('$ORG', '1001', 'Cash', 'asset'), ('$ORG', '1003', 'Accounts Receivable', 'asset'), ('$ORG', '4001', 'Test Revenue', 'revenue');
+  ('$ORG', '1001', 'Cash', 'asset'), ('$ORG', '1003', 'Accounts Receivable', 'asset'), ('$ORG', '4001', 'Test Revenue', 'revenue'),
+  ('$ORG', '5009', 'Outsourcing Expense', 'expense'), ('$ORG', '2004', 'Outsource Payable', 'liability');
+insert into external_labs (id, organization_id, name, code) values ('99999999-0000-0000-0000-0000000000e1', '$ORG', 'IT External Lab', 'ITX');
 insert into test_categories (id, name, organization_id) values ('99999999-0000-0000-0000-0000000000c1', 'Blood', '$ORG');
 insert into tests (name, price, category_id, organization_id, is_active, test_id) values
   ('CBC', 300, '99999999-0000-0000-0000-0000000000c1', '$ORG', true, 'CBC'),

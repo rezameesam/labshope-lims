@@ -137,6 +137,16 @@ public class IntegrationLocalTests
         var tooMuch = reagent with { CurrentStock = 65m };
         Assert.False((await InventoryService.RecordUsageAsync(api, org, session.UserId, tooMuch, "999", null)).Ok); // more than is in stock is refused
 
+        // Sending a test to an external lab updates the real row and the books follow (Dr Outsourcing Expense / Cr Outsource Payable).
+        await engine.PullCatalogAsync(force: true);
+        Assert.Contains(store.GetCatalog().ExternalLabList, l => l.Name == "IT External Lab");
+        var lft = store.SearchWorklist("", ["pending"]).Single(r => r.TestName == "LFT" && r.PatientName.StartsWith("Native Integration Patient"));
+        new ResultService(store, org, session.UserId).Outsource(lft.Id, "99999999-0000-0000-0000-0000000000e1", "180");
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+        var lftRow = (await api.SelectAsync("patient_tests", $"select=external_lab_id,outsource_cost,outsource_journal_entry_id&id=eq.{lft.Id}")).Body!.Value[0];
+        Assert.Equal(("99999999-0000-0000-0000-0000000000e1", 180m), (lftRow.GetProperty("external_lab_id").GetString(), lftRow.GetProperty("outsource_cost").GetDecimal()));
+        Assert.NotEqual(System.Text.Json.JsonValueKind.Null, lftRow.GetProperty("outsource_journal_entry_id").ValueKind); // the books were posted
+
         // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
         var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
         Assert.Null(books.Error);
@@ -144,6 +154,7 @@ public class IntegrationLocalTests
         Assert.True(books.Data.EntryCount >= 3, "bill and payments should have posted entries");
         var cashAccount = books.Data.Accounts.Single(a => a.Code == "1001");
         Assert.True(cashAccount.TotalDebit >= 750m, $"cash debited {cashAccount.TotalDebit}"); // this test's 300 + 450 payments (plus other tests')
+        Assert.True(books.Data.Accounts.Single(a => a.Code == "5009").TotalDebit >= 180m); // the outsourcing expense, and it still balances above
 
         // The server refuses to be paid twice for the same thing: replaying the same payment changes nothing.
         var payment = store.PaymentsFor(visit.VisitId).First();

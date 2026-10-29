@@ -23,7 +23,7 @@
         <DataGrid.Columns>
           <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientName}" Width="*" MinWidth="130" />
           <DataGridTextColumn Header="ID" Binding="{Binding PatientCode}" Width="90" />
-          <DataGridTextColumn Header="TEST" Binding="{Binding TestName}" Width="140" />
+          <DataGridTextColumn Header="TEST" Binding="{Binding TestLabel}" Width="170" />
           <DataGridTextColumn Header="RESULT" Binding="{Binding ResultText}" Width="100" />
           <DataGridTemplateColumn Header="STATUS" Width="100">
             <DataTemplate x:DataType="data:WorklistRow">
@@ -54,6 +54,7 @@
           <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
             <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" />
             <Button x:Name="SaveButton" Classes="primary" Content="Save result (Enter)" IsDefault="True" Click="OnSave" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button x:Name="OutsourceButton" Content="Send to an external lab…" Click="OnOutsource" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
             <Button x:Name="ReportButton" Content="Print this patient's report" Click="OnPrintReport" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
           </StackPanel>
 

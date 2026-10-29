@@ -75,6 +75,7 @@ public partial class ResultsView : UserControl
         MessageText.Text = "";
         var on = row is not null;
         FormPanel.IsVisible = on;
+        OutsourceButton.IsVisible = row is not null && row.Test.ExternalLabId is null && row.Test.Status != "completed";
         EmptyPanel.IsVisible = !on;
         if (row is null) { EntryHeading.Text = ""; RangeText.Text = ""; _panel.Clear(); ShowMode(); return; }
 
@@ -110,6 +111,19 @@ public partial class ResultsView : UserControl
         if (report is null) { MessageText.Text = "No completed results for this patient on that date yet."; return; }
         MessageText.Text = "";
         ReceiptPrinter.OpenHtml($"report-{report.PatientCode}-{report.ReportDate}", ReportHtml.Build(report));
+    }
+
+    private async void OnOutsource(object? sender, RoutedEventArgs e)
+    {
+        if (_current is null) return;
+        var labs = _session.Store.GetCatalog().ExternalLabList;
+        if (labs.Count == 0) { MessageText.Text = "No external labs are set up. Add them on the LabShope website first."; return; }
+
+        var dialog = new OutsourceDialog(_results, _current.Id, $"{_current.TestName} for {_current.PatientName}", labs);
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+        if (!dialog.Sent) return;
+        Refresh();
+        ResultSaved?.Invoke();
     }
 
     private void OnAddRow(object? sender, RoutedEventArgs e) => _panel.Add(new PanelRow());

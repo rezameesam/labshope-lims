@@ -100,14 +100,15 @@ public sealed class SyncEngine
     public Task<int> PullPatientTestsAsync(CancellationToken ct = default)
     {
         var floor = DateTimeOffset.UtcNow.AddDays(-WorklistHistoryDays).ToString("yyyy-MM-dd");
-        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,result_items,updated_at", "patient_tests_cursor", row =>
+        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,result_items,external_lab_id,outsource_cost,updated_at", "patient_tests_cursor", row =>
         {
             _store.UpsertPatientTest(new PatientTest(
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!, row.GetProperty("test_name").GetString()!,
                 Opt(row, "test_date") ?? "", Opt(row, "status") ?? "pending", Opt(row, "result"),
                 NumOrNull(row, "result_value"), Opt(row, "result_unit"), Opt(row, "normal_range_text"),
                 row.TryGetProperty("is_abnormal", out var a) && a.ValueKind == JsonValueKind.True,
-                ResultItemsJson: row.TryGetProperty("result_items", out var items) && items.ValueKind == JsonValueKind.Array ? items.GetRawText() : null), fromServer: true);
+                ResultItemsJson: row.TryGetProperty("result_items", out var items) && items.ValueKind == JsonValueKind.Array ? items.GetRawText() : null,
+                ExternalLabId: Opt(row, "external_lab_id"), OutsourceCost: NumOrNull(row, "outsource_cost")), fromServer: true);
         }, "test_date=gte." + floor, ct);
     }
 
@@ -151,7 +152,8 @@ public sealed class SyncEngine
             _api.SelectAsync("collection_centers", Org("collection_centers", "id,name,code,lab_id", "&is_active=eq.true&order=name.asc"), ct),
             _api.SelectAsync("test_categories", Org("test_categories", "id,name"), ct),
             // The lab's own templates, plus any shared ones (no organisation), like the website.
-            _api.SelectAsync("test_templates", $"select=id,name,organization_id,test_category,test_id,header_template,footer_template,result_format,include_normal_range,include_abnormal_flag,include_notes,is_default&or=(organization_id.eq.{_organizationId},organization_id.is.null)&order=created_at.asc", ct));
+            _api.SelectAsync("test_templates", $"select=id,name,organization_id,test_category,test_id,header_template,footer_template,result_format,include_normal_range,include_abnormal_flag,include_notes,is_default&or=(organization_id.eq.{_organizationId},organization_id.is.null)&order=created_at.asc", ct),
+            _api.SelectAsync("external_labs", Org("external_labs", "id,name,code,phone", "&is_active=eq.true&order=name.asc"), ct));
 
         // Throw before touching local data so a failed refresh keeps what we have.
         foreach (var call in calls) if (!call.Ok) throw new SyncException(call);
@@ -171,7 +173,8 @@ public sealed class SyncEngine
             Rows(6).Select(r => new TestCategory(Str(r, "id")!, Str(r, "name") ?? "")).ToList(),
             Rows(7).Select(r => new ReportTemplate(Str(r, "id")!, Str(r, "name") ?? "", Str(r, "organization_id"), Str(r, "test_category"), Str(r, "test_id"),
                 Str(r, "header_template"), Str(r, "footer_template"), Str(r, "result_format") ?? "table",
-                Flag(r, "include_normal_range", true), Flag(r, "include_abnormal_flag", true), Flag(r, "include_notes", false), Flag(r, "is_default", false))).ToList());
+                Flag(r, "include_normal_range", true), Flag(r, "include_abnormal_flag", true), Flag(r, "include_notes", false), Flag(r, "is_default", false))).ToList(),
+            Rows(8).Select(r => new ExternalLab(Str(r, "id")!, Str(r, "name") ?? "", Str(r, "code"), Str(r, "phone"))).ToList());
 
         _store.ReplaceCatalog(catalog);
         _store.SetMeta(CatalogKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
@@ -303,15 +306,16 @@ public sealed class SyncEngine
                 var isResult = item.Kind == "result";
                 var isPatientEdit = item.Kind == "patient";
                 var isBooking = item.Kind == "booking";
+                var isOutsource = item.Kind == "outsource";
                 var table = isPatientEdit ? "patients" : isBooking ? "booking_requests" : "patient_tests";
-                var result = isResult || isPatientEdit || isBooking
+                var result = isResult || isPatientEdit || isBooking || isOutsource
                     ? await _api.PatchAsync(table, $"id=eq.{payload.GetProperty("id").GetString()}&organization_id=eq.{payload.GetProperty("organization_id").GetString()}", payload.GetProperty("patch"), ct)
                     : await _api.RpcAsync(isPayment ? "record_payment" : "register_visit", new { p_payload = payload }, ct);
 
                 // A result update that changed no row was refused (not found, or not allowed): treat it as a permanent refusal.
-                var isRowPatch = isResult || isPatientEdit || isBooking;
+                var isRowPatch = isResult || isPatientEdit || isBooking || isOutsource;
                 if (isRowPatch && result.Ok && result.Body is { ValueKind: JsonValueKind.Array } changed && changed.GetArrayLength() == 0)
-                    result = new ApiResult(403, null, "42501", isPatientEdit ? "The server would not accept this change (patient not found, or not allowed)." : isBooking ? "The server would not accept this change (booking not found, or not allowed)." : "The server would not accept this result (test not found, or not allowed).");
+                    result = new ApiResult(403, null, "42501", isPatientEdit ? "The server would not accept this change (patient not found, or not allowed)." : isBooking ? "The server would not accept this change (booking not found, or not allowed)." : isOutsource ? "The server would not accept sending this test to an external lab (test not found, or not allowed)." : "The server would not accept this result (test not found, or not allowed).");
 
                 if (result.Ok && (isRowPatch ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
                 {
@@ -320,12 +324,13 @@ public sealed class SyncEngine
                     else if (isResult)
                     {
                         var testId = payload.GetProperty("id").GetString()!;
-                        _store.ClearTestWaiting(testId);
+                        _store.ClearTestWaiting(testId, item.VisitId);
                         // The result is confirmed on the server: once every test of this visit is done, the patient is told.
                         if (_store.GetPatientTest(testId) is { } finished) _store.QueueReadyNotification(finished.PatientId, finished.TestDate);
                     }
                     else if (isPatientEdit) { /* nothing to clear: the next pull confirms it */ }
                     else if (isBooking) _store.ClearBookingWaiting(payload.GetProperty("id").GetString()!);
+                    else if (isOutsource) _store.ClearTestWaiting(payload.GetProperty("id").GetString()!, item.VisitId);
                     else ApplyVisitResult(item.VisitId, payload, body);
                     _store.SetVisitStatus(item.VisitId, "done", resultJson: body.GetRawText());
                     synced++;
@@ -340,6 +345,7 @@ public sealed class SyncEngine
                     if (isResult) RevertResult(payload);
                     if (isPatientEdit) RevertPatientEdit(payload);
                     if (isBooking) RevertBooking(payload);
+                    if (isOutsource) RevertOutsource(payload);
                     _store.SetVisitStatus(item.VisitId, "failed", message, countAttempt: true);
                     failed++;
                     continue;
@@ -362,6 +368,13 @@ public sealed class SyncEngine
         var bill = _store.GetInvoice(invoiceId);
         _store.RemovePayment(paymentId);
         if (bill is not null) _store.SetInvoicePaid(invoiceId, Math.Max(bill.PaidAmount - amount, 0));
+    }
+
+    /// <summary>The server refused to send a test to an external lab: show it as not outsourced again.</summary>
+    private void RevertOutsource(JsonElement payload)
+    {
+        var id = payload.GetProperty("id").GetString()!;
+        if (_store.GetPatientTest(id) is { } test) _store.UpsertPatientTest(test with { ExternalLabId = null, OutsourceCost = null });
     }
 
     /// <summary>The server refused a booking change: show the booking as it was.</summary>

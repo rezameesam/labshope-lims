@@ -64,6 +64,33 @@ public sealed class ResultService
         return done;
     }
 
+    /// <summary>
+    /// Sends a test to an external lab at a cost. On the server this posts "Outsourcing expense / Outsource payable" to the books
+    /// automatically (an existing database rule), exactly as when it is done on the website. Works offline; sent with the next sync.
+    /// </summary>
+    public PatientTest Outsource(string testId, string externalLabId, string costText)
+    {
+        var test = _store.GetPatientTest(testId) ?? throw new ArgumentException("That test isn't on this computer.");
+        var lab = _store.GetCatalog().ExternalLabList.FirstOrDefault(l => l.Id == externalLabId) ?? throw new ArgumentException("Pick an external lab.");
+        if (!decimal.TryParse(costText.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var cost) || cost <= 0)
+            throw new ArgumentException("Enter what the external lab charges (more than 0).");
+        if (test.ExternalLabId is not null) throw new ArgumentException("This test has already been sent to an external lab.");
+
+        var at = _now().UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        var updated = test with { ExternalLabId = lab.Id, OutsourceCost = cost, Waiting = true };
+        var payload = new JsonObject
+        {
+            ["id"] = testId, ["organization_id"] = _organizationId,
+            ["patch"] = new JsonObject { ["external_lab_id"] = lab.Id, ["outsource_cost"] = cost, ["outsourced_at"] = at, ["outsourced_by"] = _userId, ["updated_by"] = _userId },
+        };
+        _store.InTransaction(() =>
+        {
+            _store.UpsertPatientTest(updated);
+            _store.EnqueueVisit(new OutboxItem($"outsource-{testId}", payload.ToJsonString(), "pending", 0, null, _store.GetPatient(test.PatientId)?.FullName ?? "", cost, Kind: "outsource"));
+        });
+        return updated;
+    }
+
     public PatientTest Enter(string testId, string valueText, string? unit = null, bool markedAbnormal = false)
     {
         var test = _store.GetPatientTest(testId) ?? throw new ArgumentException("That test isn't on this computer.");

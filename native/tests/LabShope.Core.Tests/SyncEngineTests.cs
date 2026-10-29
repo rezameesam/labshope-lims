@@ -41,6 +41,7 @@ public class SyncEngineTests : IDisposable
         var p when p.EndsWith("/doctors") => (HttpStatusCode.OK, """[{"id":"d1","name":"Dr Rao","specialization":"Pathology","commission_percentage":10}]"""),
         var p when p.EndsWith("/labs") => (HttpStatusCode.OK, """[{"id":"l1","name":"Main Lab","lab_code":"ML"}]"""),
         var p when p.EndsWith("/collection_centers") => (HttpStatusCode.OK, """[{"id":"cc1","name":"Town","code":"TN","lab_id":"l1"}]"""),
+        var p when p.EndsWith("/external_labs") => (HttpStatusCode.OK, """[{"id":"x1","name":"Metropolis","code":"MP","phone":"99"}]"""),
         var p when p.EndsWith("/test_categories") => (HttpStatusCode.OK, """[{"id":"c1","name":"Blood"}]"""),
         var p when p.EndsWith("/test_templates") => (HttpStatusCode.OK, """[{"id":"tp1","name":"Standard","organization_id":null,"test_category":null,"test_id":null,"header_template":"<p>Patient: {patient_name}</p>","footer_template":null,"result_format":"table","include_normal_range":true,"include_abnormal_flag":false,"include_notes":false,"is_default":true}]"""),
         _ => (HttpStatusCode.NotFound, "{}"),
@@ -59,6 +60,7 @@ public class SyncEngineTests : IDisposable
         Assert.Equal("Dr Rao", catalog.Doctors.Single().Name);
         Assert.Equal("Town", catalog.Centers.Single().Name);
         Assert.Equal("Blood", catalog.CategoryList.Single().Name);
+        Assert.Equal("Metropolis", catalog.ExternalLabList.Single().Name);
         var template = catalog.TemplateList.Single();
         Assert.Equal(("Standard", true, true, false), (template.Name, template.IsDefault, template.IncludeNormalRange, template.IncludeAbnormalFlag));
 

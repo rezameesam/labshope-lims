@@ -168,3 +168,11 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   for that test, then its category; several tests of one category -> that category; otherwise the default template; otherwise none (plain report as before).
 - Markers filled: patient_name, patient_id, phone, test_name, test_date, report_date, lab_name, lab_code, collection_center (empty), entered_by (the lab's name).
   Simple HTML in the template (p, br, li) becomes text lines, as on the website. "list"/"custom" result formats and notes are not implemented (printed as the table).
+
+## Update: external labs (outsourcing)
+- External labs (vendors) sync with the catalog. On the Results screen, "Send to an external lab..." records the lab and the cost on that test (the website's own columns:
+  external_lab_id, outsource_cost, outsourced_at, outsourced_by) as a queued update of the patient_tests row, so it works offline. The database's existing rule then posts
+  Dr 5009 Outsourcing Expense / Cr 2004 Outsource Payable. The worklist shows "test -> lab". Refused outsourcing is shown as not outsourced again.
+  Verified against the real database: the row is updated, the journal entry is linked, and the books still balance.
+- IMPORTANT: that rule silently posts nothing if the lab's chart of accounts has no 5009 and 2004 (the website seeds them with seed_outsource_accounts). Check each lab has them.
+- Managing the vendor list (add/edit external labs) stays on the website.

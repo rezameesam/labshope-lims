@@ -23,11 +23,16 @@ public sealed record Catalog(
     IReadOnlyList<LabRef> Labs,
     IReadOnlyList<CenterRef> Centers,
     IReadOnlyList<TestCategory>? Categories = null,
-    IReadOnlyList<ReportTemplate>? Templates = null)
+    IReadOnlyList<ReportTemplate>? Templates = null,
+    IReadOnlyList<ExternalLab>? ExternalLabs = null)
 {
+    public IReadOnlyList<ExternalLab> ExternalLabList => ExternalLabs ?? [];
     public IReadOnlyList<TestCategory> CategoryList => Categories ?? [];
     public IReadOnlyList<ReportTemplate> TemplateList => Templates ?? [];
 }
+
+/// <summary>A vendor lab that tests are outsourced to.</summary>
+public sealed record ExternalLab(string Id, string Name, string? Code, string? Phone);
 
 public sealed record TestCategory(string Id, string Name);
 

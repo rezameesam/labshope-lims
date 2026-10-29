@@ -40,7 +40,7 @@ public sealed class LocalStore : IDisposable
             CREATE TABLE IF NOT EXISTS patient_tests (
               id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, test_name TEXT NOT NULL, test_date TEXT NOT NULL, status TEXT NOT NULL,
               result TEXT, result_value REAL, result_unit TEXT, normal_range_text TEXT, is_abnormal INTEGER NOT NULL DEFAULT 0,
-              waiting INTEGER NOT NULL DEFAULT 0, result_items TEXT);
+              waiting INTEGER NOT NULL DEFAULT 0, result_items TEXT, external_lab_id TEXT, outsource_cost REAL);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_status ON patient_tests(status);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_patient ON patient_tests(patient_id);
             CREATE TABLE IF NOT EXISTS bookings (
@@ -61,6 +61,16 @@ public sealed class LocalStore : IDisposable
         {
             info2.CommandText = "SELECT COUNT(*) FROM pragma_table_info('patient_tests') WHERE name = 'result_items'";
             if ((long)info2.ExecuteScalar()! == 0) Exec("ALTER TABLE patient_tests ADD COLUMN result_items TEXT");
+        }
+        // Databases created before outsourcing existed have no external lab columns.
+        using (var info3 = _db.CreateCommand())
+        {
+            info3.CommandText = "SELECT COUNT(*) FROM pragma_table_info('patient_tests') WHERE name = 'external_lab_id'";
+            if ((long)info3.ExecuteScalar()! == 0)
+            {
+                Exec("ALTER TABLE patient_tests ADD COLUMN external_lab_id TEXT");
+                Exec("ALTER TABLE patient_tests ADD COLUMN outsource_cost REAL");
+            }
         }
         // Databases created before payments existed have no "kind" column on the outbox.
         using (var info = _db.CreateCommand())
@@ -328,12 +338,13 @@ public sealed class LocalStore : IDisposable
             foreach (var c in catalog.Centers) PutCatalog("center", c.Id, c.Name, c);
             foreach (var c in catalog.CategoryList) PutCatalog("category", c.Id, c.Name, c);
             foreach (var t in catalog.TemplateList) PutCatalog("template", t.Id, t.Name, t);
+            foreach (var l in catalog.ExternalLabList) PutCatalog("extlab", l.Id, l.Name, l);
         });
     }
 
     public Catalog GetCatalog() => new(
         ReadCatalog<CatalogTest>("test"), ReadCatalog<TestPackage>("package"), ReadCatalog<Doctor>("doctor"),
-        ReadCatalog<LabRef>("lab"), ReadCatalog<CenterRef>("center"), ReadCatalog<TestCategory>("category"), ReadCatalog<ReportTemplate>("template"));
+        ReadCatalog<LabRef>("lab"), ReadCatalog<CenterRef>("center"), ReadCatalog<TestCategory>("category"), ReadCatalog<ReportTemplate>("template"), ReadCatalog<ExternalLab>("extlab"));
 
     private void PutCatalog<T>(string kind, string id, string sort, T value)
     {
@@ -644,10 +655,10 @@ public sealed class LocalStore : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO patient_tests (id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items)
-            VALUES ($id,$pid,$name,$date,$status,$result,$value,$unit,$range,$abn,$waiting,$items)
+            INSERT INTO patient_tests (id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items, external_lab_id, outsource_cost)
+            VALUES ($id,$pid,$name,$date,$status,$result,$value,$unit,$range,$abn,$waiting,$items,$xlab,$xcost)
             ON CONFLICT(id) DO UPDATE SET patient_id=$pid, test_name=$name, test_date=$date, status=$status, result=$result,
-              result_value=$value, result_unit=$unit, normal_range_text=$range, is_abnormal=$abn, waiting=$waiting, result_items=$items
+              result_value=$value, result_unit=$unit, normal_range_text=$range, is_abnormal=$abn, waiting=$waiting, result_items=$items, external_lab_id=$xlab, outsource_cost=$xcost
             WHERE $fromServer = 0 OR patient_tests.waiting = 0;
             """;
         cmd.Parameters.AddWithValue("$id", t.Id);
@@ -662,6 +673,8 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$abn", t.IsAbnormal ? 1 : 0);
         cmd.Parameters.AddWithValue("$waiting", t.Waiting ? 1 : 0);
         cmd.Parameters.AddWithValue("$items", (object?)t.ResultItemsJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$xlab", (object?)t.ExternalLabId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$xcost", t.OutsourceCost is { } oc ? (double)oc : DBNull.Value);
         cmd.Parameters.AddWithValue("$fromServer", fromServer ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
@@ -669,7 +682,7 @@ public sealed class LocalStore : IDisposable
     public PatientTest? GetPatientTest(string id)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items FROM patient_tests WHERE id = $id";
+        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items, external_lab_id, outsource_cost FROM patient_tests WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", id);
         using var r = cmd.ExecuteReader();
         return r.Read() ? ReadTest(r) : null;
@@ -683,7 +696,7 @@ public sealed class LocalStore : IDisposable
         var where = words.Select((_, n) => $"(LOWER(t.test_name) LIKE $w{n} OR p.search LIKE $w{n})").ToList();
         if (statuses is { Count: > 0 })
             where.Add($"t.status IN ({string.Join(",", statuses.Select((_, n) => $"$s{n}"))})");
-        cmd.CommandText = "SELECT t.id, t.patient_id, t.test_name, t.test_date, t.status, t.result, t.result_value, t.result_unit, t.normal_range_text, t.is_abnormal, t.waiting, t.result_items, " +
+        cmd.CommandText = "SELECT t.id, t.patient_id, t.test_name, t.test_date, t.status, t.result, t.result_value, t.result_unit, t.normal_range_text, t.is_abnormal, t.waiting, t.result_items, t.external_lab_id, t.outsource_cost, " +
                           "COALESCE(p.full_name,''), COALESCE(p.patient_code,'') FROM patient_tests t LEFT JOIN patients p ON p.id = t.patient_id " +
                           (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "") +
                           "ORDER BY t.test_date, t.rowid LIMIT $limit";
@@ -692,15 +705,29 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$limit", limit);
         var list = new List<WorklistRow>();
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add(new WorklistRow(ReadTest(r), r.GetString(12), r.GetString(13)));
+        var labs = ReadCatalog<ExternalLab>("extlab").ToDictionary(l => l.Id, l => l.Name);
+        while (r.Read())
+        {
+            var test = ReadTest(r);
+            list.Add(new WorklistRow(test, r.GetString(14), r.GetString(15), test.ExternalLabId is { } id && labs.TryGetValue(id, out var labName) ? labName : null));
+        }
         return list;
     }
 
-    public void ClearTestWaiting(string id)
+    /// <summary>
+    /// Marks a test as no longer waiting, unless another change to the same test (a result, or sending it to an external lab) is still queued.
+    /// <paramref name="exceptOutboxId"/> is the item that has just been sent.
+    /// </summary>
+    public void ClearTestWaiting(string id, string? exceptOutboxId = null)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "UPDATE patient_tests SET waiting = 0 WHERE id = $id";
+        cmd.CommandText = """
+            UPDATE patient_tests SET waiting = 0 WHERE id = $id AND NOT EXISTS (
+              SELECT 1 FROM outbox WHERE kind IN ('result','outsource') AND status IN ('pending','syncing')
+                AND json_extract(payload, '$.id') = $id AND visit_id <> COALESCE($except, ''))
+            """;
         cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$except", (object?)exceptOutboxId ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -715,7 +742,8 @@ public sealed class LocalStore : IDisposable
     private static PatientTest ReadTest(SqliteDataReader r) => new(
         r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
         r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : (decimal)r.GetDouble(6), r.IsDBNull(7) ? null : r.GetString(7),
-        r.IsDBNull(8) ? null : r.GetString(8), r.GetInt32(9) == 1, r.GetInt32(10) == 1, r.IsDBNull(11) ? null : r.GetString(11));
+        r.IsDBNull(8) ? null : r.GetString(8), r.GetInt32(9) == 1, r.GetInt32(10) == 1, r.IsDBNull(11) ? null : r.GetString(11),
+        r.IsDBNull(12) ? null : r.GetString(12), r.IsDBNull(13) ? null : (decimal)r.GetDouble(13));
 
     // ── bills and payments ────────────────────────────────────────────────
 
