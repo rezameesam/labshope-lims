@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.StaffDialog"
+        Title="Add staff" Width="480" Height="640" CanResize="False" WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="26" Spacing="8">
+    <TextBlock Text="Add a staff member" Classes="h2" />
+    <TextBlock Text="They sign in to the app and the website with this email and password." Classes="muted" TextWrapping="Wrap" Margin="0,0,0,6" />
+    <TextBlock Text="FULL NAME" Classes="label" />
+    <TextBox x:Name="NameBox" />
+    <TextBlock Text="EMAIL" Classes="label" Margin="0,6,0,0" />
+    <TextBox x:Name="EmailBox" />
+    <TextBlock Text="PASSWORD (at least 8 characters)" Classes="label" Margin="0,6,0,0" />
+    <TextBox x:Name="PasswordBox" PasswordChar="●" />
+    <TextBlock Text="ROLE" Classes="label" Margin="0,6,0,0" />
+    <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch" />
+    <TextBlock Text="LAB" Classes="label" Margin="0,6,0,0" />
+    <ComboBox x:Name="LabBox" HorizontalAlignment="Stretch" />
+    <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+      <StackPanel Spacing="4"><TextBlock Text="PHONE" Classes="label" /><TextBox x:Name="PhoneBox" /></StackPanel>
+      <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="DEPARTMENT" Classes="label" /><TextBox x:Name="DepartmentBox" /></StackPanel>
+    </Grid>
+    <TextBlock Text="DESIGNATION" Classes="label" Margin="0,6,0,0" />
+    <TextBox x:Name="DesignationBox" />
+    <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+      <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+    </Border>
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button Content="Cancel" Click="OnCancel" />
+      <Button x:Name="SaveButton" Classes="primary" Content="Add staff" IsDefault="True" Click="OnSave" Padding="20,9" />
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -125,6 +125,17 @@ public class IntegrationLocalTests
         Assert.Null(team.Error);
         Assert.Contains(team.Members, m => m.FullName == "IT Admin" && m.IsActive);
 
+        // An admin can add a test to the catalog and switch staff off and on (row level security allows it).
+        var added = await CatalogAdmin.AddTestAsync(api, org, new CatalogAdmin.NewTest("Integration Panel", "123", null, "", "", "", "", ""), ["IP001"]);
+        Assert.True(added.Ok, added.Error);
+        var newRow = (await api.SelectAsync("tests", $"select=test_id,price,is_active&organization_id=eq.{org}&name=eq.Integration%20Panel")).Body!.Value[0];
+        Assert.Equal(("IP002", 123m, true), (newRow.GetProperty("test_id").GetString(), newRow.GetProperty("price").GetDecimal(), newRow.GetProperty("is_active").GetBoolean()));
+        var me = team.Members.Single(m => m.FullName == "IT Admin");
+        Assert.True((await TeamService.SetActiveAsync(api, org, me.Id, false)).Ok);
+        Assert.False((await TeamService.LoadAsync(api, org)).Members.Single(m => m.Id == me.Id).IsActive);
+        Assert.True((await TeamService.SetActiveAsync(api, org, me.Id, true)).Ok);
+        Assert.True((await TeamService.LoadAsync(api, org)).Members.Single(m => m.Id == me.Id).IsActive);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));
