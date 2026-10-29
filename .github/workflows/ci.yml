@@ -109,10 +109,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Anonymous pulls from ghcr.io are rate-limited for shared CI addresses; a signed-in pull is not.
-      - name: Sign in to the container registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
       - uses: supabase/setup-cli@v1
         with:
           version: 2.72.7

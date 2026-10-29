@@ -68,6 +68,10 @@ enabled = false
 EOF
 
 echo "==> Starting a throw-away Supabase (project irm-lims-db-tests)"
+# GitHub's (ghcr.io) and AWS's registries both refuse anonymous pulls from CI for long stretches ("toomanyrequests");
+# Docker Hub carries the same images and only needs a handful of pulls. Set SUPABASE_INTERNAL_IMAGE_REGISTRY to override.
+if [ -n "${CI:-}" ] && [ -z "${SUPABASE_INTERNAL_IMAGE_REGISTRY_LOCKED:-}" ]; then export SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io; fi
+
 # The container registry sometimes refuses image pulls ("toomanyrequests") when many CI jobs share its address,
 # so try again with a growing pause. Images that were already downloaded are not fetched again.
 started=0
