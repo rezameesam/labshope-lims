@@ -59,3 +59,14 @@ existing patient search or new patient, test search + packages, referring doctor
 Saves locally and instantly; sent to the server by the outbox. Barcode scan of a patient card picks the patient.
 UI is tested headless (`native/tests/LabShope.App.Tests`, Avalonia.Headless): type, add tests, delete, package price, save -> queued.
 Next in milestone 1: payments + receipts, bill detail/print, offline invoice numbers, patient edit, labels.
+
+## Update: payments, receipts, cash book, and the accounting link (milestone 1)
+- New server function `record_payment` (migration 20261029000400): atomic + idempotent payment on a bill. Inserting the payment fires the
+  existing finance trigger (Dr Cash / Cr Receivable) and billing audit; creating the bill already posts Dr Receivable / Cr Revenue.
+  `supabase/tests/record_payment.test.sql` proves it: part/full payment, replay, overpayment refused, and the books balance (1500 = 1500).
+  **The migration must be applied on production before payments from the native app can sync** (until then they stay queued, safely).
+- Native: payment taken on this PC instantly (bill shows paid), queued after its visit, sent via `record_payment`; a payment the server
+  refuses is taken back off the bill. Provisional bill numbers `L-yymmdd-0001` until the server issues the official `INV…` number.
+- Screens: payment fields on Register visit, Bills (search, balance, Receive payment F6, Print receipt), Daily cash book (F7).
+- Receipts are printable HTML opened in the system browser (any printer, thermal included). Silent printing and PDF come later.
+- Not yet native: a Finance screen (accounts, journal, trial balance). Everything posts to the books automatically on the server.

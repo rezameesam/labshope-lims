@@ -2,6 +2,7 @@ using System.Text.Json;
 using LabShope.Core.Data;
 using LabShope.Core.Net;
 using LabShope.Core.Sync;
+using LabShope.Core.Visits;
 
 namespace LabShope.Core.Tests;
 
@@ -28,40 +29,45 @@ public class IntegrationLocalTests
         Assert.True(signIn.Ok, signIn.ErrorMessage);
         Assert.NotNull(session);
 
-        var phone = $"+9190{Random.Shared.Next(10000000, 99999999)}";
-        var visitId = Guid.NewGuid().ToString();
-        var patientId = Guid.NewGuid().ToString();
-        var payload = JsonSerializer.Serialize(new
-        {
-            visit_id = visitId,
-            organization_id = org,
-            lab_id = Env("LIMS_IT_LAB"),
-            collection_center_id = (string?)null,
-            test_date = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-            notes = (string?)null,
-            collected_at = DateTimeOffset.UtcNow.ToString("O"),
-            patient = new { @new = new { id = patientId, full_name = "Native Integration Patient", phone, phone_variants = new[] { phone } } },
-            tests = new[] { new { test_name = "CBC", price = 300, in_package = false }, new { test_name = "LFT", price = 450, in_package = false } },
-        });
+        // Register a visit with part payment, exactly as the counter screen does (no network involved yet).
+        var phone = $"9{Random.Shared.Next(100000000, 999999999)}";
+        var visits = new VisitService(store);
+        var visit = visits.Register(new RegisterVisitInput(
+            org, Env("LIMS_IT_LAB"), DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            [new VisitTest("CBC", 300), new VisitTest("LFT", 450)],
+            NewPatient: new NewPatient("Native Integration Patient", phone),
+            Payment: new InitialPayment(300m, "upi", "UPI-IT")));
+        Assert.Equal(750m, visit.Total);
+        Assert.StartsWith("L-", store.GetInvoice(visit.VisitId)!.InvoiceNumber);
 
-        store.UpsertPatient(new Patient(patientId, "PENDING", "Native Integration Patient", phone, null, null, Pending: true));
-        store.EnqueueVisit(new OutboxItem(visitId, payload, "pending", 0, null, "Native Integration Patient", 750m));
-
+        // Send: the visit first, then its payment.
         var engine = new SyncEngine(store, api, org);
         var outcome = await engine.FlushOutboxAsync();
-        Assert.Equal(new FlushOutcome(1, 0, null), outcome);
-        Assert.Equal("done", store.GetVisit(visitId)!.Status);
+        Assert.Equal(new FlushOutcome(2, 0, null), outcome);
+        Assert.Equal((0, 0), store.OutboxCounts());
 
-        var local = store.GetPatient(patientId)!;
-        Assert.NotEqual("PENDING", local.PatientCode);
+        // The bill now has the server's number and shows the part payment.
+        var bill = store.GetInvoice(visit.VisitId)!;
+        Assert.DoesNotContain("L-", bill.InvoiceNumber);
+        Assert.Equal(("partial", 300m), (bill.PaymentStatus, bill.PaidAmount));
 
-        // Pull everything back: the patient and the new bill arrive, and can be found by a scan.
+        // Pull everything back: the server agrees, and a scan of the patient card finds them.
         await engine.PullPatientsAsync();
         await engine.PullInvoicesAsync();
-        Assert.IsType<ScanMatch.FoundPatient>(store.ResolveScan(local.PatientCode));
+        var fromServer = store.GetInvoice(visit.VisitId)!;
+        Assert.Equal(("partial", 300m), (fromServer.PaymentStatus, fromServer.PaidAmount));
+        var patientCode = store.SearchPatients("Native Integration").First().PatientCode;
+        Assert.IsType<ScanMatch.FoundPatient>(store.ResolveScan(patientCode));
 
-        // Sending the very same visit again must not create a second one.
-        var replay = await api.RpcAsync("register_visit", new { p_payload = JsonDocument.Parse(payload).RootElement });
+        // Settle the rest, send it, and the bill is paid on the server too.
+        new PaymentService(store, org).Record(new PaymentInput(visit.VisitId, 450m, "cash"));
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+        await engine.PullInvoicesAsync();
+        Assert.Equal(("paid", 750m), (store.GetInvoice(visit.VisitId)!.PaymentStatus, store.GetInvoice(visit.VisitId)!.PaidAmount));
+
+        // The server refuses to be paid twice for the same thing: replaying the same payment changes nothing.
+        var payment = store.PaymentsFor(visit.VisitId).First();
+        var replay = await api.RpcAsync("record_payment", new { p_payload = new { payment_id = payment.Id, invoice_id = visit.VisitId, organization_id = org, amount = payment.Amount, payment_method = payment.Method } });
         Assert.True(replay.Ok, replay.ErrorMessage);
         Assert.True(replay.Body!.Value.GetProperty("replayed").GetBoolean());
 

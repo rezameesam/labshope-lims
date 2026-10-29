@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             x:Class="LabShope.App.CashBookView">
+  <DockPanel Margin="8">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+      <TextBlock Text="Day:" VerticalAlignment="Center" />
+      <DatePicker x:Name="DayPicker" />
+      <Button Content="Today" Click="OnToday" />
+    </StackPanel>
+    <Border DockPanel.Dock="Bottom" Background="#EEF1F5" Padding="10" Margin="0,8,0,0">
+      <TextBlock x:Name="SummaryText" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+    </Border>
+    <DataGrid x:Name="Grid" x:DataType="data:PaymentRow" AutoGenerateColumns="False" IsReadOnly="True"
+              CanUserSortColumns="True" GridLinesVisibility="All">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="80" />
+        <DataGridTextColumn Header="Bill no." Binding="{Binding InvoiceNumber}" Width="190" />
+        <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" />
+        <DataGridTextColumn Header="Paid by" Binding="{Binding Method}" Width="120" />
+        <DataGridTextColumn Header="Amount" Binding="{Binding Amount}" Width="110" />
+        <DataGridTextColumn Header="Sent" Binding="{Binding SyncText}" Width="90" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

@@ -82,10 +82,14 @@ public sealed class SyncEngine
         var floor = DateTimeOffset.UtcNow.AddDays(-InvoiceHistoryDays).ToString("O");
         return PullAsync("invoices", "id,invoice_number,patient_id,total_amount,paid_amount,payment_status,created_at,updated_at", "invoices_cursor", row =>
         {
+            var id = row.GetProperty("id").GetString()!;
             _store.UpsertInvoice(new Invoice(
-                row.GetProperty("id").GetString()!, row.GetProperty("invoice_number").GetString()!,
+                id, row.GetProperty("invoice_number").GetString()!,
                 row.GetProperty("patient_id").GetString()!, Num(row, "total_amount"), Num(row, "paid_amount"),
                 Opt(row, "payment_status"), DateTimeOffset.Parse(row.GetProperty("created_at").GetString()!).ToString("O")));
+            // Money taken on this PC that the server hasn't confirmed yet still counts.
+            var waiting = _store.UnsyncedPaymentTotal(id);
+            if (waiting > 0) _store.SetInvoicePaid(id, Num(row, "paid_amount") + waiting);
         }, "created_at=gte." + Uri.EscapeDataString(floor), ct);
     }
 
@@ -148,11 +152,13 @@ public sealed class SyncEngine
 
                 _store.SetVisitStatus(item.VisitId, "syncing");
                 var payload = JsonDocument.Parse(item.PayloadJson).RootElement.Clone();
-                var result = await _api.RpcAsync("register_visit", new { p_payload = payload }, ct);
+                var isPayment = item.Kind == "payment";
+                var result = await _api.RpcAsync(isPayment ? "record_payment" : "register_visit", new { p_payload = payload }, ct);
 
                 if (result.Ok && result.Body is { ValueKind: JsonValueKind.Object } body)
                 {
-                    ApplyVisitResult(payload, body);
+                    if (isPayment) _store.MarkPaymentSynced(item.VisitId);
+                    else ApplyVisitResult(item.VisitId, payload, body);
                     _store.SetVisitStatus(item.VisitId, "done", resultJson: body.GetRawText());
                     synced++;
                     continue;
@@ -162,6 +168,7 @@ public sealed class SyncEngine
                 var message = result.ErrorMessage ?? "Sync failed";
                 if (kind == ErrorKind.Permanent)
                 {
+                    if (isPayment) RevertPayment(payload);
                     _store.SetVisitStatus(item.VisitId, "failed", message, countAttempt: true);
                     failed++;
                     continue;
@@ -175,8 +182,23 @@ public sealed class SyncEngine
     }
 
     /// <summary>Replaces the provisional local patient with what the server decided.</summary>
-    private void ApplyVisitResult(JsonElement payload, JsonElement result)
+    /// <summary>The server refused a payment: take it back off the bill so the screen shows the truth.</summary>
+    private void RevertPayment(JsonElement payload)
     {
+        var paymentId = payload.GetProperty("payment_id").GetString()!;
+        var invoiceId = payload.GetProperty("invoice_id").GetString()!;
+        var amount = payload.GetProperty("amount").GetDecimal();
+        var bill = _store.GetInvoice(invoiceId);
+        _store.RemovePayment(paymentId);
+        if (bill is not null) _store.SetInvoicePaid(invoiceId, Math.Max(bill.PaidAmount - amount, 0));
+    }
+
+    private void ApplyVisitResult(string visitId, JsonElement payload, JsonElement result)
+    {
+        // The bill we made on this PC now has its official number.
+        if (result.TryGetProperty("invoice_number", out var number) && number.GetString() is { Length: > 0 } official)
+            _store.SetInvoiceNumber(visitId, official);
+
         if (!payload.TryGetProperty("patient", out var patient) || !patient.TryGetProperty("new", out var created)) return;
 
         var localId = created.GetProperty("id").GetString()!;

@@ -24,6 +24,8 @@ public partial class RegisterVisitView : UserControl
     private Patient? _picked;
     private TestPackage? _package;
     private List<CatalogTest> _matches = [];
+    private bool _payEdited;
+    private Receipt? _lastReceipt;
 
     /// <summary>Raised after a visit is saved so the window can sync and refresh its lists.</summary>
     public event Action? Registered;
@@ -44,6 +46,7 @@ public partial class RegisterVisitView : UserControl
         TestSearch.KeyDown += (_, e) => { if (e.Key == Key.Enter) { AddFirstOrSelectedTest(); e.Handled = true; } };
         TestResults.DoubleTapped += (_, _) => AddFirstOrSelectedTest();
         PackageBox.SelectionChanged += (_, _) => PickPackage();
+        PayAmount.TextChanged += (_, _) => { if (PayAmount.IsFocused) _payEdited = true; };
         SelectedGrid.KeyDown += (_, e) => { if (e.Key == Key.Delete) RemoveSelected(); };
         KeyDown += (_, e) => { if (e.Key == Key.F8) { OnSave(null, null!); e.Handled = true; } };
 
@@ -152,7 +155,13 @@ public partial class RegisterVisitView : UserControl
     private IReadOnlyList<VisitTest> Tests() => _selected.Select(s => new VisitTest(s.Name, s.Price, s.InPackage)).ToList();
     private PackageRef? PackageRef() => _package is not null && _selected.Any(s => s.InPackage) ? new PackageRef(_package.Id, _package.Name, _package.Price) : null;
 
-    private void UpdateTotal() => TotalText.Text = $"Total {VisitService.Total(Tests(), PackageRef()):0.##}";
+    private void UpdateTotal()
+    {
+        var total = VisitService.Total(Tests(), PackageRef());
+        TotalText.Text = $"Total {total:0.##}";
+        // Most patients pay in full at the counter, so the amount follows the total until the cashier changes it.
+        if (!_payEdited) PayAmount.Text = total.ToString("0.##");
+    }
 
     private void OnSave(object? sender, RoutedEventArgs e)
     {
@@ -161,6 +170,11 @@ public partial class RegisterVisitView : UserControl
             var existing = ExistingRadio.IsChecked == true;
             if (existing && _picked is null) { ResultText.Text = "Pick a patient first (or choose New patient)."; return; }
             if (!existing && string.IsNullOrWhiteSpace(NewName.Text)) { ResultText.Text = "Enter the patient's name."; return; }
+
+            decimal pay = 0;
+            if (!string.IsNullOrWhiteSpace(PayAmount.Text) && !decimal.TryParse(PayAmount.Text, out pay)) { ResultText.Text = "Enter the amount being paid as a number (0 if nothing is paid yet)."; return; }
+            var total = VisitService.Total(Tests(), PackageRef());
+            if (pay > total) { ResultText.Text = $"The amount paid can't be more than the total ({total:0.##})."; return; }
 
             var doctor = DoctorBox.SelectedItem as Named;
             var center = CenterBox.SelectedItem as Named;
@@ -172,11 +186,16 @@ public partial class RegisterVisitView : UserControl
                 CollectionCenterId: center?.Id,
                 Notes: string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text!.Trim(),
                 Package: PackageRef(),
-                ReferralDoctorId: doctor?.Id);
+                ReferralDoctorId: doctor?.Id,
+                Payment: pay > 0 ? new InitialPayment(pay, (PayMethod.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "cash",
+                    string.IsNullOrWhiteSpace(PayRef.Text) ? null : PayRef.Text.Trim()) : null);
 
             var visit = _visits.Register(input);
             Clear();
-            ResultText.Text = $"Saved: {visit.PatientName}, total {visit.Total:0.##}" + (visit.ReusedPatient ? " (existing patient matched by phone)" : "") + ". It will be sent to the server when online.";
+            _lastReceipt = visit.Receipt;
+            ReceiptButton.IsVisible = visit.Receipt is not null;
+            var paid = visit.Receipt is null ? "no payment taken" : $"{visit.Receipt.Amount:0.##} received" + (visit.Receipt.Balance > 0 ? $", {visit.Receipt.Balance:0.##} due" : ", paid in full");
+            ResultText.Text = $"Saved: {visit.PatientName}, total {visit.Total:0.##}, {paid}" + (visit.ReusedPatient ? " (existing patient matched by phone)" : "") + $". Bill {visit.InvoiceNumber}. It is sent to the server when online.";
             Registered?.Invoke();
         }
         catch (ArgumentException ex)
@@ -185,7 +204,12 @@ public partial class RegisterVisitView : UserControl
         }
     }
 
-    private void OnClear(object? sender, RoutedEventArgs e) { Clear(); ResultText.Text = ""; }
+    private void OnClear(object? sender, RoutedEventArgs e) { Clear(); ResultText.Text = ""; ReceiptButton.IsVisible = false; }
+
+    private void OnPrintReceipt(object? sender, RoutedEventArgs e)
+    {
+        if (_lastReceipt is not null) ReceiptPrinter.Open(_lastReceipt, _session.Workspace.OrganizationName);
+    }
 
     private void Clear()
     {
@@ -193,6 +217,7 @@ public partial class RegisterVisitView : UserControl
         PickedPatient.Text = ""; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
         NewName.Text = ""; NewPhone.Text = ""; NewDob.Text = ""; NotesBox.Text = "";
         _selected.Clear();
+        _payEdited = false; PayRef.Text = ""; PayMethod.SelectedIndex = 0;
         DoctorBox.SelectedIndex = 0; CenterBox.SelectedIndex = 0; PackageBox.SelectedIndex = 0;
         UpdateTotal();
         FocusFirstField();

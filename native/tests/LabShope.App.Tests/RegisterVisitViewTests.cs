@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using LabShope.Core.Account;
 using LabShope.Core.Data;
+using LabShope.App;
 using LabShope.Core.Net;
 using LabShope.Core.Sync;
 
@@ -73,6 +74,86 @@ public class RegisterVisitViewTests : IDisposable
         Assert.Equal(2, payload.GetProperty("tests").GetArrayLength());
         Assert.Contains("Saved: Ravi Kumar", Find<TextBlock>(view, "ResultText").Text);
         Assert.Equal("Total 0", Find<TextBlock>(view, "TotalText").Text); // form cleared for the next patient
+    }
+
+    [AvaloniaFact]
+    public void PayingNowFollowsTheTotalAndSavesAReceipt()
+    {
+        var (_, view) = Show();
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter);
+        Assert.Equal("300", Find<TextBox>(view, "PayAmount").Text); // pay in full by default
+
+        view.UsePatient(_store.GetPatient("p1")!);
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Contains("paid in full", Find<TextBlock>(view, "ResultText").Text);
+        Assert.True(Find<Button>(view, "ReceiptButton").IsVisible);
+        Assert.Equal((2, 0), _store.OutboxCounts()); // the visit and its payment
+        Assert.Equal("paid", _store.SearchBills("").Single().PaymentStatus);
+    }
+
+    [AvaloniaFact]
+    public void APartPaymentLeavesABalance()
+    {
+        var (_, view) = Show();
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter);
+        Type(Find<TextBox>(view, "PayAmount"), "100");
+        view.UsePatient(_store.GetPatient("p1")!);
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Contains("200 due", Find<TextBlock>(view, "ResultText").Text);
+        var bill = _store.SearchBills("").Single();
+        Assert.Equal(("partial", 200m), (bill.PaymentStatus, bill.Balance));
+    }
+
+    [AvaloniaFact]
+    public void PayingMoreThanTheTotalIsRefused()
+    {
+        var (_, view) = Show();
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter);
+        Type(Find<TextBox>(view, "PayAmount"), "999");
+        view.UsePatient(_store.GetPatient("p1")!);
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Contains("more than the total", Find<TextBlock>(view, "ResultText").Text);
+        Assert.Null(_store.NextPendingVisit());
+    }
+
+    [AvaloniaFact]
+    public void BillsListShowsThePatientAndBalance()
+    {
+        var visit = new Core.Visits.VisitService(_store).Register(new Core.Visits.RegisterVisitInput(
+            "org-1", "l1", "2026-10-29", [new Core.Visits.VisitTest("CBC", 300)], ExistingPatient: _store.GetPatient("p1"),
+            Payment: new Core.Visits.InitialPayment(100m)));
+        var view = new BillsView(_session);
+        var window = new Window { Width = 1200, Height = 500, Content = view };
+        window.Show();
+
+        var rows = Find<DataGrid>(view, "Grid").ItemsSource.Cast<BillRow>().ToList();
+        Assert.Equal(("Asha Rao", 200m), (rows.Single().PatientName, rows.Single().Balance));
+        Assert.True(rows.Single().Provisional);
+        Assert.Contains("1 shown", Find<TextBlock>(view, "CountText").Text);
+    }
+
+    [AvaloniaFact]
+    public void TheCashBookTotalsTodaysTakingsByMethod()
+    {
+        var visits = new Core.Visits.VisitService(_store);
+        var p1 = _store.GetPatient("p1");
+        visits.Register(new Core.Visits.RegisterVisitInput("org-1", "l1", "2026-10-29", [new Core.Visits.VisitTest("CBC", 300)], ExistingPatient: p1, Payment: new Core.Visits.InitialPayment(300m, "cash")));
+        visits.Register(new Core.Visits.RegisterVisitInput("org-1", "l1", "2026-10-29", [new Core.Visits.VisitTest("LFT", 450)], ExistingPatient: p1, Payment: new Core.Visits.InitialPayment(200m, "upi")));
+
+        var view = new CashBookView(_store);
+        new Window { Width = 1000, Height = 500, Content = view }.Show();
+
+        Assert.Equal(2, Find<DataGrid>(view, "Grid").ItemsSource.Cast<PaymentRow>().Count());
+        var summary = Find<TextBlock>(view, "SummaryText").Text!;
+        Assert.Contains("Total 500", summary);
+        Assert.Contains("cash 300", summary);
+        Assert.Contains("upi 200", summary);
     }
 
     [AvaloniaFact]

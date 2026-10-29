@@ -29,6 +29,7 @@
         <MenuItem Header="Employees" IsEnabled="False" />
         <MenuItem Header="Labs and collection centers" IsEnabled="False" />
         <MenuItem Header="External labs" IsEnabled="False" />
+        <MenuItem Header="_Daily cash book" HotKey="F7" Click="OnOpenCashBook" />
         <MenuItem Header="Reports" IsEnabled="False" />
         <MenuItem Header="Finance" IsEnabled="False" />
       </MenuItem>
@@ -41,6 +42,7 @@
       <Button Classes="tool" Content="Register visit (F4)" Click="OnOpenRegister" />
       <Button Classes="tool" Content="Patients (F2)" Click="OnOpenPatients" />
       <Button Classes="tool" Content="Bills (F3)" Click="OnOpenBills" />
+      <Button Classes="tool" Content="Cash book (F7)" Click="OnOpenCashBook" />
       <Button Classes="tool" Content="Sync (F9)" Click="OnSync" />
     </StackPanel>
 

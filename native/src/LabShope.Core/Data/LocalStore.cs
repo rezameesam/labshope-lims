@@ -6,7 +6,9 @@ namespace LabShope.Core.Data;
 /// The lab's local database (one SQLite file per organisation). Every screen reads from here, so the
 /// app is fast and works offline; sync fills it from the server and sends local changes back.
 /// </summary>
-public sealed record OutboxItem(string VisitId, string PayloadJson, string Status, int Attempts, string? LastError, string PatientName, decimal TotalAmount);
+public sealed record OutboxItem(string VisitId, string PayloadJson, string Status, int Attempts, string? LastError, string PatientName, decimal TotalAmount, string Kind = "visit");
+
+public sealed record LocalPayment(string Id, string InvoiceId, decimal Amount, string Method, string? TransactionId, string? Notes, string PaidAt, bool Synced);
 
 public sealed class LocalStore : IDisposable
 {
@@ -35,7 +37,17 @@ public sealed class LocalStore : IDisposable
               last_error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
               patient_name TEXT NOT NULL, total_amount REAL NOT NULL, result TEXT);
             CREATE INDEX IF NOT EXISTS ix_outbox_status ON outbox(status, created_at);
+            CREATE TABLE IF NOT EXISTS payments (
+              id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, amount REAL NOT NULL, method TEXT NOT NULL,
+              transaction_id TEXT, notes TEXT, paid_at TEXT NOT NULL, synced INTEGER NOT NULL DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS ix_payments_invoice ON payments(invoice_id);
             """);
+        // Databases created before payments existed have no "kind" column on the outbox.
+        using (var info = _db.CreateCommand())
+        {
+            info.CommandText = "SELECT COUNT(*) FROM pragma_table_info('outbox') WHERE name = 'kind'";
+            if ((long)info.ExecuteScalar()! == 0) Exec("ALTER TABLE outbox ADD COLUMN kind TEXT NOT NULL DEFAULT 'visit'");
+        }
     }
 
     public void UpsertPatient(Patient p)
@@ -103,6 +115,27 @@ public sealed class LocalStore : IDisposable
         while (r.Read())
             list.Add(new Invoice(r.GetString(0), r.GetString(1), r.GetString(2), (decimal)r.GetDouble(3), (decimal)r.GetDouble(4),
                 r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6)));
+        return list;
+    }
+
+    /// <summary>Bills with the patient's name, newest first. Matches the bill number, the patient's name, phone or ID.</summary>
+    public IReadOnlyList<BillRow> SearchBills(string text, bool onlyUnpaid = false, int limit = 500)
+    {
+        var words = text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        using var cmd = _db.CreateCommand();
+        var where = words.Select((_, n) => $"(LOWER(i.invoice_number) LIKE $w{n} OR p.search LIKE $w{n})").ToList();
+        if (onlyUnpaid) where.Add("COALESCE(i.payment_status,'pending') <> 'paid'");
+        cmd.CommandText = "SELECT i.id, i.invoice_number, i.patient_id, COALESCE(p.full_name,''), COALESCE(p.patient_code,''), i.total_amount, i.paid_amount, COALESCE(i.payment_status,'pending'), i.created_at " +
+                          "FROM invoices i LEFT JOIN patients p ON p.id = i.patient_id " +
+                          (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "") +
+                          "ORDER BY i.created_at DESC LIMIT $limit";
+        for (var n = 0; n < words.Length; n++) cmd.Parameters.AddWithValue($"$w{n}", $"%{words[n]}%");
+        cmd.Parameters.AddWithValue("$limit", limit);
+        var list = new List<BillRow>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new BillRow(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
+                (decimal)r.GetDouble(5), (decimal)r.GetDouble(6), r.GetString(7), r.GetString(8)));
         return list;
     }
 
@@ -247,12 +280,21 @@ public sealed class LocalStore : IDisposable
         cmd.ExecuteNonQuery();
     }
 
-    /// <summary>Runs several writes as one all-or-nothing, much faster than separate commits.</summary>
+    private int _txDepth;
+
+    /// <summary>
+    /// Runs several writes as one all-or-nothing, much faster than separate commits. Calls can nest:
+    /// only the outermost one starts and ends the transaction, so a failure anywhere undoes everything.
+    /// </summary>
     public void InTransaction(Action work)
     {
+        if (_txDepth > 0) { work(); return; }
+
         using var tx = _db.BeginTransaction();
+        _txDepth++;
         try { work(); tx.Commit(); }
         catch { tx.Rollback(); throw; }
+        finally { _txDepth--; }
     }
 
     // ── outbox ─────────────────────────────────────────────────────────────
@@ -261,8 +303,8 @@ public sealed class LocalStore : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO outbox (visit_id, payload, status, attempts, last_error, created_at, updated_at, patient_name, total_amount, result)
-            VALUES ($id, $payload, 'pending', 0, NULL, $now, $now, $name, $total, NULL)
+            INSERT INTO outbox (visit_id, payload, status, attempts, last_error, created_at, updated_at, patient_name, total_amount, result, kind)
+            VALUES ($id, $payload, 'pending', 0, NULL, $now, $now, $name, $total, NULL, $kind)
             ON CONFLICT(visit_id) DO NOTHING;
             """;
         cmd.Parameters.AddWithValue("$id", item.VisitId);
@@ -270,13 +312,14 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         cmd.Parameters.AddWithValue("$name", item.PatientName);
         cmd.Parameters.AddWithValue("$total", (double)item.TotalAmount);
+        cmd.Parameters.AddWithValue("$kind", item.Kind);
         cmd.ExecuteNonQuery();
     }
 
     public OutboxItem? NextPendingVisit()
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT visit_id, payload, status, attempts, last_error, patient_name, total_amount FROM outbox WHERE status = 'pending' ORDER BY created_at LIMIT 1";
+        cmd.CommandText = "SELECT visit_id, payload, status, attempts, last_error, patient_name, total_amount, kind FROM outbox WHERE status = 'pending' ORDER BY created_at, rowid LIMIT 1";
         using var r = cmd.ExecuteReader();
         return r.Read() ? ReadOutbox(r) : null;
     }
@@ -284,7 +327,7 @@ public sealed class LocalStore : IDisposable
     public OutboxItem? GetVisit(string visitId)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT visit_id, payload, status, attempts, last_error, patient_name, total_amount FROM outbox WHERE visit_id = $id";
+        cmd.CommandText = "SELECT visit_id, payload, status, attempts, last_error, patient_name, total_amount, kind FROM outbox WHERE visit_id = $id";
         cmd.Parameters.AddWithValue("$id", visitId);
         using var r = cmd.ExecuteReader();
         return r.Read() ? ReadOutbox(r) : null;
@@ -320,6 +363,133 @@ public sealed class LocalStore : IDisposable
         return (r.GetInt32(0), r.GetInt32(1));
     }
 
+    // ── bills and payments ────────────────────────────────────────────────
+
+    public Invoice? GetInvoice(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at FROM invoices WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        return r.Read()
+            ? new Invoice(r.GetString(0), r.GetString(1), r.GetString(2), (decimal)r.GetDouble(3), (decimal)r.GetDouble(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6))
+            : null;
+    }
+
+    public void SetInvoiceNumber(string id, string number)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE invoices SET invoice_number = $n WHERE id = $id";
+        cmd.Parameters.AddWithValue("$n", number);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>The next number for a bill made on this PC while it can't ask the server (shown as provisional).</summary>
+    public string NextLocalBillNumber(DateTimeOffset now)
+    {
+        var day = now.ToString("yyMMdd");
+        var key = $"local_bill_seq_{day}";
+        var next = (int.TryParse(GetMeta(key), out var n) ? n : 0) + 1;
+        SetMeta(key, next.ToString());
+        return $"L-{day}-{next:0000}";
+    }
+
+    public void AddPayment(LocalPayment p)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO payments (id, invoice_id, amount, method, transaction_id, notes, paid_at, synced) VALUES ($id,$inv,$amt,$m,$t,$n,$at,$s) ON CONFLICT(id) DO NOTHING";
+        cmd.Parameters.AddWithValue("$id", p.Id);
+        cmd.Parameters.AddWithValue("$inv", p.InvoiceId);
+        cmd.Parameters.AddWithValue("$amt", (double)p.Amount);
+        cmd.Parameters.AddWithValue("$m", p.Method);
+        cmd.Parameters.AddWithValue("$t", (object?)p.TransactionId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$n", (object?)p.Notes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$at", p.PaidAt);
+        cmd.Parameters.AddWithValue("$s", p.Synced ? 1 : 0);
+        cmd.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<LocalPayment> PaymentsFor(string invoiceId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, invoice_id, amount, method, transaction_id, notes, paid_at, synced FROM payments WHERE invoice_id = $inv ORDER BY paid_at";
+        cmd.Parameters.AddWithValue("$inv", invoiceId);
+        var list = new List<LocalPayment>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new LocalPayment(r.GetString(0), r.GetString(1), (decimal)r.GetDouble(2), r.GetString(3),
+                r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6), r.GetInt32(7) == 1));
+        return list;
+    }
+
+    public void MarkPaymentSynced(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE payments SET synced = 1 WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Sets a bill's paid amount and the status the server would work out from it.</summary>
+    public void SetInvoicePaid(string id, decimal paid)
+    {
+        var bill = GetInvoice(id);
+        if (bill is null) return;
+        var status = paid >= bill.TotalAmount ? "paid" : paid > 0 ? "partial" : "pending";
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE invoices SET paid_amount = $p, payment_status = $s WHERE id = $id";
+        cmd.Parameters.AddWithValue("$p", (double)paid);
+        cmd.Parameters.AddWithValue("$s", status);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Payments taken on this PC that the server hasn't confirmed yet.</summary>
+    public decimal UnsyncedPaymentTotal(string invoiceId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = $inv AND synced = 0";
+        cmd.Parameters.AddWithValue("$inv", invoiceId);
+        return Convert.ToDecimal(cmd.ExecuteScalar());
+    }
+
+    public void RemovePayment(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM payments WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Every payment in a time window with its bill and patient, oldest first.</summary>
+    public IReadOnlyList<PaymentRow> PaymentsBetween(string fromIso, string toIso)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT pay.id, pay.paid_at, COALESCE(i.invoice_number,''), COALESCE(pt.full_name,''), pay.method, pay.amount, pay.synced " +
+                          "FROM payments pay LEFT JOIN invoices i ON i.id = pay.invoice_id LEFT JOIN patients pt ON pt.id = i.patient_id " +
+                          "WHERE pay.paid_at >= $a AND pay.paid_at < $b ORDER BY pay.paid_at";
+        cmd.Parameters.AddWithValue("$a", fromIso);
+        cmd.Parameters.AddWithValue("$b", toIso);
+        var list = new List<PaymentRow>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new PaymentRow(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), (decimal)r.GetDouble(5), r.GetInt32(6) == 1));
+        return list;
+    }
+
+    /// <summary>Takings between two instants (ISO text), grouped by payment method: the daily cash book.</summary>
+    public IReadOnlyList<(string Method, decimal Total, int Count)> TakingsBetween(string fromIso, string toIso)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT method, SUM(amount), COUNT(*) FROM payments WHERE paid_at >= $a AND paid_at < $b GROUP BY method ORDER BY method";
+        cmd.Parameters.AddWithValue("$a", fromIso);
+        cmd.Parameters.AddWithValue("$b", toIso);
+        var list = new List<(string, decimal, int)>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), (decimal)r.GetDouble(1), r.GetInt32(2)));
+        return list;
+    }
+
     public void DeletePatient(string id)
     {
         using var cmd = _db.CreateCommand();
@@ -329,7 +499,7 @@ public sealed class LocalStore : IDisposable
     }
 
     private static OutboxItem ReadOutbox(SqliteDataReader r) =>
-        new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), (decimal)r.GetDouble(6));
+        new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), (decimal)r.GetDouble(6), r.GetString(7));
 
     private void Exec(string sql)
     {

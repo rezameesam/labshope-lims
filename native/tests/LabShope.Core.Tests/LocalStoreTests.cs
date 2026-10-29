@@ -30,6 +30,19 @@ public class LocalStoreTests : IDisposable
         Assert.Equal("Asha R. Rao", _store.GetPatient("p1")!.FullName);
     }
 
+    [Fact]
+    public void BillsShowThePatientAndWhatIsStillOwed()
+    {
+        _store.UpsertInvoice(new Invoice("i2", "L-261029-0001", "p2", 400m, 400m, "paid", "2026-10-29T05:00:00+00:00"));
+
+        var all = _store.SearchBills("");
+        Assert.Equal(["L-261029-0001", "INV-2026-0042"], all.Select(b => b.InvoiceNumber)); // newest first
+        var owed = _store.SearchBills("", onlyUnpaid: true).Single();
+        Assert.Equal(("Asha Rao", 500m), (owed.PatientName, owed.Balance));
+        Assert.Equal("Ravi Kumar", _store.SearchBills("ravi").Single().PatientName);
+        Assert.True(all[0].Provisional);
+    }
+
     [Fact] public void ScanFindsAPatientIgnoringCaseAndWhitespace() =>
         Assert.IsType<ScanMatch.FoundPatient>(_store.ResolveScan(" irm-0007\r"));
 

@@ -1,22 +1,28 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:data="using:LabShope.Core.Data"
-             x:DataType="data:Invoice"
              x:Class="LabShope.App.BillsView">
   <DockPanel Margin="6">
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-      <TextBlock Text="Search (bill number):" VerticalAlignment="Center" />
-      <TextBox x:Name="SearchBox" Width="260" />
+      <TextBlock Text="Search (bill no., name, phone, ID):" VerticalAlignment="Center" />
+      <TextBox x:Name="SearchBox" Width="280" />
+      <CheckBox x:Name="UnpaidOnly" Content="Only unpaid" />
+      <Button x:Name="ReceiveButton" Content="Receive payment (F6)" Click="OnReceive" />
+      <Button x:Name="ReceiptButton" Content="Print last receipt" Click="OnPrintReceipt" />
       <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
     </StackPanel>
-    <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
+    <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="#1B5E20" />
+    <DataGrid x:Name="Grid" x:DataType="data:BillRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
               CanUserResizeColumns="True" GridLinesVisibility="All" SelectionMode="Single">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Bill no." Binding="{Binding InvoiceNumber}" Width="170" />
-        <DataGridTextColumn Header="Date" Binding="{Binding CreatedAt}" Width="*" />
-        <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount}" Width="110" />
-        <DataGridTextColumn Header="Paid" Binding="{Binding PaidAmount}" Width="110" />
-        <DataGridTextColumn Header="Status" Binding="{Binding PaymentStatus}" Width="120" />
+        <DataGridTextColumn Header="Bill no." Binding="{Binding Number}" Width="210" />
+        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="150" />
+        <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" />
+        <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientCode}" Width="110" />
+        <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount}" Width="90" />
+        <DataGridTextColumn Header="Paid" Binding="{Binding PaidAmount}" Width="90" />
+        <DataGridTextColumn Header="Balance" Binding="{Binding Balance}" Width="90" />
+        <DataGridTextColumn Header="Status" Binding="{Binding PaymentStatus}" Width="90" />
       </DataGrid.Columns>
     </DataGrid>
   </DockPanel>

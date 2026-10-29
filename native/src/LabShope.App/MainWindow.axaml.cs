@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private PatientRegisterView? _patients;
     private BillsView? _bills;
     private RegisterVisitView? _register;
+    private CashBookView? _cashBook;
     private bool _syncing;
 
     public MainWindow() => throw new InvalidOperationException("Use the constructor with a session.");
@@ -98,18 +99,30 @@ public partial class MainWindow : Window
         if (_register is null)
         {
             _register = new RegisterVisitView(_session);
-            _register.Registered += async () => { _patients?.Refresh(); await SyncAsync(); };
+            _register.Registered += async () => { _patients?.Refresh(); _bills?.Refresh(); _cashBook?.Refresh(); await SyncAsync(); };
             Windows.Items.Add(new TabItem { Header = "Register visit", Content = _register });
         }
         Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _register));
         _register.FocusFirstField();
     }
 
+    private void OnOpenCashBook(object? sender, RoutedEventArgs e)
+    {
+        if (_cashBook is null)
+        {
+            _cashBook = new CashBookView(_store);
+            Windows.Items.Add(new TabItem { Header = "Cash book", Content = _cashBook });
+        }
+        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _cashBook));
+        _cashBook.Refresh();
+    }
+
     private void OnOpenBills(object? sender, RoutedEventArgs e)
     {
         if (_bills is null)
         {
-            _bills = new BillsView(_store);
+            _bills = new BillsView(_session);
+            _bills.PaymentTaken += async () => await SyncAsync();
             Windows.Items.Add(new TabItem { Header = "Bills", Content = _bills });
         }
         Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _bills));
@@ -134,6 +147,7 @@ public partial class MainWindow : Window
             _patients?.Refresh();
             _bills?.Refresh();
             _register?.ReloadCatalog();
+            _cashBook?.Refresh();
         }
         finally { _syncing = false; }
     }

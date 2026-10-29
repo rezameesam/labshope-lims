@@ -12,7 +12,9 @@ public sealed record ApiResult(int Status, JsonElement? Body, string? ErrorCode,
 
 public static class ErrorClassifier
 {
-    private static readonly HashSet<string> TransientCodes = ["40001", "40P01", "57014", "57P03", "PGRST000", "PGRST001", "PGRST002", "PGRST003"];
+    // PGRST202: the function isn't on the server yet (the app is newer than the database). Keep the work queued
+    // until the server is updated instead of failing it.
+    private static readonly HashSet<string> TransientCodes = ["40001", "40P01", "57014", "57P03", "PGRST000", "PGRST001", "PGRST002", "PGRST003", "PGRST202"];
     private static readonly HashSet<string> AuthCodes = ["PGRST301", "PGRST302", "28000", "28P01"];
 
     /// <summary>

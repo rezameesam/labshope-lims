@@ -19,9 +19,13 @@ public sealed record RegisterVisitInput(
     string? Notes = null,
     PackageRef? Package = null,
     string? ReferralDoctorId = null,
-    string? ReferralCustomName = null);
+    string? ReferralCustomName = null,
+    InitialPayment? Payment = null);
 
-public sealed record RegisteredVisit(string VisitId, string PatientName, decimal Total, bool ReusedPatient);
+/// <summary>Money collected at the counter while registering.</summary>
+public sealed record InitialPayment(decimal Amount, string Method = "cash", string? TransactionId = null);
+
+public sealed record RegisteredVisit(string VisitId, string PatientName, decimal Total, bool ReusedPatient, Receipt? Receipt = null, string InvoiceNumber = "");
 
 /// <summary>
 /// Registers a visit on this PC first (patient + tests + total), queues it to send, and returns at once.
@@ -106,8 +110,20 @@ public sealed class VisitService
         };
 
         var total = Total(input.Tests, input.Package);
-        _store.EnqueueVisit(new OutboxItem(visitId, payload.ToJsonString(), "pending", 0, null, patientName, total));
-        return new RegisteredVisit(visitId, patientName, total, reused);
+        var patientId = patient["new"]?["id"]?.GetValue<string>() ?? patient["id"]!.GetValue<string>();
+        var number = _store.NextLocalBillNumber(_now());
+
+        Receipt? receipt = null;
+        _store.InTransaction(() =>
+        {
+            _store.EnqueueVisit(new OutboxItem(visitId, payload.ToJsonString(), "pending", 0, null, patientName, total));
+            // The bill exists on this PC straight away (its id is the visit id, as on the server); the server
+            // gives it its official number when the visit is sent.
+            _store.UpsertInvoice(new Invoice(visitId, number, patientId, total, 0m, "pending", _now().ToString("O")));
+            if (input.Payment is { Amount: > 0 } pay)
+                receipt = new PaymentService(_store, input.OrganizationId, _now).Record(new PaymentInput(visitId, pay.Amount, pay.Method, pay.TransactionId));
+        });
+        return new RegisteredVisit(visitId, patientName, total, reused, receipt, number);
     }
 
     /// <summary>A patient that only exists on this PC travels with the visit so the server can create it.</summary>
