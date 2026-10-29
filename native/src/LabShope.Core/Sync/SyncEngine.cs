@@ -73,6 +73,12 @@ public sealed class SyncEngine
         {
             // Never overwrite an edit made here that hasn't reached the server yet.
             if (_store.HasWaitingPatientEdit(row.GetProperty("id").GetString()!)) return;
+            // A patient who was deactivated (deleted or merged) on the website no longer shows up here either.
+            if (row.TryGetProperty("is_active", out var active) && active.ValueKind == JsonValueKind.False)
+            {
+                _store.DeletePatient(row.GetProperty("id").GetString()!);
+                return;
+            }
             _store.UpsertPatient(new Patient(
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!,
                 row.GetProperty("full_name").GetString()!, row.GetProperty("phone").GetString() ?? "",

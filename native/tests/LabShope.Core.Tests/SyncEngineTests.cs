@@ -260,3 +260,32 @@ public class FirstSyncWindowTests : IDisposable
         File.Delete(_path);
     }
 }
+
+public class InactivePatientTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    public InactivePatientTests() => _store = new LocalStore(_path);
+
+    [Fact]
+    public async Task APatientDeactivatedOnTheWebsiteDisappearsFromThisPcToo()
+    {
+        _store.UpsertPatient(new Patient("p1", "IRM-1", "Old Record", "+919876543210", null, null));
+        const string row = """
+            [{"id":"p1","patient_id":"IRM-1","full_name":"Old Record","phone":"+919876543210","gender":null,"date_of_birth":null,"is_active":false,"updated_at":"2026-10-29T07:00:00+00:00"},
+             {"id":"p2","patient_id":"IRM-2","full_name":"Current","phone":"+918888888888","gender":null,"date_of_birth":null,"is_active":true,"updated_at":"2026-10-29T07:00:01+00:00"}]
+            """;
+        var api = new SupabaseApi(new HttpClient(new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, row) }), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };
+
+        await new SyncEngine(_store, api, "org-1").PullPatientsAsync();
+
+        Assert.Equal(["Current"], _store.SearchPatients("").Select(p => p.FullName));
+    }
+
+    public void Dispose()
+    {
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
