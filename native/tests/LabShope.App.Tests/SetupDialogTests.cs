@@ -90,4 +90,27 @@ public class SetupDialogTests
         Assert.False(second.Saved);
         Assert.Contains("Only an admin", second.FindControl<TextBlock>("ErrorText")!.Text);
     }
+
+    [AvaloniaFact]
+    public void DateOfBirthIsPickedFromACalendarShownDayFirstAndCannotBeInTheFuture()
+    {
+        var store = new LocalStore(Path.Combine(Path.GetTempPath(), $"labshope-dob-{Guid.NewGuid():N}.db"));
+        try
+        {
+            var patient = new Patient("p1", "IRM-0001", "Asha Rao", "9876543210", "female", "1985-03-07");
+            store.UpsertPatient(patient);
+            var dialog = new PatientDialog(new LabShope.Core.Visits.PatientService(store, "org-1"), patient);
+            dialog.Show();
+
+            var picker = dialog.FindControl<CalendarDatePicker>("DobBox")!;
+            Assert.Equal(new DateTime(1985, 3, 7), picker.SelectedDate);
+            Assert.Equal("dd/MM/yyyy", picker.CustomDateFormatString);
+            Assert.Equal(DateTime.Today, picker.DisplayDateEnd);
+
+            picker.SelectedDate = new DateTime(1990, 12, 25);
+            Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(dialog).OfType<Button>().First(b => b.Content as string == "Save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("1990-12-25", dialog.Result?.DateOfBirth); // stored the way the server expects
+        }
+        finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
+    }
 }

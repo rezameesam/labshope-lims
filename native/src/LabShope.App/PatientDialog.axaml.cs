@@ -23,7 +23,8 @@ public partial class PatientDialog : Window
         Heading.Text = $"{patient.FullName}  ({patient.PatientCode})";
         NameBox.Text = patient.FullName;
         PhoneBox.Text = patient.Phone;
-        DobBox.Text = patient.DateOfBirth;
+        DobBox.DisplayDateEnd = DateTime.Today;
+        DobBox.SelectedDate = DateTime.TryParseExact(patient.DateOfBirth, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dob) ? dob : null;
         GenderBox.SelectedIndex = patient.Gender switch { "male" => 1, "female" => 2, "other" => 3, _ => 0 };
         Opened += (_, _) => { NameBox.Focus(); NameBox.SelectAll(); };
     }
@@ -33,7 +34,7 @@ public partial class PatientDialog : Window
         try
         {
             var gender = GenderBox.SelectedIndex > 0 ? (GenderBox.SelectedItem as ComboBoxItem)?.Content?.ToString() : null;
-            Result = _service.Edit(_patient.Id, new PatientEdit(NameBox.Text ?? "", PhoneBox.Text ?? "", gender, DobBox.Text));
+            Result = _service.Edit(_patient.Id, new PatientEdit(NameBox.Text ?? "", PhoneBox.Text ?? "", gender, DobBox.SelectedDate?.ToString("yyyy-MM-dd")));
             Close();
         }
         catch (ArgumentException ex) { ErrorText.Text = ex.Message; ErrorText.IsVisible = true; }

@@ -15,14 +15,14 @@ public partial class CashBookView : UserControl
     {
         _store = store;
         InitializeComponent();
-        DayPicker.SelectedDate = DateTimeOffset.Now.Date;
+        DayPicker.SelectedDate = DateTime.Today;
         DayPicker.SelectedDateChanged += (_, _) => Refresh();
         Refresh();
     }
 
     public void Refresh()
     {
-        var day = (DayPicker.SelectedDate ?? DateTimeOffset.Now).Date;
+        var day = (DayPicker.SelectedDate ?? DateTime.Today).Date;
         // Payments are stored in UTC; the "day" is the local calendar day.
         var from = new DateTimeOffset(day, TimeZoneInfo.Local.GetUtcOffset(day)).UtcDateTime;
         var fromIso = Iso(from); var toIso = Iso(from.AddDays(1));
@@ -39,5 +39,5 @@ public partial class CashBookView : UserControl
 
     private static string Iso(DateTime utc) => utc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
 
-    private void OnToday(object? sender, RoutedEventArgs e) => DayPicker.SelectedDate = DateTimeOffset.Now.Date;
+    private void OnToday(object? sender, RoutedEventArgs e) => DayPicker.SelectedDate = DateTime.Today;
 }
