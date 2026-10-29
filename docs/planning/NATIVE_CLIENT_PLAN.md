@@ -92,3 +92,11 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   completed test (panels as tables), reference ranges, abnormal marked in bold with `*`, "Preliminary" banner while results are unsent.
 - Not yet: the website's report templates (test_templates header/footer/format), lab logo/address/phone branding, reports for the patient portal
   (the portal builds its own PDF from the synced results), notification to the patient on completion (existing send-email / send-whatsapp only).
+
+## Update: labels and patient editing
+- Sample labels (50x25 mm, one per page, copies) with a Code 128 barcode of the patient code. The barcode generator is verified by an
+  independent decoder (ZXing) on 7 sample codes. Printed from Register visit and from Bills.
+- Labels/receipts printed before sync keep working: when the server replaces a provisional patient code or bill number (or merges a patient by phone),
+  the old value is kept as an alias and scans still find the patient/bill.
+- Edit patient (Patients screen, double-click): offline; queued as a PATCH of that patients row (same as the website's edit); refused changes
+  restore the old details; newer server data never overwrites a waiting edit; a patient not yet on the server is updated inside its waiting visit.

@@ -88,7 +88,9 @@ public partial class MainWindow : Window
     {
         if (_patients is null)
         {
-            _patients = new PatientRegisterView(_store);
+            _patients = new PatientRegisterView(_session);
+            _patients.PatientEdited += async () => await SyncAsync();
+            _patients.RegisterVisitRequested += patient => { OnOpenRegister(null, null!); _register!.UsePatient(patient); };
             Windows.Items.Add(new TabItem { Header = "Patient Register", Content = _patients });
         }
         Windows.SelectedIndex = Windows.Items.Count - 1;

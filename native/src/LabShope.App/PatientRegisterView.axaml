@@ -7,6 +7,8 @@
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
       <TextBlock Text="Search (name, phone, ID):" VerticalAlignment="Center" />
       <TextBox x:Name="SearchBox" Width="320" />
+      <Button x:Name="EditButton" Content="Edit patient" Click="OnEdit" />
+      <Button x:Name="RegisterButton" Content="Register visit" Click="OnRegisterVisit" />
       <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
     </StackPanel>
     <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"

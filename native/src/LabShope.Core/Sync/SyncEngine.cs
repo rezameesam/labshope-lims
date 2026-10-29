@@ -71,6 +71,8 @@ public sealed class SyncEngine
     public Task<int> PullPatientsAsync(CancellationToken ct = default) =>
         PullAsync("patients", "id,patient_id,full_name,phone,gender,date_of_birth,is_active,updated_at", "patients_cursor", row =>
         {
+            // Never overwrite an edit made here that hasn't reached the server yet.
+            if (_store.HasWaitingPatientEdit(row.GetProperty("id").GetString()!)) return;
             _store.UpsertPatient(new Patient(
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!,
                 row.GetProperty("full_name").GetString()!, row.GetProperty("phone").GetString() ?? "",
@@ -172,19 +174,22 @@ public sealed class SyncEngine
                 var payload = JsonDocument.Parse(item.PayloadJson).RootElement.Clone();
                 var isPayment = item.Kind == "payment";
                 var isResult = item.Kind == "result";
-                var result = isResult
-                    ? await _api.PatchAsync("patient_tests", $"id=eq.{payload.GetProperty("id").GetString()}&organization_id=eq.{payload.GetProperty("organization_id").GetString()}", payload.GetProperty("patch"), ct)
+                var isPatientEdit = item.Kind == "patient";
+                var table = isPatientEdit ? "patients" : "patient_tests";
+                var result = isResult || isPatientEdit
+                    ? await _api.PatchAsync(table, $"id=eq.{payload.GetProperty("id").GetString()}&organization_id=eq.{payload.GetProperty("organization_id").GetString()}", payload.GetProperty("patch"), ct)
                     : await _api.RpcAsync(isPayment ? "record_payment" : "register_visit", new { p_payload = payload }, ct);
 
                 // A result update that changed no row was refused (not found, or not allowed): treat it as a permanent refusal.
-                if (isResult && result.Ok && result.Body is { ValueKind: JsonValueKind.Array } changed && changed.GetArrayLength() == 0)
-                    result = new ApiResult(403, null, "42501", "The server would not accept this result (test not found, or not allowed).");
+                if ((isResult || isPatientEdit) && result.Ok && result.Body is { ValueKind: JsonValueKind.Array } changed && changed.GetArrayLength() == 0)
+                    result = new ApiResult(403, null, "42501", isPatientEdit ? "The server would not accept this change (patient not found, or not allowed)." : "The server would not accept this result (test not found, or not allowed).");
 
-                if (result.Ok && (isResult ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
+                if (result.Ok && (isResult || isPatientEdit ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
                 {
                     var body = result.Body!.Value;
                     if (isPayment) _store.MarkPaymentSynced(item.VisitId);
                     else if (isResult) _store.ClearTestWaiting(payload.GetProperty("id").GetString()!);
+                    else if (isPatientEdit) { /* nothing to clear: the next pull confirms it */ }
                     else ApplyVisitResult(item.VisitId, payload, body);
                     _store.SetVisitStatus(item.VisitId, "done", resultJson: body.GetRawText());
                     synced++;
@@ -197,6 +202,7 @@ public sealed class SyncEngine
                 {
                     if (isPayment) RevertPayment(payload);
                     if (isResult) RevertResult(payload);
+                    if (isPatientEdit) RevertPatientEdit(payload);
                     _store.SetVisitStatus(item.VisitId, "failed", message, countAttempt: true);
                     failed++;
                     continue;
@@ -219,6 +225,15 @@ public sealed class SyncEngine
         var bill = _store.GetInvoice(invoiceId);
         _store.RemovePayment(paymentId);
         if (bill is not null) _store.SetInvoicePaid(invoiceId, Math.Max(bill.PaidAmount - amount, 0));
+    }
+
+    /// <summary>The server refused a patient change: put the old details back.</summary>
+    private void RevertPatientEdit(JsonElement payload)
+    {
+        var id = payload.GetProperty("id").GetString()!;
+        var prev = payload.GetProperty("previous");
+        if (_store.GetPatient(id) is { } now)
+            _store.UpsertPatient(now with { FullName = Opt(prev, "full_name") ?? now.FullName, Phone = Opt(prev, "phone") ?? now.Phone, Gender = Opt(prev, "gender"), DateOfBirth = Opt(prev, "date_of_birth") });
     }
 
     /// <summary>The server refused a result: put the test back on the worklist so it can be entered again.</summary>

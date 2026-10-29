@@ -612,6 +612,34 @@ public sealed class LocalStore : IDisposable
         return list;
     }
 
+    /// <summary>Rewrites the patient details inside visits still waiting to be sent (a new patient travels with its visit).</summary>
+    public void UpdateWaitingVisitPatient(string patientId, string name, string phone, string? gender, string? dob, IReadOnlyList<string> phoneVariants)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            UPDATE outbox SET payload = json_set(payload,
+                '$.patient.new.full_name', $n, '$.patient.new.phone', $p, '$.patient.new.gender', $g,
+                '$.patient.new.date_of_birth', $d, '$.patient.new.phone_variants', json($v))
+            WHERE kind = 'visit' AND status = 'pending' AND json_extract(payload, '$.patient.new.id') = $id
+            """;
+        cmd.Parameters.AddWithValue("$n", name);
+        cmd.Parameters.AddWithValue("$p", phone);
+        cmd.Parameters.AddWithValue("$g", (object?)gender ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$d", (object?)dob ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$v", System.Text.Json.JsonSerializer.Serialize(phoneVariants));
+        cmd.Parameters.AddWithValue("$id", patientId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>True when an edit of this patient is still waiting to be sent (so newer server data must not overwrite it).</summary>
+    public bool HasWaitingPatientEdit(string patientId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM outbox WHERE kind = 'patient' AND status IN ('pending','syncing') AND json_extract(payload, '$.id') = $id";
+        cmd.Parameters.AddWithValue("$id", patientId);
+        return (long)cmd.ExecuteScalar()! > 0;
+    }
+
     public void DeletePatient(string id)
     {
         using var cmd = _db.CreateCommand();

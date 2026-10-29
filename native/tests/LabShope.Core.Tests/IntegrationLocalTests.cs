@@ -91,6 +91,14 @@ public class IntegrationLocalTests
         Assert.True(stranger.Ok);
         Assert.Equal(0, stranger.Body!.Value.GetArrayLength());
 
+        // Editing a synced patient on this PC updates the real patients row.
+        var synced = store.SearchPatients("Native Integration").First();
+        new PatientService(store, org).Edit(synced.Id, new PatientEdit("Native Integration Patient Edited", synced.Phone, "female", "1991-02-03"));
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+        var patientRow = (await api.SelectAsync("patients", $"select=full_name,gender,date_of_birth&id=eq.{synced.Id}")).Body!.Value[0];
+        Assert.Equal(("Native Integration Patient Edited", "female", "1991-02-03"),
+            (patientRow.GetProperty("full_name").GetString(), patientRow.GetProperty("gender").GetString(), patientRow.GetProperty("date_of_birth").GetString()));
+
         // The server refuses to be paid twice for the same thing: replaying the same payment changes nothing.
         var payment = store.PaymentsFor(visit.VisitId).First();
         var replay = await api.RpcAsync("record_payment", new { p_payload = new { payment_id = payment.Id, invoice_id = visit.VisitId, organization_id = org, amount = payment.Amount, payment_method = payment.Method } });

@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.VisualTree;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using LabShope.Core.Account;
@@ -363,6 +364,75 @@ public class ResultsViewTests : IDisposable
     public void Dispose()
     {
         // Close the windows first so no late UI event touches a closed database.
+        foreach (var w in _windows) w.Close();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
+
+public class PatientScreenTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-ui-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    private readonly AppSession _session;
+    private readonly List<Window> _windows = [];
+
+    public PatientScreenTests()
+    {
+        _store = new LocalStore(_path);
+        _store.UpsertPatient(new Patient("p1", "IRM-0007", "Asha Rao", "+919876543210", "female", "1990-05-01"));
+        _store.UpsertPatient(new Patient("p2", "IRM-0008", "Ravi Kumar", "+918888888888", "male", null));
+        var api = new Core.Net.SupabaseApi(new System.Net.Http.HttpClient(), "https://x.supabase.co", "anon");
+        _session = new AppSession(new Core.Account.Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), _store,
+            new Core.Sync.SyncRunner(new Core.Sync.SyncEngine(_store, api, "org-1"), _store), new Core.Account.AccountService(api, _path + ".json"));
+    }
+
+    private static T Find<T>(Control root, string name) where T : Control => root.FindControl<T>(name)!;
+
+    [AvaloniaFact]
+    public void SearchFiltersAndRegisterVisitHandsThePatientOver()
+    {
+        var view = new PatientRegisterView(_session);
+        var window = new Window { Width = 1100, Height = 500, Content = view };
+        window.Show(); _windows.Add(window);
+
+        Find<TextBox>(view, "SearchBox").Text = "ravi";
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var grid = Find<DataGrid>(view, "Grid");
+        Assert.Equal(["Ravi Kumar"], grid.ItemsSource.Cast<Patient>().Select(p => p.FullName));
+
+        Patient? asked = null;
+        view.RegisterVisitRequested += p => asked = p;
+        grid.SelectedIndex = 0;
+        Find<Button>(view, "RegisterButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("p2", asked!.Id);
+    }
+
+    [AvaloniaFact]
+    public void TheEditDialogSavesChangesAndShowsProblemsInPlainWords()
+    {
+        var service = new Core.Visits.PatientService(_store, "org-1");
+        var dialog = new PatientDialog(service, _store.GetPatient("p1")!);
+        dialog.Show(); _windows.Add(dialog);
+
+        Find<TextBox>(dialog, "PhoneBox").Text = "88888 88888"; // Ravi's number
+        var save = dialog.GetVisualDescendants().OfType<Button>().Single(b => (b.Content as string) == "Save");
+        save.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Contains("Ravi Kumar", Find<TextBlock>(dialog, "ErrorText").Text);
+        Assert.Null(dialog.Result);
+
+        Find<TextBox>(dialog, "PhoneBox").Text = "98765 43299";
+        Find<TextBox>(dialog, "NameBox").Text = "Asha R. Rao";
+        save.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal("Asha R. Rao", _store.GetPatient("p1")!.FullName);
+        Assert.Equal((1, 0), _store.OutboxCounts());
+    }
+
+    public void Dispose()
+    {
         foreach (var w in _windows) w.Close();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         _store.Dispose();
