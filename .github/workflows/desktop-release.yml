@@ -3,12 +3,11 @@ name: Desktop Release
 # Builds the LabShope LIMS desktop app for macOS, Ubuntu/Linux and Windows and
 # attaches every bundle to the GitHub release that triggered the run.
 #
-# Run it manually (Actions -> Desktop Release -> Run workflow) to do a dry run:
-# the bundles are built and kept as workflow artifacts, nothing is published.
+# NOTE: this is the old Electron app. Labs now use the native app (see native-release.yml), so this no longer
+# runs when a release is published; it can still be started by hand (Actions -> Desktop Release -> Run workflow).
+# Run it manually to do a dry run: the bundles are built and kept as workflow artifacts, nothing is published.
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
