@@ -23,6 +23,9 @@ import SyncStatusBadge from "@/components/offline/SyncStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useOffline } from "@/contexts/OfflineContext";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { resolveScan } from "@/lib/scanner/resolveScan";
 import logo from "@/assets/logo.png";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import LabSelector from "@/components/admin/LabSelector";
@@ -110,6 +113,29 @@ const AdminDashboard = () => {
     organizationSlug: organization?.slug,
     userEmail: user?.email,
   });
+
+  const { db: offlineDb } = useOffline();
+
+  // A barcode scan (patient ID or invoice number) opens that patient's tests from any screen.
+  useBarcodeScanner(async (code) => {
+    if (!offlineDb) return;
+    const match = await resolveScan(offlineDb, code);
+    const patient = match.kind === "patient" ? match.patient : match.kind === "invoice" ? match.patient : null;
+    if (!patient) {
+      toast.error(match.kind === "none" ? `No patient or bill found for "${match.code}"` : "That bill's patient isn't on this computer yet");
+      return;
+    }
+    setSelectedPatientForTests({
+      id: patient.id,
+      patient_id: patient.patient_id,
+      full_name: patient.full_name,
+      phone: patient.phone,
+      lab_id: patient.lab_id,
+      collection_center_id: patient.collection_center_id,
+    });
+    setDashboardTab("tests");
+    toast.success(`${patient.full_name} (${patient.patient_id})`);
+  }, Boolean(user && isStaff));
 
   const setDashboardTab = (tab: TabType) => {
     setActiveTab(tab);

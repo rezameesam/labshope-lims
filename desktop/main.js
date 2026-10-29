@@ -323,6 +323,15 @@ async function clearSavedData() {
   loadWorkspace();
 }
 
+const canAutoStart = () => app.isPackaged && ["darwin", "win32"].includes(process.platform);
+
+function setAutoStart(enabled) {
+  writeSettings({ autoStart: enabled });
+  if (canAutoStart()) app.setLoginItemSettings({ openAtLogin: enabled });
+}
+
+let checkForUpdates = null;
+
 function buildMenu() {
   const isMac = process.platform === "darwin";
   const template = [
@@ -332,6 +341,13 @@ function buildMenu() {
       submenu: [
         { label: "Change Workspace…", click: showSetup },
         { label: "Clear Saved Data…", click: () => void clearSavedData() },
+        {
+          label: "Open LabShope when I sign in to this computer",
+          type: "checkbox",
+          checked: Boolean(readSettings().autoStart),
+          enabled: canAutoStart(),
+          click: (item) => setAutoStart(item.checked),
+        },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
       ],
@@ -356,6 +372,17 @@ function buildMenu() {
       role: "help",
       submenu: [
         { label: `Version ${app.getVersion()}`, enabled: false },
+        {
+          label: "Check for Updates…",
+          click: async () => {
+            if (!checkForUpdates) {
+              await dialog.showMessageBox(mainWindow, { type: "info", message: "Updates are installed automatically in the installed app." });
+              return;
+            }
+            const found = await checkForUpdates();
+            if (!found) await dialog.showMessageBox(mainWindow, { type: "info", message: "You're up to date.", detail: `LabShope LIMS ${app.getVersion()}` });
+          },
+        },
         { label: "Releases", click: () => openExternalSafe(RELEASES_URL) },
       ],
     },
@@ -392,6 +419,16 @@ function setupAutoUpdate() {
   const check = () => autoUpdater.checkForUpdates().catch((error) => {
     console.error("Update check failed:", error?.message || error);
   });
+  // Manual check from the Help menu: true when a newer version is being downloaded.
+  checkForUpdates = async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      return Boolean(result?.isUpdateAvailable);
+    } catch (error) {
+      console.error("Update check failed:", error?.message || error);
+      return false;
+    }
+  };
   void check();
   setInterval(check, UPDATE_CHECK_INTERVAL_MS).unref();
 }
@@ -413,10 +450,16 @@ if (!app.requestSingleInstanceLock()) {
       callback(allowed.includes(permission) && isInternalUrl(webContents.getURL()));
     });
 
+    app.setAboutPanelOptions({
+      applicationName: "LabShope LIMS",
+      applicationVersion: app.getVersion(),
+      copyright: "© LabShope",
+    });
+    if (canAutoStart()) app.setLoginItemSettings({ openAtLogin: Boolean(readSettings().autoStart) });
+    setupAutoUpdate();
     buildMenu();
     setupBundledApp();
     createWindow();
-    setupAutoUpdate();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
