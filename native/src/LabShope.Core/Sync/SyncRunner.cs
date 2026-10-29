@@ -9,13 +9,17 @@ public sealed record SyncStatus(bool Online, bool NeedsSignIn, int Pending, int 
 public sealed class SyncRunner
 {
     private readonly SyncEngine _engine;
+    private readonly Net.SupabaseApi? _api;
+    private readonly string? _organizationId;
     private readonly string? _slug;
     private readonly string _labName;
     private readonly LocalStore _store;
     private DateTimeOffset? _lastSyncedAt;
 
-    public SyncRunner(SyncEngine engine, LocalStore store, string? slug = null, string labName = "")
+    public SyncRunner(SyncEngine engine, LocalStore store, string? slug = null, string labName = "", Net.SupabaseApi? api = null, string? organizationId = null)
     {
+        _api = api;
+        _organizationId = organizationId;
         _slug = slug;
         _labName = labName;
         _engine = engine;
@@ -31,6 +35,7 @@ public sealed class SyncRunner
 
             await _engine.PullCatalogAsync(ct: ct);
             if (_slug is not null) await _engine.PullBrandingAsync(_slug, _labName, ct: ct);
+            if (_api is not null && _organizationId is not null) await Visits.SubscriptionService.RefreshAsync(_api, _store, _organizationId, ct: ct);
             await _engine.PullPatientsAsync(ct);
             await _engine.PullPatientTestsAsync(ct);
             await _engine.PullBookingsAsync(ct);

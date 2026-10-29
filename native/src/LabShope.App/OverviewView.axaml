@@ -42,6 +42,13 @@
         </Border>
       </UniformGrid>
 
+      <Border x:Name="PlanCard" Classes="card" IsVisible="False">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <mi:MaterialIcon x:Name="PlanIcon" Kind="InformationOutline" Width="20" Height="20" />
+          <TextBlock x:Name="PlanText" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
       <Border x:Name="AttentionCard" Classes="card" IsVisible="False" Background="#FFF8E6" BorderBrush="#F2D488">
         <StackPanel Orientation="Horizontal" Spacing="10">
           <mi:MaterialIcon Kind="AlertCircleOutline" Width="20" Height="20" Foreground="{StaticResource WarnBrush}" />

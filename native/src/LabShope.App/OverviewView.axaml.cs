@@ -40,6 +40,24 @@ public partial class OverviewView : UserControl
         AttentionCard.IsVisible = d.NeedAttention > 0;
         AttentionText.Text = $"{d.NeedAttention} item{(d.NeedAttention == 1 ? "" : "s")} could not be sent to the server and need attention. Your other work is not affected.";
 
+        // Subscription notice (trial ending, suspended...), from what was last read from the server.
+        var notice = LabShope.Core.Visits.SubscriptionService.Notice(LabShope.Core.Visits.SubscriptionService.Cached(_session.Store), DateTimeOffset.Now);
+        PlanCard.IsVisible = notice is not null;
+        if (notice is not null)
+        {
+            var (fg, bg, border, icon) = notice.Level switch
+            {
+                LabShope.Core.Visits.NoticeLevel.Danger => ("#C53030", "#FDE8E8", "#F4B4B4", Material.Icons.MaterialIconKind.AlertCircleOutline),
+                LabShope.Core.Visits.NoticeLevel.Warning => ("#B7791F", "#FFF8E6", "#F2D488", Material.Icons.MaterialIconKind.ClockAlertOutline),
+                _ => ("#0B81B7", "#E7F3F9", "#B8DCEC", Material.Icons.MaterialIconKind.InformationOutline),
+            };
+            PlanCard.Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(bg));
+            PlanCard.BorderBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(border));
+            PlanIcon.Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(fg));
+            PlanIcon.Kind = icon;
+            PlanText.Text = notice.Text;
+        }
+
         RecentGrid.ItemsSource = _session.Store.SearchBills("", limit: 8);
     }
 
