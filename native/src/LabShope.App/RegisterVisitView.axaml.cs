@@ -224,7 +224,7 @@ public partial class RegisterVisitView : UserControl
 
     private void OnPrintReceipt(object? sender, RoutedEventArgs e)
     {
-        if (_lastReceipt is not null) ReceiptPrinter.Open(_lastReceipt, _session.Workspace.OrganizationName);
+        if (_lastReceipt is not null) ReceiptPrinter.Open(_lastReceipt, _session.Workspace.OrganizationName, _session.Store.GetBranding(_session.Workspace.OrganizationName));
     }
 
     private void Clear()

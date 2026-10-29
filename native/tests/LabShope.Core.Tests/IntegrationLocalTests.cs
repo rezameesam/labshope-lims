@@ -99,6 +99,10 @@ public class IntegrationLocalTests
         Assert.Equal(("Native Integration Patient Edited", "female", "1991-02-03"),
             (patientRow.GetProperty("full_name").GetString(), patientRow.GetProperty("gender").GetString(), patientRow.GetProperty("date_of_birth").GetString()));
 
+        // The lab's branding comes from the same public lookup the website uses.
+        Assert.True(await engine.PullBrandingAsync("it-org", "fallback", force: true));
+        Assert.Equal("IT Org", store.GetBranding("fallback").Name);
+
         // The server refuses to be paid twice for the same thing: replaying the same payment changes nothing.
         var payment = store.PaymentsFor(visit.VisitId).First();
         var replay = await api.RpcAsync("record_payment", new { p_payload = new { payment_id = payment.Id, invoice_id = visit.VisitId, organization_id = org, amount = payment.Amount, payment_method = payment.Method } });

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using LabShope.Core.Data;
 
 namespace LabShope.Core.Visits;
 
@@ -9,7 +10,7 @@ namespace LabShope.Core.Visits;
 /// </summary>
 public static class ReceiptHtml
 {
-    public static string Build(Receipt r, string labName)
+    public static string Build(Receipt r, string labName, Branding? branding = null)
     {
         string E(string? v) => WebUtility.HtmlEncode(v ?? "");
         string M(decimal v) => v.ToString("0.00");
@@ -21,7 +22,15 @@ public static class ReceiptHtml
           .Append("table{width:100%;border-collapse:collapse;margin-top:6px}td{padding:2px 0}td.r{text-align:right}")
           .Append("hr{border:0;border-top:1px dashed #000;margin:6px 0}.b{font-weight:700}.w{border:1px solid #000;padding:2px 4px;margin-top:6px;font-size:11px;text-align:center}")
           .Append("@media print{.no{display:none}}</style></head><body>");
-        sb.Append("<h1>").Append(E(labName)).Append("</h1><div class=\"c s\">Payment receipt</div><hr>");
+        if (branding?.LogoDataUri is { Length: > 0 } logo) sb.Append("<div class=\"c\"><img src=\"").Append(E(logo)).Append("\" alt=\"\" style=\"height:34px;max-width:60mm;object-fit:contain\"></div>");
+        sb.Append("<h1>").Append(E(branding?.Name ?? labName)).Append("</h1>");
+        if (branding is not null)
+        {
+            var contact = string.Join(", ", branding.AddressLines);
+            if (contact.Length > 0) sb.Append("<div class=\"c s\">").Append(E(contact)).Append("</div>");
+            if (!string.IsNullOrWhiteSpace(branding.Phone)) sb.Append("<div class=\"c s\">Phone: ").Append(E(branding.Phone)).Append("</div>");
+        }
+        sb.Append("<div class=\"c s\">Payment receipt</div><hr>");
         sb.Append("<table><tr><td>Bill no.</td><td class=\"r b\">").Append(E(r.InvoiceNumber)).Append("</td></tr>")
           .Append("<tr><td>Date</td><td class=\"r\">").Append(E(DateTimeOffset.Parse(r.PaidAt).ToLocalTime().ToString("dd MMM yyyy HH:mm"))).Append("</td></tr>")
           .Append("<tr><td>Patient</td><td class=\"r\">").Append(E(r.PatientName)).Append("</td></tr></table><hr>");

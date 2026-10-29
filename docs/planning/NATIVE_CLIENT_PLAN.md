@@ -107,3 +107,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   The version comes from the release tag (`v1.2.3`). Verified locally: macOS arm64 .pkg builds (47 MB) and the packaged app starts at the login screen.
 - Not signed or notarized yet (macOS will warn on first open; Windows SmartScreen will warn). Signing needs an Apple Developer ID and a Windows code-signing
   certificate. Auto-update (Velopack) needs a public place to serve the update files; the repo is private.
+
+## Update: design pass + branding
+- Premium design: the website's clinical blue/navy as a design system (cards, status badges, refined tables, icons), navy sidebar with icons,
+  top bar with a live sync badge, a home screen (visits today, tests to do, takings today, still to collect, recent bills, quick actions),
+  empty states, a new split-panel login. Screens are checked by rendering them headless (DesignReviewTests with LABSHOPE_SHOT_DIR=...).
+- Branding: name, address, phone, email, logo (embedded for offline printing), report tagline and footer wording come from the same public lab
+  lookup the website uses (get_public_organization_context) and are used on receipts and reports. Refreshed at most every 6 hours.

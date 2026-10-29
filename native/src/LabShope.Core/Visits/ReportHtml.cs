@@ -10,13 +10,13 @@ public sealed record ReportSection(string TestName, IReadOnlyList<ReportLine> Li
 
 public sealed record ReportData(
     string LabName, string PatientName, string PatientCode, string? Gender, string? Age, string Phone,
-    string ReportDate, IReadOnlyList<ReportSection> Sections, bool Provisional = false);
+    string ReportDate, IReadOnlyList<ReportSection> Sections, bool Provisional = false, Branding? Branding = null);
 
 /// <summary>Builds a patient's report from the completed tests held on this PC (works offline).</summary>
 public static class ReportBuilder
 {
     /// <summary>All completed tests for the patient on the given date. Returns null when there is nothing to report.</summary>
-    public static ReportData? For(LocalStore store, string labName, string patientId, string testDate, DateTimeOffset? now = null)
+    public static ReportData? For(LocalStore store, string labName, string patientId, string testDate, DateTimeOffset? now = null, Branding? branding = null)
     {
         var patient = store.GetPatient(patientId);
         if (patient is null) return null;
@@ -27,7 +27,7 @@ public static class ReportBuilder
 
         var sections = done.Select(t => Section(store, t)).ToList();
         return new ReportData(labName, patient.FullName, patient.PatientCode, patient.Gender, AgeOf(patient.DateOfBirth, now ?? DateTimeOffset.Now),
-            patient.Phone, testDate, sections, Provisional: done.Any(t => t.Waiting));
+            patient.Phone, testDate, sections, Provisional: done.Any(t => t.Waiting), Branding: branding);
     }
 
     private static ReportSection Section(LocalStore store, PatientTest t)
@@ -73,8 +73,18 @@ public static class ReportHtml
           .Append("td{padding:3px 4px;border-bottom:1px solid #e3e3e3}td.v{font-weight:600}.abn{font-weight:700}.abn td.v::after{content:' *'}")
           .Append(".note{margin-top:22px;font-size:11px;color:#555}.warn{margin:8px 0;padding:4px 8px;border:1px solid #b36b00;color:#b36b00;font-size:12px}")
           .Append("</style></head><body>");
-        sb.Append("<div class=\"head\"><div><h1>").Append(E(r.LabName)).Append("</h1><div>Laboratory report</div></div><div style=\"text-align:right\">Report date<br><b>")
-          .Append(E(r.ReportDate)).Append("</b></div></div>");
+        var b = r.Branding;
+        sb.Append("<div class=\"head\"><div style=\"display:flex;gap:12px;align-items:center\">");
+        if (b?.LogoDataUri is { Length: > 0 } logo) sb.Append("<img src=\"").Append(E(logo)).Append("\" alt=\"\" style=\"height:54px;max-width:120px;object-fit:contain\">");
+        sb.Append("<div><h1>").Append(E(b?.Name ?? r.LabName)).Append("</h1>");
+        if (b is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(b.ReportTagline)) sb.Append("<div>").Append(E(b.ReportTagline)).Append("</div>");
+            var contact = string.Join("  |  ", b.AddressLines.Concat(new[] { b.Phone is null ? null : "Phone: " + b.Phone, b.Email }.Where(x => !string.IsNullOrWhiteSpace(x))!));
+            if (contact.Length > 0) sb.Append("<div style=\"font-size:11px;color:#444\">").Append(E(contact)).Append("</div>");
+        }
+        else sb.Append("<div>Laboratory report</div>");
+        sb.Append("</div></div><div style=\"text-align:right\">Report date<br><b>").Append(E(r.ReportDate)).Append("</b></div></div>");
         sb.Append("<div class=\"meta\"><div>Patient: <b>").Append(E(r.PatientName)).Append("</b></div><div>Patient ID: <b>").Append(E(r.PatientCode)).Append("</b></div>")
           .Append("<div>Age / sex: ").Append(E(string.Join(" / ", new[] { r.Age, r.Gender }.Where(x => !string.IsNullOrWhiteSpace(x))))).Append("</div><div>Phone: ").Append(E(r.Phone)).Append("</div></div>");
         if (r.Provisional) sb.Append("<div class=\"warn\">Preliminary: some of these results have not been confirmed by the server yet.</div>");
@@ -87,7 +97,7 @@ public static class ReportHtml
                   .Append("</td><td>").Append(E(l.Unit)).Append("</td><td>").Append(E(l.Reference)).Append("</td></tr>");
             sb.Append("</table>");
         }
-        sb.Append("<div class=\"note\">* Outside the reference range. This is a computer generated report.</div></body></html>");
+        sb.Append("<div class=\"note\">* Outside the reference range. ").Append(E(r.Branding?.ReportFooterNote ?? "This is a computer generated report.")).Append("</div></body></html>");
         return sb.ToString();
     }
 }

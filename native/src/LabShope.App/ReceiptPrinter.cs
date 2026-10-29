@@ -6,8 +6,8 @@ namespace LabShope.App;
 /// <summary>Opens printable pages (receipts, reports) in the system browser, ready to print on any printer.</summary>
 public static class ReceiptPrinter
 {
-    public static void Open(Receipt receipt, string labName) =>
-        OpenHtml($"receipt-{receipt.InvoiceNumber}-{receipt.PaymentId[..8]}", ReceiptHtml.Build(receipt, labName));
+    public static void Open(Receipt receipt, string labName, LabShope.Core.Data.Branding? branding = null) =>
+        OpenHtml($"receipt-{receipt.InvoiceNumber}-{receipt.PaymentId[..8]}", ReceiptHtml.Build(receipt, labName, branding));
 
     public static void OpenHtml(string name, string html)
     {

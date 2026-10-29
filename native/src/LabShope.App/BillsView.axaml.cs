@@ -46,7 +46,7 @@ public partial class BillsView : UserControl
 
         MessageText.Text = $"Received {dialog.Result.Amount:0.##} from {bill.PatientName}. Balance {dialog.Result.Balance:0.##}.";
         Refresh();
-        ReceiptPrinter.Open(dialog.Result, _session.Workspace.OrganizationName);
+        ReceiptPrinter.Open(dialog.Result, _session.Workspace.OrganizationName, _session.Store.GetBranding(_session.Workspace.OrganizationName));
         PaymentTaken?.Invoke();
     }
 
@@ -65,6 +65,6 @@ public partial class BillsView : UserControl
         var last = _session.Store.PaymentsFor(bill.Id).LastOrDefault();
         var receipt = last is null ? null : payments.ReceiptFor(last.Id, bill.Id);
         if (receipt is null) { MessageText.Text = "No payment has been received on that bill yet."; return; }
-        ReceiptPrinter.Open(receipt, _session.Workspace.OrganizationName);
+        ReceiptPrinter.Open(receipt, _session.Workspace.OrganizationName, _session.Store.GetBranding(_session.Workspace.OrganizationName));
     }
 }
