@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:data="using:LabShope.Core.Data"
+        xmlns:v="using:LabShope.Core.Visits"
+        x:Class="LabShope.App.BillDetailsDialog"
+        Title="Bill details" Width="820" Height="700" MinWidth="700" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="24">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Content="Close" Click="OnClose" Padding="20,8" />
+    </StackPanel>
+    <ScrollViewer>
+      <StackPanel Spacing="14">
+        <StackPanel Spacing="2">
+          <TextBlock x:Name="Heading" Classes="h2" />
+          <TextBlock x:Name="SubHeading" Classes="muted" TextWrapping="Wrap" />
+        </StackPanel>
+        <Border Classes="card" Padding="16,12">
+          <TextBlock x:Name="Amounts" FontSize="14" TextWrapping="Wrap" />
+        </Border>
+        <Border x:Name="NoticeBox" Background="#FFF8E6" BorderBrush="#F2D488" BorderThickness="1" CornerRadius="8" Padding="12,10" IsVisible="False">
+          <TextBlock x:Name="NoticeText" TextWrapping="Wrap" Foreground="{StaticResource WarnBrush}" />
+        </Border>
+
+        <TextBlock Text="Items" Classes="h2" FontSize="15" />
+        <DataGrid x:Name="ItemGrid" x:DataType="v:BillItem" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="220">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="TEST" Binding="{Binding TestName}" Width="*" />
+            <DataGridTextColumn Header="PRICE" Binding="{Binding UnitPrice}" Width="100" />
+            <DataGridTextColumn Header="QTY" Binding="{Binding Quantity}" Width="70" />
+            <DataGridTextColumn Header="AMOUNT" Binding="{Binding Amount}" Width="110" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Text="Payments" Classes="h2" FontSize="15" />
+        <DataGrid x:Name="PaymentGrid" x:DataType="v:BillPayment" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="220">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="WHEN" Binding="{Binding When}" Width="170" />
+            <DataGridTextColumn Header="AMOUNT" Binding="{Binding Amount}" Width="100" />
+            <DataGridTextColumn Header="METHOD" Binding="{Binding MethodText}" Width="110" />
+            <DataGridTextColumn Header="REFERENCE" Binding="{Binding TransactionId}" Width="120" />
+            <DataGridTextColumn Header="RECEIVED BY" Binding="{Binding ReceivedBy}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Text="History of changes" Classes="h2" FontSize="15" />
+        <DataGrid x:Name="HistoryGrid" x:DataType="v:BillHistoryEntry" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="240">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="WHEN" Binding="{Binding When}" Width="170" />
+            <DataGridTextColumn Header="WHAT" Binding="{Binding What}" Width="150" />
+            <DataGridTextColumn Header="DETAILS" Binding="{Binding Summary}" Width="*" />
+            <DataGridTextColumn Header="BY" Binding="{Binding ChangedBy}" Width="140" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

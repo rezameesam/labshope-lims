@@ -160,18 +160,26 @@ public sealed class LocalStore : IDisposable
     }
 
     /// <summary>Bills with the patient's name, newest first. Matches the bill number, the patient's name, phone or ID.</summary>
-    public IReadOnlyList<BillRow> SearchBills(string text, bool onlyUnpaid = false, int limit = 500)
+    /// <param name="status">pending, partial or paid (null: any).</param>
+    /// <param name="fromIso">Only bills created at or after this moment (UTC, ISO text); <paramref name="toIso"/> before this one.</param>
+    public IReadOnlyList<BillRow> SearchBills(string text, bool onlyUnpaid = false, int limit = 500, string? status = null, string? fromIso = null, string? toIso = null)
     {
         var words = text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         using var cmd = _db.CreateCommand();
         var where = words.Select((_, n) => $"(LOWER(i.invoice_number) LIKE $w{n} OR p.search LIKE $w{n})").ToList();
         if (onlyUnpaid) where.Add("COALESCE(i.payment_status,'pending') <> 'paid'");
+        if (status is not null) where.Add("COALESCE(i.payment_status,'pending') = $status");
+        if (fromIso is not null) where.Add("i.created_at >= $from");
+        if (toIso is not null) where.Add("i.created_at < $to");
         cmd.CommandText = "SELECT i.id, i.invoice_number, i.patient_id, COALESCE(p.full_name,''), COALESCE(p.patient_code,''), i.total_amount, i.paid_amount, COALESCE(i.payment_status,'pending'), i.created_at, i.discount " +
                           "FROM invoices i LEFT JOIN patients p ON p.id = i.patient_id " +
                           (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "") +
                           "ORDER BY i.created_at DESC LIMIT $limit";
         for (var n = 0; n < words.Length; n++) cmd.Parameters.AddWithValue($"$w{n}", $"%{words[n]}%");
         cmd.Parameters.AddWithValue("$limit", limit);
+        if (status is not null) cmd.Parameters.AddWithValue("$status", status);
+        if (fromIso is not null) cmd.Parameters.AddWithValue("$from", fromIso);
+        if (toIso is not null) cmd.Parameters.AddWithValue("$to", toIso);
         var list = new List<BillRow>();
         using var r = cmd.ExecuteReader();
         while (r.Read())

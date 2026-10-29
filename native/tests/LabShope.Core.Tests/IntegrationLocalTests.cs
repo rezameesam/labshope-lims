@@ -204,6 +204,28 @@ public class IntegrationLocalTests
         Assert.True(replay.Ok, replay.ErrorMessage);
         Assert.True(replay.Body!.Value.GetProperty("replayed").GetBoolean());
 
+        // The bill's details as the website shows them: items, payments with who took them, and the history the server kept.
+        var details = await BillingAdmin.LoadAsync(api, org, visit.VisitId);
+        Assert.Null(details.Error);
+        Assert.Equal(["CBC", "LFT"], details.Items.Select(i => i.TestName).OrderBy(n => n));
+        Assert.Equal(750m, details.Payments.Sum(p => p.Amount));
+        Assert.Contains(details.History, h => h.Action == "invoice_created");
+        Assert.Contains(details.History, h => h.Action == "payment_recorded" && h.Summary.StartsWith("300"));
+
+        // Editing the bill as an admin (a price and a discount): the server stores it and the status follows what was paid.
+        var cbcItem = details.Items.Single(i => i.TestName == "CBC");
+        var lftItem = details.Items.Single(i => i.TestName == "LFT");
+        var edit = await BillingAdmin.EditAsync(api, org, session.UserId, true, store.GetInvoice(visit.VisitId)!,
+            [new(cbcItem.Id, 250m, cbcItem.Quantity), new(lftItem.Id, lftItem.UnitPrice, lftItem.Quantity)], 50m);
+        Assert.True(edit.Ok, edit.Error);
+        var edited = (await api.SelectAsync("invoices", $"select=total_amount,discount_amount,final_amount,payment_status,discount_entered_by&id=eq.{visit.VisitId}")).Body!.Value[0];
+        Assert.Equal((700m, 50m, 650m, "paid"), (edited.GetProperty("total_amount").GetDecimal(), edited.GetProperty("discount_amount").GetDecimal(),
+            edited.GetProperty("final_amount").GetDecimal(), edited.GetProperty("payment_status").GetString())); // 750 was paid: nothing left to pay
+        Assert.Equal(session.UserId, edited.GetProperty("discount_entered_by").GetString());
+        var reloaded = await BillingAdmin.LoadAsync(api, org, visit.VisitId);
+        Assert.Equal(250m, reloaded.Items.Single(i => i.TestName == "CBC").UnitPrice);
+        Assert.Contains(reloaded.History, h => h.Action is "discount_updated" or "invoice_updated");
+
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         File.Delete(path);
     }
