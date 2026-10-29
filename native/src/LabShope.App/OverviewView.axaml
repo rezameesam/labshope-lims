@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.OverviewView">
+  <ScrollViewer>
+    <StackPanel Spacing="20" MaxWidth="1180" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="2">
+        <TextBlock x:Name="Greeting" Classes="h1" />
+        <TextBlock x:Name="DateLine" Classes="muted" />
+      </StackPanel>
+
+      <UniformGrid Columns="4">
+        <Border Classes="card" Margin="0,0,14,0">
+          <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="ClipboardPlusOutline" Width="18" Height="18" Foreground="{StaticResource PrimaryBrush}" /><TextBlock Text="VISITS TODAY" Classes="label" VerticalAlignment="Center" /></StackPanel>
+            <TextBlock x:Name="VisitsValue" FontSize="30" FontWeight="SemiBold" />
+            <TextBlock Text="registered at the counter" Classes="muted" />
+          </StackPanel>
+        </Border>
+        <Border Classes="card" Margin="0,0,14,0">
+          <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="TestTube" Width="18" Height="18" Foreground="{StaticResource PrimaryBrush}" /><TextBlock Text="TESTS TO DO" Classes="label" VerticalAlignment="Center" /></StackPanel>
+            <TextBlock x:Name="TestsValue" FontSize="30" FontWeight="SemiBold" />
+            <TextBlock Text="waiting for a result" Classes="muted" />
+          </StackPanel>
+        </Border>
+        <Border Classes="card" Margin="0,0,14,0">
+          <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CashMultiple" Width="18" Height="18" Foreground="{StaticResource SuccessBrush}" /><TextBlock Text="TAKINGS TODAY" Classes="label" VerticalAlignment="Center" /></StackPanel>
+            <TextBlock x:Name="TakingsValue" FontSize="30" FontWeight="SemiBold" />
+            <TextBlock Text="cash, UPI and cards" Classes="muted" />
+          </StackPanel>
+        </Border>
+        <Border Classes="card">
+          <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="ReceiptTextClockOutline" Width="18" Height="18" Foreground="{StaticResource WarnBrush}" /><TextBlock Text="STILL TO COLLECT" Classes="label" VerticalAlignment="Center" /></StackPanel>
+            <TextBlock x:Name="UnpaidValue" FontSize="30" FontWeight="SemiBold" />
+            <TextBlock x:Name="UnpaidSub" Classes="muted" />
+          </StackPanel>
+        </Border>
+      </UniformGrid>
+
+      <Border x:Name="AttentionCard" Classes="card" IsVisible="False" Background="#FFF8E6" BorderBrush="#F2D488">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <mi:MaterialIcon Kind="AlertCircleOutline" Width="20" Height="20" Foreground="{StaticResource WarnBrush}" />
+          <TextBlock x:Name="AttentionText" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Grid ColumnDefinitions="*,16,Auto">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Recent bills" Classes="h2" />
+          <DataGrid x:Name="RecentGrid" x:DataType="data:BillRow" AutoGenerateColumns="False" IsReadOnly="True" Height="330">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="BILL" Binding="{Binding Number}" Width="200" />
+              <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientName}" Width="*" />
+              <DataGridTextColumn Header="TOTAL" Binding="{Binding TotalAmount}" Width="90" />
+              <DataGridTextColumn Header="BALANCE" Binding="{Binding Balance}" Width="100" />
+              <DataGridTemplateColumn Header="STATUS" Width="110">
+                <DataTemplate x:DataType="data:BillRow">
+                  <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding PaymentStatus, Converter={x:Static app:Pills.Background}}">
+                    <TextBlock Text="{Binding PaymentStatus}" Foreground="{Binding PaymentStatus, Converter={x:Static app:Pills.Foreground}}" />
+                  </Border>
+                </DataTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Spacing="10" Width="260">
+          <TextBlock Text="Quick actions" Classes="h2" />
+          <Button Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnRegister">
+            <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="PlusCircleOutline" Width="18" Height="18" /><TextBlock Text="Register a visit" /></StackPanel>
+          </Button>
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnResults">
+            <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="TestTube" Width="18" Height="18" /><TextBlock Text="Enter results" /></StackPanel>
+          </Button>
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnBills">
+            <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="ReceiptTextOutline" Width="18" Height="18" /><TextBlock Text="Collect a payment" /></StackPanel>
+          </Button>
+          <Border Classes="card" Margin="0,8,0,0" Padding="14">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Barcode scanner" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" TextWrapping="Wrap" Text="Scan a patient card or bill from any screen and the patient opens at once." />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

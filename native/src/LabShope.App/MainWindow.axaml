@@ -1,62 +1,61 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="LabShope.App.MainWindow"
         Icon="/Assets/icon.png"
-        Title="LabShope LIMS" Width="1280" Height="800" MinWidth="960" MinHeight="600">
-  <DockPanel>
-    <Menu DockPanel.Dock="Top">
-      <MenuItem Header="_File">
-        <MenuItem Header="_Sync now" HotKey="F9" Click="OnSync" />
-        <Separator />
-        <MenuItem Header="_Sign out" Click="OnSignOut" />
-        <MenuItem Header="E_xit" HotKey="Alt+F4" Click="OnExit" />
-      </MenuItem>
-      <MenuItem Header="_Work">
-        <MenuItem Header="_Patients" HotKey="F2" Click="OnOpenPatients" />
-        <MenuItem Header="_Bills" HotKey="F3" Click="OnOpenBills" />
-        <MenuItem Header="Register _visit" HotKey="F4" Click="OnOpenRegister" />
-        <MenuItem Header="Patient _tests and results" HotKey="F5" Click="OnOpenResults" />
-        <MenuItem Header="Lab _sheets" IsEnabled="False" />
-        <MenuItem Header="Booking _requests" IsEnabled="False" />
-      </MenuItem>
-      <MenuItem Header="_Catalog">
-        <MenuItem Header="Test catalog" IsEnabled="False" />
-        <MenuItem Header="Test packages" IsEnabled="False" />
-        <MenuItem Header="Report templates" IsEnabled="False" />
-        <MenuItem Header="Inventory" IsEnabled="False" />
-        <MenuItem Header="Doctors" IsEnabled="False" />
-      </MenuItem>
-      <MenuItem Header="_Manage">
-        <MenuItem Header="Employees" IsEnabled="False" />
-        <MenuItem Header="Labs and collection centers" IsEnabled="False" />
-        <MenuItem Header="External labs" IsEnabled="False" />
-        <MenuItem Header="_Daily cash book" HotKey="F7" Click="OnOpenCashBook" />
-        <MenuItem Header="Reports" IsEnabled="False" />
-        <MenuItem Header="Finance" IsEnabled="False" />
-      </MenuItem>
-      <MenuItem Header="_Help">
-        <MenuItem Header="_About" Click="OnAbout" />
-      </MenuItem>
-    </Menu>
+        Title="LabShope LIMS" Width="1360" Height="860" MinWidth="1100" MinHeight="700">
+  <Grid ColumnDefinitions="252,*">
 
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4" Spacing="2">
-      <Button Classes="tool" Content="Register visit (F4)" Click="OnOpenRegister" />
-      <Button Classes="tool" Content="Patients (F2)" Click="OnOpenPatients" />
-      <Button Classes="tool" Content="Results (F5)" Click="OnOpenResults" />
-      <Button Classes="tool" Content="Bills (F3)" Click="OnOpenBills" />
-      <Button Classes="tool" Content="Cash book (F7)" Click="OnOpenCashBook" />
-      <Button Classes="tool" Content="Sync (F9)" Click="OnSync" />
-    </StackPanel>
+    <!-- Sidebar -->
+    <Border Background="{StaticResource NavyBrush}">
+      <DockPanel Margin="14,16">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="6,6,6,26">
+          <Border Width="40" Height="40" CornerRadius="12" Background="{StaticResource PrimaryBrush}">
+            <mi:MaterialIcon Kind="Flask" Width="22" Height="22" Foreground="White" />
+          </Border>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="LabShope" Foreground="White" FontSize="17" FontWeight="Bold" />
+            <TextBlock x:Name="LabText" Foreground="#8FA8BB" FontSize="11" MaxWidth="150" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </StackPanel>
 
-    <Border DockPanel.Dock="Bottom" Background="#EEF1F5" BorderBrush="#C9CFD8" BorderThickness="0,1,0,0" Padding="8,3">
-      <DockPanel>
-        <TextBlock x:Name="ClockText" DockPanel.Dock="Right" />
-        <TextBlock x:Name="ScanText" DockPanel.Dock="Right" Margin="0,0,24,0" Foreground="#555" />
-        <TextBlock x:Name="LabText" DockPanel.Dock="Left" FontWeight="SemiBold" Margin="0,0,16,0" />
-        <TextBlock x:Name="StatusText" Text="Ready" />
+        <StackPanel DockPanel.Dock="Bottom" Spacing="4" Margin="0,12,0,0">
+          <Border Height="1" Background="#1AFFFFFF" Margin="6,0,6,10" />
+          <Button Classes="nav" Click="OnSync">
+            <StackPanel Orientation="Horizontal" Spacing="12"><mi:MaterialIcon Kind="Sync" Width="18" Height="18" /><TextBlock Text="Sync now" /><TextBlock Text="F9" Opacity="0.55" /></StackPanel>
+          </Button>
+          <Button Classes="nav" Click="OnSignOut">
+            <StackPanel Orientation="Horizontal" Spacing="12"><mi:MaterialIcon Kind="LogoutVariant" Width="18" Height="18" /><TextBlock Text="Sign out" /></StackPanel>
+          </Button>
+          <TextBlock x:Name="UserText" Foreground="#6F8AA0" FontSize="11" Margin="14,6,6,0" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <StackPanel x:Name="NavPanel" Spacing="4" />
       </DockPanel>
     </Border>
 
-    <TabControl x:Name="Windows" Margin="4" />
-  </DockPanel>
+    <!-- Content -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,*">
+      <Border Background="White" BorderBrush="{StaticResource BorderBrushSoft}" BorderThickness="0,0,0,1">
+        <DockPanel Margin="28,0" Height="68">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <Border x:Name="ScanChip" Classes="pill" Background="{StaticResource PrimaryLightBrush}" IsVisible="False">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="Barcode" Width="14" Height="14" Foreground="{StaticResource PrimaryBrush}" />
+                <TextBlock x:Name="ScanText" Foreground="{StaticResource PrimaryBrush}" />
+              </StackPanel>
+            </Border>
+            <Border x:Name="SyncChip" Classes="pill" Background="{StaticResource SuccessBgBrush}">
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <Ellipse x:Name="SyncDot" Width="8" Height="8" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" />
+                <TextBlock x:Name="SyncText" Foreground="{StaticResource SuccessBrush}" Text="Starting…" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <TextBlock x:Name="PageTitle" Classes="h1" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+      <ContentControl x:Name="Page" Grid.Row="1" Margin="28,24" />
+    </Grid>
+  </Grid>
 </Window>

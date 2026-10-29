@@ -26,7 +26,7 @@ public partial class LoginWindow : Window
     {
         SignInButton.IsEnabled = false;
         SignInButton.Content = "Signing in…";
-        ErrorText.IsVisible = false;
+        ErrorBox.IsVisible = false;
 
         // Second step: the account has several labs and one was picked.
         var result = LabChoice.SelectedItem is Workspace choice && ChoicePanel.IsVisible
@@ -52,7 +52,7 @@ public partial class LoginWindow : Window
         }
 
         ErrorText.Text = result.Error;
-        ErrorText.IsVisible = true;
+        ErrorBox.IsVisible = true;
         SignInButton.IsEnabled = true;
         SignInButton.Content = "Sign in";
         PasswordBox.Text = "";

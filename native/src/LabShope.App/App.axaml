@@ -1,17 +1,166 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="LabShope.App.App"
              RequestedThemeVariant="Light">
+
+  <!-- LabShope design system: the same clinical blue / navy as the website. -->
+  <Application.Resources>
+    <Color x:Key="PrimaryColor">#0B81B7</Color>
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#0B81B7" />
+    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="#085F87" />
+    <SolidColorBrush x:Key="PrimaryLightBrush" Color="#E7F3F9" />
+    <SolidColorBrush x:Key="NavyBrush" Color="#132639" />
+    <SolidColorBrush x:Key="BgBrush" Color="#F0F7F9" />
+    <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="BorderBrushSoft" Color="#D5E3EA" />
+    <SolidColorBrush x:Key="GridLineBrush" Color="#E9F0F4" />
+    <SolidColorBrush x:Key="FgBrush" Color="#16293B" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#5C7083" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#1E8E5A" />
+    <SolidColorBrush x:Key="SuccessBgBrush" Color="#E3F5EC" />
+    <SolidColorBrush x:Key="WarnBrush" Color="#B7791F" />
+    <SolidColorBrush x:Key="WarnBgBrush" Color="#FDF3DD" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#C53030" />
+    <SolidColorBrush x:Key="DangerBgBrush" Color="#FDE8E8" />
+    <BoxShadows x:Key="CardShadow">0 1 2 0 #140F1F2D, 0 4 14 -6 #140F1F2D</BoxShadows>
+  </Application.Resources>
+
   <Application.Styles>
-    <FluentTheme />
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#0B81B7" RegionColor="#FFFFFF" ErrorText="#C53030" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
-    <!-- Dense, classic desktop look: small type, tight rows, square buttons. -->
-    <Style Selector="Window"><Setter Property="FontSize" Value="13" /></Style>
-    <Style Selector="Button.tool">
-      <Setter Property="Padding" Value="10,4" />
-      <Setter Property="Margin" Value="0,0,2,0" />
-      <Setter Property="CornerRadius" Value="2" />
+    <materialIcons:MaterialIconStyles />
+
+    <!-- Base -->
+    <Style Selector="Window">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Background" Value="{StaticResource BgBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource FgBrush}" />
     </Style>
-    <Style Selector="DataGrid"><Setter Property="RowHeight" Value="24" /></Style>
+    <Style Selector="TextBlock.h1"><Setter Property="FontSize" Value="22" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.h2"><Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="{StaticResource MutedBrush}" /></Style>
+    <Style Selector="TextBlock.label"><Setter Property="FontSize" Value="11" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{StaticResource MutedBrush}" /></Style>
+
+    <!-- Cards -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource CardBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushSoft}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="18" />
+      <Setter Property="BoxShadow" Value="{StaticResource CardShadow}" />
+    </Style>
+
+    <!-- Buttons -->
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushSoft}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{StaticResource FgBrush}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource PrimaryLightBrush}" />
+      <Setter Property="BorderBrush" Value="#9CCBE2" />
+      <Setter Property="Foreground" Value="{StaticResource FgBrush}" />
+    </Style>
+    <Style Selector="Button:disabled"><Setter Property="Opacity" Value="0.45" /></Style>
+
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="18,9" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource PrimaryDarkBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <!-- Sidebar navigation -->
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="#B7CBDA" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#14FFFFFF" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#0B81B7" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
+    <!-- Inputs -->
+    <Style Selector="TextBox">
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="11,9" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="BorderBrush" Value="#C7D8E1" />
+    </Style>
+    <Style Selector="ComboBox"><Setter Property="CornerRadius" Value="8" /><Setter Property="MinHeight" Value="38" /><Setter Property="BorderBrush" Value="#C7D8E1" /></Style>
+    <Style Selector="DatePicker"><Setter Property="CornerRadius" Value="8" /></Style>
+
+    <!-- Lists (search results) -->
+    <Style Selector="ListBox"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="0" /></Style>
+    <Style Selector="ListBoxItem"><Setter Property="Padding" Value="12,9" /><Setter Property="Margin" Value="0,1" /><Setter Property="CornerRadius" Value="8" /></Style>
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#F1F7FA" /></Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#DCEEF7" /><Setter Property="Foreground" Value="{StaticResource FgBrush}" /></Style>
+    <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#CFE7F4" /></Style>
+
+    <!-- Segmented choice (two buttons side by side) -->
+    <Style Selector="Button.seg"><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="16,8" /></Style>
+    <Style Selector="Button.seg.on"><Setter Property="Background" Value="{StaticResource PrimaryBrush}" /><Setter Property="Foreground" Value="White" /><Setter Property="BorderThickness" Value="0" /></Style>
+    <Style Selector="Button.seg.on:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="{StaticResource PrimaryDarkBrush}" /><Setter Property="Foreground" Value="White" /></Style>
+
+    <!-- Status pills -->
+    <Style Selector="Border.pill"><Setter Property="CornerRadius" Value="999" /><Setter Property="Padding" Value="10,3" /></Style>
+    <Style Selector="Border.pill TextBlock"><Setter Property="FontSize" Value="11" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+
+    <!-- Tables -->
+    <Style Selector="DataGrid">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushSoft}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="RowHeight" Value="42" />
+      <Setter Property="ColumnHeaderHeight" Value="40" />
+      <Setter Property="GridLinesVisibility" Value="Horizontal" />
+      <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource GridLineBrush}" />
+      <Setter Property="SelectionMode" Value="Single" />
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+      <Setter Property="Background" Value="#F4F9FB" />
+      <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="SeparatorBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="DataGridCell"><Setter Property="FontSize" Value="13" /></Style>
+    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle"><Setter Property="Fill" Value="#F4F9FB" /><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle"><Setter Property="Fill" Value="#DCEEF7" /><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="DataGridRow:selected:focus /template/ Rectangle#BackgroundRectangle"><Setter Property="Fill" Value="#CFE7F4" /></Style>
   </Application.Styles>
 </Application>

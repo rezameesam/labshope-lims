@@ -56,7 +56,7 @@ public class RegisterVisitViewTests : IDisposable
     public void RegistersANewPatientWithTestsAndQueuesIt()
     {
         var (_, view) = Show();
-        Find<RadioButton>(view, "NewRadio").IsChecked = true;
+        Find<Button>(view, "NewButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Type(Find<TextBox>(view, "NewName"), "Ravi Kumar");
         Type(Find<TextBox>(view, "NewPhone"), "98765 00001");
 

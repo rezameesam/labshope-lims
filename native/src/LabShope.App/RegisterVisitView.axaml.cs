@@ -25,6 +25,7 @@ public partial class RegisterVisitView : UserControl
     private TestPackage? _package;
     private List<CatalogTest> _matches = [];
     private bool _payEdited;
+    private bool _existingMode = true;
     private Receipt? _lastReceipt;
     private string? _lastVisitId;
 
@@ -40,7 +41,6 @@ public partial class RegisterVisitView : UserControl
         InitializeComponent();
 
         SelectedGrid.ItemsSource = _selected;
-        ExistingRadio.IsCheckedChanged += (_, _) => UpdateMode();
         PatientSearch.TextChanged += (_, _) => SearchPatients();
         PatientResults.SelectionChanged += (_, _) => PickPatient();
         TestSearch.TextChanged += (_, _) => SearchTests();
@@ -78,21 +78,27 @@ public partial class RegisterVisitView : UserControl
         SearchTests();
     }
 
-    public void FocusFirstField() => (ExistingRadio.IsChecked == true ? PatientSearch : NewName).Focus();
+    public void FocusFirstField() => (_existingMode ? PatientSearch : NewName).Focus();
+
+    private void OnExistingMode(object? sender, RoutedEventArgs e) { _existingMode = true; UpdateMode(); }
+    private void OnNewMode(object? sender, RoutedEventArgs e) { _existingMode = false; UpdateMode(); NewName.Focus(); }
 
     /// <summary>A barcode scan of a patient card picks that patient.</summary>
     public void UsePatient(Patient patient)
     {
-        ExistingRadio.IsChecked = true;
+        _existingMode = true;
+        UpdateMode();
         _picked = patient;
-        PickedPatient.Text = $"Selected: {patient.FullName} ({patient.PatientCode}, {patient.Phone})";
+        PickedPatient.Text = $"{patient.FullName}  ·  {patient.PatientCode}  ·  {patient.Phone}";
+        PickedChip.IsVisible = true;
     }
 
     private void UpdateMode()
     {
-        var existing = ExistingRadio.IsChecked == true;
-        ExistingPanel.IsVisible = existing;
-        NewPanel.IsVisible = !existing;
+        ExistingPanel.IsVisible = _existingMode;
+        NewPanel.IsVisible = !_existingMode;
+        ExistingButton.Classes.Set("on", _existingMode);
+        NewButton.Classes.Set("on", !_existingMode);
     }
 
     private void SearchPatients()
@@ -168,7 +174,7 @@ public partial class RegisterVisitView : UserControl
     {
         try
         {
-            var existing = ExistingRadio.IsChecked == true;
+            var existing = _existingMode;
             if (existing && _picked is null) { ResultText.Text = "Pick a patient first (or choose New patient)."; return; }
             if (!existing && string.IsNullOrWhiteSpace(NewName.Text)) { ResultText.Text = "Enter the patient's name."; return; }
 
@@ -224,7 +230,7 @@ public partial class RegisterVisitView : UserControl
     private void Clear()
     {
         _picked = null; _package = null;
-        PickedPatient.Text = ""; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
+        PickedPatient.Text = ""; PickedChip.IsVisible = false; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
         NewName.Text = ""; NewPhone.Text = ""; NewDob.Text = ""; NotesBox.Text = "";
         _selected.Clear();
         _payEdited = false; PayRef.Text = ""; PayMethod.SelectedIndex = 0;

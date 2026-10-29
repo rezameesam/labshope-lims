@@ -1,29 +1,43 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="LabShope.App.BillsView">
-  <DockPanel Margin="6">
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-      <TextBlock Text="Search (bill no., name, phone, ID):" VerticalAlignment="Center" />
-      <TextBox x:Name="SearchBox" Width="280" />
-      <CheckBox x:Name="UnpaidOnly" Content="Only unpaid" />
-      <Button x:Name="ReceiveButton" Content="Receive payment (F6)" Click="OnReceive" />
-      <Button x:Name="ReceiptButton" Content="Print last receipt" Click="OnPrintReceipt" />
-      <Button x:Name="LabelButton" Content="Print labels" Click="OnPrintLabels" />
-      <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
-    </StackPanel>
-    <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="#1B5E20" />
-    <DataGrid x:Name="Grid" x:DataType="data:BillRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
-              CanUserResizeColumns="True" GridLinesVisibility="All" SelectionMode="Single">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <StackPanel Orientation="Horizontal" Spacing="14">
+        <Grid ColumnDefinitions="Auto,*">
+          <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
+          <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+          <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="320" PlaceholderText="Bill number, name, phone or ID" />
+        </Grid>
+        <CheckBox x:Name="UnpaidOnly" Content="Only unpaid" VerticalAlignment="Center" />
+        <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button x:Name="LabelButton" Click="OnPrintLabels"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="BarcodeScan" Width="17" Height="17" /><TextBlock Text="Labels" /></StackPanel></Button>
+        <Button x:Name="ReceiptButton" Click="OnPrintReceipt"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="PrinterOutline" Width="17" Height="17" /><TextBlock Text="Last receipt" /></StackPanel></Button>
+        <Button x:Name="ReceiveButton" Classes="primary" Click="OnReceive"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CashPlus" Width="18" Height="18" /><TextBlock Text="Receive payment (F6)" /></StackPanel></Button>
+      </StackPanel>
+    </Grid>
+    <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="2,10,0,0" Foreground="{StaticResource SuccessBrush}" FontWeight="Medium" />
+    <DataGrid x:Name="Grid" x:DataType="data:BillRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Bill no." Binding="{Binding Number}" Width="210" />
-        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="150" />
-        <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" />
-        <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientCode}" Width="110" />
-        <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount}" Width="90" />
-        <DataGridTextColumn Header="Paid" Binding="{Binding PaidAmount}" Width="90" />
-        <DataGridTextColumn Header="Balance" Binding="{Binding Balance}" Width="90" />
-        <DataGridTextColumn Header="Status" Binding="{Binding PaymentStatus}" Width="90" />
+        <DataGridTextColumn Header="BILL NO." Binding="{Binding Number}" Width="230" />
+        <DataGridTextColumn Header="DATE" Binding="{Binding Date}" Width="150" />
+        <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientName}" Width="*" />
+        <DataGridTextColumn Header="ID" Binding="{Binding PatientCode}" Width="100" />
+        <DataGridTextColumn Header="TOTAL" Binding="{Binding TotalAmount}" Width="90" />
+        <DataGridTextColumn Header="PAID" Binding="{Binding PaidAmount}" Width="90" />
+        <DataGridTextColumn Header="BALANCE" Binding="{Binding Balance}" Width="100" />
+        <DataGridTemplateColumn Header="STATUS" Width="110">
+          <DataTemplate x:DataType="data:BillRow">
+            <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding PaymentStatus, Converter={x:Static app:Pills.Background}}">
+              <TextBlock Text="{Binding PaymentStatus}" Foreground="{Binding PaymentStatus, Converter={x:Static app:Pills.Foreground}}" />
+            </Border>
+          </DataTemplate>
+        </DataGridTemplateColumn>
       </DataGrid.Columns>
     </DataGrid>
   </DockPanel>

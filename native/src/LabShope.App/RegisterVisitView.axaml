@@ -2,102 +2,119 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:data="using:LabShope.Core.Data"
              xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="LabShope.App.RegisterVisitView">
-  <Grid ColumnDefinitions="*,12,*" Margin="8">
-    <!-- Patient and visit details -->
+  <Grid ColumnDefinitions="*,18,*">
+
+    <!-- Who and visit details -->
     <ScrollViewer Grid.Column="0">
-      <StackPanel Spacing="8">
-        <TextBlock Text="Patient" FontWeight="SemiBold" />
-        <StackPanel Orientation="Horizontal" Spacing="16">
-          <RadioButton x:Name="ExistingRadio" Content="Existing patient" GroupName="mode" IsChecked="True" />
-          <RadioButton x:Name="NewRadio" Content="New patient" GroupName="mode" />
-        </StackPanel>
+      <StackPanel Spacing="16">
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Patient" Classes="h2" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button x:Name="ExistingButton" Classes="seg on" Content="Existing patient" Click="OnExistingMode" />
+              <Button x:Name="NewButton" Classes="seg" Content="New patient" Click="OnNewMode" />
+            </StackPanel>
 
-        <StackPanel x:Name="ExistingPanel" Spacing="6">
-          <TextBox x:Name="PatientSearch" Watermark="Search by name, phone or patient ID (or scan the card)" />
-          <ListBox x:Name="PatientResults" MaxHeight="190" />
-          <TextBlock x:Name="PickedPatient" FontWeight="SemiBold" Foreground="#1B5E20" />
-        </StackPanel>
+            <StackPanel x:Name="ExistingPanel" Spacing="8">
+              <TextBox x:Name="PatientSearch" PlaceholderText="Search by name, phone or patient ID (or scan the card)" />
+              <ListBox x:Name="PatientResults" MaxHeight="200" />
+              <Border x:Name="PickedChip" Classes="pill" Background="{StaticResource SuccessBgBrush}" HorizontalAlignment="Left" IsVisible="False">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <mi:MaterialIcon Kind="CheckCircle" Width="16" Height="16" Foreground="{StaticResource SuccessBrush}" />
+                  <TextBlock x:Name="PickedPatient" Foreground="{StaticResource SuccessBrush}" FontSize="12" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
 
-        <Grid x:Name="NewPanel" IsVisible="False" ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
-          <TextBlock Text="Full name" VerticalAlignment="Center" />
-          <TextBox x:Name="NewName" Grid.Column="1" />
-          <TextBlock Text="Phone" Grid.Row="1" VerticalAlignment="Center" />
-          <TextBox x:Name="NewPhone" Grid.Row="1" Grid.Column="1" Watermark="10-digit mobile number" />
-          <TextBlock Text="Gender" Grid.Row="2" VerticalAlignment="Center" />
-          <ComboBox x:Name="NewGender" Grid.Row="2" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch">
-            <ComboBoxItem>male</ComboBoxItem>
-            <ComboBoxItem>female</ComboBoxItem>
-            <ComboBoxItem>other</ComboBoxItem>
-          </ComboBox>
-          <TextBlock Text="Date of birth" Grid.Row="3" VerticalAlignment="Center" />
-          <TextBox x:Name="NewDob" Grid.Row="3" Grid.Column="1" Watermark="yyyy-mm-dd (optional)" />
-        </Grid>
+            <Grid x:Name="NewPanel" IsVisible="False" ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+              <TextBlock Text="Full name" Classes="muted" VerticalAlignment="Center" />
+              <TextBox x:Name="NewName" Grid.Column="1" />
+              <TextBlock Text="Phone" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
+              <TextBox x:Name="NewPhone" Grid.Row="1" Grid.Column="1" PlaceholderText="10-digit mobile number" />
+              <TextBlock Text="Gender" Classes="muted" Grid.Row="2" VerticalAlignment="Center" />
+              <ComboBox x:Name="NewGender" Grid.Row="2" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch">
+                <ComboBoxItem>male</ComboBoxItem>
+                <ComboBoxItem>female</ComboBoxItem>
+                <ComboBoxItem>other</ComboBoxItem>
+              </ComboBox>
+              <TextBlock Text="Date of birth" Classes="muted" Grid.Row="3" VerticalAlignment="Center" />
+              <TextBox x:Name="NewDob" Grid.Row="3" Grid.Column="1" PlaceholderText="yyyy-mm-dd (optional)" />
+            </Grid>
+          </StackPanel>
+        </Border>
 
-        <Separator />
-        <TextBlock Text="Visit" FontWeight="SemiBold" />
-        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-          <TextBlock Text="Referred by" VerticalAlignment="Center" />
-          <ComboBox x:Name="DoctorBox" Grid.Column="1" HorizontalAlignment="Stretch" />
-          <TextBlock Text="Collection centre" Grid.Row="1" VerticalAlignment="Center" />
-          <ComboBox x:Name="CenterBox" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" />
-          <TextBlock Text="Notes" Grid.Row="2" VerticalAlignment="Center" />
-          <TextBox x:Name="NotesBox" Grid.Row="2" Grid.Column="1" AcceptsReturn="False" />
-        </Grid>
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Visit details" Classes="h2" />
+            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+              <TextBlock Text="Referred by" Classes="muted" VerticalAlignment="Center" />
+              <ComboBox x:Name="DoctorBox" Grid.Column="1" HorizontalAlignment="Stretch" />
+              <TextBlock Text="Collection centre" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
+              <ComboBox x:Name="CenterBox" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" />
+              <TextBlock Text="Notes" Classes="muted" Grid.Row="2" VerticalAlignment="Center" />
+              <TextBox x:Name="NotesBox" Grid.Row="2" Grid.Column="1" />
+            </Grid>
+          </StackPanel>
+        </Border>
       </StackPanel>
     </ScrollViewer>
 
-    <!-- Tests and total -->
-    <DockPanel Grid.Column="2">
-      <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
-        <Grid ColumnDefinitions="Auto,110,Auto,130,*" ColumnSpacing="8">
-          <TextBlock Text="Paying now" VerticalAlignment="Center" />
-          <TextBox x:Name="PayAmount" Grid.Column="1" Text="0" />
-          <TextBlock Text="by" Grid.Column="2" VerticalAlignment="Center" />
-          <ComboBox x:Name="PayMethod" Grid.Column="3" SelectedIndex="0" HorizontalAlignment="Stretch">
-            <ComboBoxItem>cash</ComboBoxItem>
-            <ComboBoxItem>upi</ComboBoxItem>
-            <ComboBoxItem>card</ComboBoxItem>
-            <ComboBoxItem>online</ComboBoxItem>
-            <ComboBoxItem>bank_transfer</ComboBoxItem>
-          </ComboBox>
-          <TextBox x:Name="PayRef" Grid.Column="4" Watermark="UPI / card reference (optional)" />
-        </Grid>
-        <DockPanel>
-          <TextBlock x:Name="TotalText" DockPanel.Dock="Right" FontSize="20" FontWeight="SemiBold" Text="Total 0" />
-          <TextBlock x:Name="ResultText" VerticalAlignment="Center" TextWrapping="Wrap" />
-        </DockPanel>
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-          <Button x:Name="LabelButton" Content="Print labels" Click="OnPrintLabels" IsVisible="False" />
-          <Button x:Name="ReceiptButton" Content="Print receipt" Click="OnPrintReceipt" IsVisible="False" />
-          <Button x:Name="ClearButton" Content="Clear" Click="OnClear" />
-          <Button x:Name="SaveButton" Content="Save visit (F8)" Click="OnSave" Padding="18,6" />
+    <!-- Tests, payment, save -->
+    <Border Grid.Column="2" Classes="card">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="12" Margin="0,14,0,0">
+          <Border Height="1" Background="{StaticResource GridLineBrush}" />
+          <Grid ColumnDefinitions="Auto,100,Auto,130,*" ColumnSpacing="10">
+            <TextBlock Text="Paying now" Classes="muted" VerticalAlignment="Center" />
+            <TextBox x:Name="PayAmount" Grid.Column="1" Text="0" />
+            <TextBlock Text="by" Classes="muted" Grid.Column="2" VerticalAlignment="Center" />
+            <ComboBox x:Name="PayMethod" Grid.Column="3" SelectedIndex="0" HorizontalAlignment="Stretch">
+              <ComboBoxItem>cash</ComboBoxItem>
+              <ComboBoxItem>upi</ComboBoxItem>
+              <ComboBoxItem>card</ComboBoxItem>
+              <ComboBoxItem>online</ComboBoxItem>
+              <ComboBoxItem>bank_transfer</ComboBoxItem>
+            </ComboBox>
+            <TextBox x:Name="PayRef" Grid.Column="4" PlaceholderText="Reference" />
+          </Grid>
+          <DockPanel>
+            <TextBlock x:Name="TotalText" DockPanel.Dock="Right" FontSize="24" FontWeight="SemiBold" Text="Total 0" />
+            <TextBlock x:Name="ResultText" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,16,0" />
+          </DockPanel>
+          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button x:Name="LabelButton" Content="Print labels" Click="OnPrintLabels" IsVisible="False" />
+            <Button x:Name="ReceiptButton" Content="Print receipt" Click="OnPrintReceipt" IsVisible="False" />
+            <Button x:Name="ClearButton" Content="Clear" Click="OnClear" />
+            <Button x:Name="SaveButton" Classes="primary" Content="Save visit (F8)" Click="OnSave" Padding="22,10" />
+          </StackPanel>
         </StackPanel>
-      </StackPanel>
 
-      <StackPanel DockPanel.Dock="Top" Spacing="6">
-        <TextBlock Text="Tests" FontWeight="SemiBold" />
-        <ComboBox x:Name="PackageBox" HorizontalAlignment="Stretch" />
-        <TextBox x:Name="TestSearch" Watermark="Search tests, press Enter or double-click to add" />
-        <ListBox x:Name="TestResults" MaxHeight="170">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="data:CatalogTest">
-              <DockPanel>
-                <TextBlock Text="{Binding Price}" DockPanel.Dock="Right" />
-                <TextBlock Text="{Binding Name}" />
-              </DockPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-        <TextBlock Text="Selected (Delete removes the highlighted one)" Foreground="#555" />
-      </StackPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="10">
+          <TextBlock Text="Tests" Classes="h2" />
+          <ComboBox x:Name="PackageBox" HorizontalAlignment="Stretch" />
+          <TextBox x:Name="TestSearch" PlaceholderText="Search tests - Enter adds the highlighted one" />
+          <ListBox x:Name="TestResults" MaxHeight="170">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="data:CatalogTest">
+                <DockPanel>
+                  <TextBlock Text="{Binding Price}" DockPanel.Dock="Right" Classes="muted" />
+                  <TextBlock Text="{Binding Name}" />
+                </DockPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <TextBlock Text="SELECTED  -  Delete removes the highlighted test" Classes="label" Margin="0,6,0,0" />
+        </StackPanel>
 
-      <DataGrid x:Name="SelectedGrid" x:DataType="app:SelectedTest" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="All">
-        <DataGrid.Columns>
-          <DataGridTextColumn Header="Test" Binding="{Binding Name}" Width="*" />
-          <DataGridTextColumn Header="Price" Binding="{Binding PriceText}" Width="110" />
-        </DataGrid.Columns>
-      </DataGrid>
-    </DockPanel>
+        <DataGrid x:Name="SelectedGrid" x:DataType="app:SelectedTest" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="TEST" Binding="{Binding Name}" Width="*" />
+            <DataGridTextColumn Header="PRICE" Binding="{Binding PriceText}" Width="120" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </DockPanel>
+    </Border>
   </Grid>
 </UserControl>

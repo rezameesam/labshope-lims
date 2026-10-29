@@ -9,11 +9,15 @@ public sealed record SyncStatus(bool Online, bool NeedsSignIn, int Pending, int 
 public sealed class SyncRunner
 {
     private readonly SyncEngine _engine;
+    private readonly string? _slug;
+    private readonly string _labName;
     private readonly LocalStore _store;
     private DateTimeOffset? _lastSyncedAt;
 
-    public SyncRunner(SyncEngine engine, LocalStore store)
+    public SyncRunner(SyncEngine engine, LocalStore store, string? slug = null, string labName = "")
     {
+        _slug = slug;
+        _labName = labName;
         _engine = engine;
         _store = store;
     }
@@ -26,6 +30,7 @@ public sealed class SyncRunner
             if (flushed.StoppedBy is { } stop) return Status(stop, null);
 
             await _engine.PullCatalogAsync(ct: ct);
+            if (_slug is not null) await _engine.PullBrandingAsync(_slug, _labName, ct: ct);
             await _engine.PullPatientsAsync(ct);
             await _engine.PullPatientTestsAsync(ct);
             await _engine.PullInvoicesAsync(ct);

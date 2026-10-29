@@ -1,29 +1,29 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using System.Linq;
-using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using LabShope.Core.Data;
-using LabShope.Core.Sync;
 using LabShope.Core.Scanning;
+using LabShope.Core.Sync;
+using Material.Icons;
+using Material.Icons.Avalonia;
 
 namespace LabShope.App;
 
 public partial class MainWindow : Window
 {
+    private sealed record Nav(string Key, string Title, MaterialIconKind Icon, Key Hotkey, Func<Control> Create);
+
     private readonly AppSession _session;
     private readonly LocalStore _store;
     private readonly ScanDetector _scanner = new();
-    private PatientRegisterView? _patients;
-    private BillsView? _bills;
-    private RegisterVisitView? _register;
-    private CashBookView? _cashBook;
-    private ResultsView? _results;
+    private readonly Dictionary<string, Control> _pages = [];
+    private readonly Dictionary<string, Button> _navButtons = [];
+    private readonly List<Nav> _nav;
+    private string _current = "";
     private bool _syncing;
+    private DispatcherTimer? _scanHide;
 
     public MainWindow() => throw new InvalidOperationException("Use the constructor with a session.");
 
@@ -33,18 +33,59 @@ public partial class MainWindow : Window
         _store = session.Store;
         InitializeComponent();
         LabText.Text = session.Workspace.OrganizationName;
+        UserText.Text = session.Account.SavedEmail ?? "";
         Title = $"LabShope LIMS - {session.Workspace.OrganizationName}";
 
-        var clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        clock.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("dd MMM yyyy  HH:mm:ss");
-        clock.Start();
+        _nav =
+        [
+            new("home", "Overview", MaterialIconKind.ViewDashboardOutline, Key.F1, () =>
+            {
+                var v = new OverviewView(session);
+                v.RegisterRequested += () => Show("register");
+                v.ResultsRequested += () => Show("results");
+                v.BillsRequested += () => Show("bills");
+                return v;
+            }),
+            new("register", "Register visit", MaterialIconKind.ClipboardPlusOutline, Key.F4, () =>
+            {
+                var v = new RegisterVisitView(session);
+                v.Registered += async () => { RefreshPages(); await SyncAsync(); };
+                return v;
+            }),
+            new("patients", "Patients", MaterialIconKind.AccountGroupOutline, Key.F2, () =>
+            {
+                var v = new PatientRegisterView(session);
+                v.PatientEdited += async () => await SyncAsync();
+                v.RegisterVisitRequested += patient => { Show("register"); ((RegisterVisitView)_pages["register"]).UsePatient(patient); };
+                return v;
+            }),
+            new("results", "Results", MaterialIconKind.TestTube, Key.F5, () =>
+            {
+                var v = new ResultsView(session);
+                v.ResultSaved += async () => { RefreshPages(); await SyncAsync(); };
+                return v;
+            }),
+            new("bills", "Bills & payments", MaterialIconKind.ReceiptTextOutline, Key.F3, () =>
+            {
+                var v = new BillsView(session);
+                v.PaymentTaken += async () => { RefreshPages(); await SyncAsync(); };
+                return v;
+            }),
+            new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
+        ];
 
-        // A barcode scan works from anywhere in the app.
-        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        foreach (var n in _nav)
+        {
+            var button = new Button { Classes = { "nav" }, Content = Row(n) };
+            button.Click += (_, _) => Show(n.Key);
+            _navButtons[n.Key] = button;
+            NavPanel.Children.Add(button);
+        }
 
-        OnOpenPatients(null, null!);
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel); // hotkeys and barcode scans work from anywhere
 
-        // Sync when the app opens and then every minute.
+        Show("home");
+
         var syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         syncTimer.Tick += async (_, _) => await SyncAsync();
         syncTimer.Start();
@@ -53,8 +94,53 @@ public partial class MainWindow : Window
         Shot.Attach(this);
     }
 
+    private static Control Row(Nav n) => new StackPanel
+    {
+        Orientation = Avalonia.Layout.Orientation.Horizontal,
+        Spacing = 12,
+        Children =
+        {
+            new MaterialIcon { Kind = n.Icon, Width = 19, Height = 19 },
+            new TextBlock { Text = n.Title, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+        },
+    };
+
+    /// <summary>Opens a page (created the first time, then kept so nothing typed is lost when switching).</summary>
+    public void Show(string key)
+    {
+        var nav = _nav.First(n => n.Key == key);
+        if (!_pages.TryGetValue(key, out var page)) _pages[key] = page = nav.Create();
+        _current = key;
+        Page.Content = page;
+        PageTitle.Text = nav.Title;
+        foreach (var (k, b) in _navButtons) b.Classes.Set("active", k == key);
+        RefreshPage(page);
+        (page as RegisterVisitView)?.FocusFirstField();
+    }
+
+    private static void RefreshPage(Control page)
+    {
+        switch (page)
+        {
+            case OverviewView o: o.Refresh(); break;
+            case PatientRegisterView p: p.Refresh(); break;
+            case BillsView b: b.Refresh(); break;
+            case ResultsView r: r.Refresh(); break;
+            case CashBookView c: c.Refresh(); break;
+            case RegisterVisitView v: v.ReloadCatalog(); break;
+        }
+    }
+
+    private void RefreshPages()
+    {
+        foreach (var page in _pages.Values) RefreshPage(page);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.F9) { e.Handled = true; _ = SyncAsync(); return; }
+        if (_nav.FirstOrDefault(n => n.Hotkey == e.Key) is { } hit) { e.Handled = true; Show(hit.Key); return; }
+
         if (e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)) return;
         var key = e.Key switch { Key.Enter or Key.Return => "Enter", Key.Tab => "Tab", _ => e.KeySymbol ?? "" };
         var code = _scanner.Push(key, Environment.TickCount64);
@@ -66,82 +152,32 @@ public partial class MainWindow : Window
         {
             case ScanMatch.FoundPatient found: ShowScanned(found.Patient); break;
             case ScanMatch.FoundInvoice { Patient: not null } bill: ShowScanned(bill.Patient); break;
-            default: ScanText.Text = $"No patient or bill found for \"{code}\""; break;
+            default: Toast($"No patient or bill found for \"{code}\""); break;
         }
     }
 
     private void ShowScanned(Patient patient)
     {
-        if (_register is not null && Windows.SelectedItem is TabItem { Content: var current } && current == _register)
+        if (_current == "register" && _pages["register"] is RegisterVisitView register)
         {
-            _register.UsePatient(patient);
-            ScanText.Text = $"Scanned: {patient.FullName} ({patient.PatientCode})";
-            return;
+            register.UsePatient(patient);
         }
-
-        OnOpenPatients(null, null!);
-        _patients!.ShowPatient(patient);
-        ScanText.Text = $"Scanned: {patient.FullName} ({patient.PatientCode})";
+        else
+        {
+            Show("patients");
+            ((PatientRegisterView)_pages["patients"]).ShowPatient(patient);
+        }
+        Toast($"Scanned: {patient.FullName} ({patient.PatientCode})");
     }
 
-    private void OnOpenPatients(object? sender, RoutedEventArgs e)
+    private void Toast(string text)
     {
-        if (_patients is null)
-        {
-            _patients = new PatientRegisterView(_session);
-            _patients.PatientEdited += async () => await SyncAsync();
-            _patients.RegisterVisitRequested += patient => { OnOpenRegister(null, null!); _register!.UsePatient(patient); };
-            Windows.Items.Add(new TabItem { Header = "Patient Register", Content = _patients });
-        }
-        Windows.SelectedIndex = Windows.Items.Count - 1;
-        _patients.FocusSearch();
-    }
-
-    private void OnOpenRegister(object? sender, RoutedEventArgs e)
-    {
-        if (_register is null)
-        {
-            _register = new RegisterVisitView(_session);
-            _register.Registered += async () => { _patients?.Refresh(); _bills?.Refresh(); _cashBook?.Refresh(); _results?.Refresh(); await SyncAsync(); };
-            Windows.Items.Add(new TabItem { Header = "Register visit", Content = _register });
-        }
-        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _register));
-        _register.FocusFirstField();
-    }
-
-    private void OnOpenResults(object? sender, RoutedEventArgs e)
-    {
-        if (_results is null)
-        {
-            _results = new ResultsView(_session);
-            _results.ResultSaved += async () => await SyncAsync();
-            Windows.Items.Add(new TabItem { Header = "Results", Content = _results });
-        }
-        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _results));
-        _results.Refresh();
-    }
-
-    private void OnOpenCashBook(object? sender, RoutedEventArgs e)
-    {
-        if (_cashBook is null)
-        {
-            _cashBook = new CashBookView(_store);
-            Windows.Items.Add(new TabItem { Header = "Cash book", Content = _cashBook });
-        }
-        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _cashBook));
-        _cashBook.Refresh();
-    }
-
-    private void OnOpenBills(object? sender, RoutedEventArgs e)
-    {
-        if (_bills is null)
-        {
-            _bills = new BillsView(_session);
-            _bills.PaymentTaken += async () => await SyncAsync();
-            Windows.Items.Add(new TabItem { Header = "Bills", Content = _bills });
-        }
-        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _bills));
-        _bills.Refresh();
+        ScanText.Text = text;
+        ScanChip.IsVisible = true;
+        _scanHide?.Stop();
+        _scanHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+        _scanHide.Tick += (_, _) => { ScanChip.IsVisible = false; _scanHide!.Stop(); };
+        _scanHide.Start();
     }
 
     private async void OnSync(object? sender, RoutedEventArgs e) => await SyncAsync();
@@ -150,22 +186,27 @@ public partial class MainWindow : Window
     {
         if (_syncing) return;
         _syncing = true;
-        StatusText.Text = "Syncing…";
+        SetChip("Syncing…", "#0B81B7", "#E7F3F9");
         try
         {
             var status = await _session.Sync.RunOnceAsync();
-            var waiting = status.Pending > 0 ? $"  |  {status.Pending} waiting to send" : "";
-            var failed = status.Failed > 0 ? $"  |  {status.Failed} need attention" : "";
-            StatusText.Text = status.NeedsSignIn ? "Please sign in again (File > Sign out)"
-                : status.Online ? $"Online, synced {DateTime.Now:HH:mm}{waiting}{failed}"
-                : $"Offline: working from this computer{waiting}";
-            _patients?.Refresh();
-            _bills?.Refresh();
-            _register?.ReloadCatalog();
-            _cashBook?.Refresh();
-            _results?.Refresh();
+            var waiting = status.Pending > 0 ? $" · {status.Pending} waiting to send" : "";
+            if (status.NeedsSignIn) SetChip("Please sign in again", "#B7791F", "#FDF3DD");
+            else if (status.Online && status.Failed > 0) SetChip($"Synced · {status.Failed} need attention", "#B7791F", "#FDF3DD");
+            else if (status.Online) SetChip($"Synced {DateTime.Now:HH:mm}{waiting}", "#1E8E5A", "#E3F5EC");
+            else SetChip($"Offline · working from this PC{waiting}", "#B7791F", "#FDF3DD");
+            RefreshPages();
         }
         finally { _syncing = false; }
+    }
+
+    private void SetChip(string text, string fg, string bg)
+    {
+        SyncText.Text = text;
+        var fgBrush = new SolidColorBrush(Color.Parse(fg));
+        SyncText.Foreground = fgBrush;
+        SyncDot.Fill = fgBrush;
+        SyncChip.Background = new SolidColorBrush(Color.Parse(bg));
     }
 
     private void OnSignOut(object? sender, RoutedEventArgs e)
@@ -173,9 +214,4 @@ public partial class MainWindow : Window
         _session.Account.SignOut();
         Close();
     }
-
-    private void OnExit(object? sender, RoutedEventArgs e) => Close();
-    private void OnAbout(object? sender, RoutedEventArgs e) => StatusText.Text = "LabShope LIMS (native preview)";
-
-
 }

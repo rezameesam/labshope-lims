@@ -74,8 +74,9 @@ public partial class ResultsView : UserControl
         _current = row;
         MessageText.Text = "";
         var on = row is not null;
-        ValueBox.IsEnabled = UnitBox.IsEnabled = AbnormalBox.IsEnabled = SaveButton.IsEnabled = PanelToggle.IsEnabled = ReportButton.IsEnabled = on;
-        if (row is null) { EntryHeading.Text = "Select a test"; RangeText.Text = ""; _panel.Clear(); ShowMode(); return; }
+        FormPanel.IsVisible = on;
+        EmptyPanel.IsVisible = !on;
+        if (row is null) { EntryHeading.Text = ""; RangeText.Text = ""; _panel.Clear(); ShowMode(); return; }
 
         var (unit, range) = _results.Defaults(row.TestName);
         EntryHeading.Text = $"{row.PatientName} - {row.TestName}";

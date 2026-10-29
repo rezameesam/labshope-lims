@@ -44,7 +44,7 @@ public partial class App : Application
         }
 
         var store = new LocalStore(Path.Combine(AppConfig.DataDirectory, $"lims-{workspace.OrganizationId}.db"));
-        var session = new AppSession(workspace, store, new SyncRunner(new SyncEngine(store, api, workspace.OrganizationId), store), account);
+        var session = new AppSession(workspace, store, new SyncRunner(new SyncEngine(store, api, workspace.OrganizationId), store, workspace.Slug, workspace.OrganizationName), account);
 
         var main = new MainWindow(session);
         main.Closed += (_, _) => { session.Dispose(); desktop.Shutdown(); };

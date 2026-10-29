@@ -153,6 +153,34 @@ public sealed class LocalStore : IDisposable
         return list;
     }
 
+    /// <summary>Today's counts and money for the home screen. The day is given as a UTC window (local midnight to midnight).</summary>
+    public DashboardNumbers GetDashboard(string fromIso, string toIso)
+    {
+        long Count(string sql, bool withDay = false)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = sql;
+            if (withDay) { cmd.Parameters.AddWithValue("$a", fromIso); cmd.Parameters.AddWithValue("$b", toIso); }
+            return Convert.ToInt64(cmd.ExecuteScalar());
+        }
+        decimal Sum(string sql, bool withDay = false)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = sql;
+            if (withDay) { cmd.Parameters.AddWithValue("$a", fromIso); cmd.Parameters.AddWithValue("$b", toIso); }
+            return Convert.ToDecimal(cmd.ExecuteScalar());
+        }
+
+        var (waiting, failed) = OutboxCounts();
+        return new DashboardNumbers(
+            (int)Count("SELECT COUNT(*) FROM invoices WHERE datetime(created_at) >= datetime($a) AND datetime(created_at) < datetime($b)", true),
+            (int)Count("SELECT COUNT(*) FROM patient_tests WHERE status IN ('pending','in_progress')"),
+            Sum("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE datetime(paid_at) >= datetime($a) AND datetime(paid_at) < datetime($b)", true),
+            Sum("SELECT COALESCE(SUM(total_amount - paid_amount), 0) FROM invoices WHERE COALESCE(payment_status,'pending') NOT IN ('paid','cancelled')"),
+            (int)Count("SELECT COUNT(*) FROM invoices WHERE COALESCE(payment_status,'pending') NOT IN ('paid','cancelled') AND total_amount > paid_amount"),
+            failed, waiting);
+    }
+
     public long InvoiceCount()
     {
         using var cmd = _db.CreateCommand();
@@ -301,6 +329,21 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$a", alias);
         using var r = cmd.ExecuteReader();
         return r.Read() ? (r.GetString(0), r.GetString(1)) : null;
+    }
+
+    // ── branding (cached on this PC so printing never needs the internet) ───
+
+    public void SaveBranding(Branding b) => SetMeta("branding", System.Text.Json.JsonSerializer.Serialize(b));
+
+    public Branding GetBranding(string fallbackName)
+    {
+        var json = GetMeta("branding");
+        if (json is not null)
+        {
+            try { if (System.Text.Json.JsonSerializer.Deserialize<Branding>(json) is { } b) return b; }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return Branding.Minimal(fallbackName);
     }
 
     // ── meta (cursors, session, settings) ──────────────────────────────────

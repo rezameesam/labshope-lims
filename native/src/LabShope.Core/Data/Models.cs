@@ -60,4 +60,9 @@ public sealed record WorklistRow(PatientTest Test, string PatientName, string Pa
         : Test.ResultValue is { } v ? $"{v:0.##} {Test.ResultUnit}".Trim() : Test.Result ?? "";
     public string Flag => Test.Status != "completed" ? "" : Test.IsAbnormal ? "ABNORMAL" : "normal";
     public string SyncText => Test.Waiting ? "waiting" : "";
+    /// <summary>The one-word badge shown in the table: pending, normal or abnormal.</summary>
+    public string Badge => Test.Status != "completed" ? "pending" : Test.IsAbnormal ? "abnormal" : "normal";
 }
+
+/// <summary>The numbers on the home screen.</summary>
+public sealed record DashboardNumbers(int VisitsToday, int TestsToDo, decimal TakingsToday, decimal UnpaidBalance, int UnpaidBills, int NeedAttention, int Waiting);

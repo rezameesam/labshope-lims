@@ -156,6 +156,37 @@ public sealed class SyncEngine
         return true;
     }
 
+    private const string BrandingKey = "branding_synced_at";
+    private static readonly TimeSpan BrandingMaxAge = TimeSpan.FromHours(6);
+
+    /// <summary>
+    /// Refreshes the lab's name, address, phone, report wording and logo (at most every 6 hours unless forced), so printed
+    /// pages look like the website's. The logo is stored as an embedded image so printing works offline.
+    /// </summary>
+    public async Task<bool> PullBrandingAsync(string slug, string fallbackName, bool force = false, CancellationToken ct = default)
+    {
+        if (!force && long.TryParse(_store.GetMeta(BrandingKey), out var last) &&
+            DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(last) < BrandingMaxAge)
+            return false;
+
+        var result = await _api.RpcAsync("get_public_organization_context", new { _domain = (string?)null, _slug = slug }, ct);
+        if (!result.Ok) throw new SyncException(result);
+        if (result.Body is not { ValueKind: JsonValueKind.Object } body) return false;
+
+        var fresh = Branding.FromContext(body.GetRawText(), fallbackName);
+        if (fresh is null) return false;
+
+        // Download the logo only when its address changed.
+        var old = _store.GetBranding(fallbackName);
+        string? dataUri = old.LogoUrl == fresh.LogoUrl ? old.LogoDataUri : null;
+        if (fresh.LogoUrl is { Length: > 0 } url && dataUri is null && await _api.DownloadImageAsync(url, ct: ct) is { } img)
+            dataUri = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.Bytes)}";
+
+        _store.SaveBranding(fresh with { LogoDataUri = dataUri });
+        _store.SetMeta(BrandingKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+        return true;
+    }
+
     /// <summary>Sends queued visits one at a time, oldest first. Overlapping calls are skipped, not doubled.</summary>
     public async Task<FlushOutcome> FlushOutboxAsync(CancellationToken ct = default)
     {

@@ -1,24 +1,29 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:data="using:LabShope.Core.Data"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:DataType="data:Patient"
              x:Class="LabShope.App.PatientRegisterView">
-  <DockPanel Margin="6">
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-      <TextBlock Text="Search (name, phone, ID):" VerticalAlignment="Center" />
-      <TextBox x:Name="SearchBox" Width="320" />
-      <Button x:Name="EditButton" Content="Edit patient" Click="OnEdit" />
-      <Button x:Name="RegisterButton" Content="Register visit" Click="OnRegisterVisit" />
-      <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
-    </StackPanel>
-    <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
-              CanUserResizeColumns="True" GridLinesVisibility="All" SelectionMode="Single">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <Grid ColumnDefinitions="Auto,*" MaxWidth="460" HorizontalAlignment="Left">
+        <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
+        <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+        <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="420" PlaceholderText="Search by name, phone or patient ID" />
+      </Grid>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <Button x:Name="EditButton" Click="OnEdit"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountEditOutline" Width="17" Height="17" /><TextBlock Text="Edit patient" /></StackPanel></Button>
+        <Button x:Name="RegisterButton" Classes="primary" Click="OnRegisterVisit"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="ClipboardPlusOutline" Width="17" Height="17" /><TextBlock Text="Register visit" /></StackPanel></Button>
+      </StackPanel>
+    </Grid>
+    <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientCode}" Width="130" />
-        <DataGridTextColumn Header="Name" Binding="{Binding FullName}" Width="*" />
-        <DataGridTextColumn Header="Phone" Binding="{Binding Phone}" Width="140" />
-        <DataGridTextColumn Header="Gender" Binding="{Binding Gender}" Width="90" />
-        <DataGridTextColumn Header="Date of birth" Binding="{Binding DateOfBirth}" Width="120" />
+        <DataGridTextColumn Header="PATIENT ID" Binding="{Binding PatientCode}" Width="130" />
+        <DataGridTextColumn Header="NAME" Binding="{Binding FullName}" Width="*" />
+        <DataGridTextColumn Header="PHONE" Binding="{Binding Phone}" Width="170" />
+        <DataGridTextColumn Header="GENDER" Binding="{Binding Gender}" Width="110" />
+        <DataGridTextColumn Header="DATE OF BIRTH" Binding="{Binding DateOfBirth}" Width="140" />
       </DataGrid.Columns>
     </DataGrid>
   </DockPanel>

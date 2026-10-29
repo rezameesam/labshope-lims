@@ -40,6 +40,25 @@ public sealed class SupabaseApi
         return true;
     }
 
+    /// <summary>Downloads a public file (such as the lab's logo). Returns null on any failure or when it is not an image or too large.</summary>
+    public async Task<(byte[] Bytes, string ContentType)?> DownloadImageAsync(string url, int maxBytes = 600_000, CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await _http.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode) return null;
+            var type = response.Content.Headers.ContentType?.MediaType ?? "";
+            if (!type.StartsWith("image/")) return null;
+            var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+            return bytes.Length is > 0 && bytes.Length <= maxBytes ? (bytes, type) : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        {
+            if (ct.IsCancellationRequested) throw;
+            return null;
+        }
+    }
+
     public Task<ApiResult> SelectAsync(string table, string query, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Get, $"/rest/v1/{table}?{query}", null, true, ct), ct);
 
