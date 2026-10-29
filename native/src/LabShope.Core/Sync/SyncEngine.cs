@@ -77,6 +77,22 @@ public sealed class SyncEngine
                 Opt(row, "gender"), Opt(row, "date_of_birth")));
         }, null, ct);
 
+    private const int WorklistHistoryDays = 30;
+
+    /// <summary>Pulls the lab's ordered tests and their results (the last 30 days on first run, then only changes).</summary>
+    public Task<int> PullPatientTestsAsync(CancellationToken ct = default)
+    {
+        var floor = DateTimeOffset.UtcNow.AddDays(-WorklistHistoryDays).ToString("yyyy-MM-dd");
+        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,updated_at", "patient_tests_cursor", row =>
+        {
+            _store.UpsertPatientTest(new PatientTest(
+                row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!, row.GetProperty("test_name").GetString()!,
+                Opt(row, "test_date") ?? "", Opt(row, "status") ?? "pending", Opt(row, "result"),
+                NumOrNull(row, "result_value"), Opt(row, "result_unit"), Opt(row, "normal_range_text"),
+                row.TryGetProperty("is_abnormal", out var a) && a.ValueKind == JsonValueKind.True), fromServer: true);
+        }, "test_date=gte." + floor, ct);
+    }
+
     public Task<int> PullInvoicesAsync(CancellationToken ct = default)
     {
         var floor = DateTimeOffset.UtcNow.AddDays(-InvoiceHistoryDays).ToString("O");
@@ -109,7 +125,7 @@ public sealed class SyncEngine
 
         string Org(string table, string cols, string extra = "") => $"select={cols}&organization_id=eq.{_organizationId}{extra}";
         var calls = await Task.WhenAll(
-            _api.SelectAsync("tests", Org("tests", "id,test_id,name,price,category_id", "&is_active=eq.true"), ct),
+            _api.SelectAsync("tests", Org("tests", "id,test_id,name,price,category_id,unit,normal_range_text,normal_range_min,normal_range_max", "&is_active=eq.true"), ct),
             _api.SelectAsync("test_packages", Org("test_packages", "id,name,price", "&is_active=eq.true"), ct),
             _api.SelectAsync("test_package_tests", "select=package_id,test_id", ct),
             _api.SelectAsync("doctors", Org("doctors", "id,name,specialization,commission_percentage", "&is_active=eq.true"), ct),
@@ -124,7 +140,8 @@ public sealed class SyncEngine
             .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(r => r.GetProperty("test_id").GetString()!).ToList());
 
         var catalog = new Catalog(
-            Rows(0).Select(r => new CatalogTest(Str(r, "id")!, Str(r, "test_id"), Str(r, "name")!, Num(r, "price"), Str(r, "category_id"))).ToList(),
+            Rows(0).Select(r => new CatalogTest(Str(r, "id")!, Str(r, "test_id"), Str(r, "name")!, Num(r, "price"), Str(r, "category_id"),
+                Str(r, "unit"), Str(r, "normal_range_text"), NumOrNull(r, "normal_range_min"), NumOrNull(r, "normal_range_max"))).ToList(),
             Rows(1).Select(r => new TestPackage(Str(r, "id")!, Str(r, "name")!, Num(r, "price"),
                 testsByPackage.GetValueOrDefault(Str(r, "id")!) ?? [])).ToList(),
             Rows(3).Select(r => new Doctor(Str(r, "id")!, Str(r, "name")!, Str(r, "specialization"), Num(r, "commission_percentage"))).ToList(),
@@ -153,11 +170,20 @@ public sealed class SyncEngine
                 _store.SetVisitStatus(item.VisitId, "syncing");
                 var payload = JsonDocument.Parse(item.PayloadJson).RootElement.Clone();
                 var isPayment = item.Kind == "payment";
-                var result = await _api.RpcAsync(isPayment ? "record_payment" : "register_visit", new { p_payload = payload }, ct);
+                var isResult = item.Kind == "result";
+                var result = isResult
+                    ? await _api.PatchAsync("patient_tests", $"id=eq.{payload.GetProperty("id").GetString()}&organization_id=eq.{payload.GetProperty("organization_id").GetString()}", payload.GetProperty("patch"), ct)
+                    : await _api.RpcAsync(isPayment ? "record_payment" : "register_visit", new { p_payload = payload }, ct);
 
-                if (result.Ok && result.Body is { ValueKind: JsonValueKind.Object } body)
+                // A result update that changed no row was refused (not found, or not allowed): treat it as a permanent refusal.
+                if (isResult && result.Ok && result.Body is { ValueKind: JsonValueKind.Array } changed && changed.GetArrayLength() == 0)
+                    result = new ApiResult(403, null, "42501", "The server would not accept this result (test not found, or not allowed).");
+
+                if (result.Ok && (isResult ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
                 {
+                    var body = result.Body!.Value;
                     if (isPayment) _store.MarkPaymentSynced(item.VisitId);
+                    else if (isResult) _store.ClearTestWaiting(payload.GetProperty("id").GetString()!);
                     else ApplyVisitResult(item.VisitId, payload, body);
                     _store.SetVisitStatus(item.VisitId, "done", resultJson: body.GetRawText());
                     synced++;
@@ -169,6 +195,7 @@ public sealed class SyncEngine
                 if (kind == ErrorKind.Permanent)
                 {
                     if (isPayment) RevertPayment(payload);
+                    if (isResult) RevertResult(payload);
                     _store.SetVisitStatus(item.VisitId, "failed", message, countAttempt: true);
                     failed++;
                     continue;
@@ -191,6 +218,14 @@ public sealed class SyncEngine
         var bill = _store.GetInvoice(invoiceId);
         _store.RemovePayment(paymentId);
         if (bill is not null) _store.SetInvoicePaid(invoiceId, Math.Max(bill.PaidAmount - amount, 0));
+    }
+
+    /// <summary>The server refused a result: put the test back on the worklist so it can be entered again.</summary>
+    private void RevertResult(JsonElement payload)
+    {
+        var id = payload.GetProperty("id").GetString()!;
+        var test = _store.GetPatientTest(id);
+        if (test is not null) _store.UpsertPatientTest(test with { Status = "pending", Result = null, ResultValue = null, IsAbnormal = false, Waiting = false });
     }
 
     private void ApplyVisitResult(string visitId, JsonElement payload, JsonElement result)
@@ -220,6 +255,9 @@ public sealed class SyncEngine
 
     private static string? Opt(JsonElement row, string name) =>
         row.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static decimal? NumOrNull(JsonElement row, string name) =>
+        row.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : null;
 
     private static decimal Num(JsonElement row, string name) =>
         row.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : 0m;

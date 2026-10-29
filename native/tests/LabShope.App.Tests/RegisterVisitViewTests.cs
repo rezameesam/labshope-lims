@@ -221,3 +221,100 @@ public class RegisterVisitViewTests : IDisposable
         File.Delete(_path);
     }
 }
+
+public class ResultsViewTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-ui-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    private readonly AppSession _session;
+    private readonly List<Window> _windows = [];
+
+    public ResultsViewTests()
+    {
+        _store = new LocalStore(_path);
+        _store.ReplaceCatalog(new Catalog(
+            [new CatalogTest("t1", "HB", "Haemoglobin", 200m, null, "g/dL", "13 - 17", 13m, 17m), new CatalogTest("t2", "BG", "Blood Group", 100m, null)], [], [], [], []));
+        _store.UpsertPatient(new Patient("p1", "IRM-0007", "Asha Rao", "+919876543210", "female", null));
+        new Core.Visits.VisitService(_store).Register(new Core.Visits.RegisterVisitInput("org-1", "l1", "2026-10-29",
+            [new Core.Visits.VisitTest("Haemoglobin", 200), new Core.Visits.VisitTest("Blood Group", 100)], ExistingPatient: _store.GetPatient("p1")));
+
+        var api = new Core.Net.SupabaseApi(new System.Net.Http.HttpClient(), "https://x.supabase.co", "anon");
+        _session = new AppSession(new Core.Account.Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), _store,
+            new Core.Sync.SyncRunner(new Core.Sync.SyncEngine(_store, api, "org-1"), _store), new Core.Account.AccountService(api, _path + ".json"));
+    }
+
+    private (Window Window, ResultsView View) Show()
+    {
+        var view = new ResultsView(_session);
+        var window = new Window { Width = 1200, Height = 600, Content = view };
+        window.Show();
+        _windows.Add(window);
+        return (window, view);
+    }
+
+    private static T Find<T>(Control root, string name) where T : Control => root.FindControl<T>(name)!;
+
+    [AvaloniaFact]
+    public void ListsTheTestsToDoAndShowsTheRangeWhenOneIsPicked()
+    {
+        var (_, view) = Show();
+        var grid = Find<DataGrid>(view, "Grid");
+        Assert.Equal(2, grid.ItemsSource.Cast<WorklistRow>().Count());
+
+        grid.SelectedIndex = 0;
+        Assert.Contains("Haemoglobin", Find<TextBlock>(view, "EntryHeading").Text);
+        Assert.Contains("13 - 17", Find<TextBlock>(view, "RangeText").Text);
+        Assert.Equal("g/dL", Find<TextBox>(view, "UnitBox").Text);
+        Assert.True(Find<Button>(view, "SaveButton").IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void SavingAnAbnormalResultFlagsItQueuesItAndMovesOn()
+    {
+        var (_, view) = Show();
+        var grid = Find<DataGrid>(view, "Grid");
+        grid.SelectedIndex = 0;
+        Find<TextBox>(view, "ValueBox").Text = "11.2";
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Contains("ABNORMAL", Find<TextBlock>(view, "EntryHeading").Text);
+        var todo = grid.ItemsSource.Cast<WorklistRow>().ToList();
+        Assert.Equal(["Blood Group"], todo.Select(r => r.TestName)); // the saved one left the to-do list
+        Assert.Equal("Blood Group", ((WorklistRow)grid.SelectedItem!).TestName); // and the next one is ready
+        Assert.Equal((2, 0), _store.OutboxCounts()); // the visit and the result
+    }
+
+    [AvaloniaFact]
+    public void AnEmptyResultIsRefused()
+    {
+        var (_, view) = Show();
+        Find<DataGrid>(view, "Grid").SelectedIndex = 0;
+        Find<TextBox>(view, "ValueBox").Text = "";
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Contains("Enter a result", Find<TextBlock>(view, "MessageText").Text);
+        Assert.Equal((1, 0), _store.OutboxCounts());
+    }
+
+    [AvaloniaFact]
+    public void CompletedFilterShowsFinishedResults()
+    {
+        var (_, view) = Show();
+        Find<DataGrid>(view, "Grid").SelectedIndex = 0;
+        Find<TextBox>(view, "ValueBox").Text = "14";
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Find<ComboBox>(view, "FilterBox").SelectedIndex = 1;
+        var done = Find<DataGrid>(view, "Grid").ItemsSource.Cast<WorklistRow>().Single();
+        Assert.Equal(("14 g/dL", "normal", "waiting"), (done.ResultText, done.Flag, done.SyncText));
+    }
+
+    public void Dispose()
+    {
+        // Close the windows first so no late UI event touches a closed database.
+        foreach (var w in _windows) w.Close();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}

@@ -37,6 +37,12 @@ public sealed class LocalStore : IDisposable
               last_error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
               patient_name TEXT NOT NULL, total_amount REAL NOT NULL, result TEXT);
             CREATE INDEX IF NOT EXISTS ix_outbox_status ON outbox(status, created_at);
+            CREATE TABLE IF NOT EXISTS patient_tests (
+              id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, test_name TEXT NOT NULL, test_date TEXT NOT NULL, status TEXT NOT NULL,
+              result TEXT, result_value REAL, result_unit TEXT, normal_range_text TEXT, is_abnormal INTEGER NOT NULL DEFAULT 0,
+              waiting INTEGER NOT NULL DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS ix_patient_tests_status ON patient_tests(status);
+            CREATE INDEX IF NOT EXISTS ix_patient_tests_patient ON patient_tests(patient_id);
             CREATE TABLE IF NOT EXISTS payments (
               id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, amount REAL NOT NULL, method TEXT NOT NULL,
               transaction_id TEXT, notes TEXT, paid_at TEXT NOT NULL, synced INTEGER NOT NULL DEFAULT 0);
@@ -362,6 +368,85 @@ public sealed class LocalStore : IDisposable
         r.Read();
         return (r.GetInt32(0), r.GetInt32(1));
     }
+
+    // ── the worklist (tests ordered, and their results) ─────────────────────
+
+    /// <summary>Saves a test from the server. A result entered here that the server hasn't confirmed is never overwritten.</summary>
+    public void UpsertPatientTest(PatientTest t, bool fromServer = false)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO patient_tests (id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting)
+            VALUES ($id,$pid,$name,$date,$status,$result,$value,$unit,$range,$abn,$waiting)
+            ON CONFLICT(id) DO UPDATE SET patient_id=$pid, test_name=$name, test_date=$date, status=$status, result=$result,
+              result_value=$value, result_unit=$unit, normal_range_text=$range, is_abnormal=$abn, waiting=$waiting
+            WHERE $fromServer = 0 OR patient_tests.waiting = 0;
+            """;
+        cmd.Parameters.AddWithValue("$id", t.Id);
+        cmd.Parameters.AddWithValue("$pid", t.PatientId);
+        cmd.Parameters.AddWithValue("$name", t.TestName);
+        cmd.Parameters.AddWithValue("$date", t.TestDate);
+        cmd.Parameters.AddWithValue("$status", t.Status);
+        cmd.Parameters.AddWithValue("$result", (object?)t.Result ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$value", t.ResultValue is { } v ? (double)v : DBNull.Value);
+        cmd.Parameters.AddWithValue("$unit", (object?)t.ResultUnit ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$range", (object?)t.NormalRangeText ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$abn", t.IsAbnormal ? 1 : 0);
+        cmd.Parameters.AddWithValue("$waiting", t.Waiting ? 1 : 0);
+        cmd.Parameters.AddWithValue("$fromServer", fromServer ? 1 : 0);
+        cmd.ExecuteNonQuery();
+    }
+
+    public PatientTest? GetPatientTest(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting FROM patient_tests WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadTest(r) : null;
+    }
+
+    /// <summary>Worklist lines, oldest first. <paramref name="statuses"/> limits by status (e.g. pending, in_progress).</summary>
+    public IReadOnlyList<WorklistRow> SearchWorklist(string text, IReadOnlyCollection<string>? statuses = null, int limit = 500)
+    {
+        var words = text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        using var cmd = _db.CreateCommand();
+        var where = words.Select((_, n) => $"(LOWER(t.test_name) LIKE $w{n} OR p.search LIKE $w{n})").ToList();
+        if (statuses is { Count: > 0 })
+            where.Add($"t.status IN ({string.Join(",", statuses.Select((_, n) => $"$s{n}"))})");
+        cmd.CommandText = "SELECT t.id, t.patient_id, t.test_name, t.test_date, t.status, t.result, t.result_value, t.result_unit, t.normal_range_text, t.is_abnormal, t.waiting, " +
+                          "COALESCE(p.full_name,''), COALESCE(p.patient_code,'') FROM patient_tests t LEFT JOIN patients p ON p.id = t.patient_id " +
+                          (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "") +
+                          "ORDER BY t.test_date, t.rowid LIMIT $limit";
+        for (var n = 0; n < words.Length; n++) cmd.Parameters.AddWithValue($"$w{n}", $"%{words[n]}%");
+        if (statuses is not null) { var i = 0; foreach (var s in statuses) cmd.Parameters.AddWithValue($"$s{i++}", s); }
+        cmd.Parameters.AddWithValue("$limit", limit);
+        var list = new List<WorklistRow>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new WorklistRow(ReadTest(r), r.GetString(11), r.GetString(12)));
+        return list;
+    }
+
+    public void ClearTestWaiting(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE patient_tests SET waiting = 0 WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public CatalogTest? FindCatalogTest(string name)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT json FROM catalog WHERE kind = 'test' AND sort = $n COLLATE NOCASE LIMIT 1";
+        cmd.Parameters.AddWithValue("$n", name);
+        return cmd.ExecuteScalar() is string json ? System.Text.Json.JsonSerializer.Deserialize<CatalogTest>(json) : null;
+    }
+
+    private static PatientTest ReadTest(SqliteDataReader r) => new(
+        r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
+        r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : (decimal)r.GetDouble(6), r.IsDBNull(7) ? null : r.GetString(7),
+        r.IsDBNull(8) ? null : r.GetString(8), r.GetInt32(9) == 1, r.GetInt32(10) == 1);
 
     // ── bills and payments ────────────────────────────────────────────────
 

@@ -1,6 +1,8 @@
 namespace LabShope.Core.Data;
 
-public sealed record CatalogTest(string Id, string? TestCode, string Name, decimal Price, string? CategoryId);
+public sealed record CatalogTest(
+    string Id, string? TestCode, string Name, decimal Price, string? CategoryId,
+    string? Unit = null, string? NormalRangeText = null, decimal? NormalMin = null, decimal? NormalMax = null);
 public sealed record TestPackage(string Id, string Name, decimal Price, IReadOnlyList<string> TestIds);
 public sealed record Doctor(string Id, string Name, string? Specialization, decimal CommissionPercentage);
 public sealed record LabRef(string Id, string Name, string LabCode);

@@ -70,3 +70,17 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
 - Screens: payment fields on Register visit, Bills (search, balance, Receive payment F6, Print receipt), Daily cash book (F7).
 - Receipts are printable HTML opened in the system browser (any printer, thermal included). Silent printing and PDF come later.
 - Not yet native: a Finance screen (accounts, journal, trial balance). Everything posts to the books automatically on the server.
+
+## Update: result entry (milestone 2, step 1)
+- Worklist: ordered tests (patient_tests) are pulled to the PC (30 days, then changes). A visit registered on the PC puts its tests on the
+  worklist at once; the visit carries each test's id (migration 20261029000500 lets register_visit accept client-chosen test ids), so a result
+  entered offline lands on the right row once the visit is sent.
+- Entering a result updates the row locally (status completed) and queues a PATCH of that patient_tests row, as the website does
+  (result_value / result text, unit, is_abnormal from the numeric range, normal_range_text, result_entered_by/at, updated_by).
+  A PATCH that matches no row is treated as refused and the test goes back on the worklist. Newer server data never overwrites a result
+  still waiting to be sent.
+- Screen: Results (F5): to-do / completed / all, search, reference range and unit pre-filled, Enter saves and moves to the next test.
+- NOT done: patient notification when a result is completed. The website does this client-side through the existing `send-email`
+  (Mailjet/Resend) and `send-whatsapp` edge functions; Twilio/SMS is NOT configured and is not used. The native app must call those same
+  functions. Multi-parameter panels (result_items, e.g. CBC components) and report templates are next.
+- Pending production migrations (the user applies them): 20261029000300 (reserved lab names), 000400 (record_payment), 000500 (test ids).

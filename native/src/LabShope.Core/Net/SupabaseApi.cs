@@ -43,6 +43,13 @@ public sealed class SupabaseApi
     public Task<ApiResult> SelectAsync(string table, string query, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Get, $"/rest/v1/{table}?{query}", null, true, ct), ct);
 
+    /// <summary>
+    /// Updates matching rows. Asks for the changed rows back, so "nothing matched" (wrong id, or not allowed by the
+    /// database's row rules) can be told apart from success: the result body is an empty list.
+    /// </summary>
+    public Task<ApiResult> PatchAsync(string table, string query, object body, CancellationToken ct = default) =>
+        WithRefreshAsync(() => SendAsync(new HttpMethod("PATCH"), $"/rest/v1/{table}?{query}", JsonSerializer.Serialize(body), true, ct, "return=representation"), ct);
+
     public Task<ApiResult> RpcAsync(string function, object args, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/rpc/{function}", JsonSerializer.Serialize(args), true, ct), ct);
 
@@ -58,11 +65,12 @@ public sealed class SupabaseApi
         return result;
     }
 
-    private async Task<ApiResult> SendAsync(HttpMethod method, string path, string? json, bool authenticated, CancellationToken ct)
+    private async Task<ApiResult> SendAsync(HttpMethod method, string path, string? json, bool authenticated, CancellationToken ct, string? prefer = null)
     {
         using var request = new HttpRequestMessage(method, _baseUrl + path);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authenticated && Session is not null ? Session.AccessToken : _anonKey);
+        if (prefer is not null) request.Headers.Add("Prefer", prefer);
         if (json is not null) request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         try

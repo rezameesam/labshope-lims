@@ -91,6 +91,8 @@ public sealed class VisitService
         }
 
         var visitId = Guid.NewGuid().ToString();
+        // Each ordered test gets its id now, so a result can be entered offline and still reach the right row.
+        var testIds = input.Tests.Select(_ => Guid.NewGuid().ToString()).ToList();
         var payload = new JsonObject
         {
             ["visit_id"] = visitId,
@@ -101,9 +103,9 @@ public sealed class VisitService
             ["notes"] = input.Notes,
             ["collected_at"] = _now().ToString("O"),
             ["patient"] = patient,
-            ["tests"] = new JsonArray(input.Tests.Select(t => (JsonNode)new JsonObject
+            ["tests"] = new JsonArray(input.Tests.Select((t, n) => (JsonNode)new JsonObject
             {
-                ["test_name"] = t.TestName, ["price"] = t.Price, ["in_package"] = t.InPackage,
+                ["id"] = testIds[n], ["test_name"] = t.TestName, ["price"] = t.Price, ["in_package"] = t.InPackage,
             }).ToArray()),
             ["package"] = input.Package is null ? null : new JsonObject { ["id"] = input.Package.Id, ["name"] = input.Package.Name, ["price"] = input.Package.Price },
             ["referral"] = input.ReferralDoctorId is null ? null : new JsonObject { ["doctor_id"] = input.ReferralDoctorId, ["custom_name"] = input.ReferralCustomName },
@@ -120,6 +122,9 @@ public sealed class VisitService
             // The bill exists on this PC straight away (its id is the visit id, as on the server); the server
             // gives it its official number when the visit is sent.
             _store.UpsertInvoice(new Invoice(visitId, number, patientId, total, 0m, "pending", _now().ToString("O")));
+            // ...and its tests are on the worklist at once, so the bench can start before anything is sent.
+            for (var n = 0; n < input.Tests.Count; n++)
+                _store.UpsertPatientTest(new PatientTest(testIds[n], patientId, input.Tests[n].TestName, input.TestDate, "pending"));
             if (input.Payment is { Amount: > 0 } pay)
                 receipt = new PaymentService(_store, input.OrganizationId, _now).Record(new PaymentInput(visitId, pay.Amount, pay.Method, pay.TransactionId));
         });

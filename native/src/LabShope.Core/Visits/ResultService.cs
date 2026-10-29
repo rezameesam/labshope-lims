@@ -1,0 +1,78 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
+using LabShope.Core.Data;
+
+namespace LabShope.Core.Visits;
+
+/// <summary>
+/// Enters a test result on this PC (the worklist updates at once) and queues it for the server. The abnormal
+/// flag follows the website's rule: when the test has a numeric normal range, the value decides it.
+/// </summary>
+public sealed class ResultService
+{
+    private readonly LocalStore _store;
+    private readonly string _organizationId;
+    private readonly string? _userId;
+    private readonly Func<DateTimeOffset> _now;
+
+    public ResultService(LocalStore store, string organizationId, string? userId, Func<DateTimeOffset>? now = null)
+    {
+        _store = store;
+        _organizationId = organizationId;
+        _userId = userId;
+        _now = now ?? (() => DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>What the entry form shows before anything is typed: the unit and the reference range.</summary>
+    public (string? Unit, string? RangeText) Defaults(string testName)
+    {
+        var c = _store.FindCatalogTest(testName);
+        return (c?.Unit, c?.NormalRangeText ?? (c?.NormalMin is { } lo && c.NormalMax is { } hi ? $"{lo:0.##} - {hi:0.##}" : null));
+    }
+
+    public PatientTest Enter(string testId, string valueText, string? unit = null, bool markedAbnormal = false)
+    {
+        var test = _store.GetPatientTest(testId) ?? throw new ArgumentException("That test isn't on this computer.");
+        valueText = valueText.Trim();
+        if (valueText.Length == 0) throw new ArgumentException("Enter a result.");
+
+        var catalog = _store.FindCatalogTest(test.TestName);
+        var numeric = decimal.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out var number);
+
+        var abnormal = markedAbnormal;
+        if (numeric && catalog?.NormalMin is { } min && catalog.NormalMax is { } max) abnormal = number < min || number > max;
+
+        var finalUnit = string.IsNullOrWhiteSpace(unit) ? catalog?.Unit : unit.Trim();
+        var rangeText = catalog?.NormalRangeText;
+        var enteredAt = _now().UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+
+        var done = test with
+        {
+            Status = "completed", Result = numeric ? null : valueText, ResultValue = numeric ? number : null,
+            ResultUnit = finalUnit, NormalRangeText = rangeText, IsAbnormal = abnormal, Waiting = true,
+        };
+
+        var patch = new JsonObject
+        {
+            ["status"] = "completed",
+            ["result_value"] = numeric ? number : null,
+            ["result"] = numeric ? null : valueText,
+            ["result_unit"] = finalUnit,
+            ["is_abnormal"] = abnormal,
+            ["normal_range_text"] = rangeText,
+            ["result_entered_by"] = _userId,
+            ["result_entered_at"] = enteredAt,
+            ["updated_by"] = _userId,
+        };
+        var payload = new JsonObject { ["id"] = testId, ["organization_id"] = _organizationId, ["patch"] = patch };
+
+        _store.InTransaction(() =>
+        {
+            _store.UpsertPatientTest(done);
+            // A second entry for the same test replaces the first that is still waiting to be sent.
+            _store.EnqueueVisit(new OutboxItem($"result-{testId}-{enteredAt}", payload.ToJsonString(), "pending", 0, null,
+                _store.GetPatient(test.PatientId)?.FullName ?? "", 0m, Kind: "result"));
+        });
+        return done;
+    }
+}

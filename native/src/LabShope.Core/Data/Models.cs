@@ -42,3 +42,21 @@ public sealed record PaymentRow(string Id, string PaidAt, string InvoiceNumber, 
     public string Time => DateTimeOffset.TryParse(PaidAt, out var d) ? d.ToLocalTime().ToString("HH:mm") : PaidAt;
     public string SyncText => Synced ? "sent" : "waiting";
 }
+
+/// <summary>A test ordered for a patient (a row on the lab's worklist), with its result once entered.</summary>
+public sealed record PatientTest(
+    string Id, string PatientId, string TestName, string TestDate, string Status,
+    string? Result = null, decimal? ResultValue = null, string? ResultUnit = null,
+    string? NormalRangeText = null, bool IsAbnormal = false, bool Waiting = false);
+
+/// <summary>A worklist line as the bench sees it: the test with who it is for.</summary>
+public sealed record WorklistRow(PatientTest Test, string PatientName, string PatientCode)
+{
+    public string Id => Test.Id;
+    public string TestName => Test.TestName;
+    public string Status => Test.Status;
+    public string Date => Test.TestDate;
+    public string ResultText => Test.ResultValue is { } v ? $"{v:0.##} {Test.ResultUnit}".Trim() : Test.Result ?? "";
+    public string Flag => Test.Status != "completed" ? "" : Test.IsAbnormal ? "ABNORMAL" : "normal";
+    public string SyncText => Test.Waiting ? "waiting" : "";
+}

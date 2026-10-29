@@ -142,6 +142,7 @@ public sealed class AccountService
     }
 
     public string? SavedEmail => Load()?.Email;
+    public string? SavedUserId => Load()?.UserId;
 
     private Saved? Load()
     {

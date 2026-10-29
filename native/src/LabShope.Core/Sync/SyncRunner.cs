@@ -27,6 +27,7 @@ public sealed class SyncRunner
 
             await _engine.PullCatalogAsync(ct: ct);
             await _engine.PullPatientsAsync(ct);
+            await _engine.PullPatientTestsAsync(ct);
             await _engine.PullInvoicesAsync(ct);
             _lastSyncedAt = DateTimeOffset.UtcNow;
             return Status(null, null);

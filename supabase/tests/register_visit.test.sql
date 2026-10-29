@@ -99,6 +99,21 @@ begin
   begin perform public.register_visit(jsonb_build_object('visit_id', gen_random_uuid(), 'organization_id', org, 'lab_id', lab, 'patient', jsonb_build_object('id', gen_random_uuid()), 'tests', jsonb_build_array(jsonb_build_object('test_name','A','price',1))));
     raise exception 'expected failure'; exception when sqlstate 'P0002' then raise notice 'OK 6b unknown patient rejected'; end;
 
+  -- 6c. the client may choose each test's id (the desktop app needs it to enter results offline)
+  declare cid1 uuid := gen_random_uuid(); cid2 uuid := gen_random_uuid(); vv uuid := gen_random_uuid(); got int;
+  begin
+    r := public.register_visit(jsonb_build_object(
+      'visit_id', vv, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('id', (select patient_uuid from (select (r3->>'patient_uuid')::uuid as patient_uuid) q)),
+      'tests', jsonb_build_array(jsonb_build_object('id', cid1, 'test_name','Glucose','price',100), jsonb_build_object('id', cid2, 'test_name','Urea','price',120), jsonb_build_object('test_name','NoId','price',50))));
+    select count(*) into got from patient_tests where id in (cid1, cid2); assert got = 2, 'client test ids are used, got ' || got;
+    select count(*) into got from patient_tests where test_name = 'NoId' and id not in (cid1, cid2); assert got = 1, 'a test without an id still gets one';
+    r := public.register_visit(jsonb_build_object('visit_id', vv, 'organization_id', org, 'patient', jsonb_build_object('id', r3->>'patient_uuid'), 'tests', jsonb_build_array(jsonb_build_object('id', cid1, 'test_name','Glucose','price',100))));
+    assert (r->>'replayed')::boolean, 'replay flagged';
+    select count(*) into got from patient_tests where test_name in ('Glucose','Urea','NoId'); assert got = 3, 'replay adds no tests';
+    raise notice 'OK 6c client-chosen test ids';
+  end;
+
   -- 7. atomic: a failure after the patient insert leaves nothing behind
   begin
     perform public.register_visit(jsonb_build_object('visit_id', gen_random_uuid(), 'organization_id', org, 'lab_id', lab,

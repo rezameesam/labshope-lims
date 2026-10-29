@@ -65,6 +65,32 @@ public class IntegrationLocalTests
         await engine.PullInvoicesAsync();
         Assert.Equal(("paid", 750m), (store.GetInvoice(visit.VisitId)!.PaymentStatus, store.GetInvoice(visit.VisitId)!.PaidAmount));
 
+        // The test ids the app chose are the ones the server stored, so a result entered on this PC lands on the right row.
+        await engine.PullCatalogAsync(force: true);
+        await engine.PullPatientTestsAsync();
+        var worklist = store.SearchWorklist("", ["pending"]);
+        var cbcRows = worklist.Where(r => r.TestName == "CBC" && r.PatientName == "Native Integration Patient").ToList();
+        Assert.True(cbcRows.Count == 1, "CBC rows: " + string.Join(" | ", worklist.Select(r => $"{r.TestName}/{r.Id}/{r.PatientName}")));
+        var cbc = cbcRows[0];
+        var serverRow = await api.SelectAsync("patient_tests", $"select=id,status&id=eq.{cbc.Id}");
+        Assert.Equal(1, serverRow.Body!.Value.GetArrayLength());
+
+        var results = new ResultService(store, org, session!.UserId);
+        results.Enter(cbc.Id, "12.5", "g/dL");
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+
+        var after = await api.SelectAsync("patient_tests", $"select=status,result_value,result_unit,is_abnormal,result_entered_by&id=eq.{cbc.Id}");
+        var row = after.Body!.Value[0];
+        Assert.Equal("completed", row.GetProperty("status").GetString());
+        Assert.Equal(12.5m, row.GetProperty("result_value").GetDecimal());
+        Assert.Equal("g/dL", row.GetProperty("result_unit").GetString());
+        Assert.Equal(session.UserId, row.GetProperty("result_entered_by").GetString());
+
+        // Entering a result for a test that isn't ours is refused by the server, not silently dropped.
+        var stranger = await api.PatchAsync("patient_tests", $"id=eq.{Guid.NewGuid()}&organization_id=eq.{org}", new { status = "completed" });
+        Assert.True(stranger.Ok);
+        Assert.Equal(0, stranger.Body!.Value.GetArrayLength());
+
         // The server refuses to be paid twice for the same thing: replaying the same payment changes nothing.
         var payment = store.PaymentsFor(visit.VisitId).First();
         var replay = await api.RpcAsync("record_payment", new { p_payload = new { payment_id = payment.Id, invoice_id = visit.VisitId, organization_id = org, amount = payment.Amount, payment_method = payment.Method } });

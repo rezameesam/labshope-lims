@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private BillsView? _bills;
     private RegisterVisitView? _register;
     private CashBookView? _cashBook;
+    private ResultsView? _results;
     private bool _syncing;
 
     public MainWindow() => throw new InvalidOperationException("Use the constructor with a session.");
@@ -99,11 +100,23 @@ public partial class MainWindow : Window
         if (_register is null)
         {
             _register = new RegisterVisitView(_session);
-            _register.Registered += async () => { _patients?.Refresh(); _bills?.Refresh(); _cashBook?.Refresh(); await SyncAsync(); };
+            _register.Registered += async () => { _patients?.Refresh(); _bills?.Refresh(); _cashBook?.Refresh(); _results?.Refresh(); await SyncAsync(); };
             Windows.Items.Add(new TabItem { Header = "Register visit", Content = _register });
         }
         Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _register));
         _register.FocusFirstField();
+    }
+
+    private void OnOpenResults(object? sender, RoutedEventArgs e)
+    {
+        if (_results is null)
+        {
+            _results = new ResultsView(_session);
+            _results.ResultSaved += async () => await SyncAsync();
+            Windows.Items.Add(new TabItem { Header = "Results", Content = _results });
+        }
+        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _results));
+        _results.Refresh();
     }
 
     private void OnOpenCashBook(object? sender, RoutedEventArgs e)
@@ -148,6 +161,7 @@ public partial class MainWindow : Window
             _bills?.Refresh();
             _register?.ReloadCatalog();
             _cashBook?.Refresh();
+            _results?.Refresh();
         }
         finally { _syncing = false; }
     }

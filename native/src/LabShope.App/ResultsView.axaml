@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             x:Class="LabShope.App.ResultsView">
+  <Grid ColumnDefinitions="*,12,360" Margin="8">
+    <DockPanel Grid.Column="0">
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+        <TextBlock Text="Show:" VerticalAlignment="Center" />
+        <ComboBox x:Name="FilterBox" SelectedIndex="0" Width="150">
+          <ComboBoxItem>To do</ComboBoxItem>
+          <ComboBoxItem>Completed</ComboBoxItem>
+          <ComboBoxItem>All</ComboBoxItem>
+        </ComboBox>
+        <TextBox x:Name="SearchBox" Width="240" Watermark="Search patient, ID or test" />
+        <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
+      </StackPanel>
+      <DataGrid x:Name="Grid" x:DataType="data:WorklistRow" AutoGenerateColumns="False" IsReadOnly="True"
+                CanUserSortColumns="True" GridLinesVisibility="All" SelectionMode="Single">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" />
+          <DataGridTextColumn Header="ID" Binding="{Binding PatientCode}" Width="100" />
+          <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="170" />
+          <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="100" />
+          <DataGridTextColumn Header="Result" Binding="{Binding ResultText}" Width="120" />
+          <DataGridTextColumn Header="" Binding="{Binding Flag}" Width="90" />
+          <DataGridTextColumn Header="Sent" Binding="{Binding SyncText}" Width="80" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </DockPanel>
+
+    <Border Grid.Column="2" BorderBrush="#C9CFD8" BorderThickness="1" Padding="14" CornerRadius="3">
+      <StackPanel Spacing="8">
+        <TextBlock x:Name="EntryHeading" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a test" />
+        <TextBlock x:Name="RangeText" Foreground="#555" TextWrapping="Wrap" />
+        <TextBlock Text="Result" />
+        <TextBox x:Name="ValueBox" IsEnabled="False" />
+        <TextBlock Text="Unit" />
+        <TextBox x:Name="UnitBox" IsEnabled="False" />
+        <CheckBox x:Name="AbnormalBox" Content="Mark as abnormal (used when there is no numeric range)" IsEnabled="False" />
+        <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="#B00020" />
+        <Button x:Name="SaveButton" Content="Save result (Enter)" IsDefault="True" IsEnabled="False" Click="OnSave"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
