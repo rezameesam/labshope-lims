@@ -9,6 +9,9 @@ namespace LabShope.Core.Analyzers;
 /// </summary>
 public abstract class InstrumentSession
 {
+    /// <summary>No real result message is anywhere near this big; a sender that never finishes must not fill the computer's memory.</summary>
+    public const int MaxMessageBytes = 1_000_000;
+
     public event Action<IReadOnlyList<InstrumentResult>>? ResultsReceived;
 
     /// <summary>Feed received bytes; returns what to send back to the machine (possibly nothing).</summary>
@@ -27,6 +30,7 @@ public sealed class AstmSession : InstrumentSession
 
     private readonly StringBuilder _message = new();
     private readonly List<byte> _frame = [];
+    private bool _overflow;
     private bool _inFrame;
 
     public override byte[] Feed(ReadOnlySpan<byte> data)
@@ -37,16 +41,17 @@ public sealed class AstmSession : InstrumentSession
             if (_inFrame)
             {
                 _frame.Add(b);
+                if (_frame.Count > InstrumentSession.MaxMessageBytes) { _frame.Clear(); _inFrame = false; _overflow = true; _message.Clear(); continue; } // a runaway sender
                 if (b == Lf && _frame.Count >= 4 && _frame[^2] == Cr) { reply.Add(CompleteFrame()); _inFrame = false; }
                 continue;
             }
 
             switch (b)
             {
-                case Enq: _message.Clear(); reply.Add(Ack); break;
+                case Enq: _message.Clear(); _overflow = false; reply.Add(Ack); break;
                 case Stx: _inFrame = true; _frame.Clear(); break;
                 case Eot:
-                    if (_message.Length > 0) Report(AstmParser.Parse(_message.ToString()));
+                    if (_message.Length > 0 && !_overflow) Report(AstmParser.Parse(_message.ToString()));
                     _message.Clear();
                     break;
             }
@@ -65,6 +70,7 @@ public sealed class AstmSession : InstrumentSession
         var sent = Encoding.ASCII.GetString(_frame.Skip(end + 1).Take(2).ToArray());
         if (!string.Equals(sent, AstmParser.Checksum(Encoding.ASCII.GetString(body)), StringComparison.OrdinalIgnoreCase)) return Nak;
 
+        if (_message.Length + body.Length > InstrumentSession.MaxMessageBytes) { _overflow = true; _message.Clear(); return Nak; }
         _message.Append(Encoding.ASCII.GetString(body, 1, body.Length - 2)); // drop the frame number and ETX/ETB
         return Ack;
     }
@@ -102,6 +108,7 @@ public sealed class MllpSession : InstrumentSession
                 continue;
             }
             _afterFs = false;
+            if (_buffer.Count >= InstrumentSession.MaxMessageBytes) { _inMessage = false; _buffer.Clear(); continue; } // a runaway sender: drop the message
             _buffer.Add(b);
         }
         return reply.ToArray();

@@ -40,6 +40,13 @@ public sealed class AnalyzerServer : IDisposable
     /// <summary>The port actually listening (useful when 0 was asked for).</summary>
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
+    /// <summary>When set, only these addresses may connect (the analyzers). Empty means anyone on the network, as most machines are simply plugged into the lab's network.</summary>
+    public IReadOnlyCollection<IPAddress> AllowedAddresses { get; set; } = [];
+
+    /// <summary>A lab has a handful of machines; more connections than this are turned away.</summary>
+    public const int MaxConnections = 16;
+    private int _connections;
+
     public AnalyzerServer(int port) => _listener = new TcpListener(IPAddress.Any, port);
 
     public void Start()
@@ -56,9 +63,19 @@ public sealed class AnalyzerServer : IDisposable
             TcpClient client;
             try { client = await _listener.AcceptTcpClientAsync(_stop.Token); }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or SocketException) { break; }
+            if (!Allowed(client) || Interlocked.Increment(ref _connections) > MaxConnections)
+            {
+                if (Allowed(client)) Interlocked.Decrement(ref _connections);
+                Log?.Invoke($"Refused a connection from {client.Client.RemoteEndPoint}.");
+                client.Dispose();
+                continue;
+            }
             _ = Task.Run(() => HandleAsync(client));
         }
     }
+
+    private bool Allowed(TcpClient client) =>
+        AllowedAddresses.Count == 0 || (client.Client.RemoteEndPoint as IPEndPoint)?.Address is { } a && AllowedAddresses.Any(x => x.Equals(a) || x.MapToIPv6().Equals(a.MapToIPv6()));
 
     private async Task HandleAsync(TcpClient client)
     {
@@ -68,6 +85,7 @@ public sealed class AnalyzerServer : IDisposable
             var session = new AutoSession();
             session.ResultsReceived += results => { foreach (var r in results) ResultReceived?.Invoke(r); };
             await InstrumentChannel.RunAsync(client.GetStream(), session, _stop.Token);
+            Interlocked.Decrement(ref _connections);
             Log?.Invoke("Analyzer disconnected.");
         }
     }
