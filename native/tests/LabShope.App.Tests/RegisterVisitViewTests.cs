@@ -214,6 +214,41 @@ public class RegisterVisitViewTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void ADiscountLowersTheTotalAndWhatIsDue()
+    {
+        var (_, view) = Show();
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter); // 300
+        Type(Find<TextBox>(view, "DiscountBox"), "100");
+
+        Assert.Equal("Total 200", Find<TextBlock>(view, "TotalText").Text);
+        Assert.Equal("200", Find<TextBox>(view, "PayAmount").Text); // the payment follows the discounted total
+        Assert.Contains("less discount 100", Find<TextBlock>(view, "DiscountNote").Text);
+        Assert.Equal("Paid in full.", Find<TextBlock>(view, "BalanceText").Text);
+
+        view.UsePatient(_store.GetPatient("p1")!);
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        var bill = _store.SearchBills("").Single();
+        Assert.Equal(("paid", 200m, 100m), (bill.PaymentStatus, bill.TotalAmount, bill.Discount));
+        Assert.Equal("0", Find<TextBox>(view, "DiscountBox").Text); // ready for the next patient
+    }
+
+    [AvaloniaFact]
+    public void ADiscountThatIsNotANumberIsExplained()
+    {
+        var (_, view) = Show();
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter);
+        Type(Find<TextBox>(view, "DiscountBox"), "ten");
+        view.UsePatient(_store.GetPatient("p1")!);
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Contains("discount as a number", Find<TextBlock>(view, "ResultText").Text);
+        Assert.Null(_store.NextPendingVisit());
+    }
+
+    [AvaloniaFact]
     public void PayingMoreThanTheTotalIsRefused()
     {
         var (_, view) = Show();

@@ -70,6 +70,11 @@
         <StackPanel DockPanel.Dock="Bottom" Spacing="12" Margin="0,14,0,0">
           <Border Height="1" Background="{StaticResource GridLineBrush}" />
           <TextBlock Text="PAYMENT" Classes="label" />
+          <Grid ColumnDefinitions="Auto,100,*" ColumnSpacing="10">
+            <TextBlock Text="Discount" Classes="muted" VerticalAlignment="Center" />
+            <TextBox x:Name="DiscountBox" Grid.Column="1" Text="0" />
+            <TextBlock x:Name="DiscountNote" Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+          </Grid>
           <Grid ColumnDefinitions="Auto,100,Auto,130,*" ColumnSpacing="10">
             <TextBlock Text="Received now" Classes="muted" VerticalAlignment="Center" />
             <TextBox x:Name="PayAmount" Grid.Column="1" Text="0" />
