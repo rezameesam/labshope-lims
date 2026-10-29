@@ -23,7 +23,7 @@
         <DataGridTextColumn Header="NAME" Binding="{Binding FullName}" Width="*" />
         <DataGridTextColumn Header="PHONE" Binding="{Binding Phone}" Width="170" />
         <DataGridTextColumn Header="GENDER" Binding="{Binding Gender}" Width="110" />
-        <DataGridTextColumn Header="DATE OF BIRTH" Binding="{Binding DateOfBirth}" Width="140" />
+        <DataGridTextColumn Header="DATE OF BIRTH" Binding="{Binding BirthDate}" Width="140" />
       </DataGrid.Columns>
     </DataGrid>
   </DockPanel>

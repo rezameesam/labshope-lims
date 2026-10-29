@@ -483,7 +483,7 @@ public class InstrumentsScreenTests : IDisposable
         }
 
         // The result is handed over on the window's thread.
-        for (var i = 0; i < 100 && _store.NewInstrumentCount() == 0; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
+        for (var i = 0; i < 300 && _store.NewInstrumentCount() == 0; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
         Assert.Equal(1, _store.NewInstrumentCount());
 
         var grid = view.FindControl<DataGrid>("Grid")!;

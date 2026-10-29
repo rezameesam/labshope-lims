@@ -41,7 +41,7 @@ public static class ReportBuilder
         var header = template?.HeaderTemplate is { Length: > 0 } h ? ReportTemplates.RenderText(h, context) : null;
         var footer = template?.FooterTemplate is { Length: > 0 } f ? ReportTemplates.RenderText(f, context) : null;
 
-        return new ReportData(labName, patient.FullName, patient.PatientCode, patient.Gender, AgeOf(patient.DateOfBirth, now ?? DateTimeOffset.Now),
+        return new ReportData(labName, patient.FullName, patient.PatientCode, patient.Gender, PatientAge.Of(patient.DateOfBirth, DateOnly.FromDateTime((now ?? DateTimeOffset.Now).LocalDateTime)),
             patient.Phone, testDate, sections, Provisional: done.Any(t => t.Waiting), Branding: branding,
             HeaderText: header, FooterText: footer, ShowReference: template?.IncludeNormalRange ?? true, ShowFlag: template?.IncludeAbnormalFlag ?? true);
     }
@@ -64,14 +64,6 @@ public static class ReportBuilder
     private static string RangeOf(string min, string max, string? text) =>
         !string.IsNullOrWhiteSpace(text) ? text! : min != "" && max != "" ? $"{min} - {max}" : min != "" ? $">= {min}" : max != "" ? $"<= {max}" : "";
 
-    private static string? AgeOf(string? dob, DateTimeOffset now)
-    {
-        if (!DateTime.TryParse(dob, out var d)) return null;
-        var years = now.Year - d.Year - (now.DayOfYear < new DateTimeOffset(d).DayOfYear ? 1 : 0);
-        if (years >= 1) return $"{years} y";
-        var months = (now.Year - d.Year) * 12 + now.Month - d.Month - (now.Day < d.Day ? 1 : 0);
-        return $"{Math.Max(months, 0)} m";
-    }
 }
 
 /// <summary>A printable lab report as a self-contained HTML page (A4), the same approach as receipts: works on any OS and printer.</summary>
@@ -100,7 +92,7 @@ public static class ReportHtml
             if (contact.Length > 0) sb.Append("<div style=\"font-size:11px;color:#444\">").Append(E(contact)).Append("</div>");
         }
         else sb.Append("<div>Laboratory report</div>");
-        sb.Append("</div></div><div style=\"text-align:right\">Report date<br><b>").Append(E(r.ReportDate)).Append("</b></div></div>");
+        sb.Append("</div></div><div style=\"text-align:right\">Report date<br><b>").Append(E(Dates.FromIso(r.ReportDate))).Append("</b></div></div>");
         sb.Append("<div class=\"meta\"><div>Patient: <b>").Append(E(r.PatientName)).Append("</b></div><div>Patient ID: <b>").Append(E(r.PatientCode)).Append("</b></div>")
           .Append("<div>Age / sex: ").Append(E(string.Join(" / ", new[] { r.Age, r.Gender }.Where(x => !string.IsNullOrWhiteSpace(x))))).Append("</div><div>Phone: ").Append(E(r.Phone)).Append("</div></div>");
         if (!string.IsNullOrWhiteSpace(r.HeaderText)) sb.Append("<div style=\"white-space:pre-line;margin:6px 0 4px\">").Append(E(r.HeaderText)).Append("</div>");

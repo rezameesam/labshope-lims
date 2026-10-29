@@ -19,10 +19,10 @@ public static class LabelBuilder
         var tests = store.SearchWorklist("", null, 5000).Where(r => r.Test.PatientId == patient.Id && r.Test.TestDate == DateTimeOffset.Parse(bill.CreatedAt).ToLocalTime().ToString("yyyy-MM-dd")).Select(r => r.TestName).ToList();
         var agesex = string.Join(" / ", new[] { Age(patient.DateOfBirth), patient.Gender }.Where(x => !string.IsNullOrWhiteSpace(x)));
         return new LabelData(labName, patient.FullName, patient.PatientCode, agesex.Length == 0 ? null : agesex, bill.InvoiceNumber,
-            DateTimeOffset.Parse(bill.CreatedAt).ToLocalTime().ToString("dd MMM yyyy"), tests, Math.Clamp(copies, 1, 20));
+            Dates.Date(DateTimeOffset.Parse(bill.CreatedAt).ToLocalTime().DateTime), tests, Math.Clamp(copies, 1, 20));
     }
 
-    private static string? Age(string? dob) => DateTime.TryParse(dob, out var d) ? $"{Math.Max(DateTime.Today.Year - d.Year, 0)} y" : null;
+    private static string? Age(string? dob) => PatientAge.Of(dob, DateOnly.FromDateTime(DateTime.Today));
 }
 
 /// <summary>Sample-tube labels (50 x 25 mm, one per page) with a Code 128 barcode. A scanner reads the code and the app opens the patient.</summary>

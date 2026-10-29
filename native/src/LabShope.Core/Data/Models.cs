@@ -7,7 +7,11 @@ public sealed record Patient(
     string Phone,
     string? Gender,
     string? DateOfBirth,
-    bool Pending = false);
+    bool Pending = false)
+{
+    /// <summary>The date of birth as people read it (day first).</summary>
+    public string BirthDate => Dates.FromIso(DateOfBirth);
+}
 
 /// <summary>
 /// A bill. <see cref="TotalAmount"/> is what the patient has to pay (the website's final_amount, after any discount);
@@ -38,7 +42,7 @@ public sealed record BillRow(
     public decimal Balance => Math.Max(TotalAmount - PaidAmount, 0);
     public bool Provisional => InvoiceNumber.StartsWith("L-");
     public string Number => Provisional ? InvoiceNumber + " (provisional)" : InvoiceNumber;
-    public string Date => DateTimeOffset.TryParse(CreatedAt, out var d) ? d.ToLocalTime().ToString("dd MMM yyyy HH:mm") : CreatedAt;
+    public string Date => Dates.FromMoment(CreatedAt);
 }
 
 /// <summary>One payment line in the cash book.</summary>
@@ -88,7 +92,7 @@ public sealed record BookingRequest(
     string Id, string FullName, string Phone, string? Email, string BookingType, string? PreferredDate,
     string? TestDetails, string? Notes, string Status, string? PatientId, string CreatedAt, bool Waiting = false)
 {
-    public string Created => DateTimeOffset.TryParse(CreatedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : CreatedAt;
+    public string Created => Dates.FromMoment(CreatedAt);
     public string Type => BookingType.Replace('_', ' ');
 }
 
@@ -108,7 +112,7 @@ public sealed record OutboxEntry(string Id, string Kind, string Status, int Atte
     public string Badge => Status == "failed" ? "failed" : "waiting";
     /// <summary>Why it was refused, or (for items that are only waiting) that they will go when the connection is back.</summary>
     public string Detail => Status == "failed" ? LastError ?? "The server refused it." : "Will be sent when the connection is available.";
-    public string Updated => long.TryParse(UpdatedAt, out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("dd MMM HH:mm") : UpdatedAt;
+    public string Updated => long.TryParse(UpdatedAt, out var ms) ? Dates.DateTime(DateTimeOffset.FromUnixTimeMilliseconds(ms)) : UpdatedAt;
 }
 
 /// <summary>A result received from a lab machine, waiting for a person to check it (or already accepted/discarded).</summary>
@@ -116,7 +120,7 @@ public sealed record InstrumentEntry(
     string Id, string ReceivedAt, string Protocol, string SampleId, string? MachinePatientName,
     string? PatientId, string ParametersJson, string Status, string? Note)
 {
-    public string Received => DateTimeOffset.TryParse(ReceivedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : ReceivedAt;
+    public string Received => Dates.FromMoment(ReceivedAt);
     public int ParameterCount => LabShope.Core.Visits.InstrumentInbox.ParseParameters(ParametersJson).Count;
 }
 
