@@ -145,3 +145,8 @@ Local testing without touching production: see the memory note "reference_local_
 - Docker Desktop was started during the session and is still running.
 - A temporary Cloudflare API helper was left at `/tmp/cfapi.py` (reads the Wrangler login; it may be cleared on reboot).
 - Local `demo` may be one commit ahead of `origin/demo` (this notes file): it is intentionally unpushed.
+
+## Update: product website moved to healthcare.labshope.com
+- `labshope.com` is the company site (`LabShope/labshope-website`) and has no /features, /pricing, etc., so the links on `lims.labshope.com` were 404s.
+- The app now has `VITE_MARKETING_HOSTNAME` (set to `healthcare.labshope.com` on both Pages environments). That host serves the product landing page and marketing routes; `lims.labshope.com` (operations host) links to it. Served by the existing `*.labshope.com` Worker route, no DNS change.
+- Do not create a lab with the slug `healthcare` or `lims`.
