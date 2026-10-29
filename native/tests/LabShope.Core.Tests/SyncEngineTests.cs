@@ -226,3 +226,37 @@ public class SyncRunnerTests : IDisposable
         File.Delete(_path);
     }
 }
+
+public class FirstSyncWindowTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    public FirstSyncWindowTests() => _store = new LocalStore(_path);
+
+    private static SupabaseApi Api(HttpMessageHandler h) =>
+        new(new HttpClient(h), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };
+
+    [Fact]
+    public async Task TheFirstSyncAlsoFetchesAnythingStillWaitingHoweverOld()
+    {
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, "[]") };
+        var engine = new SyncEngine(_store, Api(server), "org-1");
+
+        await engine.PullPatientTestsAsync();
+        await engine.PullInvoicesAsync();
+
+        var tests = Uri.UnescapeDataString(server.Requests.Single(r => r.Url.Contains("/patient_tests")).Url);
+        Assert.Contains("or=(test_date.gte.", tests);
+        Assert.Contains("status.in.(pending,in_progress)", tests);   // old waiting tests come too
+        var bills = Uri.UnescapeDataString(server.Requests.Single(r => r.Url.Contains("/invoices")).Url);
+        Assert.Contains("created_at.gte.", bills);
+        Assert.Contains("payment_status.in.(pending,partial)", bills); // old unpaid bills come too
+    }
+
+    public void Dispose()
+    {
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}

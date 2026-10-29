@@ -111,7 +111,7 @@ public sealed class SyncEngine
                 row.GetProperty("id").GetString()!, Opt(row, "full_name") ?? "", Opt(row, "phone") ?? "", Opt(row, "email"), Opt(row, "booking_type") ?? "",
                 Opt(row, "preferred_date"), Opt(row, "test_details"), Opt(row, "notes"), Opt(row, "status") ?? "new", Opt(row, "patient_id"),
                 Opt(row, "created_at") ?? ""), fromServer: true);
-        }, "created_at=gte." + floor, ct);
+        }, $"or=(created_at.gte.{floor},status.in.(new,contacted,scheduled))", ct); // plus any request still being worked, however old
     }
 
     private const int WorklistHistoryDays = 30;
@@ -129,7 +129,8 @@ public sealed class SyncEngine
                 row.TryGetProperty("is_abnormal", out var a) && a.ValueKind == JsonValueKind.True,
                 ResultItemsJson: row.TryGetProperty("result_items", out var items) && items.ValueKind == JsonValueKind.Array ? items.GetRawText() : null,
                 ExternalLabId: Opt(row, "external_lab_id"), OutsourceCost: NumOrNull(row, "outsource_cost")), fromServer: true);
-        }, "test_date=gte." + floor, ct);
+        }, // Recent tests, plus anything still waiting however old: a test must never vanish from the worklist just because it is slow.
+            $"or=(test_date.gte.{floor},status.in.(pending,in_progress))", ct);
     }
 
     public Task<int> PullInvoicesAsync(CancellationToken ct = default)
@@ -148,7 +149,8 @@ public sealed class SyncEngine
             // Money taken on this PC that the server hasn't confirmed yet still counts.
             var waiting = _store.UnsyncedPaymentTotal(id);
             if (waiting > 0) _store.SetInvoicePaid(id, Num(row, "paid_amount") + waiting);
-        }, "created_at=gte." + Uri.EscapeDataString(floor), ct);
+        }, // Recent bills, plus any that are still unpaid however old, so old dues can still be collected.
+            "or=" + Uri.EscapeDataString($"(created_at.gte.{floor},payment_status.in.(pending,partial))"), ct);
     }
 
     private const string CatalogKey = "catalog_synced_at";
