@@ -120,6 +120,11 @@ public class IntegrationLocalTests
         var bookingRow = (await api.SelectAsync("booking_requests", $"select=status,patient_id,converted_by&id=eq.{booking.Id}")).Body!.Value[0];
         Assert.Equal(("converted", synced.Id, session.UserId), (bookingRow.GetProperty("status").GetString(), bookingRow.GetProperty("patient_id").GetString(), bookingRow.GetProperty("converted_by").GetString()));
 
+        // The team list comes from the real employees table.
+        var team = await TeamService.LoadAsync(api, org);
+        Assert.Null(team.Error);
+        Assert.Contains(team.Members, m => m.FullName == "IT Admin" && m.IsActive);
+
         // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
         var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
         Assert.Null(books.Error);

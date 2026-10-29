@@ -22,3 +22,9 @@ public sealed record Catalog(
     IReadOnlyList<Doctor> Doctors,
     IReadOnlyList<LabRef> Labs,
     IReadOnlyList<CenterRef> Centers);
+
+/// <summary>A member of staff, as shown on the Team tab (read from the server).</summary>
+public sealed record TeamMember(string Id, string EmployeeId, string FullName, string? Email, string? Phone, string? Designation, string? Department, string? LabId, bool IsActive)
+{
+    public string Status => IsActive ? "active" : "inactive";
+}

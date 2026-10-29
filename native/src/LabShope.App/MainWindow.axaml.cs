@@ -82,6 +82,7 @@ public partial class MainWindow : Window
             }),
             new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
             new("reports", "Reports", MaterialIconKind.ChartBoxOutline, Key.F6, () => new ReportsView(session)),
+            new("organization", "Labs & team", MaterialIconKind.OfficeBuildingOutline, Key.None, () => new OrganizationView(session)),
             new("catalog", "Test catalog", MaterialIconKind.FlaskOutline, Key.None, () =>
             {
                 var v = new CatalogView(session);
@@ -185,6 +186,7 @@ public partial class MainWindow : Window
             case ReportsView rv: rv.Refresh(); break;
             case CatalogView cv: cv.Refresh(); break;
             case BookingsView bv: bv.Refresh(); break;
+            case OrganizationView ov: ov.Refresh(); break;
             case SettingsView sv: sv.Refresh(); break;
             case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;

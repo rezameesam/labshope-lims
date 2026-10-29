@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.OrganizationView">
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,16">
+      <Button x:Name="LabsButton" Classes="seg on" Content="Labs" Click="OnTab" Tag="labs" />
+      <Button x:Name="CentersButton" Classes="seg" Content="Collection centres" Click="OnTab" Tag="centers" />
+      <Button x:Name="TeamButton" Classes="seg" Content="Team" Click="OnTab" Tag="team" />
+    </StackPanel>
+    <Border x:Name="MessageCard" DockPanel.Dock="Top" Classes="card" Background="#FFF8E6" BorderBrush="#F2D488" Margin="0,0,0,16" IsVisible="False">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <mi:MaterialIcon Kind="CloudOffOutline" Width="20" Height="20" Foreground="{StaticResource WarnBrush}" />
+        <TextBlock x:Name="MessageText" VerticalAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+    <TextBlock x:Name="Footnote" DockPanel.Dock="Bottom" Classes="muted" Margin="2,10,0,0" TextWrapping="Wrap" />
+    <Grid>
+      <DataGrid x:Name="LabGrid" x:DataType="data:LabRef" AutoGenerateColumns="False" IsReadOnly="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="LAB" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="CODE" Binding="{Binding LabCode}" Width="140" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="CenterGrid" x:DataType="data:CenterRef" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="COLLECTION CENTRE" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="CODE" Binding="{Binding Code}" Width="140" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="TeamGrid" x:DataType="data:TeamMember" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="ID" Binding="{Binding EmployeeId}" Width="90" />
+          <DataGridTextColumn Header="NAME" Binding="{Binding FullName}" Width="*" MinWidth="150" />
+          <DataGridTextColumn Header="DESIGNATION" Binding="{Binding Designation}" Width="160" />
+          <DataGridTextColumn Header="DEPARTMENT" Binding="{Binding Department}" Width="150" />
+          <DataGridTextColumn Header="EMAIL" Binding="{Binding Email}" Width="220" />
+          <DataGridTemplateColumn Header="STATUS" Width="100">
+            <DataTemplate x:DataType="data:TeamMember">
+              <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Status, Converter={x:Static app:Pills.Background}}">
+                <TextBlock Text="{Binding Status}" Foreground="{Binding Status, Converter={x:Static app:Pills.Foreground}}" />
+              </Border>
+            </DataTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+  </DockPanel>
+</UserControl>
