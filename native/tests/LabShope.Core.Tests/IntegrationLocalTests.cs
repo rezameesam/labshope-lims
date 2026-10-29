@@ -125,6 +125,10 @@ public class IntegrationLocalTests
         Assert.Null(team.Error);
         Assert.Contains(team.Members, m => m.FullName == "IT Admin" && m.IsActive);
 
+        // The subscription details can be read by staff (row level security) and cached.
+        Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
+        Assert.NotNull(SubscriptionService.Cached(store));
+
         // Inventory: stock used and bought move the real stock level and are logged.
         var stock = await InventoryService.LoadAsync(api, org);
         Assert.Null(stock.Error);
