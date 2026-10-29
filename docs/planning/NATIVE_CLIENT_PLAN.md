@@ -100,3 +100,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   the old value is kept as an alias and scans still find the patient/bill.
 - Edit patient (Patients screen, double-click): offline; queued as a PATCH of that patients row (same as the website's edit); refused changes
   restore the old details; newer server data never overwrites a waiting edit; a patient not yet on the server is updated inside its waiting visit.
+
+## Update: installers (native)
+- `native-release.yml` builds, on a published GitHub release (or a manual dry run that only keeps artifacts): macOS Apple Silicon + Intel (.pkg),
+  Windows (Setup.exe), Ubuntu/Linux (AppImage) with Velopack (`vpk`), self-contained (no .NET needed on the PC). Each is also a portable build.
+  The version comes from the release tag (`v1.2.3`). Verified locally: macOS arm64 .pkg builds (47 MB) and the packaged app starts at the login screen.
+- Not signed or notarized yet (macOS will warn on first open; Windows SmartScreen will warn). Signing needs an Apple Developer ID and a Windows code-signing
+  certificate. Auto-update (Velopack) needs a public place to serve the update files; the repo is private.

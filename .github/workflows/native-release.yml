@@ -1,0 +1,94 @@
+name: Native Release
+
+# Builds the LabShope LIMS native desktop app installers for macOS, Windows and Ubuntu/Linux and attaches
+# them to the GitHub release that triggered the run.
+#
+# Run it manually (Actions -> Native Release -> Run workflow) to do a dry run: the installers are built and kept
+# as workflow artifacts, nothing is published.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-release-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, icon: assets/icon.icns }
+          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   icon: assets/icon.icns }
+          - { name: "Windows",               os: windows-latest, rid: win-x64,  icon: assets/icon.ico }
+          - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  icon: assets/icon.png }
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Work out the version
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          RUN: ${{ github.run_number }}
+        run: |
+          if [ -n "$TAG" ]; then v="${TAG#v}"; else v="0.0.0-dev.$RUN"; fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "Building version $v"
+
+      - name: Run the tests
+        working-directory: native
+        run: dotnet test -c Release
+
+      - name: Publish (self-contained, no .NET needed on the customer's PC)
+        working-directory: native
+        run: >
+          dotnet publish src/LabShope.App -c Release -r ${{ matrix.rid }} --self-contained
+          -p:Version=${{ steps.version.outputs.value }} -o publish
+
+      - name: Install the installer builder
+        run: dotnet tool install -g vpk --version 1.2.161
+
+      - name: Build the installer
+        working-directory: native
+        run: >
+          vpk pack -u LabShopeLIMS -v ${{ steps.version.outputs.value }} -p publish -e LabShope
+          -o installers -r ${{ matrix.rid }} --packTitle "LabShope LIMS" --packAuthors "LabShope"
+          --icon ${{ matrix.icon }} --bundleId com.labshope.lims
+
+      - name: Keep the installers (dry runs and records)
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabShope-LIMS-${{ matrix.rid }}
+          path: native/installers/*
+          if-no-files-found: error
+
+      - name: Attach the installers to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        working-directory: native/installers
+        run: |
+          # The installer, the portable build and the update files (the update feed uses them later).
+          for f in *Setup* *Portable* *.nupkg releases.*.json RELEASES-*; do
+            [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber --repo "${{ github.repository }}"
+          done
+          exit 0
