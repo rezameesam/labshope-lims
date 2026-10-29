@@ -197,9 +197,83 @@ public sealed class SyncEngine
         if (fresh.LogoUrl is { Length: > 0 } url && dataUri is null && await _api.DownloadImageAsync(url, ct: ct) is { } img)
             dataUri = $"data:{img.ContentType};base64,{Convert.ToBase64String(img.Bytes)}";
 
+        // Where patients log in: the lab's main web address (the website sends patients to the address they were on).
+        var domains = await _api.SelectAsync("organization_domains", $"select=domain,is_primary&organization_id=eq.{_organizationId}&order=is_primary.desc&limit=1", ct);
+        if (domains.Ok && domains.Body is { ValueKind: JsonValueKind.Array } d && d.GetArrayLength() > 0 && Opt(d[0], "domain") is { Length: > 0 } host)
+            _store.SetMeta("portal_host", host);
+
         _store.SaveBranding(fresh with { LogoDataUri = dataUri });
         _store.SetMeta(BrandingKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
         return true;
+    }
+
+    /// <summary>
+    /// Emails patients that their results are ready, once every test of the visit is finished and confirmed by the server.
+    /// Uses the website's own wording, layout and send-email function. Returns how many emails were sent.
+    /// </summary>
+    public async Task<int> SendReadyNotificationsAsync(string slug, string labName, CancellationToken ct = default)
+    {
+        var sent = 0;
+        foreach (var (patientId, testDate) in _store.PendingReadyNotifications())
+        {
+            var names = _store.NamesIfAllConfirmedComplete(patientId, testDate);
+            if (names.Count == 0) continue; // not everything is finished yet: wait
+
+            var patient = await _api.SelectAsync("patients", $"select=full_name,email&id=eq.{patientId}&limit=1", ct);
+            if (patient.NetworkFailure || ErrorClassifier.Classify(patient) is ErrorKind.Transient or ErrorKind.Auth) break; // try again at the next sync
+            var row = patient.Body is { ValueKind: JsonValueKind.Array } a && a.GetArrayLength() > 0 ? a[0] : (JsonElement?)null;
+            var email = row is { } r ? Opt(r, "email") : null;
+            if (row is null || string.IsNullOrWhiteSpace(email)) { _store.RemoveReadyNotification(patientId, testDate); continue; } // no address: nothing to send (the website does the same)
+
+            var texts = await NotificationTextsAsync(ct);
+            var portal = $"https://{_store.GetMeta("portal_host") ?? slug + ".labshope.com"}/auth/patient";
+            var context = new Dictionary<string, string>
+            {
+                ["patient_name"] = Opt(row.Value, "full_name") ?? "", ["test_list"] = string.Join(", ", names),
+                ["test_count"] = names.Count.ToString(), ["portal_url"] = portal,
+            };
+            var subject = Notify.NotificationTemplates.Render(texts.Subject, context);
+            var message = Notify.NotificationTemplates.Render(texts.Message, context);
+
+            var brand = Notify.EmailBrand.From(_store.GetBranding(labName), _store.GetMeta("portal_host") ?? slug + ".labshope.com");
+            // Same as the website: add the lab's website to the message unless it is already there.
+            var withSite = message.Contains(brand.Website, StringComparison.OrdinalIgnoreCase) ? message : $"{message}\n\nWebsite: {brand.Website}";
+            var response = await _api.FunctionAsync("send-email", new
+            {
+                to = email, subject,
+                htmlContent = Notify.EmailTemplate.Html(subject, withSite, brand, DateTime.Now.Year),
+                textContent = Notify.EmailTemplate.Text(subject, withSite, brand),
+                patientId, organizationId = _organizationId,
+            }, ct);
+
+            if (response.NetworkFailure || ErrorClassifier.Classify(response) is ErrorKind.Transient or ErrorKind.Auth) break;
+            var ok = response.Ok && response.Body is { ValueKind: JsonValueKind.Object } b && b.TryGetProperty("success", out var s) && s.ValueKind == JsonValueKind.True;
+            if (!ok) _store.SetMeta("notify_last_error", response.ErrorMessage ?? "The email could not be sent.");
+            _store.RemoveReadyNotification(patientId, testDate); // sent, or refused for good: never send twice
+            if (ok) sent++;
+        }
+        return sent;
+    }
+
+    /// <summary>The lab's own wording from its settings (then the platform's), else the website's defaults.</summary>
+    private async Task<(string Subject, string Message)> NotificationTextsAsync(CancellationToken ct)
+    {
+        string? subject = null, message = null;
+        const string keys = "(notification_all_tests_ready_subject,notification_all_tests_ready_message)";
+        foreach (var (table, filter) in new[] { ("organization_settings", $"&organization_id=eq.{_organizationId}"), ("system_settings", "") })
+        {
+            var res = await _api.SelectAsync(table, $"select=setting_key,setting_value&setting_key=in.{keys}{filter}", ct);
+            if (!res.Ok || res.Body is not { ValueKind: JsonValueKind.Array } rows) continue;
+            foreach (var r in rows.EnumerateArray())
+            {
+                var key = Opt(r, "setting_key"); var value = Opt(r, "setting_value");
+                if (string.IsNullOrWhiteSpace(value)) continue;
+                if (key == "notification_all_tests_ready_subject") subject ??= value;
+                if (key == "notification_all_tests_ready_message") message ??= value;
+            }
+            if (subject is not null && message is not null) break;
+        }
+        return (subject ?? Notify.NotificationTemplates.AllTestsReadySubject, message ?? Notify.NotificationTemplates.AllTestsReadyMessage);
     }
 
     /// <summary>Sends queued visits one at a time, oldest first. Overlapping calls are skipped, not doubled.</summary>
@@ -236,7 +310,13 @@ public sealed class SyncEngine
                 {
                     var body = result.Body!.Value;
                     if (isPayment) _store.MarkPaymentSynced(item.VisitId);
-                    else if (isResult) _store.ClearTestWaiting(payload.GetProperty("id").GetString()!);
+                    else if (isResult)
+                    {
+                        var testId = payload.GetProperty("id").GetString()!;
+                        _store.ClearTestWaiting(testId);
+                        // The result is confirmed on the server: once every test of this visit is done, the patient is told.
+                        if (_store.GetPatientTest(testId) is { } finished) _store.QueueReadyNotification(finished.PatientId, finished.TestDate);
+                    }
                     else if (isPatientEdit) { /* nothing to clear: the next pull confirms it */ }
                     else if (isBooking) _store.ClearBookingWaiting(payload.GetProperty("id").GetString()!);
                     else ApplyVisitResult(item.VisitId, payload, body);

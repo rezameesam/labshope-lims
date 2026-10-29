@@ -35,6 +35,7 @@ public sealed class SyncRunner
             await _engine.PullPatientTestsAsync(ct);
             await _engine.PullBookingsAsync(ct);
             await _engine.PullInvoicesAsync(ct);
+            if (_slug is not null) await _engine.SendReadyNotificationsAsync(_slug, _labName, ct);
             _lastSyncedAt = DateTimeOffset.UtcNow;
             return Status(null, null);
         }

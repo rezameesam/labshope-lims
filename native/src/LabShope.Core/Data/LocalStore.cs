@@ -47,6 +47,8 @@ public sealed class LocalStore : IDisposable
               id TEXT PRIMARY KEY, full_name TEXT NOT NULL, phone TEXT NOT NULL, email TEXT, booking_type TEXT NOT NULL, preferred_date TEXT,
               test_details TEXT, notes TEXT, status TEXT NOT NULL, patient_id TEXT, created_at TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS ix_bookings_status ON bookings(status);
+            CREATE TABLE IF NOT EXISTS notify_queue (
+              patient_id TEXT NOT NULL, test_date TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (patient_id, test_date));
             CREATE TABLE IF NOT EXISTS aliases (
               alias TEXT NOT NULL COLLATE NOCASE PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS payments (
@@ -432,6 +434,54 @@ public sealed class LocalStore : IDisposable
                 r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6), r.IsDBNull(7) ? null : r.GetString(7), r.GetString(8),
                 r.IsDBNull(9) ? null : r.GetString(9), r.GetString(10), r.GetInt32(11) == 1));
         return list;
+    }
+
+    // ── "your reports are ready" emails still to send ───────────────────────
+
+    public void QueueReadyNotification(string patientId, string testDate)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO notify_queue (patient_id, test_date, created_at) VALUES ($p, $d, $now) ON CONFLICT DO NOTHING";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$d", testDate);
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<(string PatientId, string TestDate)> PendingReadyNotifications()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT patient_id, test_date FROM notify_queue ORDER BY created_at";
+        var list = new List<(string, string)>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), r.GetString(1)));
+        return list;
+    }
+
+    public void RemoveReadyNotification(string patientId, string testDate)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM notify_queue WHERE patient_id = $p AND test_date = $d";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$d", testDate);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>The names of a patient's tests on a day when every one of them is finished and confirmed by the server; empty otherwise.</summary>
+    public IReadOnlyList<string> NamesIfAllConfirmedComplete(string patientId, string testDate)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT test_name, status, waiting FROM patient_tests WHERE patient_id = $p AND test_date = $d ORDER BY rowid";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$d", testDate);
+        var names = new List<string>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            if (r.GetString(1) != "completed" || r.GetInt32(2) == 1) return [];
+            names.Add(r.GetString(0));
+        }
+        return names;
     }
 
     // ── aliases: old provisional numbers that must keep working (printed labels/receipts) ───

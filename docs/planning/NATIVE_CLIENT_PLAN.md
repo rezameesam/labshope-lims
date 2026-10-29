@@ -131,3 +131,12 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
 - "Register a visit for this person": opens Register visit with the patient (existing one matched by phone, else a new one pre-filled) and the requested tests
   that match the catalog by name; on save the booking is marked converted and linked to the patient (queued after the visit so the patient exists first).
   Verified against the real database.
+
+## Update: "your reports are ready" email
+- When a result entered on the PC is confirmed by the server and every test of that patient's visit date is finished, the patient is emailed using the website's
+  own "All Test Results Ready" wording (or the lab's own wording from its settings), the same HTML layout, through the same `send-email` edge function
+  (Mailjet/Resend). No SMS/Twilio. No address on file = nothing sent (same as the website). Sent once; kept queued while offline.
+- The patient portal link uses the lab's primary web address (organization_domains), falling back to <slug>.labshope.com.
+- Not verified end to end: edge functions do not run in the local test database, so the live send-email call (provider credentials) was not exercised; it is covered
+  by tests against a stand-in server only.
+- WhatsApp (send-whatsapp) is not used for result-ready messages by the website, so not here either.

@@ -40,6 +40,10 @@ public sealed class SupabaseApi
         return true;
     }
 
+    /// <summary>Calls one of the website's server functions (such as send-email) with this person's login.</summary>
+    public Task<ApiResult> FunctionAsync(string name, object body, CancellationToken ct = default) =>
+        WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/functions/v1/{name}", JsonSerializer.Serialize(body), true, ct), ct);
+
     /// <summary>Reads every row of a query by paging (the server returns at most a page at a time). Throws nothing; returns the failure instead.</summary>
     public async Task<(List<JsonElement> Rows, ApiResult? Failure)> SelectAllAsync(string table, string query, int pageSize = 1000, int maxRows = 50_000, CancellationToken ct = default)
     {
