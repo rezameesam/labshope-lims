@@ -3,7 +3,7 @@
         xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="LabShope.App.MainWindow"
         Icon="/Assets/icon.png"
-        Title="LabShope LIMS" Width="1360" Height="860" MinWidth="1100" MinHeight="700">
+        Title="LabShope LIMS" Width="1360" Height="860" MinWidth="1240" MinHeight="700">
   <Grid ColumnDefinitions="252,*">
 
     <!-- Sidebar -->

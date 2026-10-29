@@ -64,6 +64,7 @@ public sealed record WorklistRow(PatientTest Test, string PatientName, string Pa
 {
     public string TestLabel => OutsourcedTo is null ? Test.TestName : $"{Test.TestName}  →  {OutsourcedTo}";
     public string Id => Test.Id;
+    public string PatientLabel => $"{PatientName}  ·  {PatientCode}";
     public string TestName => Test.TestName;
     public string Status => Test.Status;
     public string Date => Test.TestDate;

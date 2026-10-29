@@ -4,7 +4,7 @@
              xmlns:app="using:LabShope.App"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="LabShope.App.ResultsView">
-  <Grid ColumnDefinitions="*,18,500">
+  <Grid ColumnDefinitions="*,18,430">
     <DockPanel Grid.Column="0">
       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
         <ComboBox x:Name="FilterBox" SelectedIndex="0" Width="150">
@@ -21,11 +21,10 @@
       </StackPanel>
       <DataGrid x:Name="Grid" x:DataType="data:WorklistRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
         <DataGrid.Columns>
-          <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientName}" Width="*" MinWidth="130" />
-          <DataGridTextColumn Header="ID" Binding="{Binding PatientCode}" Width="90" />
+          <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientLabel}" Width="*" MinWidth="170" />
           <DataGridTextColumn Header="TEST" Binding="{Binding TestLabel}" Width="170" />
-          <DataGridTextColumn Header="RESULT" Binding="{Binding ResultText}" Width="100" />
-          <DataGridTemplateColumn Header="STATUS" Width="100">
+          <DataGridTextColumn Header="RESULT" Binding="{Binding ResultText}" Width="90" />
+          <DataGridTemplateColumn Header="STATUS" Width="96">
             <DataTemplate x:DataType="data:WorklistRow">
               <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Badge, Converter={x:Static app:Pills.Background}}">
                 <TextBlock Text="{Binding Badge}" Foreground="{Binding Badge, Converter={x:Static app:Pills.Foreground}}" />
