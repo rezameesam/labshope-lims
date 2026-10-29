@@ -105,3 +105,12 @@ public sealed record OutboxEntry(string Id, string Kind, string Status, int Atte
     public string Detail => Status == "failed" ? LastError ?? "The server refused it." : "Will be sent when the connection is available.";
     public string Updated => long.TryParse(UpdatedAt, out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("dd MMM HH:mm") : UpdatedAt;
 }
+
+/// <summary>A result received from a lab machine, waiting for a person to check it (or already accepted/discarded).</summary>
+public sealed record InstrumentEntry(
+    string Id, string ReceivedAt, string Protocol, string SampleId, string? MachinePatientName,
+    string? PatientId, string ParametersJson, string Status, string? Note)
+{
+    public string Received => DateTimeOffset.TryParse(ReceivedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : ReceivedAt;
+    public int ParameterCount => LabShope.Core.Visits.InstrumentInbox.ParseParameters(ParametersJson).Count;
+}

@@ -49,6 +49,10 @@ public sealed class LocalStore : IDisposable
             CREATE INDEX IF NOT EXISTS ix_bookings_status ON bookings(status);
             CREATE TABLE IF NOT EXISTS notify_queue (
               patient_id TEXT NOT NULL, test_date TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (patient_id, test_date));
+            CREATE TABLE IF NOT EXISTS instrument_results (
+              id TEXT PRIMARY KEY, received_at TEXT NOT NULL, protocol TEXT NOT NULL, sample_id TEXT NOT NULL, machine_patient TEXT,
+              patient_id TEXT, parameters TEXT NOT NULL, status TEXT NOT NULL, note TEXT);
+            CREATE INDEX IF NOT EXISTS ix_instrument_status ON instrument_results(status, received_at);
             CREATE TABLE IF NOT EXISTS aliases (
               alias TEXT NOT NULL COLLATE NOCASE PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS payments (
@@ -495,6 +499,59 @@ public sealed class LocalStore : IDisposable
             names.Add(r.GetString(0));
         }
         return names;
+    }
+
+    // ── results received from lab machines ──────────────────────────────────
+
+    public void AddInstrumentEntry(InstrumentEntry e)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO instrument_results (id, received_at, protocol, sample_id, machine_patient, patient_id, parameters, status, note) VALUES ($id,$at,$proto,$sample,$mp,$pid,$params,$status,$note)";
+        cmd.Parameters.AddWithValue("$id", e.Id);
+        cmd.Parameters.AddWithValue("$at", e.ReceivedAt);
+        cmd.Parameters.AddWithValue("$proto", e.Protocol);
+        cmd.Parameters.AddWithValue("$sample", e.SampleId);
+        cmd.Parameters.AddWithValue("$mp", (object?)e.MachinePatientName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$pid", (object?)e.PatientId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$params", e.ParametersJson);
+        cmd.Parameters.AddWithValue("$status", e.Status);
+        cmd.Parameters.AddWithValue("$note", (object?)e.Note ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    public InstrumentEntry? GetInstrumentEntry(string id) => QueryInstrument("WHERE id = $a", id).FirstOrDefault();
+
+    public IReadOnlyList<InstrumentEntry> ListInstrumentEntries(string? status = null) =>
+        QueryInstrument((status is null ? "" : "WHERE status = $a ") + "ORDER BY received_at DESC LIMIT 500", status);
+
+    public void SetInstrumentStatus(string id, string status, string? note = null)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE instrument_results SET status = $s, note = $n WHERE id = $id";
+        cmd.Parameters.AddWithValue("$s", status);
+        cmd.Parameters.AddWithValue("$n", (object?)note ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public int NewInstrumentCount()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM instrument_results WHERE status = 'new'";
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    private List<InstrumentEntry> QueryInstrument(string tail, string? a)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, received_at, protocol, sample_id, machine_patient, patient_id, parameters, status, note FROM instrument_results " + tail;
+        if (a is not null) cmd.Parameters.AddWithValue("$a", a);
+        var list = new List<InstrumentEntry>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new InstrumentEntry(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4),
+                r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6), r.GetString(7), r.IsDBNull(8) ? null : r.GetString(8)));
+        return list;
     }
 
     // ── aliases: old provisional numbers that must keep working (printed labels/receipts) ───

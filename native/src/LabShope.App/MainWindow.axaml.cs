@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, Control> _pages = [];
     private readonly Dictionary<string, Button> _navButtons = [];
     private readonly List<Nav> _nav;
+    private readonly InstrumentHost _instruments;
     private string _current = "";
     private bool _syncing;
     private DispatcherTimer? _scanHide;
@@ -34,6 +35,9 @@ public partial class MainWindow : Window
         _session = session;
         _store = session.Store;
         InitializeComponent();
+        _instruments = new InstrumentHost(session);
+        _instruments.Changed += () => { RefreshBadges(); if (_pages.TryGetValue("results", out var r)) ((ResultsView)r).Refresh(); };
+        Closed += (_, _) => _instruments.Dispose();
         LabText.Text = session.Workspace.OrganizationName;
         UserText.Text = session.Account.SavedEmail ?? "";
         Title = $"LabShope LIMS - {session.Workspace.OrganizationName}";
@@ -68,6 +72,12 @@ public partial class MainWindow : Window
                 v.RegisterVisitRequested += patient => { Show("register"); ((RegisterVisitView)_pages["register"]).UsePatient(patient); };
                 return v;
             }),
+            new("instruments", "Lab machines", MaterialIconKind.AccessPoint, Key.None, () =>
+            {
+                var v = new InstrumentsView(session, _instruments);
+                v.ResultAccepted += async () => { RefreshPages(); await SyncAsync(); };
+                return v;
+            }, Badge: () => _store.NewInstrumentCount()),
             new("results", "Results", MaterialIconKind.TestTube, Key.F5, () =>
             {
                 var v = new ResultsView(session);
@@ -115,6 +125,7 @@ public partial class MainWindow : Window
 
         Show("home");
         RefreshBadges();
+        _instruments.Apply(LabShope.Core.Analyzers.InstrumentSettings.Load(_store)); // start whatever this computer was set up to listen to
 
         var syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         syncTimer.Tick += async (_, _) => await SyncAsync();
@@ -190,6 +201,7 @@ public partial class MainWindow : Window
             case BookingsView bv: bv.Refresh(); break;
             case OrganizationView ov: ov.Refresh(); break;
             case SettingsView sv: sv.Refresh(); break;
+            case InstrumentsView iv: iv.Refresh(); break;
             case InventoryView: break; // loaded from the server on first view; has its own Refresh
             case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;

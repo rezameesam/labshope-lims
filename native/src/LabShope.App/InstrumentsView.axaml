@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:an="using:LabShope.Core.Analyzers"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.InstrumentsView">
+  <ScrollViewer>
+    <StackPanel Spacing="18" MaxWidth="1180" HorizontalAlignment="Stretch">
+
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Connections" Classes="h2" />
+          <Grid ColumnDefinitions="*,24,*">
+            <StackPanel Spacing="8">
+              <CheckBox x:Name="NetworkBox" Content="Accept analyzers connecting over the network" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Port" Classes="muted" VerticalAlignment="Center" />
+                <TextBox x:Name="PortBox" Width="100" />
+              </StackPanel>
+              <TextBlock x:Name="AddressText" Classes="muted" TextWrapping="Wrap" />
+              <TextBlock x:Name="NetworkStatus" FontWeight="Medium" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="8">
+              <CheckBox x:Name="SerialBox" Content="Read an analyzer on a serial (COM) cable" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <ComboBox x:Name="PortCombo" Width="180" />
+                <TextBlock Text="Baud" Classes="muted" VerticalAlignment="Center" />
+                <TextBox x:Name="BaudBox" Width="90" />
+              </StackPanel>
+              <TextBlock x:Name="SerialStatus" FontWeight="Medium" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+          <CheckBox x:Name="AutoBox" Content="Fill in results automatically when the patient and test are certain (otherwise a person checks each one)" />
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button x:Name="SaveButton" Classes="primary" Content="Save and apply" Click="OnApply" />
+            <Button Content="Send a test message to myself" Click="OnSelfTest" />
+            <TextBlock x:Name="SettingsMessage" VerticalAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock x:Name="InboxTitle" Text="Results from machines" Classes="h2" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="FilterBox" SelectedIndex="0" Width="130">
+              <ComboBoxItem>To check</ComboBoxItem>
+              <ComboBoxItem>All</ComboBoxItem>
+            </ComboBox>
+            <Button x:Name="DiscardButton" Click="OnDiscard"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="TrashCanOutline" Width="16" Height="16" /><TextBlock Text="Discard" /></StackPanel></Button>
+            <Button x:Name="AcceptButton" Classes="primary" Click="OnAccept"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CheckBold" Width="16" Height="16" /><TextBlock Text="Accept into the patient's test" /></StackPanel></Button>
+          </StackPanel>
+        </Grid>
+        <DataGrid x:Name="Grid" x:DataType="data:InstrumentEntry" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="150" MaxHeight="300">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="RECEIVED" Binding="{Binding Received}" Width="110" />
+            <DataGridTextColumn Header="SAMPLE" Binding="{Binding SampleId}" Width="160" />
+            <DataGridTextColumn Header="MACHINE'S PATIENT" Binding="{Binding MachinePatientName}" Width="*" />
+            <DataGridTextColumn Header="VALUES" Binding="{Binding ParameterCount}" Width="80" />
+            <DataGridTextColumn Header="VIA" Binding="{Binding Protocol}" Width="80" />
+            <DataGridTemplateColumn Header="STATUS" Width="110">
+              <DataTemplate x:DataType="data:InstrumentEntry">
+                <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Status, Converter={x:Static app:Pills.Background}}">
+                  <TextBlock Text="{Binding Status}" Foreground="{Binding Status, Converter={x:Static app:Pills.Foreground}}" />
+                </Border>
+              </DataTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock x:Name="InboxEmpty" Text="Nothing has been received yet. When a machine sends results they appear here." Classes="muted" IsVisible="False" />
+        <TextBlock x:Name="InboxMessage" TextWrapping="Wrap" />
+        <TextBlock x:Name="DetailTitle" Text="What the machine reported" Classes="label" Margin="0,8,0,0" IsVisible="False" />
+        <DataGrid x:Name="DetailGrid" x:DataType="an:InstrumentParameter" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="260" IsVisible="False">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="CODE" Binding="{Binding Code}" Width="110" />
+            <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="*" />
+            <DataGridTextColumn Header="VALUE" Binding="{Binding Value}" Width="100" />
+            <DataGridTextColumn Header="UNIT" Binding="{Binding Unit}" Width="100" />
+            <DataGridTextColumn Header="MACHINE'S RANGE" Binding="{Binding Reference}" Width="140" />
+            <DataGridTextColumn Header="FLAG" Binding="{Binding Flag}" Width="70" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -6,6 +6,7 @@ using LabShope.Core.Data;
 using LabShope.Core.Net;
 using LabShope.Core.Sync;
 using LabShope.Core.Visits;
+using LabShope.Core.Analyzers;
 
 namespace LabShope.App.Tests;
 
@@ -427,6 +428,105 @@ public class InventoryScreenTests : IDisposable
         view.FindControl<TextBox>("SearchBox")!.Text = "slides";
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(["Slides"], grid.ItemsSource.Cast<InventoryItem>().Select(i => i.Name));
+    }
+
+    public void Dispose()
+    {
+        foreach (var w in _windows) w.Close();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
+
+public class InstrumentsScreenTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-ui-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    private readonly AppSession _session;
+    private readonly List<Window> _windows = [];
+
+    public InstrumentsScreenTests()
+    {
+        _store = new LocalStore(_path);
+        _store.ReplaceCatalog(new Catalog([new CatalogTest("t1", "CBC", "CBC", 350m, null)], [], [], [], []));
+        _store.UpsertPatient(new Patient("p1", "IRM-0007", "Asha Rao", "+919876543210", "female", null));
+        new VisitService(_store).Register(new RegisterVisitInput("org-1", "l1", DateTime.Now.ToString("yyyy-MM-dd"), [new VisitTest("CBC", 350m)], ExistingPatient: _store.GetPatient("p1")));
+        var api = new SupabaseApi(new System.Net.Http.HttpClient(), "https://x.supabase.co", "anon");
+        _session = new AppSession(new Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), _store,
+            new SyncRunner(new SyncEngine(_store, api, "org-1"), _store), new AccountService(api, _path + ".json"));
+    }
+
+    private static int FreePort() { var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); l.Start(); var p = ((System.Net.IPEndPoint)l.LocalEndpoint).Port; l.Stop(); return p; }
+
+    [AvaloniaFact]
+    public async Task AMachineResultArrivesOverTheNetworkIsMatchedAndAcceptedIntoTheTest()
+    {
+        using var host = new InstrumentHost(_session);
+        var port = FreePort();
+        host.Apply(new InstrumentSettings(NetworkEnabled: true, NetworkPort: port));
+        Assert.Contains("Listening", host.NetworkStatus);
+
+        var view = new InstrumentsView(_session, host);
+        var window = new Window { Width = 1300, Height = 900, Content = view };
+        window.Show(); _windows.Add(window);
+
+        // A pretend analyzer sends an HL7 CBC for the barcode printed on Asha's label.
+        using (var client = new System.Net.Sockets.TcpClient())
+        {
+            await client.ConnectAsync("127.0.0.1", port);
+            var msg = "MSH|^~\\&|BC-6800|LAB|LIS|HOSP|20261029120000||ORU^R01|M1|P|2.3.1\rOBR|1||IRM-0007\rOBX|1|NM|WBC^White cells||6.1|10^9/L|3.5-10.0|N|||F\rOBX|2|NM|HGB^Haemoglobin||9.8|g/dL|11.5-16.5|L|||F\r";
+            byte[] wrapped = [0x0B, .. System.Text.Encoding.UTF8.GetBytes(msg), 0x1C, 0x0D];
+            await client.GetStream().WriteAsync(wrapped);
+            await client.GetStream().ReadAsync(new byte[64]); // the acknowledgement
+        }
+
+        // The result is handed over on the window's thread.
+        for (var i = 0; i < 100 && _store.NewInstrumentCount() == 0; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
+        Assert.Equal(1, _store.NewInstrumentCount());
+
+        var grid = view.FindControl<DataGrid>("Grid")!;
+        var entry = grid.ItemsSource.Cast<InstrumentEntry>().Single();
+        Assert.Equal(("IRM-0007", "p1", 2), (entry.SampleId, entry.PatientId, entry.ParameterCount));
+        Assert.Contains("to check", view.FindControl<TextBlock>("InboxTitle")!.Text);
+
+        grid.SelectedItem = entry;
+        Assert.Equal(2, view.FindControl<DataGrid>("DetailGrid")!.ItemsSource!.Cast<object>().Count());
+        var accepted = false; view.ResultAccepted += () => accepted = true;
+        view.FindControl<Button>("AcceptButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.True(accepted);
+        var done = _store.SearchWorklist("", ["completed"]).Single();
+        Assert.Equal(("CBC", "abnormal"), (done.TestName, done.Badge)); // HGB 9.8 is below the standard range
+        Assert.Equal(0, _store.NewInstrumentCount());
+
+        if (Environment.GetEnvironmentVariable("LABSHOPE_SHOT_DIR") is { } dir)
+        {
+            view.FindControl<ComboBox>("FilterBox")!.SelectedIndex = 1;
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            window.CaptureRenderedFrame()!.Save(Path.Combine(dir, "app-instruments.png"));
+        }
+    }
+
+    [AvaloniaFact]
+    public void SettingsAreCheckedAndRemembered()
+    {
+        using var host = new InstrumentHost(_session);
+        var view = new InstrumentsView(_session, host);
+        var window = new Window { Width = 1200, Height = 800, Content = view };
+        window.Show(); _windows.Add(window);
+
+        view.FindControl<CheckBox>("NetworkBox")!.IsChecked = true;
+        view.FindControl<TextBox>("PortBox")!.Text = "80";
+        view.FindControl<Button>("SaveButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Contains("1024", view.FindControl<TextBlock>("SettingsMessage")!.Text);
+        Assert.False(InstrumentSettings.Load(_store).NetworkEnabled); // a bad setting is not saved
+
+        view.FindControl<TextBox>("PortBox")!.Text = FreePort().ToString();
+        view.FindControl<Button>("SaveButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.True(InstrumentSettings.Load(_store).NetworkEnabled);
+        Assert.Contains("Listening", host.NetworkStatus);
     }
 
     public void Dispose()

@@ -183,3 +183,13 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
 - ADDED: single-instance guard (a second copy shows "LabShope is already open" instead of fighting the first over the local database).
 - Known limitations (not fixed): the saved login (refresh token) is stored in a file readable only by the user, not in the operating system's keychain; installers are unsigned;
   no auto-update yet; offline official bill numbers (bills carry a provisional L- number until synced).
+
+## Update: lab machine (analyzer) connection
+- Protocols: ASTM E1381/E1394 (ENQ/ACK handshake, checksummed frames with NAK/resend, EOT) and HL7 v2 over MLLP (ORU^R01, answered with an ACK). Detected from the first byte.
+- Transports: a TCP listener (machines connect to this computer's address and port; several at once) and a serial (COM) reader. Settings are per computer (Lab machines screen),
+  with a "send a test message to myself" check and this computer's addresses shown for the analyzer's settings.
+- Matching: the sample barcode is the patient code printed on the label (also bill numbers, and codes printed before sync). Results wait on the Lab machines screen for a person to
+  Accept or Discard (optional auto-accept when the match is certain). Accepting fills the right waiting test: a CBC gets the website's 20-row panel with the machine's values
+  (machine names such as NEUT#, RDW-SD are mapped; values with no panel row are kept under the machine's name), single-value tests get the value, unit and flag.
+- Tested with simulated machines over real sockets, byte-by-byte delivery, bad checksums and HL7 back-to-back messages. NOT tested against a physical analyzer: every model has quirks
+  (field positions, code names, line endings). First step with a real machine: capture what it sends (the log file records connections) and adjust the alias table.
