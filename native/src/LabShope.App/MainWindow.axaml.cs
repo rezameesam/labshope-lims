@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
 using Avalonia.Controls;
@@ -7,24 +8,29 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using LabShope.Core.Data;
+using LabShope.Core.Sync;
 using LabShope.Core.Scanning;
 
 namespace LabShope.App;
 
 public partial class MainWindow : Window
 {
+    private readonly AppSession _session;
     private readonly LocalStore _store;
     private readonly ScanDetector _scanner = new();
     private PatientRegisterView? _patients;
+    private BillsView? _bills;
+    private bool _syncing;
 
-    public MainWindow()
+    public MainWindow() => throw new InvalidOperationException("Use the constructor with a session.");
+
+    public MainWindow(AppSession session)
     {
+        _session = session;
+        _store = session.Store;
         InitializeComponent();
-
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LabShope");
-        Directory.CreateDirectory(dir);
-        _store = new LocalStore(Path.Combine(dir, "lims.db"));
-        if (_store.PatientCount() == 0) SeedDemoData();
+        LabText.Text = session.Workspace.OrganizationName;
+        Title = $"LabShope LIMS - {session.Workspace.OrganizationName}";
 
         var clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         clock.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("dd MMM yyyy  HH:mm:ss");
@@ -34,6 +40,14 @@ public partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
 
         OnOpenPatients(null, null!);
+
+        // Sync when the app opens and then every minute.
+        var syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+        syncTimer.Tick += async (_, _) => await SyncAsync();
+        syncTimer.Start();
+        Opened += async (_, _) => await SyncAsync();
+
+        Shot.Attach(this);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -71,21 +85,46 @@ public partial class MainWindow : Window
         _patients.FocusSearch();
     }
 
-    private void OnSync(object? sender, RoutedEventArgs e) => StatusText.Text = "Sync is not connected yet.";
+    private void OnOpenBills(object? sender, RoutedEventArgs e)
+    {
+        if (_bills is null)
+        {
+            _bills = new BillsView(_store);
+            Windows.Items.Add(new TabItem { Header = "Bills", Content = _bills });
+        }
+        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _bills));
+        _bills.Refresh();
+    }
+
+    private async void OnSync(object? sender, RoutedEventArgs e) => await SyncAsync();
+
+    private async Task SyncAsync()
+    {
+        if (_syncing) return;
+        _syncing = true;
+        StatusText.Text = "Syncing…";
+        try
+        {
+            var status = await _session.Sync.RunOnceAsync();
+            var waiting = status.Pending > 0 ? $"  |  {status.Pending} waiting to send" : "";
+            var failed = status.Failed > 0 ? $"  |  {status.Failed} need attention" : "";
+            StatusText.Text = status.NeedsSignIn ? "Please sign in again (File > Sign out)"
+                : status.Online ? $"Online, synced {DateTime.Now:HH:mm}{waiting}{failed}"
+                : $"Offline: working from this computer{waiting}";
+            _patients?.Refresh();
+            _bills?.Refresh();
+        }
+        finally { _syncing = false; }
+    }
+
+    private void OnSignOut(object? sender, RoutedEventArgs e)
+    {
+        _session.Account.SignOut();
+        Close();
+    }
+
     private void OnExit(object? sender, RoutedEventArgs e) => Close();
     private void OnAbout(object? sender, RoutedEventArgs e) => StatusText.Text = "LabShope LIMS (native preview)";
 
-    private void SeedDemoData()
-    {
-        // Development only: placeholder rows until sync is connected.
-        var names = new[] { "Asha Rao", "Ravi Kumar", "Meera Nair", "Imran Sheikh", "Priya Menon", "Arjun Das", "Fatima Khan", "Suresh Iyer" };
-        for (var n = 0; n < names.Length; n++)
-            _store.UpsertPatient(new Patient($"demo-{n}", $"IRM-{n + 1:0000}", names[n], $"98{n:00}000{n + 1:000}", n % 2 == 0 ? "female" : "male", null));
-    }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        _store.Dispose();
-        base.OnClosed(e);
-    }
 }

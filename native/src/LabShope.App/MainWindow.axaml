@@ -7,16 +7,31 @@
       <MenuItem Header="_File">
         <MenuItem Header="_Sync now" HotKey="F9" Click="OnSync" />
         <Separator />
+        <MenuItem Header="_Sign out" Click="OnSignOut" />
         <MenuItem Header="E_xit" HotKey="Alt+F4" Click="OnExit" />
       </MenuItem>
-      <MenuItem Header="_Patient">
-        <MenuItem Header="_Patient Register" HotKey="F2" Click="OnOpenPatients" />
+      <MenuItem Header="_Work">
+        <MenuItem Header="_Patients" HotKey="F2" Click="OnOpenPatients" />
+        <MenuItem Header="_Bills" HotKey="F3" Click="OnOpenBills" />
+        <MenuItem Header="Register _visit" IsEnabled="False" />
+        <MenuItem Header="Patient _tests and results" IsEnabled="False" />
+        <MenuItem Header="Lab _sheets" IsEnabled="False" />
+        <MenuItem Header="Booking _requests" IsEnabled="False" />
       </MenuItem>
-      <MenuItem Header="_Billing" />
-      <MenuItem Header="_Results" />
-      <MenuItem Header="Re_ports" />
-      <MenuItem Header="_Masters" />
-      <MenuItem Header="_Tools" />
+      <MenuItem Header="_Catalog">
+        <MenuItem Header="Test catalog" IsEnabled="False" />
+        <MenuItem Header="Test packages" IsEnabled="False" />
+        <MenuItem Header="Report templates" IsEnabled="False" />
+        <MenuItem Header="Inventory" IsEnabled="False" />
+        <MenuItem Header="Doctors" IsEnabled="False" />
+      </MenuItem>
+      <MenuItem Header="_Manage">
+        <MenuItem Header="Employees" IsEnabled="False" />
+        <MenuItem Header="Labs and collection centers" IsEnabled="False" />
+        <MenuItem Header="External labs" IsEnabled="False" />
+        <MenuItem Header="Reports" IsEnabled="False" />
+        <MenuItem Header="Finance" IsEnabled="False" />
+      </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_About" Click="OnAbout" />
       </MenuItem>
@@ -24,9 +39,7 @@
 
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4" Spacing="2">
       <Button Classes="tool" Content="Patients (F2)" Click="OnOpenPatients" />
-      <Button Classes="tool" Content="Billing (F3)" IsEnabled="False" />
-      <Button Classes="tool" Content="Results (F4)" IsEnabled="False" />
-      <Button Classes="tool" Content="Reports (F5)" IsEnabled="False" />
+      <Button Classes="tool" Content="Bills (F3)" Click="OnOpenBills" />
       <Button Classes="tool" Content="Sync (F9)" Click="OnSync" />
     </StackPanel>
 
@@ -34,6 +47,7 @@
       <DockPanel>
         <TextBlock x:Name="ClockText" DockPanel.Dock="Right" />
         <TextBlock x:Name="ScanText" DockPanel.Dock="Right" Margin="0,0,24,0" Foreground="#555" />
+        <TextBlock x:Name="LabText" DockPanel.Dock="Left" FontWeight="SemiBold" Margin="0,0,16,0" />
         <TextBlock x:Name="StatusText" Text="Ready" />
       </DockPanel>
     </Border>

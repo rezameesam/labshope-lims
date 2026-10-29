@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             x:DataType="data:Invoice"
+             x:Class="LabShope.App.BillsView">
+  <DockPanel Margin="6">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+      <TextBlock Text="Search (bill number):" VerticalAlignment="Center" />
+      <TextBox x:Name="SearchBox" Width="260" />
+      <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
+    </StackPanel>
+    <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
+              CanUserResizeColumns="True" GridLinesVisibility="All" SelectionMode="Single">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Bill no." Binding="{Binding InvoiceNumber}" Width="170" />
+        <DataGridTextColumn Header="Date" Binding="{Binding CreatedAt}" Width="*" />
+        <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount}" Width="110" />
+        <DataGridTextColumn Header="Paid" Binding="{Binding PaidAmount}" Width="110" />
+        <DataGridTextColumn Header="Status" Binding="{Binding PaymentStatus}" Width="120" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

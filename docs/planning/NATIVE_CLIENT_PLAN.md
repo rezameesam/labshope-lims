@@ -28,3 +28,19 @@ lists, works offline, and talks to barcode scanners and lab analyzers. Replaces 
 - `SyncEngine`: keyset pulls for patients and bills, visit outbox through `register_visit`, same error rules as the web app.
 - Login decision taken: the native app signs in directly with Supabase email + password (no Turnstile, which only a browser can
   produce). Still to add: device registration / org check at sign-in, and 2FA if the lab has it on.
+
+## Requirement (from the owner): works fully without internet
+The internet is only for syncing, so patients can download their reports on their own. Everything staff do at the
+bench (register, bill, take payment, enter results, print reports/labels, scan, analyzers) must work with no connection,
+and the app must open straight to work (saved login, no sign-in each time, no waiting on the network).
+Consequences to build, in order:
+1. Offline invoice/receipt numbers (each PC leases a block of numbers; no clashes after sync).
+2. Offline result entry and approval, queued like visits.
+3. Offline payments, queued.
+4. Report PDFs generated on the PC; on sync, finished reports are published so the patient portal can serve them.
+5. Sync is background-only and never blocks a screen.
+Already true: opens from the saved login offline, all screens read local SQLite, visits queue offline.
+
+## Update: login + live data wired into the window
+Login window, saved-login restore (offline-safe), sync every 60 s + on open, Patients and Bills grids on real local data,
+sidebar-style menu mirroring the web app's Work / Catalog / Manage groups (only Patients and Bills enabled so far).

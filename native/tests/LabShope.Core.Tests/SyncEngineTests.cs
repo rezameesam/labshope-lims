@@ -130,3 +130,47 @@ public class SyncEngineTests : IDisposable
         File.Delete(_path);
     }
 }
+
+public class SyncRunnerTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    public SyncRunnerTests() => _store = new LocalStore(_path);
+
+    private SyncRunner Runner(HttpMessageHandler handler) =>
+        new(new SyncEngine(_store, new SupabaseApi(new HttpClient(handler), "https://x.supabase.co", "anon")
+        { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) }, "org-1"), _store);
+
+    [Fact]
+    public async Task ReportsOnlineAfterASuccessfulRound()
+    {
+        var status = await Runner(new FakeServer()).RunOnceAsync();
+        Assert.True(status.Online);
+        Assert.NotNull(status.LastSyncedAt);
+    }
+
+    [Fact]
+    public async Task ReportsOfflineAndKeepsTheCountOfWaitingVisits()
+    {
+        _store.EnqueueVisit(new OutboxItem("v1", "{\"patient\":{\"id\":\"p\"}}", "pending", 0, null, "A", 100m));
+        var status = await Runner(new OfflineServer()).RunOnceAsync();
+
+        Assert.False(status.Online);
+        Assert.Equal(1, status.Pending);
+    }
+
+    [Fact]
+    public async Task ReportsWhenTheLoginHasEnded()
+    {
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.Unauthorized, """{"code":"PGRST301","message":"JWT expired"}""") };
+        var status = await Runner(server).RunOnceAsync();
+        Assert.True(status.NeedsSignIn);
+    }
+
+    public void Dispose()
+    {
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}

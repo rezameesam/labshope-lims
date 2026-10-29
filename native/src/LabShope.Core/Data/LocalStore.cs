@@ -88,6 +88,29 @@ public sealed class LocalStore : IDisposable
         return ReadPatients(cmd);
     }
 
+    /// <summary>Bills whose number contains the text, newest first.</summary>
+    public IReadOnlyList<Invoice> SearchInvoices(string text, int limit = 500)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at FROM invoices " +
+                          "WHERE invoice_number LIKE $q ORDER BY created_at DESC LIMIT $limit";
+        cmd.Parameters.AddWithValue("$q", $"%{text.Trim()}%");
+        cmd.Parameters.AddWithValue("$limit", limit);
+        var list = new List<Invoice>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new Invoice(r.GetString(0), r.GetString(1), r.GetString(2), (decimal)r.GetDouble(3), (decimal)r.GetDouble(4),
+                r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6)));
+        return list;
+    }
+
+    public long InvoiceCount()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM invoices";
+        return (long)cmd.ExecuteScalar()!;
+    }
+
     public Patient? FindPatientByCode(string code)
     {
         using var cmd = _db.CreateCommand();
