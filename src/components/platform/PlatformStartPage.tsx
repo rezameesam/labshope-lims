@@ -430,7 +430,9 @@ const PlatformStartPage = () => {
           candidateUrl: result.candidate_url || "",
           suggestionSlug: result.suggestion_slug || "",
           suggestionUrl: result.suggestion_url || "",
-          message: result.suggestion_slug
+          message: result.reason
+            ? result.reason
+            : result.suggestion_slug
             ? `That subdomain is taken. Try ${result.suggestion_slug} instead.`
             : "That subdomain is already taken.",
         });

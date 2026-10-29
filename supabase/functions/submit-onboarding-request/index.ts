@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyTurnstile } from "../_shared/patient-auth.ts";
 import { normalizeHostname } from "../_shared/public-organization.ts";
 
+import { slugProblem } from "../_shared/reserved-slugs.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -664,6 +665,10 @@ serve(async (req: Request): Promise<Response> => {
     ) {
       try {
         const baseSlug = normalizeSubdomain(preferredSubdomain) || slugify(organizationName);
+        const baseSlugProblem = slugProblem(baseSlug);
+        if (baseSlugProblem) {
+          return jsonResponse({ error: baseSlugProblem }, 400);
+        }
         const baseDomain = deriveBaseDomain(normalizeHostname(hostname || null));
         let resolvedSlug = baseSlug;
         let resolvedAccessDomain: string | null = null;

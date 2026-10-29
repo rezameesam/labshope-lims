@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizeHostname } from "../_shared/public-organization.ts";
 
+import { slugProblem } from "../_shared/reserved-slugs.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -275,6 +276,10 @@ serve(async (req: Request) => {
     const baseSlug = preferredSlug || slugify(requestData.organization_name);
     if (!baseSlug) {
       return jsonResponse({ error: "Unable to derive organization slug from onboarding request." }, 400);
+    }
+    const baseSlugProblem = slugProblem(baseSlug);
+    if (baseSlugProblem) {
+      return jsonResponse({ error: baseSlugProblem }, 400);
     }
 
     const baseDomain = deriveBaseDomain(normalizeHostname(requestData.hostname));

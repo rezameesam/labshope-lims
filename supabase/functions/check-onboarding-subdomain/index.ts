@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizeHostname } from "../_shared/public-organization.ts";
+import { slugProblem } from "../_shared/reserved-slugs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,6 +94,11 @@ serve(async (req: Request) => {
       return jsonResponse({ error: "preferred_subdomain or organization_name is required." }, 400);
     }
 
+    const nameProblem = slugProblem(candidateSlug);
+    if (nameProblem) {
+      return jsonResponse({ available: false, candidate_slug: candidateSlug, reason: nameProblem });
+    }
+
     const baseDomain = deriveBaseDomain(hostname);
     const candidateDomain = baseDomain ? `${candidateSlug}.${baseDomain}` : null;
 
@@ -112,7 +118,7 @@ serve(async (req: Request) => {
         : Promise.resolve({ data: null }),
     ]);
 
-    const available = !existingOrganization?.id && !existingDomain?.id;
+    const available = !existingOrganization?.id && !existingDomain?.id ;
     if (available) {
       return jsonResponse({
         available: true,
