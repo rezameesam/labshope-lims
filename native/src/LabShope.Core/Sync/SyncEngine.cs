@@ -289,7 +289,7 @@ public sealed class SyncEngine
 
             if (response.NetworkFailure || ErrorClassifier.Classify(response) is ErrorKind.Transient or ErrorKind.Auth) break;
             var ok = response.Ok && response.Body is { ValueKind: JsonValueKind.Object } b && b.TryGetProperty("success", out var s) && s.ValueKind == JsonValueKind.True;
-            if (!ok) _store.SetMeta("notify_last_error", response.ErrorMessage ?? "The email could not be sent.");
+            _store.SetMeta("notify_last_error", ok ? "" : response.ErrorMessage ?? "The email could not be sent.");
             _store.RemoveReadyNotification(patientId, testDate); // sent, or refused for good: never send twice
             if (ok) sent++;
         }
