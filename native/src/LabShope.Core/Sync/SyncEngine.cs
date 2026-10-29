@@ -148,7 +148,10 @@ public sealed class SyncEngine
             _api.SelectAsync("test_package_tests", "select=package_id,test_id", ct),
             _api.SelectAsync("doctors", Org("doctors", "id,name,specialization,commission_percentage", "&is_active=eq.true"), ct),
             _api.SelectAsync("labs", Org("labs", "id,name,lab_code", "&is_active=eq.true&order=name.asc"), ct),
-            _api.SelectAsync("collection_centers", Org("collection_centers", "id,name,code,lab_id", "&is_active=eq.true&order=name.asc"), ct));
+            _api.SelectAsync("collection_centers", Org("collection_centers", "id,name,code,lab_id", "&is_active=eq.true&order=name.asc"), ct),
+            _api.SelectAsync("test_categories", Org("test_categories", "id,name"), ct),
+            // The lab's own templates, plus any shared ones (no organisation), like the website.
+            _api.SelectAsync("test_templates", $"select=id,name,organization_id,test_category,test_id,header_template,footer_template,result_format,include_normal_range,include_abnormal_flag,include_notes,is_default&or=(organization_id.eq.{_organizationId},organization_id.is.null)&order=created_at.asc", ct));
 
         // Throw before touching local data so a failed refresh keeps what we have.
         foreach (var call in calls) if (!call.Ok) throw new SyncException(call);
@@ -164,7 +167,11 @@ public sealed class SyncEngine
                 testsByPackage.GetValueOrDefault(Str(r, "id")!) ?? [])).ToList(),
             Rows(3).Select(r => new Doctor(Str(r, "id")!, Str(r, "name")!, Str(r, "specialization"), Num(r, "commission_percentage"))).ToList(),
             Rows(4).Select(r => new LabRef(Str(r, "id")!, Str(r, "name")!, Str(r, "lab_code") ?? "")).ToList(),
-            Rows(5).Select(r => new CenterRef(Str(r, "id")!, Str(r, "name")!, Str(r, "code") ?? "", Str(r, "lab_id")!)).ToList());
+            Rows(5).Select(r => new CenterRef(Str(r, "id")!, Str(r, "name")!, Str(r, "code") ?? "", Str(r, "lab_id")!)).ToList(),
+            Rows(6).Select(r => new TestCategory(Str(r, "id")!, Str(r, "name") ?? "")).ToList(),
+            Rows(7).Select(r => new ReportTemplate(Str(r, "id")!, Str(r, "name") ?? "", Str(r, "organization_id"), Str(r, "test_category"), Str(r, "test_id"),
+                Str(r, "header_template"), Str(r, "footer_template"), Str(r, "result_format") ?? "table",
+                Flag(r, "include_normal_range", true), Flag(r, "include_abnormal_flag", true), Flag(r, "include_notes", false), Flag(r, "is_default", false))).ToList());
 
         _store.ReplaceCatalog(catalog);
         _store.SetMeta(CatalogKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
@@ -419,6 +426,9 @@ public sealed class SyncEngine
 
     private static string? Opt(JsonElement row, string name) =>
         row.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static bool Flag(JsonElement row, string name, bool whenMissing) =>
+        row.TryGetProperty(name, out var v) ? v.ValueKind switch { JsonValueKind.True => true, JsonValueKind.False => false, _ => whenMissing } : whenMissing;
 
     private static decimal? NumOrNull(JsonElement row, string name) =>
         row.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : null;

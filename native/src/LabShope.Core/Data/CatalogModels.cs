@@ -21,7 +21,21 @@ public sealed record Catalog(
     IReadOnlyList<TestPackage> Packages,
     IReadOnlyList<Doctor> Doctors,
     IReadOnlyList<LabRef> Labs,
-    IReadOnlyList<CenterRef> Centers);
+    IReadOnlyList<CenterRef> Centers,
+    IReadOnlyList<TestCategory>? Categories = null,
+    IReadOnlyList<ReportTemplate>? Templates = null)
+{
+    public IReadOnlyList<TestCategory> CategoryList => Categories ?? [];
+    public IReadOnlyList<ReportTemplate> TemplateList => Templates ?? [];
+}
+
+public sealed record TestCategory(string Id, string Name);
+
+/// <summary>The lab's report layout settings (the website's Templates tab): header and footer text with {markers}, and what to show.</summary>
+public sealed record ReportTemplate(
+    string Id, string Name, string? OrganizationId, string? TestCategory, string? TestId,
+    string? HeaderTemplate, string? FooterTemplate, string ResultFormat,
+    bool IncludeNormalRange, bool IncludeAbnormalFlag, bool IncludeNotes, bool IsDefault);
 
 /// <summary>A member of staff, as shown on the Team tab (read from the server).</summary>
 public sealed record TeamMember(string Id, string EmployeeId, string FullName, string? Email, string? Phone, string? Designation, string? Department, string? LabId, bool IsActive)

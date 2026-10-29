@@ -161,3 +161,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   inventory_usage / inventory_purchases, then the item's stock moves) but use the freshly read stock level, refuse more than is in stock, and say plainly when the log line
   was saved but the stock update was not. Verified against the real database (50 -> 45 -> 65, over-use refused).
 - Still not native: external labs, report templates (test_templates), subscription, notification settings, roles/permissions, visitor logs, quick setup.
+
+## Update: report templates
+- The lab's report templates (test_templates: header/footer wording with {markers}, show/hide reference range and abnormal marking) are pulled with the catalog
+  (together with test categories) and applied to printed reports. Template choice follows the website: the lab's own before shared ones; one test -> the template made
+  for that test, then its category; several tests of one category -> that category; otherwise the default template; otherwise none (plain report as before).
+- Markers filled: patient_name, patient_id, phone, test_name, test_date, report_date, lab_name, lab_code, collection_center (empty), entered_by (the lab's name).
+  Simple HTML in the template (p, br, li) becomes text lines, as on the website. "list"/"custom" result formats and notes are not implemented (printed as the table).

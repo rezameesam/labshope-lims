@@ -10,13 +10,14 @@ public sealed record ReportSection(string TestName, IReadOnlyList<ReportLine> Li
 
 public sealed record ReportData(
     string LabName, string PatientName, string PatientCode, string? Gender, string? Age, string Phone,
-    string ReportDate, IReadOnlyList<ReportSection> Sections, bool Provisional = false, Branding? Branding = null);
+    string ReportDate, IReadOnlyList<ReportSection> Sections, bool Provisional = false, Branding? Branding = null,
+    string? HeaderText = null, string? FooterText = null, bool ShowReference = true, bool ShowFlag = true);
 
 /// <summary>Builds a patient's report from the completed tests held on this PC (works offline).</summary>
 public static class ReportBuilder
 {
     /// <summary>All completed tests for the patient on the given date. Returns null when there is nothing to report.</summary>
-    public static ReportData? For(LocalStore store, string labName, string patientId, string testDate, DateTimeOffset? now = null, Branding? branding = null)
+    public static ReportData? For(LocalStore store, string labName, string patientId, string testDate, DateTimeOffset? now = null, Branding? branding = null, string? organizationId = null, string? labId = null)
     {
         var patient = store.GetPatient(patientId);
         if (patient is null) return null;
@@ -26,8 +27,23 @@ public static class ReportBuilder
         if (done.Count == 0) return null;
 
         var sections = done.Select(t => Section(store, t)).ToList();
+
+        // The lab's own report layout (header/footer wording, what to show), chosen like the website does.
+        var catalog = store.GetCatalog();
+        var template = organizationId is null ? null : ReportTemplates.Resolve(catalog, organizationId, done.Select(t => t.TestName).Distinct().ToList());
+        var context = new Dictionary<string, string>
+        {
+            ["patient_name"] = patient.FullName, ["patient_id"] = patient.PatientCode, ["phone"] = patient.Phone,
+            ["test_name"] = done.Select(t => t.TestName).Distinct().Count() == 1 ? done[0].TestName : "Multiple Tests",
+            ["test_date"] = testDate, ["report_date"] = testDate, ["lab_name"] = branding?.Name ?? labName,
+            ["lab_code"] = catalog.Labs.FirstOrDefault(l => l.Id == labId)?.LabCode ?? "", ["collection_center"] = "", ["entered_by"] = branding?.Name ?? labName,
+        };
+        var header = template?.HeaderTemplate is { Length: > 0 } h ? ReportTemplates.RenderText(h, context) : null;
+        var footer = template?.FooterTemplate is { Length: > 0 } f ? ReportTemplates.RenderText(f, context) : null;
+
         return new ReportData(labName, patient.FullName, patient.PatientCode, patient.Gender, AgeOf(patient.DateOfBirth, now ?? DateTimeOffset.Now),
-            patient.Phone, testDate, sections, Provisional: done.Any(t => t.Waiting), Branding: branding);
+            patient.Phone, testDate, sections, Provisional: done.Any(t => t.Waiting), Branding: branding,
+            HeaderText: header, FooterText: footer, ShowReference: template?.IncludeNormalRange ?? true, ShowFlag: template?.IncludeAbnormalFlag ?? true);
     }
 
     private static ReportSection Section(LocalStore store, PatientTest t)
@@ -87,17 +103,19 @@ public static class ReportHtml
         sb.Append("</div></div><div style=\"text-align:right\">Report date<br><b>").Append(E(r.ReportDate)).Append("</b></div></div>");
         sb.Append("<div class=\"meta\"><div>Patient: <b>").Append(E(r.PatientName)).Append("</b></div><div>Patient ID: <b>").Append(E(r.PatientCode)).Append("</b></div>")
           .Append("<div>Age / sex: ").Append(E(string.Join(" / ", new[] { r.Age, r.Gender }.Where(x => !string.IsNullOrWhiteSpace(x))))).Append("</div><div>Phone: ").Append(E(r.Phone)).Append("</div></div>");
+        if (!string.IsNullOrWhiteSpace(r.HeaderText)) sb.Append("<div style=\"white-space:pre-line;margin:6px 0 4px\">").Append(E(r.HeaderText)).Append("</div>");
         if (r.Provisional) sb.Append("<div class=\"warn\">Preliminary: some of these results have not been confirmed by the server yet.</div>");
 
         foreach (var s in r.Sections)
         {
-            sb.Append("<h2>").Append(E(s.TestName)).Append("</h2><table><tr><th>Test</th><th>Result</th><th>Unit</th><th>Reference range</th></tr>");
+            sb.Append("<h2>").Append(E(s.TestName)).Append("</h2><table><tr><th>Test</th><th>Result</th><th>Unit</th>").Append(r.ShowReference ? "<th>Reference range</th>" : "").Append("</tr>");
             foreach (var l in s.Lines)
-                sb.Append("<tr").Append(l.Abnormal ? " class=\"abn\"" : "").Append("><td>").Append(E(l.Test)).Append("</td><td class=\"v\">").Append(E(l.Result))
-                  .Append("</td><td>").Append(E(l.Unit)).Append("</td><td>").Append(E(l.Reference)).Append("</td></tr>");
+                sb.Append("<tr").Append(r.ShowFlag && l.Abnormal ? " class=\"abn\"" : "").Append("><td>").Append(E(l.Test)).Append("</td><td class=\"v\">").Append(E(l.Result))
+                  .Append("</td><td>").Append(E(l.Unit)).Append("</td>").Append(r.ShowReference ? "<td>" + E(l.Reference) + "</td>" : "").Append("</tr>");
             sb.Append("</table>");
         }
-        sb.Append("<div class=\"note\">* Outside the reference range. ").Append(E(r.Branding?.ReportFooterNote ?? "This is a computer generated report.")).Append("</div></body></html>");
+        if (!string.IsNullOrWhiteSpace(r.FooterText)) sb.Append("<div style=\"white-space:pre-line;margin-top:18px;font-size:12px\">").Append(E(r.FooterText)).Append("</div>");
+        sb.Append("<div class=\"note\">").Append(r.ShowFlag ? "* Outside the reference range. " : "").Append(E(r.Branding?.ReportFooterNote ?? "This is a computer generated report.")).Append("</div></body></html>");
         return sb.ToString();
     }
 }

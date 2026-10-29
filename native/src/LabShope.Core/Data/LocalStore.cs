@@ -326,12 +326,14 @@ public sealed class LocalStore : IDisposable
             foreach (var d in catalog.Doctors) PutCatalog("doctor", d.Id, d.Name, d);
             foreach (var l in catalog.Labs) PutCatalog("lab", l.Id, l.Name, l);
             foreach (var c in catalog.Centers) PutCatalog("center", c.Id, c.Name, c);
+            foreach (var c in catalog.CategoryList) PutCatalog("category", c.Id, c.Name, c);
+            foreach (var t in catalog.TemplateList) PutCatalog("template", t.Id, t.Name, t);
         });
     }
 
     public Catalog GetCatalog() => new(
         ReadCatalog<CatalogTest>("test"), ReadCatalog<TestPackage>("package"), ReadCatalog<Doctor>("doctor"),
-        ReadCatalog<LabRef>("lab"), ReadCatalog<CenterRef>("center"));
+        ReadCatalog<LabRef>("lab"), ReadCatalog<CenterRef>("center"), ReadCatalog<TestCategory>("category"), ReadCatalog<ReportTemplate>("template"));
 
     private void PutCatalog<T>(string kind, string id, string sort, T value)
     {
