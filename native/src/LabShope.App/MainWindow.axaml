@@ -13,7 +13,7 @@
       <MenuItem Header="_Work">
         <MenuItem Header="_Patients" HotKey="F2" Click="OnOpenPatients" />
         <MenuItem Header="_Bills" HotKey="F3" Click="OnOpenBills" />
-        <MenuItem Header="Register _visit" IsEnabled="False" />
+        <MenuItem Header="Register _visit" HotKey="F4" Click="OnOpenRegister" />
         <MenuItem Header="Patient _tests and results" IsEnabled="False" />
         <MenuItem Header="Lab _sheets" IsEnabled="False" />
         <MenuItem Header="Booking _requests" IsEnabled="False" />
@@ -38,6 +38,7 @@
     </Menu>
 
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4" Spacing="2">
+      <Button Classes="tool" Content="Register visit (F4)" Click="OnOpenRegister" />
       <Button Classes="tool" Content="Patients (F2)" Click="OnOpenPatients" />
       <Button Classes="tool" Content="Bills (F3)" Click="OnOpenBills" />
       <Button Classes="tool" Content="Sync (F9)" Click="OnSync" />

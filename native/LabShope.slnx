@@ -4,6 +4,7 @@
     <Project Path="src/LabShope.Core/LabShope.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LabShope.App.Tests/LabShope.App.Tests.csproj" />
     <Project Path="tests/LabShope.Core.Tests/LabShope.Core.Tests.csproj" />
   </Folder>
 </Solution>

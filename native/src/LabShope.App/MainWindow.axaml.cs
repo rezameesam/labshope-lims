@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly ScanDetector _scanner = new();
     private PatientRegisterView? _patients;
     private BillsView? _bills;
+    private RegisterVisitView? _register;
     private bool _syncing;
 
     public MainWindow() => throw new InvalidOperationException("Use the constructor with a session.");
@@ -69,6 +70,13 @@ public partial class MainWindow : Window
 
     private void ShowScanned(Patient patient)
     {
+        if (_register is not null && Windows.SelectedItem is TabItem { Content: var current } && current == _register)
+        {
+            _register.UsePatient(patient);
+            ScanText.Text = $"Scanned: {patient.FullName} ({patient.PatientCode})";
+            return;
+        }
+
         OnOpenPatients(null, null!);
         _patients!.ShowPatient(patient);
         ScanText.Text = $"Scanned: {patient.FullName} ({patient.PatientCode})";
@@ -83,6 +91,18 @@ public partial class MainWindow : Window
         }
         Windows.SelectedIndex = Windows.Items.Count - 1;
         _patients.FocusSearch();
+    }
+
+    private void OnOpenRegister(object? sender, RoutedEventArgs e)
+    {
+        if (_register is null)
+        {
+            _register = new RegisterVisitView(_session);
+            _register.Registered += async () => { _patients?.Refresh(); await SyncAsync(); };
+            Windows.Items.Add(new TabItem { Header = "Register visit", Content = _register });
+        }
+        Windows.SelectedIndex = Windows.Items.IndexOf(Windows.Items.OfType<TabItem>().First(t => t.Content == _register));
+        _register.FocusFirstField();
     }
 
     private void OnOpenBills(object? sender, RoutedEventArgs e)
@@ -113,6 +133,7 @@ public partial class MainWindow : Window
                 : $"Offline: working from this computer{waiting}";
             _patients?.Refresh();
             _bills?.Refresh();
+            _register?.ReloadCatalog();
         }
         finally { _syncing = false; }
     }

@@ -89,6 +89,49 @@ public sealed class SyncEngine
         }, "created_at=gte." + Uri.EscapeDataString(floor), ct);
     }
 
+    private const string CatalogKey = "catalog_synced_at";
+    private static readonly TimeSpan CatalogMaxAge = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Copies the test list, packages, doctors, labs and centers to this PC. They change rarely, so this
+    /// runs at most every 10 minutes unless forced. A failed refresh never wipes a good copy.
+    /// Returns false when it was skipped as too soon.
+    /// </summary>
+    public async Task<bool> PullCatalogAsync(bool force = false, CancellationToken ct = default)
+    {
+        if (!force && long.TryParse(_store.GetMeta(CatalogKey), out var last) &&
+            DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(last) < CatalogMaxAge)
+            return false;
+
+        string Org(string table, string cols, string extra = "") => $"select={cols}&organization_id=eq.{_organizationId}{extra}";
+        var calls = await Task.WhenAll(
+            _api.SelectAsync("tests", Org("tests", "id,test_id,name,price,category_id", "&is_active=eq.true"), ct),
+            _api.SelectAsync("test_packages", Org("test_packages", "id,name,price", "&is_active=eq.true"), ct),
+            _api.SelectAsync("test_package_tests", "select=package_id,test_id", ct),
+            _api.SelectAsync("doctors", Org("doctors", "id,name,specialization,commission_percentage", "&is_active=eq.true"), ct),
+            _api.SelectAsync("labs", Org("labs", "id,name,lab_code", "&is_active=eq.true&order=name.asc"), ct),
+            _api.SelectAsync("collection_centers", Org("collection_centers", "id,name,code,lab_id", "&is_active=eq.true&order=name.asc"), ct));
+
+        // Throw before touching local data so a failed refresh keeps what we have.
+        foreach (var call in calls) if (!call.Ok) throw new SyncException(call);
+        IEnumerable<JsonElement> Rows(int i) => calls[i].Body is { ValueKind: JsonValueKind.Array } a ? a.EnumerateArray() : [];
+
+        var testsByPackage = Rows(2).GroupBy(r => r.GetProperty("package_id").GetString()!)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(r => r.GetProperty("test_id").GetString()!).ToList());
+
+        var catalog = new Catalog(
+            Rows(0).Select(r => new CatalogTest(Str(r, "id")!, Str(r, "test_id"), Str(r, "name")!, Num(r, "price"), Str(r, "category_id"))).ToList(),
+            Rows(1).Select(r => new TestPackage(Str(r, "id")!, Str(r, "name")!, Num(r, "price"),
+                testsByPackage.GetValueOrDefault(Str(r, "id")!) ?? [])).ToList(),
+            Rows(3).Select(r => new Doctor(Str(r, "id")!, Str(r, "name")!, Str(r, "specialization"), Num(r, "commission_percentage"))).ToList(),
+            Rows(4).Select(r => new LabRef(Str(r, "id")!, Str(r, "name")!, Str(r, "lab_code") ?? "")).ToList(),
+            Rows(5).Select(r => new CenterRef(Str(r, "id")!, Str(r, "name")!, Str(r, "code") ?? "", Str(r, "lab_id")!)).ToList());
+
+        _store.ReplaceCatalog(catalog);
+        _store.SetMeta(CatalogKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+        return true;
+    }
+
     /// <summary>Sends queued visits one at a time, oldest first. Overlapping calls are skipped, not doubled.</summary>
     public async Task<FlushOutcome> FlushOutboxAsync(CancellationToken ct = default)
     {
@@ -150,6 +193,8 @@ public sealed class SyncEngine
             if (row is not null) _store.UpsertPatient(row with { PatientCode = patientCode, Pending = false });
         }
     }
+
+    private static string? Str(JsonElement row, string name) => Opt(row, name);
 
     private static string? Opt(JsonElement row, string name) =>
         row.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;

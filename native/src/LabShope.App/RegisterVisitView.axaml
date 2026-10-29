@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
+             x:Class="LabShope.App.RegisterVisitView">
+  <Grid ColumnDefinitions="*,12,*" Margin="8">
+    <!-- Patient and visit details -->
+    <ScrollViewer Grid.Column="0">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Patient" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="16">
+          <RadioButton x:Name="ExistingRadio" Content="Existing patient" GroupName="mode" IsChecked="True" />
+          <RadioButton x:Name="NewRadio" Content="New patient" GroupName="mode" />
+        </StackPanel>
+
+        <StackPanel x:Name="ExistingPanel" Spacing="6">
+          <TextBox x:Name="PatientSearch" Watermark="Search by name, phone or patient ID (or scan the card)" />
+          <ListBox x:Name="PatientResults" MaxHeight="190" />
+          <TextBlock x:Name="PickedPatient" FontWeight="SemiBold" Foreground="#1B5E20" />
+        </StackPanel>
+
+        <Grid x:Name="NewPanel" IsVisible="False" ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
+          <TextBlock Text="Full name" VerticalAlignment="Center" />
+          <TextBox x:Name="NewName" Grid.Column="1" />
+          <TextBlock Text="Phone" Grid.Row="1" VerticalAlignment="Center" />
+          <TextBox x:Name="NewPhone" Grid.Row="1" Grid.Column="1" Watermark="10-digit mobile number" />
+          <TextBlock Text="Gender" Grid.Row="2" VerticalAlignment="Center" />
+          <ComboBox x:Name="NewGender" Grid.Row="2" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch">
+            <ComboBoxItem>male</ComboBoxItem>
+            <ComboBoxItem>female</ComboBoxItem>
+            <ComboBoxItem>other</ComboBoxItem>
+          </ComboBox>
+          <TextBlock Text="Date of birth" Grid.Row="3" VerticalAlignment="Center" />
+          <TextBox x:Name="NewDob" Grid.Row="3" Grid.Column="1" Watermark="yyyy-mm-dd (optional)" />
+        </Grid>
+
+        <Separator />
+        <TextBlock Text="Visit" FontWeight="SemiBold" />
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+          <TextBlock Text="Referred by" VerticalAlignment="Center" />
+          <ComboBox x:Name="DoctorBox" Grid.Column="1" HorizontalAlignment="Stretch" />
+          <TextBlock Text="Collection centre" Grid.Row="1" VerticalAlignment="Center" />
+          <ComboBox x:Name="CenterBox" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" />
+          <TextBlock Text="Notes" Grid.Row="2" VerticalAlignment="Center" />
+          <TextBox x:Name="NotesBox" Grid.Row="2" Grid.Column="1" AcceptsReturn="False" />
+        </Grid>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Tests and total -->
+    <DockPanel Grid.Column="2">
+      <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
+        <DockPanel>
+          <TextBlock x:Name="TotalText" DockPanel.Dock="Right" FontSize="20" FontWeight="SemiBold" Text="Total 0" />
+          <TextBlock x:Name="ResultText" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button x:Name="ClearButton" Content="Clear" Click="OnClear" />
+          <Button x:Name="SaveButton" Content="Save visit (F8)" Click="OnSave" Padding="18,6" />
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel DockPanel.Dock="Top" Spacing="6">
+        <TextBlock Text="Tests" FontWeight="SemiBold" />
+        <ComboBox x:Name="PackageBox" HorizontalAlignment="Stretch" />
+        <TextBox x:Name="TestSearch" Watermark="Search tests, press Enter or double-click to add" />
+        <ListBox x:Name="TestResults" MaxHeight="170">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="data:CatalogTest">
+              <DockPanel>
+                <TextBlock Text="{Binding Price}" DockPanel.Dock="Right" />
+                <TextBlock Text="{Binding Name}" />
+              </DockPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Text="Selected (Delete removes the highlighted one)" Foreground="#555" />
+      </StackPanel>
+
+      <DataGrid x:Name="SelectedGrid" x:DataType="app:SelectedTest" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="All">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Test" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="Price" Binding="{Binding PriceText}" Width="110" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </DockPanel>
+  </Grid>
+</UserControl>

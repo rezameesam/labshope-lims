@@ -52,3 +52,10 @@ Employees created by an admin use the email + password they were given and land 
 labs get a short list to pick from. The first sign-in on a computer needs internet; after that the app opens offline from the saved login.
 Known gap: accounts with email two-step verification are refused with a clear message until the desktop app supports it.
 Also built (no screen yet): phone normalisation, catalog storage, `VisitService` (register a visit locally, queue it, instant, offline).
+
+## Update: Register visit screen (milestone 1, step 1)
+Catalog sync (tests, packages, doctors, labs, centers; every 10 min, never wipes a good copy) and the Register Visit screen:
+existing patient search or new patient, test search + packages, referring doctor, collection centre, running total, Save (F8).
+Saves locally and instantly; sent to the server by the outbox. Barcode scan of a patient card picks the patient.
+UI is tested headless (`native/tests/LabShope.App.Tests`, Avalonia.Headless): type, add tests, delete, package price, save -> queued.
+Next in milestone 1: payments + receipts, bill detail/print, offline invoice numbers, patient edit, labels.

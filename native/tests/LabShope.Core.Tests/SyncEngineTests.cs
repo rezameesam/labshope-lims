@@ -31,6 +31,51 @@ public class SyncEngineTests : IDisposable
         "{\"visit_id\":\"" + visitId + "\",\"organization_id\":\"org-1\",\"patient\":{\"new\":{\"id\":\"" + patientId +
         "\",\"full_name\":\"Asha Rao\",\"phone\":\"9999999999\"}},\"tests\":[{\"test_name\":\"CBC\",\"price\":300}]}";
 
+    // ── catalog ────────────────────────────────────────────────────────────
+
+    private static (HttpStatusCode, string) CatalogRoute(HttpRequestMessage req) => req.RequestUri!.AbsolutePath switch
+    {
+        var p when p.EndsWith("/tests") => (HttpStatusCode.OK, """[{"id":"t1","test_id":"CBC","name":"CBC","price":300,"category_id":"c1"},{"id":"t2","test_id":"LFT","name":"LFT","price":450,"category_id":"c1"}]"""),
+        var p when p.EndsWith("/test_packages") => (HttpStatusCode.OK, """[{"id":"pk1","name":"Basic","price":500}]"""),
+        var p when p.EndsWith("/test_package_tests") => (HttpStatusCode.OK, """[{"package_id":"pk1","test_id":"t1"},{"package_id":"pk1","test_id":"t2"}]"""),
+        var p when p.EndsWith("/doctors") => (HttpStatusCode.OK, """[{"id":"d1","name":"Dr Rao","specialization":"Pathology","commission_percentage":10}]"""),
+        var p when p.EndsWith("/labs") => (HttpStatusCode.OK, """[{"id":"l1","name":"Main Lab","lab_code":"ML"}]"""),
+        var p when p.EndsWith("/collection_centers") => (HttpStatusCode.OK, """[{"id":"cc1","name":"Town","code":"TN","lab_id":"l1"}]"""),
+        _ => (HttpStatusCode.NotFound, "{}"),
+    };
+
+    [Fact]
+    public async Task CopiesTheCatalogToThisPcAndSkipsARefreshThatIsTooSoon()
+    {
+        var server = new FakeServer { Handler = (r, _) => CatalogRoute(r) };
+        var engine = new SyncEngine(_store, Api(server), Org);
+
+        Assert.True(await engine.PullCatalogAsync());
+        var catalog = _store.GetCatalog();
+        Assert.Equal(["CBC", "LFT"], catalog.Tests.Select(t => t.Name));
+        Assert.Equal(["t1", "t2"], catalog.Packages.Single().TestIds);
+        Assert.Equal("Dr Rao", catalog.Doctors.Single().Name);
+        Assert.Equal("Town", catalog.Centers.Single().Name);
+
+        var calls = server.Requests.Count;
+        Assert.False(await engine.PullCatalogAsync());
+        Assert.Equal(calls, server.Requests.Count);
+        Assert.True(await engine.PullCatalogAsync(force: true));
+    }
+
+    [Fact]
+    public async Task AFailedCatalogRefreshKeepsTheCopyAlreadyOnThisPc()
+    {
+        var engine = new SyncEngine(_store, Api(new FakeServer { Handler = (r, _) => CatalogRoute(r) }), Org);
+        await engine.PullCatalogAsync();
+
+        var broken = new SyncEngine(_store, Api(new FakeServer { Handler = (r, _) => r.RequestUri!.AbsolutePath.EndsWith("/doctors")
+            ? (HttpStatusCode.InternalServerError, "{}") : CatalogRoute(r) }), Org);
+        await Assert.ThrowsAsync<SyncException>(() => broken.PullCatalogAsync(force: true));
+
+        Assert.Equal(2, _store.GetCatalog().Tests.Count);
+    }
+
     // ── sending visits ─────────────────────────────────────────────────────
 
     private void Enqueue(string visitId, string patientId) =>

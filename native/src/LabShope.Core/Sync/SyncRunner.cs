@@ -25,6 +25,7 @@ public sealed class SyncRunner
             var flushed = await _engine.FlushOutboxAsync(ct);
             if (flushed.StoppedBy is { } stop) return Status(stop, null);
 
+            await _engine.PullCatalogAsync(ct: ct);
             await _engine.PullPatientsAsync(ct);
             await _engine.PullInvoicesAsync(ct);
             _lastSyncedAt = DateTimeOffset.UtcNow;
