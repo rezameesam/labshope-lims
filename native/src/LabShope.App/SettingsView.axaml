@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.SettingsView">
+  <ScrollViewer>
+    <StackPanel Spacing="18" MaxWidth="1100" HorizontalAlignment="Stretch">
+
+      <Border Classes="card">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Sync" Classes="h2" />
+            <TextBlock x:Name="SyncLine" TextWrapping="Wrap" />
+            <TextBlock x:Name="SyncSub" Classes="muted" TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="1" Classes="primary" VerticalAlignment="Center" Click="OnSyncNow">
+            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Sync" Width="17" Height="17" /><TextBlock Text="Sync now" /></StackPanel>
+          </Button>
+        </Grid>
+      </Border>
+
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock x:Name="QueueTitle" Text="Waiting to be sent" Classes="h2" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button x:Name="RetryButton" Click="OnRetry"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Reload" Width="16" Height="16" /><TextBlock Text="Retry" /></StackPanel></Button>
+            <Button x:Name="DiscardButton" Click="OnDiscard"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="TrashCanOutline" Width="16" Height="16" /><TextBlock Text="Discard" /></StackPanel></Button>
+          </StackPanel>
+        </Grid>
+        <DataGrid x:Name="QueueGrid" x:DataType="data:OutboxEntry" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120" MaxHeight="320">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="WHAT" Binding="{Binding What}" Width="170" />
+            <DataGridTextColumn Header="FOR" Binding="{Binding Who}" Width="180" />
+            <DataGridTextColumn Header="UPDATED" Binding="{Binding Updated}" Width="120" />
+            <DataGridTemplateColumn Header="STATUS" Width="100">
+              <DataTemplate x:DataType="data:OutboxEntry">
+                <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Badge, Converter={x:Static app:Pills.Background}}">
+                  <TextBlock Text="{Binding Badge}" Foreground="{Binding Badge, Converter={x:Static app:Pills.Foreground}}" />
+                </Border>
+              </DataTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="DETAILS" Binding="{Binding Detail}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock x:Name="QueueEmpty" Text="Nothing is waiting. Everything you did has reached the server." Classes="muted" IsVisible="False" />
+        <TextBlock x:Name="QueueMessage" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+      </StackPanel>
+
+      <Border Classes="card">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="24">
+          <TextBlock Text="Signed in as" Classes="muted" /><TextBlock x:Name="UserLine" Grid.Column="1" />
+          <TextBlock Text="Lab" Classes="muted" Grid.Row="1" /><TextBlock x:Name="LabLine" Grid.Row="1" Grid.Column="1" />
+          <TextBlock Text="Access" Classes="muted" Grid.Row="2" /><TextBlock x:Name="RoleLine" Grid.Row="2" Grid.Column="1" />
+          <TextBlock Text="Version" Classes="muted" Grid.Row="3" /><TextBlock x:Name="VersionLine" Grid.Row="3" Grid.Column="1" />
+          <TextBlock Text="Data on this PC" Classes="muted" Grid.Row="4" />
+          <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="12">
+            <TextBlock x:Name="DataLine" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="560" />
+            <Button Content="Open logs folder" Click="OnOpenLogs" Padding="10,5" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

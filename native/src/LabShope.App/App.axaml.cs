@@ -25,8 +25,32 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    /// <summary>
+    /// Unexpected errors are written to the log and the app carries on: a mistake in one screen should never close
+    /// the whole program while someone is in the middle of registering a patient.
+    /// </summary>
+    private static void InstallSafetyNet()
+    {
+        LabShope.Core.AppLog.Start(Path.Combine(AppConfig.DataDirectory, "logs"));
+        LabShope.Core.AppLog.Info($"LabShope LIMS started ({Environment.OSVersion})");
+
+        Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            LabShope.Core.AppLog.Error("Unexpected error in the window", e.Exception);
+            e.Handled = true;
+            ErrorNotice.Raise();
+        };
+        System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            LabShope.Core.AppLog.Error("Unexpected error in a background task", e.Exception);
+            e.SetObserved();
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => LabShope.Core.AppLog.Error("Fatal error", e.ExceptionObject as Exception);
+    }
+
     private static async System.Threading.Tasks.Task StartAsync(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        InstallSafetyNet();
         var api = new SupabaseApi(new HttpClient { Timeout = TimeSpan.FromSeconds(30) }, AppConfig.SupabaseUrl, AppConfig.SupabaseKey);
         var account = new AccountService(api, Path.Combine(AppConfig.DataDirectory, "account.json"));
 

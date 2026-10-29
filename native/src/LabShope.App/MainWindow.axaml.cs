@@ -92,6 +92,13 @@ public partial class MainWindow : Window
         // The books are for admins and staff, not collectors.
         if (session.Workspace.Roles is null || session.Workspace.Roles.Any(r => r is "admin" or "employee"))
             _nav.Add(new("finance", "Finance", MaterialIconKind.BankOutline, Key.None, () => new FinanceView(session)));
+        _nav.Add(new("settings", "Sync & settings", MaterialIconKind.CogOutline, Key.None, () =>
+            {
+                var v = new SettingsView(session);
+                v.SyncRequested += async () => await SyncAsync();
+                v.QueueChanged += () => RefreshPages();
+                return v;
+            }, Badge: () => _store.OutboxCounts().Failed));
 
         foreach (var n in _nav)
         {
@@ -102,6 +109,7 @@ public partial class MainWindow : Window
         }
 
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel); // hotkeys and barcode scans work from anywhere
+        ErrorNotice.Occurred += () => Dispatcher.UIThread.Post(() => Toast("Something went wrong. Your work is safe; details were saved to the log."));
 
         Show("home");
         RefreshBadges();
@@ -177,6 +185,7 @@ public partial class MainWindow : Window
             case ReportsView rv: rv.Refresh(); break;
             case CatalogView cv: cv.Refresh(); break;
             case BookingsView bv: bv.Refresh(); break;
+            case SettingsView sv: sv.Refresh(); break;
             case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;
         }
@@ -249,6 +258,7 @@ public partial class MainWindow : Window
         try
         {
             var status = await _session.Sync.RunOnceAsync();
+            if (_pages.TryGetValue("settings", out var settings)) ((SettingsView)settings).ShowStatus(status);
             var waiting = status.Pending > 0 ? $" · {status.Pending} waiting to send" : "";
             if (status.NeedsSignIn) SetChip("Please sign in again", "#B7791F", "#FDF3DD");
             else if (status.Online && status.Failed > 0) SetChip($"Synced · {status.Failed} need attention", "#B7791F", "#FDF3DD");

@@ -84,3 +84,21 @@ public sealed record BookingRequest(
     public string Created => DateTimeOffset.TryParse(CreatedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : CreatedAt;
     public string Type => BookingType.Replace('_', ' ');
 }
+
+/// <summary>One thing waiting to be sent to the server (or refused by it), described in words a person can read.</summary>
+public sealed record OutboxEntry(string Id, string Kind, string Status, int Attempts, string? LastError, string Who, string UpdatedAt)
+{
+    public string What => Kind switch
+    {
+        "visit" => "Visit registration",
+        "payment" => "Payment",
+        "result" => "Test result",
+        "patient" => "Patient change",
+        "booking" => "Booking update",
+        _ => Kind,
+    };
+    public string Badge => Status == "failed" ? "failed" : "waiting";
+    /// <summary>Why it was refused, or (for items that are only waiting) that they will go when the connection is back.</summary>
+    public string Detail => Status == "failed" ? LastError ?? "The server refused it." : "Will be sent when the connection is available.";
+    public string Updated => long.TryParse(UpdatedAt, out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("dd MMM HH:mm") : UpdatedAt;
+}

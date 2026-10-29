@@ -140,3 +140,9 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
 - Not verified end to end: edge functions do not run in the local test database, so the live send-email call (provider credentials) was not exercised; it is covered
   by tests against a stand-in server only.
 - WhatsApp (send-whatsapp) is not used for result-ready messages by the website, so not here either.
+
+## Update: safety net and "Sync & settings"
+- Safety net: unexpected errors in a window or a background task are written to a daily log file (kept 14 days) and the app carries on, showing a short notice.
+- Sync & settings screen: sync state, everything waiting to be sent or refused (with the server's reason), Retry (put back in the queue) and Discard
+  (removes a refused visit with its bill, tests, payments and a patient created only for it; other kinds just drop), account/lab/access/version, and the logs folder.
+  The sidebar shows a red count of refused items.

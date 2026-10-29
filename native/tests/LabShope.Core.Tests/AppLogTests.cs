@@ -1,0 +1,43 @@
+namespace LabShope.Core.Tests;
+
+public class AppLogTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), $"labshope-log-{Guid.NewGuid():N}");
+
+    [Fact]
+    public void WritesErrorsWithTheirDetailsToTodaysFile()
+    {
+        AppLog.Start(_dir);
+        AppLog.Info("started");
+        AppLog.Error("Could not save", new InvalidOperationException("disk full"));
+
+        var text = File.ReadAllText(Directory.GetFiles(_dir, "labshope-*.log").Single());
+        Assert.Contains("INFO started", text);
+        Assert.Contains("ERROR Could not save", text);
+        Assert.Contains("disk full", text);
+    }
+
+    [Fact]
+    public void RemovesLogsOlderThanTwoWeeksButKeepsRecentOnes()
+    {
+        Directory.CreateDirectory(_dir);
+        var old = Path.Combine(_dir, "labshope-20200101.log");
+        var recent = Path.Combine(_dir, "labshope-20991231.log");
+        File.WriteAllText(old, "x"); File.WriteAllText(recent, "y");
+        File.SetLastWriteTime(old, DateTime.Now.AddDays(-30));
+
+        AppLog.Start(_dir);
+
+        Assert.False(File.Exists(old));
+        Assert.True(File.Exists(recent));
+    }
+
+    [Fact]
+    public void NeverThrowsEvenWhenTheFolderIsUnusable()
+    {
+        AppLog.Start(Path.Combine(_dir, "a\0b")); // an invalid path
+        AppLog.Error("still fine", new Exception("x"));
+    }
+
+    public void Dispose() { AppLog.Start(Path.Combine(Path.GetTempPath(), "labshope-log-unused")); try { Directory.Delete(_dir, true); } catch { } }
+}

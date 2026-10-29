@@ -38,6 +38,9 @@ public class DesignReviewTests : IDisposable
         _store.UpsertBooking(new BookingRequest("b2", "Kiran Patel", "9822222222", null, "walk_in", null, "Liver Function Test", null, "new", null, DateTimeOffset.UtcNow.AddHours(-3).ToString("O")));
         _store.UpsertBooking(new BookingRequest("b3", "Ravi Kumar", "9833333333", null, "walk_in", null, "TSH", null, "contacted", null, DateTimeOffset.UtcNow.AddDays(-1).ToString("O")));
         var visits = new VisitService(_store);
+        // One visit the server refused, so the "needs attention" screen has something to show.
+        var refused = visits.Register(new RegisterVisitInput("org-1", "l1", DateTime.Now.ToString("yyyy-MM-dd"), [new VisitTest("TSH", 400m)], NewPatient: new NewPatient("Kiran Joshi", "9800000099")));
+        _store.SetVisitStatus(refused.VisitId, "failed", "Patient phone is required");
         string[][] tests = [["CBC", "Liver Function Test"], ["Haemoglobin"], ["TSH", "Vitamin D"], ["CBC"], ["Liver Function Test"]];
         for (var i = 0; i < 5; i++)
         {
@@ -85,7 +88,7 @@ public class DesignReviewTests : IDisposable
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         if (dir is null) { window.Close(); return; }
 
-        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog", "bookings" })
+        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog", "bookings", "settings" })
         {
             window.Show(page);
             if (page == "register")
@@ -260,6 +263,68 @@ public class BookingScreenTests : IDisposable
 
         Assert.Contains("IRM-0001", Find<TextBlock>(view, "PickedPatient").Text);
         Assert.Equal("", Find<TextBox>(view, "NewName").Text ?? "");
+    }
+
+    public void Dispose()
+    {
+        foreach (var w in _windows) w.Close();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
+
+
+public class SettingsScreenTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-ui-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    private readonly AppSession _session;
+    private readonly List<Window> _windows = [];
+
+    public SettingsScreenTests()
+    {
+        _store = new LocalStore(_path);
+        var api = new SupabaseApi(new System.Net.Http.HttpClient(), "https://x.supabase.co", "anon");
+        _session = new AppSession(new Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), _store,
+            new SyncRunner(new SyncEngine(_store, api, "org-1"), _store), new AccountService(api, _path + ".json"));
+    }
+
+    [AvaloniaFact]
+    public void ShowsWhatTheServerRefusedAndRetryPutsItBack()
+    {
+        var visit = new VisitService(_store).Register(new RegisterVisitInput("org-1", "l1", "2026-10-29", [new VisitTest("CBC", 300m)], NewPatient: new NewPatient("Asha Rao", "9876543210")));
+        _store.SetVisitStatus(visit.VisitId, "failed", "Patient phone is required");
+
+        var view = new SettingsView(_session);
+        var window = new Window { Width = 1200, Height = 700, Content = view };
+        window.Show(); _windows.Add(window);
+
+        var grid = view.FindControl<DataGrid>("QueueGrid")!;
+        var entry = grid.ItemsSource.Cast<OutboxEntry>().Single();
+        Assert.Equal(("Visit registration", "failed", "Patient phone is required"), (entry.What, entry.Badge, entry.LastError));
+        Assert.Contains("Needs attention", view.FindControl<TextBlock>("QueueTitle")!.Text);
+        Assert.False(view.FindControl<Button>("RetryButton")!.IsEnabled); // nothing selected yet
+
+        var asked = false; view.SyncRequested += () => asked = true;
+        grid.SelectedItem = entry;
+        Assert.True(view.FindControl<Button>("RetryButton")!.IsEnabled);
+        view.FindControl<Button>("RetryButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal("pending", _store.GetVisit(visit.VisitId)!.Status);
+        Assert.True(asked); // retrying also asks for a sync straight away
+    }
+
+    [AvaloniaFact]
+    public void SaysSoWhenNothingIsWaiting()
+    {
+        var view = new SettingsView(_session);
+        var window = new Window { Width = 1200, Height = 700, Content = view };
+        window.Show(); _windows.Add(window);
+        Assert.True(view.FindControl<TextBlock>("QueueEmpty")!.IsVisible);
+        Assert.Equal("Demo Lab", view.FindControl<TextBlock>("LabLine")!.Text);
+        Assert.Equal("admin", view.FindControl<TextBlock>("RoleLine")!.Text);
     }
 
     public void Dispose()

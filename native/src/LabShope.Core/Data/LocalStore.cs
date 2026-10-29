@@ -858,6 +858,83 @@ public sealed class LocalStore : IDisposable
         return (long)cmd.ExecuteScalar()! > 0;
     }
 
+    /// <summary>Everything waiting to be sent or refused (not finished ones), failed first.</summary>
+    public IReadOnlyList<OutboxEntry> ListOutbox()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT visit_id, kind, status, attempts, last_error, patient_name, updated_at FROM outbox WHERE status <> 'done' ORDER BY CASE status WHEN 'failed' THEN 0 ELSE 1 END, created_at";
+        var list = new List<OutboxEntry>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new OutboxEntry(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), r.GetInt64(6).ToString()));
+        return list;
+    }
+
+    /// <summary>Puts a refused item back in the queue to be sent again (after the cause has been fixed).</summary>
+    public void RetryOutboxEntry(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE outbox SET status = 'pending', attempts = 0, updated_at = $now WHERE visit_id = $id AND status = 'failed'";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.ExecuteNonQuery();
+    }
+
+    public string? GetOutboxPayload(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT payload FROM outbox WHERE visit_id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    public void DeleteOutboxEntry(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM outbox WHERE visit_id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Removes a bill and everything that hung off it on this PC (its tests, payments and their waiting items).</summary>
+    public void DeleteLocalVisit(string visitId, IEnumerable<string> testIds)
+    {
+        InTransaction(() =>
+        {
+            foreach (var testId in testIds)
+            {
+                Run("DELETE FROM patient_tests WHERE id = $a", testId);
+                Run("DELETE FROM outbox WHERE kind = 'result' AND json_extract(payload, '$.id') = $a", testId);
+            }
+            Run("DELETE FROM outbox WHERE kind = 'payment' AND json_extract(payload, '$.invoice_id') = $a", visitId);
+            Run("DELETE FROM payments WHERE invoice_id = $a", visitId);
+            Run("DELETE FROM invoices WHERE id = $a", visitId);
+            Run("DELETE FROM outbox WHERE visit_id = $a", visitId);
+        });
+    }
+
+    /// <summary>True when something other than this visit still refers to the patient.</summary>
+    public bool PatientIsStillUsed(string patientId, string exceptVisitId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            SELECT (SELECT COUNT(*) FROM invoices WHERE patient_id = $p AND id <> $v)
+                 + (SELECT COUNT(*) FROM patient_tests WHERE patient_id = $p)
+                 + (SELECT COUNT(*) FROM outbox WHERE kind = 'visit' AND visit_id <> $v AND status <> 'done' AND json_extract(payload, '$.patient.new.id') = $p)
+            """;
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$v", exceptVisitId);
+        return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
+    }
+
+    private void Run(string sql, string a)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$a", a);
+        cmd.ExecuteNonQuery();
+    }
+
     public void DeletePatient(string id)
     {
         using var cmd = _db.CreateCommand();
