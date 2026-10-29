@@ -68,7 +68,16 @@ enabled = false
 EOF
 
 echo "==> Starting a throw-away Supabase (project irm-lims-db-tests)"
-supabase start --workdir "$WORK" -x studio,imgproxy,vector,logflare,mailpit,postgres-meta,edge-runtime,realtime >/dev/null
+# The container registry sometimes refuses image pulls ("toomanyrequests") when many CI jobs share its address,
+# so try again with a growing pause. Images that were already downloaded are not fetched again.
+started=0
+for attempt in 1 2 3 4 5 6; do
+  if supabase start --workdir "$WORK" -x studio,imgproxy,vector,logflare,mailpit,postgres-meta,edge-runtime,realtime >/dev/null; then started=1; break; fi
+  echo "supabase start failed (attempt $attempt), retrying in $((attempt * 30))s..." >&2
+  supabase stop --workdir "$WORK" --no-backup >/dev/null 2>&1 || true
+  sleep $((attempt * 30))
+done
+[ "$started" = 1 ] || { echo "supabase start kept failing" >&2; exit 1; }
 
 echo "==> 1/3 Applying every migration to an empty database"
 supabase db reset --workdir "$WORK" --local >/dev/null
