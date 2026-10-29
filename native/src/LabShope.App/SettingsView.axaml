@@ -32,7 +32,7 @@
           <DataGrid.Columns>
             <DataGridTextColumn Header="WHAT" Binding="{Binding What}" Width="170" />
             <DataGridTextColumn Header="FOR" Binding="{Binding Who}" Width="180" />
-            <DataGridTextColumn Header="UPDATED" Binding="{Binding Updated}" Width="120" />
+            <DataGridTextColumn Header="UPDATED" Binding="{Binding Updated}" Width="175" />
             <DataGridTemplateColumn Header="STATUS" Width="100">
               <DataTemplate x:DataType="data:OutboxEntry">
                 <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Badge, Converter={x:Static app:Pills.Background}}">
@@ -46,6 +46,43 @@
         <TextBlock x:Name="QueueEmpty" Text="Nothing is waiting. Everything you did has reached the server." Classes="muted" IsVisible="False" />
         <TextBlock x:Name="QueueMessage" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
       </StackPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Receipt printer" Classes="h2" />
+          <TextBlock Text="Print receipts straight to a thermal receipt printer with no print window. If it can't be reached, the receipt opens in the browser instead." Classes="muted" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="16" MaxWidth="640" HorizontalAlignment="Left">
+            <TextBlock Text="Print receipts" Classes="muted" VerticalAlignment="Center" />
+            <ComboBox x:Name="PrinterMode" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="OnPrinterModeChanged">
+              <ComboBoxItem Content="In the browser (choose a printer each time)" />
+              <ComboBoxItem Content="Straight to a network printer" />
+              <ComboBoxItem Content="Straight to a printer on a serial cable" />
+            </ComboBox>
+            <TextBlock x:Name="HostLabel" Text="Printer address" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
+            <StackPanel x:Name="HostRow" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <TextBox x:Name="PrinterHost" Width="220" PlaceholderText="192.168.1.50" />
+              <TextBlock Text="port" Classes="muted" VerticalAlignment="Center" />
+              <TextBox x:Name="PrinterPort" Width="80" Text="9100" />
+            </StackPanel>
+            <TextBlock x:Name="SerialLabel" Text="Serial port" Classes="muted" Grid.Row="2" VerticalAlignment="Center" />
+            <StackPanel x:Name="SerialRow" Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <ComboBox x:Name="PrinterSerial" Width="220" />
+              <TextBlock Text="speed" Classes="muted" VerticalAlignment="Center" />
+              <TextBox x:Name="PrinterBaud" Width="90" Text="9600" />
+            </StackPanel>
+            <TextBlock Text="Paper width" Classes="muted" Grid.Row="3" VerticalAlignment="Center" />
+            <ComboBox x:Name="PrinterWidth" Grid.Row="3" Grid.Column="1" Width="220">
+              <ComboBoxItem Content="80 mm (42 characters)" />
+              <ComboBoxItem Content="58 mm (32 characters)" />
+            </ComboBox>
+          </Grid>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="SavePrinterButton" Classes="primary" Content="Save" Click="OnSavePrinter" Padding="18,8" />
+            <Button x:Name="TestPrinterButton" Content="Print a test page" Click="OnTestPrinter" Padding="14,8" />
+          </StackPanel>
+          <TextBlock x:Name="PrinterMessage" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
 
       <Border Classes="card">
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="24">

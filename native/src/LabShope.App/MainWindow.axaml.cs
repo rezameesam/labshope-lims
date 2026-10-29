@@ -121,6 +121,8 @@ public partial class MainWindow : Window
         }
 
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel); // hotkeys and barcode scans work from anywhere
+        ReceiptPrinter.Configure(session.Store);
+        ReceiptPrinter.PrintProblem += message => Dispatcher.UIThread.Post(() => Toast(message));
         ErrorNotice.Occurred += () => Dispatcher.UIThread.Post(() => Toast("Something went wrong. Your work is safe; details were saved to the log."));
 
         Show("home");
