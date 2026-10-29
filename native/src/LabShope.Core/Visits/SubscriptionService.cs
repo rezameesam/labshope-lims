@@ -63,10 +63,11 @@ public static class SubscriptionService
 
     private static SubscriptionNotice? Countdown(DateTimeOffset end, DateTimeOffset now, string what, bool always = false)
     {
-        var days = (int)Math.Ceiling((end - now).TotalDays);
-        if (days < 0) return new(NoticeLevel.Danger, $"{what} has ended. Please renew with LabShope to avoid being locked out.");
-        if (days <= 3) return new(NoticeLevel.Danger, $"{what} ends {(days == 0 ? "today" : days == 1 ? "tomorrow" : $"in {days} days")}. Renew with LabShope to keep working without interruption.");
-        if (days <= 14) return new(NoticeLevel.Warning, $"{what} ends in {days} days ({end.ToLocalTime():d MMM yyyy}).");
-        return always ? new(NoticeLevel.Info, $"{what} runs until {end.ToLocalTime():d MMM yyyy}.") : null;
+        // Counted in calendar days on this computer's clock, so "tomorrow" means tomorrow, and "ended" means it really has.
+        if (end <= now) return new(NoticeLevel.Danger, $"{what} has ended. Please renew with LabShope to avoid being locked out.");
+        var days = end.ToLocalTime().Date.Subtract(now.ToLocalTime().Date).Days;
+        if (days <= 3) return new(NoticeLevel.Danger, $"{what} ends {(days <= 0 ? "today" : days == 1 ? "tomorrow" : $"in {days} days")}. Renew with LabShope to keep working without interruption.");
+        if (days <= 14) return new(NoticeLevel.Warning, $"{what} ends in {days} days ({Dates.Date(end.ToLocalTime().DateTime)}).");
+        return always ? new(NoticeLevel.Info, $"{what} runs until {Dates.Date(end.ToLocalTime().DateTime)}.") : null;
     }
 }

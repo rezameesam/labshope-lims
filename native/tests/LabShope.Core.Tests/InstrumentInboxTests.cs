@@ -51,6 +51,32 @@ public class InstrumentInboxTests : IDisposable
     }
 
     [Fact]
+    public void ATestOfAnotherPatientCanNeverBeFilledByThisResult()
+    {
+        _store.UpsertPatient(new Patient("p2", "IRM-0008", "Ravi Kumar", "+919811111111", "male", null));
+        new VisitService(_store).Register(new RegisterVisitInput(Org, "l1", "2026-10-29", [new VisitTest("Haemoglobin", 100)], ExistingPatient: _store.GetPatient("p2")));
+        var othersTest = _store.SearchWorklist("", ["pending"]).Single(r => r.PatientCode == "IRM-0008").Id;
+        Order("CBC");
+
+        var outcome = _inbox.Accept(_inbox.Receive(Cbc()).Id, othersTest); // sample belongs to Asha, the test to Ravi
+
+        Assert.False(outcome.Ok);
+        Assert.Equal("pending", _store.GetPatientTest(othersTest)!.Status);
+    }
+
+    [Fact]
+    public void WhenSeveralValuesArriveAndNoneMatchTheTestNothingIsGuessed()
+    {
+        Order("Blood Group"); // the machine sent a CBC, not a blood group
+        var testId = _store.SearchWorklist("", ["pending"]).Single().Id;
+        var outcome = _inbox.Accept(_inbox.Receive(new InstrumentResult("IRM-0007", "ASTM", [new("WBC", "White cells", "6.1", "10^9/L", null, null), new("PLT", "Platelets", "250", "10^9/L", null, null)])).Id, testId);
+
+        Assert.False(outcome.Ok);
+        Assert.Contains("None of the machine", outcome.Message);
+        Assert.Empty(_store.SearchWorklist("", ["completed"]));
+    }
+
+    [Fact]
     public void ALabelPrintedBeforeSyncStillMatches()
     {
         Order("CBC");

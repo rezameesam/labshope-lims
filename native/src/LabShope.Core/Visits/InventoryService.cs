@@ -74,15 +74,24 @@ public static class InventoryService
         var log = await writeLog(qty);
         if (!log.Ok) return log;
 
-        var fresh = await api.SelectAsync("inventory_items", $"select=current_stock&id=eq.{itemId}&organization_id=eq.{organizationId}&limit=1", ct);
-        if (fresh.NetworkFailure) return new AdminResult(false, "Inventory needs an internet connection.");
-        var current = fresh.Body is { ValueKind: JsonValueKind.Array } a && a.GetArrayLength() > 0 && a[0].TryGetProperty("current_stock", out var cs) && cs.ValueKind == JsonValueKind.Number ? cs.GetDecimal() : (decimal?)null;
-        if (current is null) return new AdminResult(false, "Recorded, but the stock level could not be read. Refresh and check it.");
+        // The log line is written (once). Moving the stock only succeeds if nobody else changed it since we read it
+        // (the update names the level we read); otherwise read again and retry, so two people recording at once never lose one.
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            var fresh = await api.SelectAsync("inventory_items", $"select=current_stock&id=eq.{itemId}&organization_id=eq.{organizationId}&limit=1", ct);
+            if (fresh.NetworkFailure) return new AdminResult(false, StockNotMoved);
+            var current = fresh.Body is { ValueKind: JsonValueKind.Array } a && a.GetArrayLength() > 0 && a[0].TryGetProperty("current_stock", out var cs) && cs.ValueKind == JsonValueKind.Number ? cs.GetDecimal() : (decimal?)null;
+            if (current is null) return new AdminResult(false, StockNotMoved);
 
-        var next = positive ? current.Value + qty : Math.Max(current.Value - qty, 0);
-        var update = await api.PatchAsync("inventory_items", $"id=eq.{itemId}&organization_id=eq.{organizationId}", new { current_stock = next }, ct);
-        return update.Ok && update.Body is { ValueKind: JsonValueKind.Array } rows && rows.GetArrayLength() > 0
-            ? new AdminResult(true, null)
-            : new AdminResult(false, "Recorded, but the stock level was not updated. Refresh and check it.");
+            var next = positive ? current.Value + qty : Math.Max(current.Value - qty, 0);
+            var level = current.Value.ToString(CultureInfo.InvariantCulture);
+            var update = await api.PatchAsync("inventory_items", $"id=eq.{itemId}&organization_id=eq.{organizationId}&current_stock=eq.{level}", new { current_stock = next }, ct);
+            if (update.NetworkFailure || (!update.Ok && ErrorClassifier.Classify(update) != ErrorKind.Transient)) return new AdminResult(false, StockNotMoved);
+            if (update.Ok && update.Body is { ValueKind: JsonValueKind.Array } rows && rows.GetArrayLength() > 0) return new AdminResult(true, null);
+            // no row matched: somebody else changed the stock in between, so go round again
+        }
+        return new AdminResult(false, StockNotMoved);
     }
+
+    private const string StockNotMoved = "The use was recorded in the log, but the stock level could not be updated. Do not record it again: ask an admin to correct the stock on the website.";
 }

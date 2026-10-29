@@ -78,14 +78,17 @@ public sealed class InstrumentInbox
         if (entry.PatientId is null) return new(false, "No patient matches this sample barcode. Check the barcode and the patient.");
 
         var test = testId is null ? Candidates(entry).FirstOrDefault() : _store.GetPatientTest(testId);
-        if (test is null) return new(false, "This patient has no waiting test that these values belong to.");
+        if (test is null || test.PatientId != entry.PatientId) return new(false, "This patient has no waiting test that these values belong to.");
 
         var parameters = ParseParameters(entry.ParametersJson);
+        if (parameters.Count == 0) return new(false, "The machine sent no values in this result.");
         var panel = PanelDefaults.For(test.TestName);
         if (panel.Count > 0) _results.EnterPanel(test.Id, MergeIntoPanel(panel, parameters));
         else
         {
-            var match = parameters.FirstOrDefault(p => InstrumentCodes.SameTest(p, test.TestName)) ?? parameters[0];
+            // Never guess among several values: a haemoglobin must not end up in a blood-group test.
+            var match = parameters.FirstOrDefault(p => InstrumentCodes.SameTest(p, test.TestName)) ?? (parameters.Count == 1 ? parameters[0] : null);
+            if (match is null) return new(false, $"None of the machine's values clearly belong to {test.TestName}. Open the result and enter it by hand.");
             _results.Enter(test.Id, match.Value, match.Unit, match.FlaggedAbnormal);
         }
 

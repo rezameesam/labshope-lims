@@ -55,7 +55,12 @@ public sealed class AccountService
         var (session, signIn) = await _api.SignInAsync(email.Trim(), password, ct);
         if (signIn.NetworkFailure) return new(false, "Can't reach the server. Check the internet connection. (The first sign-in on a computer needs internet.)");
         if (session is null)
+        {
+            if (signIn.ErrorCode == "email_not_confirmed") return new(false, "This email address has not been confirmed yet. Open the confirmation email we sent, then sign in.");
+            if (signIn.Status == 429 || signIn.ErrorCode == "over_request_rate_limit") return new(false, "Too many attempts. Please wait a minute and try again.");
+            if (signIn.Status >= 500) return new(false, "The server had a problem. Please try again in a moment.");
             return new(false, signIn.Status is 400 or 401 or 422 ? "Wrong email or password." : signIn.ErrorMessage ?? "Sign-in failed.");
+        }
 
         // The same rules the web login applies: a staff role, and (for staff) an active employee record.
         var rolesResult = await _api.SelectAsync("user_roles", $"select=role&user_id=eq.{session.UserId}", ct);

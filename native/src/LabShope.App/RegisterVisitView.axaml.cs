@@ -44,6 +44,7 @@ public partial class RegisterVisitView : UserControl
         _session = session;
         _visits = new VisitService(session.Store);
         InitializeComponent();
+        NewPhone.TextChanged += (_, _) => _allowDuplicatePhone = false; // "create a new patient anyway" applied to that number only
         NewDob.DisplayDateEnd = DateTime.Today; // nobody is born in the future
 
         SelectedGrid.ItemsSource = _selected;

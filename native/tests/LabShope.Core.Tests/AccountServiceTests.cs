@@ -184,6 +184,18 @@ public class SessionPersistenceTests : IDisposable
         return (HttpStatusCode.OK, "[]");
     }
 
+    [Theory]
+    [InlineData(400, """{"error_code":"email_not_confirmed","msg":"Email not confirmed"}""", "not been confirmed")]
+    [InlineData(429, """{"error_code":"over_request_rate_limit","msg":"slow down"}""", "Too many attempts")]
+    [InlineData(503, "{}", "server had a problem")]
+    [InlineData(400, """{"error_code":"invalid_credentials","msg":"Invalid login credentials"}""", "Wrong email or password")]
+    public async Task SignInSaysWhatActuallyWentWrong(int status, string body, string message)
+    {
+        var server = new FakeServer { Handler = (_, _) => ((HttpStatusCode)status, body) };
+        var account = new AccountService(new SupabaseApi(new HttpClient(server), "https://x.supabase.co", "anon"), SettingsPath);
+        Assert.Contains(message, (await account.SignInAsync("a@b.c", "pw")).Error);
+    }
+
     [Fact]
     public async Task ForgotPasswordEmailsALinkToTheLabsOwnAddressForAKnownAccount()
     {

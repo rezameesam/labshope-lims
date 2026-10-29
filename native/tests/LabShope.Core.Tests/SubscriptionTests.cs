@@ -31,6 +31,18 @@ public class SubscriptionTests : IDisposable
     }
 
     [Fact]
+    public void TheWordsMatchTheCalendarNotJustTheHoursLeft()
+    {
+        static DateTimeOffset Local(int d, int h) => new(new DateTime(2026, 10, d, h, 0, 0, DateTimeKind.Local));
+        var noon = Local(29, 12);
+
+        Assert.Contains("has ended", SubscriptionService.Notice(Trial(0) with { TrialEndsAt = Local(29, 2) }, noon)!.Text); // ended 10 hours ago
+        Assert.Contains("ends today", SubscriptionService.Notice(Trial(0) with { TrialEndsAt = Local(29, 22) }, noon)!.Text); // 10 hours left
+        Assert.Contains("tomorrow", SubscriptionService.Notice(Trial(0) with { TrialEndsAt = Local(30, 1) }, noon)!.Text); // 13 hours left but tomorrow's date
+        Assert.Contains("in 2 days", SubscriptionService.Notice(Trial(0) with { TrialEndsAt = Local(31, 23) }, noon)!.Text);
+    }
+
+    [Fact]
     public void ASuspendedLabIsToldPlainly()
     {
         var notice = SubscriptionService.Notice(new("suspended", "starter", null, null, false, null), Now)!;

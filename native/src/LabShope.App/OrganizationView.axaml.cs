@@ -54,6 +54,12 @@ public partial class OrganizationView : UserControl
     private async void OnToggleStaff(object? sender, RoutedEventArgs e)
     {
         if (!CanManageTeam || _session.Api is null || TeamGrid.SelectedItem is not TeamMember person) return;
+        if (person.IsActive && string.Equals(person.Email, _session.Api.Session?.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            MessageCard.IsVisible = true;
+            MessageText.Text = "You can't switch yourself off. Ask another admin to do it.";
+            return;
+        }
         var result = await TeamService.SetActiveAsync(_session.Api, _session.Workspace.OrganizationId, person.Id, !person.IsActive);
         if (result.Ok) { await LoadTeamAsync(); return; }
         MessageCard.IsVisible = true;
