@@ -33,6 +33,7 @@ public sealed class PaymentService
     public Receipt Record(PaymentInput input)
     {
         var bill = _store.GetInvoice(input.InvoiceId) ?? throw new ArgumentException("That bill isn't on this computer.");
+        input = input with { Amount = PatientRules.Paise(input.Amount) }; // no fractions of a paisa
         if (input.Amount <= 0) throw new ArgumentException("Enter an amount greater than zero.");
         if (!Methods.Contains(input.Method)) throw new ArgumentException($"Unknown payment method: {input.Method}.");
 

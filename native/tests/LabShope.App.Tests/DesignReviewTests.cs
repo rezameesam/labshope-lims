@@ -483,11 +483,13 @@ public class InstrumentsScreenTests : IDisposable
         }
 
         // The result is handed over on the window's thread.
-        for (var i = 0; i < 100 && _store.NewInstrumentCount() == 0; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
+        for (var i = 0; i < 300 && _store.NewInstrumentCount() == 0; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
         Assert.Equal(1, _store.NewInstrumentCount());
 
         var grid = view.FindControl<DataGrid>("Grid")!;
-        var entry = grid.ItemsSource.Cast<InstrumentEntry>().Single();
+        // The screen refreshes its table on the window's thread a moment after the result is stored: wait for it.
+        for (var i = 0; i < 300 && grid.ItemsSource?.Cast<object>().Any() != true; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
+        var entry = grid.ItemsSource!.Cast<InstrumentEntry>().Single();
         Assert.Equal(("IRM-0007", "p1", 2), (entry.SampleId, entry.PatientId, entry.ParameterCount));
         Assert.Contains("to check", view.FindControl<TextBlock>("InboxTitle")!.Text);
 

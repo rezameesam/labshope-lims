@@ -82,11 +82,38 @@ public class InventoryTests
     }
 
     [Fact]
+    public async Task IfSomeoneElseChangesTheStockAtTheSameMomentItReadsAgainAndStillLosesNothing()
+    {
+        var reads = 0;
+        var patches = new List<string>();
+        var server = new FakeServer
+        {
+            Handler = (r, b) =>
+            {
+                var path = r.RequestUri!.PathAndQuery;
+                if (r.Method == HttpMethod.Post) return (HttpStatusCode.Created, "[]");
+                if (r.Method == HttpMethod.Get) return (HttpStatusCode.OK, $$"""[{"current_stock":{{(Interlocked.Increment(ref reads) == 1 ? 50 : 47)}}}]""");
+                patches.Add(path + " " + b);
+                // The server only changes a row that still has the level we read.
+                return path.Contains("current_stock=eq.47") ? (HttpStatusCode.OK, """[{"id":"i1"}]""") : (HttpStatusCode.OK, "[]");
+            },
+        };
+
+        var result = await InventoryService.RecordUsageAsync(Api(server), "org-1", "u", Item, "5", null);
+
+        Assert.True(result.Ok);
+        Assert.Equal(2, patches.Count); // the first attempt matched nothing, the second used the new level
+        Assert.Contains("\"current_stock\":42", patches[1]);
+        Assert.Single(server.Requests, q => q.Method == HttpMethod.Post); // and the usage was logged only once
+    }
+
+    [Fact]
     public async Task SaysSoWhenTheStockLevelCouldNotBeUpdated()
     {
         var result = await InventoryService.RecordUsageAsync(Api(Server(50m, patchRefused: true)), "org-1", "u", Item, "5", null);
         Assert.False(result.Ok);
-        Assert.Contains("Recorded, but the stock level was not updated", result.Error); // so the person checks, instead of recording it twice
+        Assert.Contains("could not be updated", result.Error);
+        Assert.Contains("Do not record it again", result.Error); // or it would be logged twice
     }
 
     [Fact]

@@ -5,7 +5,7 @@
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,16">
       <TextBlock Text="Day:" VerticalAlignment="Center" />
-      <DatePicker x:Name="DayPicker" />
+      <CalendarDatePicker x:Name="DayPicker" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" MinWidth="150" />
       <Button Content="Today" Click="OnToday" />
     </StackPanel>
     <Border DockPanel.Dock="Bottom" Classes="card" Padding="16,14" Margin="0,14,0,0">

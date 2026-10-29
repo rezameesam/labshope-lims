@@ -23,12 +23,10 @@ public sealed class PatientService
     public Patient Edit(string patientId, PatientEdit edit)
     {
         var patient = _store.GetPatient(patientId) ?? throw new ArgumentException("That patient isn't on this computer.");
-        var name = edit.FullName.Trim();
-        if (name.Length == 0) throw new ArgumentException("Enter the patient's name.");
+        var name = PatientRules.CleanName(edit.FullName);
         // The phone is optional (some patients have none), and a number may be shared by family members.
         var phone = string.IsNullOrWhiteSpace(edit.Phone) ? "" : PhoneNumbers.Normalize(edit.Phone) ?? throw new ArgumentException("Enter a valid phone number, or leave it empty.");
-        var dob = string.IsNullOrWhiteSpace(edit.DateOfBirth) ? null : edit.DateOfBirth.Trim();
-        if (dob is not null && !DateOnly.TryParse(dob, out _)) throw new ArgumentException("Enter the date of birth as yyyy-mm-dd.");
+        var dob = PatientRules.CleanBirthDate(edit.DateOfBirth, DateOnly.FromDateTime(DateTime.Today));
         var gender = string.IsNullOrWhiteSpace(edit.Gender) ? null : edit.Gender.Trim();
 
         var changed = patient with { FullName = name, Phone = phone, Gender = gender, DateOfBirth = dob };

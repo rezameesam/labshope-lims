@@ -32,7 +32,7 @@ public static class ReceiptHtml
         }
         sb.Append("<div class=\"c s\">Payment receipt</div><hr>");
         sb.Append("<table><tr><td>Bill no.</td><td class=\"r b\">").Append(E(r.InvoiceNumber)).Append("</td></tr>")
-          .Append("<tr><td>Date</td><td class=\"r\">").Append(E(DateTimeOffset.Parse(r.PaidAt).ToLocalTime().ToString("dd MMM yyyy HH:mm"))).Append("</td></tr>")
+          .Append("<tr><td>Date</td><td class=\"r\">").Append(E(Dates.FromMoment(r.PaidAt))).Append("</td></tr>")
           .Append("<tr><td>Patient</td><td class=\"r\">").Append(E(r.PatientName)).Append("</td></tr></table><hr>");
         sb.Append("<table>");
         if (r.Discount > 0) sb.Append("<tr><td>Price</td><td class=\"r\">").Append(M(r.Total + r.Discount)).Append("</td></tr><tr><td>Discount</td><td class=\"r\">-").Append(M(r.Discount)).Append("</td></tr>");

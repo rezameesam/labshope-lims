@@ -30,7 +30,8 @@ public static class ErrorClassifier
         if (AuthCodes.Contains(code) || result.Status == 401 ||
             System.Text.RegularExpressions.Regex.IsMatch(message, "jwt (expired|invalid)|not authenticated", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             return ErrorKind.Auth;
-        if (TransientCodes.Contains(code) || code.StartsWith("08") || code.StartsWith("53") || result.Status >= 500)
+        if (TransientCodes.Contains(code) || code.StartsWith("08") || code.StartsWith("53") || result.Status >= 500
+            || result.Status is 408 or 425 or 429) // timed out / too early / rate limited: just try again later
             return ErrorKind.Transient;
         return ErrorKind.Permanent;
     }

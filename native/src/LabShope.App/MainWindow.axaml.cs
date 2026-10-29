@@ -58,7 +58,7 @@ public partial class MainWindow : Window
                 v.Registered += async () => { RefreshPages(); await SyncAsync(); };
                 return v;
             }),
-            new("bookings", "Booking requests", MaterialIconKind.CalendarClockOutline, Key.F11, () =>
+            new("bookings", "Booking requests", MaterialIconKind.CalendarClockOutline, Key.F12, () =>
             {
                 var v = new BookingsView(session);
                 v.Changed += async () => { RefreshBadges(); await SyncAsync(); };
@@ -280,7 +280,7 @@ public partial class MainWindow : Window
         SetChip("Syncing…", "#0B81B7", "#E7F3F9");
         try
         {
-            LabShope.Core.Data.DatabaseGuard.BackupIfDue(_store, System.IO.Path.Combine(AppConfig.DataDirectory, "backups"), 7, DateTime.Now); // a new day, a new backup
+            LabShope.Core.Data.DatabaseGuard.BackupIfDue(_store, System.IO.Path.Combine(AppConfig.DataDirectory, "backups", _session.Workspace.OrganizationId), 7, DateTime.Now); // a new day, a new backup
             var status = await _session.Sync.RunOnceAsync();
             if (_pages.TryGetValue("settings", out var settings)) ((SettingsView)settings).ShowStatus(status);
             var waiting = status.Pending > 0 ? $" · {status.Pending} waiting to send" : "";

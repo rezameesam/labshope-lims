@@ -726,7 +726,7 @@ public sealed class LocalStore : IDisposable
     public (int Pending, int Failed) OutboxCounts()
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT COALESCE(SUM(status IN ('pending','syncing')),0), COALESCE(SUM(status='failed'),0) FROM outbox";
+        cmd.CommandText = "SELECT COALESCE(SUM(status IN ('pending','syncing')),0), COALESCE(SUM(status='failed' OR (status='pending' AND attempts >= 5)),0) FROM outbox";
         using var r = cmd.ExecuteReader();
         r.Read();
         return (r.GetInt32(0), r.GetInt32(1));

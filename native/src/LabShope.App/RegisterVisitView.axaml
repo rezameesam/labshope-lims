@@ -43,7 +43,7 @@
                 <ComboBoxItem>other</ComboBoxItem>
               </ComboBox>
               <TextBlock Text="Date of birth" Classes="muted" Grid.Row="3" VerticalAlignment="Center" />
-              <TextBox x:Name="NewDob" Grid.Row="3" Grid.Column="1" PlaceholderText="yyyy-mm-dd (optional)" />
+              <CalendarDatePicker x:Name="NewDob" Grid.Row="3" Grid.Column="1" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" Watermark="dd/mm/yyyy (optional)" HorizontalAlignment="Stretch" />
             </Grid>
           </StackPanel>
         </Border>

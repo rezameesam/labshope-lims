@@ -74,7 +74,7 @@ public partial class App : Application
         }
 
         // Open the lab's data safely: checked on every start, backed up daily, and recovered automatically if damaged.
-        var opened = DatabaseGuard.Open(Path.Combine(AppConfig.DataDirectory, $"lims-{workspace.OrganizationId}.db"), Path.Combine(AppConfig.DataDirectory, "backups"));
+        var opened = DatabaseGuard.Open(Path.Combine(AppConfig.DataDirectory, $"lims-{workspace.OrganizationId}.db"), Path.Combine(AppConfig.DataDirectory, "backups", workspace.OrganizationId)); // one folder per lab: another lab's backup must never be restored here
         var store = opened.Store;
         var engine = new SyncEngine(store, api, workspace.OrganizationId);
         var session = new AppSession(workspace, store, new SyncRunner(engine, store, workspace.Slug, workspace.OrganizationName, api, workspace.OrganizationId), account, api, engine) { StartupNotice = opened.Notice };

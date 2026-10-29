@@ -34,7 +34,7 @@ public partial class CatalogView : UserControl
     {
         foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors") }) b.Classes.Set("on", key == _tab);
         TestGrid.IsVisible = _tab == "tests"; PackageGrid.IsVisible = _tab == "packages"; DoctorGrid.IsVisible = _tab == "doctors";
-        EditButton.IsVisible = _tab == "tests" && CanEdit;
+        EditButton.IsVisible = NewButton.IsVisible = _tab == "tests" && CanEdit;
 
         var words = (SearchBox.Text ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool Match(params string?[] fields) => words.All(w => fields.Any(f => f?.Contains(w, StringComparison.OrdinalIgnoreCase) == true));
@@ -54,7 +54,20 @@ public partial class CatalogView : UserControl
         }
     }
 
-    private bool CanEdit => _session.Api is not null && (_session.Workspace.Roles is null || _session.Workspace.IsAdmin);
+    private bool CanEdit => _session.Api is not null && _session.Workspace.IsAdmin;
+
+    private async void OnNew(object? sender, RoutedEventArgs e)
+    {
+        if (_tab != "tests" || !CanEdit || _session.Api is null) return;
+
+        var dialog = new NewTestDialog(_session.Api, _session.Workspace.OrganizationId, _session.Store.GetCatalog());
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+        if (!dialog.Saved) return;
+
+        MessageText.Text = "Test added. It appears here and on other computers at the next sync (press F9).";
+        MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("SuccessBrush")!;
+        CatalogChanged?.Invoke();
+    }
 
     private async void OnEdit(object? sender, RoutedEventArgs e)
     {

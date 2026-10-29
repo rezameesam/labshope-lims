@@ -101,7 +101,9 @@ public sealed class ResultService
         var numeric = decimal.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out var number);
 
         var abnormal = markedAbnormal;
-        if (numeric && catalog?.NormalMin is { } min && catalog.NormalMax is { } max) abnormal = number < min || number > max;
+        // A range may have only a lower or only an upper limit (CRP: up to 6); the website flags those too.
+        if (numeric && (catalog?.NormalMin is not null || catalog?.NormalMax is not null))
+            abnormal = (catalog.NormalMin is { } min && number < min) || (catalog.NormalMax is { } max && number > max);
 
         var finalUnit = string.IsNullOrWhiteSpace(unit) ? catalog?.Unit : unit.Trim();
         var rangeText = catalog?.NormalRangeText;

@@ -122,6 +122,43 @@ public class AnalyzerTransportTests
     }
 
     [Fact]
+    public void ASenderThatNeverStopsIsCutOffInsteadOfFillingMemory()
+    {
+        var results = 0;
+
+        var hl7 = new MllpSession();
+        hl7.ResultsReceived += _ => results++;
+        hl7.Feed([Vt]);
+        for (var i = 0; i < 300; i++) hl7.Feed(new byte[10_000].Select(_ => (byte)'A').ToArray()); // 3 MB and no end of message
+        Assert.Equal(0, results);
+        hl7.Feed(Mllp(Hl7).AsSpan(0)); // and the next proper message still works
+        Assert.Equal(1, results);
+
+        var astm = new AstmSession();
+        astm.ResultsReceived += _ => results++;
+        astm.Feed([Enq]);
+        astm.Feed([Stx]);
+        for (var i = 0; i < 300; i++) astm.Feed(new byte[10_000].Select(_ => (byte)'B').ToArray()); // a frame that never ends
+        astm.Feed([Eot]);
+        Assert.Equal(1, results); // nothing was reported from the runaway
+    }
+
+    [Fact]
+    public async Task OnlyListedAddressesMayConnectWhenAnAllowListIsSet()
+    {
+        using var server = new AnalyzerServer(0) { AllowedAddresses = [System.Net.IPAddress.Parse("10.99.99.99")] };
+        var received = 0;
+        server.ResultReceived += _ => Interlocked.Increment(ref received);
+        server.Start();
+
+        using var stranger = new TcpClient("127.0.0.1", server.Port);
+        var net = stranger.GetStream();
+        try { await net.WriteAsync(Mllp(Hl7)); } catch (IOException) { }
+        await Task.Delay(300);
+        Assert.Equal(0, received); // refused: this machine is not on the list
+    }
+
+    [Fact]
     public async Task ANetworkAnalyzerCanSendAnAstmResultAndAnHl7ResultToTheListener()
     {
         using var server = new AnalyzerServer(0);

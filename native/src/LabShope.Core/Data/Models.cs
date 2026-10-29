@@ -7,7 +7,11 @@ public sealed record Patient(
     string Phone,
     string? Gender,
     string? DateOfBirth,
-    bool Pending = false);
+    bool Pending = false)
+{
+    /// <summary>The date of birth as people read it (day first).</summary>
+    public string BirthDate => Dates.FromIso(DateOfBirth);
+}
 
 /// <summary>
 /// A bill. <see cref="TotalAmount"/> is what the patient has to pay (the website's final_amount, after any discount);
@@ -38,7 +42,7 @@ public sealed record BillRow(
     public decimal Balance => Math.Max(TotalAmount - PaidAmount, 0);
     public bool Provisional => InvoiceNumber.StartsWith("L-");
     public string Number => Provisional ? InvoiceNumber + " (provisional)" : InvoiceNumber;
-    public string Date => DateTimeOffset.TryParse(CreatedAt, out var d) ? d.ToLocalTime().ToString("dd MMM yyyy HH:mm") : CreatedAt;
+    public string Date => Dates.FromMoment(CreatedAt);
 }
 
 /// <summary>One payment line in the cash book.</summary>
@@ -60,11 +64,12 @@ public sealed record WorklistRow(PatientTest Test, string PatientName, string Pa
 {
     public string TestLabel => OutsourcedTo is null ? Test.TestName : $"{Test.TestName}  →  {OutsourcedTo}";
     public string Id => Test.Id;
+    public string PatientLabel => $"{PatientName}  ·  {PatientCode}";
     public string TestName => Test.TestName;
     public string Status => Test.Status;
     public string Date => Test.TestDate;
     public string ResultText => Test.ResultItemsJson is { Length: > 2 } json ? $"{LabShope.Core.Visits.ResultItem.ParseAll(json).Count(i => i.Value.Trim() != "")} values"
-        : Test.ResultValue is { } v ? $"{v:0.##} {Test.ResultUnit}".Trim() : Test.Result ?? "";
+        : Test.ResultValue is { } v ? $"{ResultFormat.Number(v)} {Test.ResultUnit}".Trim() : Test.Result ?? "";
     public string Flag => Test.Status != "completed" ? "" : Test.IsAbnormal ? "ABNORMAL" : "normal";
     public string SyncText => Test.Waiting ? "waiting" : "";
     /// <summary>The one-word badge shown in the table: pending, normal or abnormal.</summary>
@@ -88,7 +93,7 @@ public sealed record BookingRequest(
     string Id, string FullName, string Phone, string? Email, string BookingType, string? PreferredDate,
     string? TestDetails, string? Notes, string Status, string? PatientId, string CreatedAt, bool Waiting = false)
 {
-    public string Created => DateTimeOffset.TryParse(CreatedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : CreatedAt;
+    public string Created => Dates.FromMoment(CreatedAt);
     public string Type => BookingType.Replace('_', ' ');
 }
 
@@ -108,7 +113,7 @@ public sealed record OutboxEntry(string Id, string Kind, string Status, int Atte
     public string Badge => Status == "failed" ? "failed" : "waiting";
     /// <summary>Why it was refused, or (for items that are only waiting) that they will go when the connection is back.</summary>
     public string Detail => Status == "failed" ? LastError ?? "The server refused it." : "Will be sent when the connection is available.";
-    public string Updated => long.TryParse(UpdatedAt, out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("dd MMM HH:mm") : UpdatedAt;
+    public string Updated => long.TryParse(UpdatedAt, out var ms) ? Dates.DateTime(DateTimeOffset.FromUnixTimeMilliseconds(ms)) : UpdatedAt;
 }
 
 /// <summary>A result received from a lab machine, waiting for a person to check it (or already accepted/discarded).</summary>
@@ -116,6 +121,12 @@ public sealed record InstrumentEntry(
     string Id, string ReceivedAt, string Protocol, string SampleId, string? MachinePatientName,
     string? PatientId, string ParametersJson, string Status, string? Note)
 {
-    public string Received => DateTimeOffset.TryParse(ReceivedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : ReceivedAt;
+    public string Received => Dates.FromMoment(ReceivedAt);
     public int ParameterCount => LabShope.Core.Visits.InstrumentInbox.ParseParameters(ParametersJson).Count;
+}
+
+/// <summary>Shows a result number as it was entered (up to 6 decimals, never rounded to 2: TSH 0.004 must not print as 0).</summary>
+public static class ResultFormat
+{
+    public static string Number(decimal value) => value.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
 }

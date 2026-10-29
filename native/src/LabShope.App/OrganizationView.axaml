@@ -5,6 +5,12 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="LabShope.App.OrganizationView">
   <DockPanel>
+    <StackPanel x:Name="TeamActions" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" IsVisible="False">
+      <Button x:Name="AddStaffButton" Classes="primary" Click="OnAddStaff">
+        <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountPlusOutline" Width="17" Height="17" /><TextBlock Text="Add staff" /></StackPanel>
+      </Button>
+      <Button x:Name="ToggleStaffButton" Content="Switch selected person on / off" Click="OnToggleStaff" />
+    </StackPanel>
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,16">
       <Button x:Name="LabsButton" Classes="seg on" Content="Labs" Click="OnTab" Tag="labs" />
       <Button x:Name="CentersButton" Classes="seg" Content="Collection centres" Click="OnTab" Tag="centers" />
