@@ -113,4 +113,30 @@ public class SetupDialogTests
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }
+
+    [AvaloniaTheory]
+    [InlineData("admin", true)]
+    [InlineData("employee", false)]
+    [InlineData("collector", false)]
+    public void OnlyAnAdminSeesTheButtonsThatAddTestsAndStaff(string role, bool allowed)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"labshope-roles-{Guid.NewGuid():N}.db");
+        var store = new LocalStore(path);
+        try
+        {
+            var api = Api(new Server(HttpStatusCode.OK, "[]"));
+            var session = new AppSession(new LabShope.Core.Account.Workspace("demo", "org-1", "Demo Lab", "l1", [role]), store,
+                new LabShope.Core.Sync.SyncRunner(new LabShope.Core.Sync.SyncEngine(store, api, "org-1"), store), new LabShope.Core.Account.AccountService(api, path + ".json"), api);
+
+            var catalog = new CatalogView(session);
+            new Window { Content = catalog }.Show();
+            Assert.Equal(allowed, catalog.FindControl<Button>("NewButton")!.IsVisible);
+
+            var team = new OrganizationView(session);
+            new Window { Content = team }.Show();
+            team.FindControl<Button>("TeamButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(allowed, team.FindControl<StackPanel>("TeamActions")!.IsVisible);
+        }
+        finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
+    }
 }

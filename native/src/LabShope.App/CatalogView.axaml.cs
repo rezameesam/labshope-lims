@@ -54,7 +54,7 @@ public partial class CatalogView : UserControl
         }
     }
 
-    private bool CanEdit => _session.Api is not null && (_session.Workspace.Roles is null || _session.Workspace.IsAdmin);
+    private bool CanEdit => _session.Api is not null && _session.Workspace.IsAdmin;
 
     private async void OnNew(object? sender, RoutedEventArgs e)
     {

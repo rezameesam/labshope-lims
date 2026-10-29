@@ -67,6 +67,7 @@ public sealed class VisitService
     public RegisteredVisit Register(RegisterVisitInput input)
     {
         if (input.Tests.Count == 0) throw new ArgumentException("Pick at least one test.", nameof(input));
+        if (input.Tests.Any(t => t.Price < 0)) throw new ArgumentException("A test price can't be negative.", nameof(input));
         if (input.ExistingPatient is null && input.NewPatient is null) throw new ArgumentException("Pick or enter a patient.", nameof(input));
 
         var reused = false;
@@ -90,10 +91,11 @@ public sealed class VisitService
 
             var id = Guid.NewGuid().ToString();
             var code = $"PAT{_now():yy}{_randomDigits()}";
-            var name = fresh.FullName.Trim();
+            var name = PatientRules.CleanName(fresh.FullName);
+            var birth = PatientRules.CleanBirthDate(fresh.DateOfBirth, DateOnly.FromDateTime(_now().LocalDateTime));
             patientName = name;
-            _store.UpsertPatient(new Patient(id, code, name, phone, fresh.Gender, fresh.DateOfBirth, Pending: true));
-            patient = NewPatientNode(id, code, name, phone, fresh.Gender, fresh.DateOfBirth, variants, noPhone: phone.Length == 0, allowDuplicate: fresh.AllowDuplicatePhone);
+            _store.UpsertPatient(new Patient(id, code, name, phone, fresh.Gender, birth, Pending: true));
+            patient = NewPatientNode(id, code, name, phone, fresh.Gender, birth, variants, noPhone: phone.Length == 0, allowDuplicate: fresh.AllowDuplicatePhone);
         }
 
         var visitId = Guid.NewGuid().ToString();

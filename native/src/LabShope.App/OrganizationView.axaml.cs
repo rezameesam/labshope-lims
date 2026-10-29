@@ -41,7 +41,7 @@ public partial class OrganizationView : UserControl
         Footnote.Text = _tab == "team" ? CanManageTeam ? "New staff can sign in to the app and the website straight away. Roles and permissions are managed on the website." : "Staff accounts and access are managed by your lab's admin." : "Labs and collection centres are set up on the LabShope website.";
     }
 
-    private bool CanManageTeam => _session.Api is not null && (_session.Workspace.Roles is null || _session.Workspace.IsAdmin);
+    private bool CanManageTeam => _session.Api is not null && _session.Workspace.IsAdmin;
 
     private async void OnAddStaff(object? sender, RoutedEventArgs e)
     {
