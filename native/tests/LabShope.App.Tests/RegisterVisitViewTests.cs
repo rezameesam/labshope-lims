@@ -189,6 +189,31 @@ public class RegisterVisitViewTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void ThePaymentAreaSaysWhatWillHappenAndHasQuickButtons()
+    {
+        var (_, view) = Show();
+        var balance = Find<TextBlock>(view, "BalanceText");
+        Assert.Contains("Add tests", balance.Text);
+
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter); // total 300, paid in full by default
+        Assert.Equal("Paid in full.", balance.Text);
+
+        Type(Find<TextBox>(view, "PayAmount"), "100");
+        Assert.Contains("Balance still to pay: 200", balance.Text);
+        Type(Find<TextBox>(view, "PayAmount"), "999");
+        Assert.Contains("More than the total", balance.Text);
+
+        Find<Button>(view, "PayLaterButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("0", Find<TextBox>(view, "PayAmount").Text);
+        Assert.Contains("whole 300 stays due", balance.Text);
+
+        Find<Button>(view, "PayFullButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("300", Find<TextBox>(view, "PayAmount").Text);
+        Assert.Equal("Paid in full.", balance.Text);
+    }
+
+    [AvaloniaFact]
     public void PayingMoreThanTheTotalIsRefused()
     {
         var (_, view) = Show();

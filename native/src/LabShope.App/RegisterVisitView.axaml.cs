@@ -54,7 +54,7 @@ public partial class RegisterVisitView : UserControl
         TestSearch.KeyDown += (_, e) => { if (e.Key == Key.Enter) { AddFirstOrSelectedTest(); e.Handled = true; } };
         TestResults.DoubleTapped += (_, _) => AddFirstOrSelectedTest();
         PackageBox.SelectionChanged += (_, _) => PickPackage();
-        PayAmount.TextChanged += (_, _) => { if (PayAmount.IsFocused) _payEdited = true; };
+        PayAmount.TextChanged += (_, _) => { if (PayAmount.IsFocused) _payEdited = true; UpdateBalance(); };
         SelectedGrid.KeyDown += (_, e) => { if (e.Key == Key.Delete) RemoveSelected(); };
         KeyDown += (_, e) => { if (e.Key == Key.F8) { OnSave(null, null!); e.Handled = true; } };
 
@@ -212,7 +212,27 @@ public partial class RegisterVisitView : UserControl
         TotalText.Text = $"Total {total:0.##}";
         // Most patients pay in full at the counter, so the amount follows the total until the cashier changes it.
         if (!_payEdited) PayAmount.Text = total.ToString("0.##");
+        UpdateBalance();
     }
+
+    /// <summary>Says plainly what happens with the amount typed: paid in full, a balance left, or too much.</summary>
+    private void UpdateBalance()
+    {
+        var total = VisitService.Total(Tests(), PackageRef());
+        var received = decimal.TryParse(PayAmount.Text, out var r) ? r : 0m;
+        var (text, brush) =
+            total <= 0 ? ("Add tests to see the amount to collect.", "MutedBrush")
+            : received > total ? ($"More than the total ({total:0.##}): reduce the amount.", "DangerBrush")
+            : received == total ? ("Paid in full.", "SuccessBrush")
+            : received > 0 ? ($"Balance still to pay: {total - received:0.##}", "WarnBrush")
+            : ($"Nothing received: the whole {total:0.##} stays due on the bill.", "WarnBrush");
+        BalanceText.Text = text;
+        BalanceText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource(brush)!;
+    }
+
+    private void OnPayFull(object? sender, RoutedEventArgs e) { _payEdited = false; UpdateTotal(); }
+
+    private void OnPayLater(object? sender, RoutedEventArgs e) { _payEdited = true; PayAmount.Text = "0"; UpdateBalance(); }
 
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
