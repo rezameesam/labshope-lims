@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:data="using:LabShope.Core.Data"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.BookingsView">
+  <Grid ColumnDefinitions="*,18,420">
+    <DockPanel>
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
+        <ComboBox x:Name="FilterBox" SelectedIndex="0" Width="150">
+          <ComboBoxItem>New</ComboBoxItem>
+          <ComboBoxItem>All</ComboBoxItem>
+          <ComboBoxItem>Contacted</ComboBoxItem>
+          <ComboBoxItem>Scheduled</ComboBoxItem>
+          <ComboBoxItem>Converted</ComboBoxItem>
+          <ComboBoxItem>Closed</ComboBoxItem>
+        </ComboBox>
+        <Grid ColumnDefinitions="Auto,*">
+          <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
+          <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+          <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="240" PlaceholderText="Name, phone or test" />
+        </Grid>
+        <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
+      </StackPanel>
+      <DataGrid x:Name="Grid" x:DataType="data:BookingRequest" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="RECEIVED" Binding="{Binding Created}" Width="110" />
+          <DataGridTextColumn Header="NAME" Binding="{Binding FullName}" Width="*" MinWidth="130" />
+          <DataGridTextColumn Header="PHONE" Binding="{Binding Phone}" Width="120" />
+          <DataGridTextColumn Header="TESTS" Binding="{Binding TestDetails}" Width="160" />
+          <DataGridTemplateColumn Header="STATUS" Width="110">
+            <DataTemplate x:DataType="data:BookingRequest">
+              <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Status, Converter={x:Static app:Pills.Background}}">
+                <TextBlock Text="{Binding Status}" Foreground="{Binding Status, Converter={x:Static app:Pills.Foreground}}" />
+              </Border>
+            </DataTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+    </DockPanel>
+
+    <Border Grid.Column="2" Classes="card">
+      <Grid>
+        <StackPanel x:Name="EmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="280">
+          <mi:MaterialIcon Kind="CalendarClockOutline" Width="44" Height="44" Foreground="#9CB4C4" HorizontalAlignment="Center" />
+          <TextBlock Text="Pick a booking" Classes="h2" HorizontalAlignment="Center" />
+          <TextBlock Text="Requests made on your website appear here, even when you were offline." Classes="muted" TextWrapping="Wrap" TextAlignment="Center" />
+        </StackPanel>
+
+        <DockPanel x:Name="DetailPanel" IsVisible="False">
+          <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,14,0,0">
+            <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" />
+            <Button x:Name="RegisterButton" Classes="primary" Click="OnRegister" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="ClipboardPlusOutline" Width="18" Height="18" /><TextBlock Text="Register a visit for this person" /></StackPanel>
+            </Button>
+          </StackPanel>
+          <StackPanel Spacing="10">
+            <TextBlock x:Name="NameText" Classes="h2" TextWrapping="Wrap" />
+            <TextBlock x:Name="ContactText" Classes="muted" TextWrapping="Wrap" />
+            <TextBlock Text="WHAT THEY ASKED FOR" Classes="label" Margin="0,8,0,0" />
+            <TextBlock x:Name="TestsText" TextWrapping="Wrap" />
+            <TextBlock x:Name="WhenText" Classes="muted" />
+            <TextBlock x:Name="NotesText" Classes="muted" TextWrapping="Wrap" />
+            <TextBlock Text="STATUS" Classes="label" Margin="0,8,0,0" />
+            <ComboBox x:Name="StatusBox" HorizontalAlignment="Stretch" />
+          </StackPanel>
+        </DockPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

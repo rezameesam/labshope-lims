@@ -43,6 +43,10 @@ public sealed class LocalStore : IDisposable
               waiting INTEGER NOT NULL DEFAULT 0, result_items TEXT);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_status ON patient_tests(status);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_patient ON patient_tests(patient_id);
+            CREATE TABLE IF NOT EXISTS bookings (
+              id TEXT PRIMARY KEY, full_name TEXT NOT NULL, phone TEXT NOT NULL, email TEXT, booking_type TEXT NOT NULL, preferred_date TEXT,
+              test_details TEXT, notes TEXT, status TEXT NOT NULL, patient_id TEXT, created_at TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS ix_bookings_status ON bookings(status);
             CREATE TABLE IF NOT EXISTS aliases (
               alias TEXT NOT NULL COLLATE NOCASE PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS payments (
@@ -358,6 +362,76 @@ public sealed class LocalStore : IDisposable
         cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY pending, id LIMIT 1";
         for (var n = 0; n < list.Count; n++) cmd.Parameters.AddWithValue(names[n], list[n]);
         return ReadPatients(cmd).FirstOrDefault();
+    }
+
+    // ── booking requests (from the website) ────────────────────────────────
+
+    public void UpsertBooking(BookingRequest b, bool fromServer = false)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO bookings (id, full_name, phone, email, booking_type, preferred_date, test_details, notes, status, patient_id, created_at, waiting)
+            VALUES ($id,$name,$phone,$email,$type,$pref,$tests,$notes,$status,$patient,$created,$waiting)
+            ON CONFLICT(id) DO UPDATE SET full_name=$name, phone=$phone, email=$email, booking_type=$type, preferred_date=$pref, test_details=$tests,
+              notes=$notes, status=$status, patient_id=$patient, created_at=$created, waiting=$waiting
+            WHERE $fromServer = 0 OR bookings.waiting = 0;
+            """;
+        cmd.Parameters.AddWithValue("$id", b.Id);
+        cmd.Parameters.AddWithValue("$name", b.FullName);
+        cmd.Parameters.AddWithValue("$phone", b.Phone);
+        cmd.Parameters.AddWithValue("$email", (object?)b.Email ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$type", b.BookingType);
+        cmd.Parameters.AddWithValue("$pref", (object?)b.PreferredDate ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$tests", (object?)b.TestDetails ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$notes", (object?)b.Notes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$status", b.Status);
+        cmd.Parameters.AddWithValue("$patient", (object?)b.PatientId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$created", b.CreatedAt);
+        cmd.Parameters.AddWithValue("$waiting", b.Waiting ? 1 : 0);
+        cmd.Parameters.AddWithValue("$fromServer", fromServer ? 1 : 0);
+        cmd.ExecuteNonQuery();
+    }
+
+    public BookingRequest? GetBooking(string id) => QueryBookings("WHERE id = $a", id).FirstOrDefault();
+
+    /// <summary>Booking requests, newest first. <paramref name="status"/> null means all.</summary>
+    public IReadOnlyList<BookingRequest> SearchBookings(string text, string? status = null, int limit = 500)
+    {
+        var words = text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var where = words.Select((_, n) => $"(LOWER(full_name) LIKE $w{n} OR phone LIKE $w{n} OR LOWER(COALESCE(test_details,'')) LIKE $w{n})").ToList();
+        if (status is not null) where.Add("status = $status");
+        return QueryBookings((where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "") + $" ORDER BY datetime(created_at) DESC LIMIT {limit}", null, words, status);
+    }
+
+    public int NewBookingCount()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM bookings WHERE status = 'new'";
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    public void ClearBookingWaiting(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE bookings SET waiting = 0 WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    private List<BookingRequest> QueryBookings(string tail, string? a, string[]? words = null, string? status = null)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, full_name, phone, email, booking_type, preferred_date, test_details, notes, status, patient_id, created_at, waiting FROM bookings " + tail;
+        if (a is not null) cmd.Parameters.AddWithValue("$a", a);
+        if (words is not null) for (var n = 0; n < words.Length; n++) cmd.Parameters.AddWithValue($"$w{n}", $"%{words[n]}%");
+        if (status is not null) cmd.Parameters.AddWithValue("$status", status);
+        var list = new List<BookingRequest>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new BookingRequest(r.GetString(0), r.GetString(1), r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3), r.GetString(4),
+                r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6), r.IsDBNull(7) ? null : r.GetString(7), r.GetString(8),
+                r.IsDBNull(9) ? null : r.GetString(9), r.GetString(10), r.GetInt32(11) == 1));
+        return list;
     }
 
     // ── aliases: old provisional numbers that must keep working (printed labels/receipts) ───

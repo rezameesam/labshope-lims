@@ -25,7 +25,7 @@ public sealed record RegisterVisitInput(
 /// <summary>Money collected at the counter while registering.</summary>
 public sealed record InitialPayment(decimal Amount, string Method = "cash", string? TransactionId = null);
 
-public sealed record RegisteredVisit(string VisitId, string PatientName, decimal Total, bool ReusedPatient, Receipt? Receipt = null, string InvoiceNumber = "");
+public sealed record RegisteredVisit(string VisitId, string PatientName, decimal Total, bool ReusedPatient, Receipt? Receipt = null, string InvoiceNumber = "", string PatientId = "");
 
 /// <summary>
 /// Registers a visit on this PC first (patient + tests + total), queues it to send, and returns at once.
@@ -128,7 +128,7 @@ public sealed class VisitService
             if (input.Payment is { Amount: > 0 } pay)
                 receipt = new PaymentService(_store, input.OrganizationId, _now).Record(new PaymentInput(visitId, pay.Amount, pay.Method, pay.TransactionId));
         });
-        return new RegisteredVisit(visitId, patientName, total, reused, receipt, number);
+        return new RegisteredVisit(visitId, patientName, total, reused, receipt, number, patientId);
     }
 
     /// <summary>A patient that only exists on this PC travels with the visit so the server can create it.</summary>

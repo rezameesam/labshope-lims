@@ -79,6 +79,21 @@ public sealed class SyncEngine
                 Opt(row, "gender"), Opt(row, "date_of_birth")));
         }, null, ct);
 
+    private const int BookingHistoryDays = 90;
+
+    /// <summary>Pulls booking requests made on the website (the last 90 days on first run, then only changes).</summary>
+    public Task<int> PullBookingsAsync(CancellationToken ct = default)
+    {
+        var floor = DateTimeOffset.UtcNow.AddDays(-BookingHistoryDays).ToString("yyyy-MM-dd");
+        return PullAsync("booking_requests", "id,full_name,phone,email,booking_type,preferred_date,test_details,notes,status,patient_id,created_at,updated_at", "bookings_cursor", row =>
+        {
+            _store.UpsertBooking(new BookingRequest(
+                row.GetProperty("id").GetString()!, Opt(row, "full_name") ?? "", Opt(row, "phone") ?? "", Opt(row, "email"), Opt(row, "booking_type") ?? "",
+                Opt(row, "preferred_date"), Opt(row, "test_details"), Opt(row, "notes"), Opt(row, "status") ?? "new", Opt(row, "patient_id"),
+                Opt(row, "created_at") ?? ""), fromServer: true);
+        }, "created_at=gte." + floor, ct);
+    }
+
     private const int WorklistHistoryDays = 30;
 
     /// <summary>Pulls the lab's ordered tests and their results (the last 30 days on first run, then only changes).</summary>
@@ -206,21 +221,24 @@ public sealed class SyncEngine
                 var isPayment = item.Kind == "payment";
                 var isResult = item.Kind == "result";
                 var isPatientEdit = item.Kind == "patient";
-                var table = isPatientEdit ? "patients" : "patient_tests";
-                var result = isResult || isPatientEdit
+                var isBooking = item.Kind == "booking";
+                var table = isPatientEdit ? "patients" : isBooking ? "booking_requests" : "patient_tests";
+                var result = isResult || isPatientEdit || isBooking
                     ? await _api.PatchAsync(table, $"id=eq.{payload.GetProperty("id").GetString()}&organization_id=eq.{payload.GetProperty("organization_id").GetString()}", payload.GetProperty("patch"), ct)
                     : await _api.RpcAsync(isPayment ? "record_payment" : "register_visit", new { p_payload = payload }, ct);
 
                 // A result update that changed no row was refused (not found, or not allowed): treat it as a permanent refusal.
-                if ((isResult || isPatientEdit) && result.Ok && result.Body is { ValueKind: JsonValueKind.Array } changed && changed.GetArrayLength() == 0)
-                    result = new ApiResult(403, null, "42501", isPatientEdit ? "The server would not accept this change (patient not found, or not allowed)." : "The server would not accept this result (test not found, or not allowed).");
+                var isRowPatch = isResult || isPatientEdit || isBooking;
+                if (isRowPatch && result.Ok && result.Body is { ValueKind: JsonValueKind.Array } changed && changed.GetArrayLength() == 0)
+                    result = new ApiResult(403, null, "42501", isPatientEdit ? "The server would not accept this change (patient not found, or not allowed)." : isBooking ? "The server would not accept this change (booking not found, or not allowed)." : "The server would not accept this result (test not found, or not allowed).");
 
-                if (result.Ok && (isResult || isPatientEdit ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
+                if (result.Ok && (isRowPatch ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
                 {
                     var body = result.Body!.Value;
                     if (isPayment) _store.MarkPaymentSynced(item.VisitId);
                     else if (isResult) _store.ClearTestWaiting(payload.GetProperty("id").GetString()!);
                     else if (isPatientEdit) { /* nothing to clear: the next pull confirms it */ }
+                    else if (isBooking) _store.ClearBookingWaiting(payload.GetProperty("id").GetString()!);
                     else ApplyVisitResult(item.VisitId, payload, body);
                     _store.SetVisitStatus(item.VisitId, "done", resultJson: body.GetRawText());
                     synced++;
@@ -234,6 +252,7 @@ public sealed class SyncEngine
                     if (isPayment) RevertPayment(payload);
                     if (isResult) RevertResult(payload);
                     if (isPatientEdit) RevertPatientEdit(payload);
+                    if (isBooking) RevertBooking(payload);
                     _store.SetVisitStatus(item.VisitId, "failed", message, countAttempt: true);
                     failed++;
                     continue;
@@ -256,6 +275,15 @@ public sealed class SyncEngine
         var bill = _store.GetInvoice(invoiceId);
         _store.RemovePayment(paymentId);
         if (bill is not null) _store.SetInvoicePaid(invoiceId, Math.Max(bill.PaidAmount - amount, 0));
+    }
+
+    /// <summary>The server refused a booking change: show the booking as it was.</summary>
+    private void RevertBooking(JsonElement payload)
+    {
+        var id = payload.GetProperty("id").GetString()!;
+        var prev = payload.GetProperty("previous");
+        if (_store.GetBooking(id) is { } now)
+            _store.UpsertBooking(now with { Status = Opt(prev, "status") ?? now.Status, PatientId = Opt(prev, "patient_id"), Waiting = false });
     }
 
     /// <summary>The server refused a patient change: put the old details back.</summary>

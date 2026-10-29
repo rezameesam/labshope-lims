@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -13,7 +14,8 @@ namespace LabShope.App;
 
 public partial class MainWindow : Window
 {
-    private sealed record Nav(string Key, string Title, MaterialIconKind Icon, Key Hotkey, Func<Control> Create);
+    private sealed record Nav(string Key, string Title, MaterialIconKind Icon, Key Hotkey, Func<Control> Create, Func<int>? Badge = null);
+    private readonly Dictionary<string, Border> _badges = [];
 
     private readonly AppSession _session;
     private readonly LocalStore _store;
@@ -52,6 +54,13 @@ public partial class MainWindow : Window
                 v.Registered += async () => { RefreshPages(); await SyncAsync(); };
                 return v;
             }),
+            new("bookings", "Booking requests", MaterialIconKind.CalendarClockOutline, Key.F11, () =>
+            {
+                var v = new BookingsView(session);
+                v.Changed += async () => { RefreshBadges(); await SyncAsync(); };
+                v.RegisterRequested += booking => { Show("register"); ((RegisterVisitView)_pages["register"]).PrefillFromBooking(booking); };
+                return v;
+            }, Badge: () => _store.NewBookingCount()),
             new("patients", "Patients", MaterialIconKind.AccountGroupOutline, Key.F2, () =>
             {
                 var v = new PatientRegisterView(session);
@@ -86,7 +95,7 @@ public partial class MainWindow : Window
 
         foreach (var n in _nav)
         {
-            var button = new Button { Classes = { "nav" }, Content = Row(n) };
+            var button = new Button { Classes = { "nav" }, Content = Row(n, _badges), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             button.Click += (_, _) => Show(n.Key);
             _navButtons[n.Key] = button;
             NavPanel.Children.Add(button);
@@ -95,6 +104,7 @@ public partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel); // hotkeys and barcode scans work from anywhere
 
         Show("home");
+        RefreshBadges();
 
         var syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         syncTimer.Tick += async (_, _) => await SyncAsync();
@@ -104,16 +114,42 @@ public partial class MainWindow : Window
         Shot.Attach(this);
     }
 
-    private static Control Row(Nav n) => new StackPanel
+    private static Control Row(Nav n, Dictionary<string, Border> badges)
     {
-        Orientation = Avalonia.Layout.Orientation.Horizontal,
-        Spacing = 12,
-        Children =
+        var count = new TextBlock { FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White };
+        var badge = new Border
         {
-            new MaterialIcon { Kind = n.Icon, Width = 19, Height = 19 },
-            new TextBlock { Text = n.Title, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
-        },
-    };
+            Background = new SolidColorBrush(Color.Parse("#E5484D")), CornerRadius = new CornerRadius(10), Padding = new Thickness(7, 1), IsVisible = false,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Child = count,
+        };
+        badges[n.Key] = badge;
+        var row = new DockPanel { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        DockPanel.SetDock(badge, Dock.Right);
+        row.Children.Add(badge);
+        row.Children.Add(new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 12,
+            Children =
+            {
+                new MaterialIcon { Kind = n.Icon, Width = 19, Height = 19 },
+                new TextBlock { Text = n.Title, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+            },
+        });
+        return row;
+    }
+
+    /// <summary>Little red counts on the sidebar (new booking requests).</summary>
+    private void RefreshBadges()
+    {
+        foreach (var n in _nav.Where(n => n.Badge is not null))
+        {
+            var count = n.Badge!();
+            var badge = _badges[n.Key];
+            badge.IsVisible = count > 0;
+            ((TextBlock)badge.Child!).Text = count > 99 ? "99+" : count.ToString();
+        }
+    }
 
     /// <summary>Opens a page (created the first time, then kept so nothing typed is lost when switching).</summary>
     public void Show(string key)
@@ -140,6 +176,7 @@ public partial class MainWindow : Window
             case CashBookView c: c.Refresh(); break;
             case ReportsView rv: rv.Refresh(); break;
             case CatalogView cv: cv.Refresh(); break;
+            case BookingsView bv: bv.Refresh(); break;
             case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;
         }
@@ -147,6 +184,7 @@ public partial class MainWindow : Window
 
     private void RefreshPages()
     {
+        RefreshBadges();
         foreach (var page in _pages.Values) RefreshPage(page);
     }
 

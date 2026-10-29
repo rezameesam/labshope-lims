@@ -28,6 +28,7 @@ public partial class RegisterVisitView : UserControl
     private bool _existingMode = true;
     private Receipt? _lastReceipt;
     private string? _lastVisitId;
+    private string? _bookingId;
 
     /// <summary>Raised after a visit is saved so the window can sync and refresh its lists.</summary>
     public event Action? Registered;
@@ -76,6 +77,35 @@ public partial class RegisterVisitView : UserControl
         PackageBox.SelectedIndex = PackageBox.SelectedIndex < 0 ? 0 : PackageBox.SelectedIndex;
 
         SearchTests();
+    }
+
+    /// <summary>Starts a visit for a booking request: the patient (existing, matched by phone, or new) and the tests it asked for.</summary>
+    public void PrefillFromBooking(BookingRequest booking)
+    {
+        Clear();
+        _bookingId = booking.Id;
+
+        var known = (booking.PatientId is not null ? _session.Store.GetPatient(booking.PatientId) : null)
+            ?? _session.Store.FindPatientByPhone(PhoneNumbers.LookupVariants(booking.Phone));
+        if (known is not null) UsePatient(known);
+        else
+        {
+            _existingMode = false;
+            UpdateMode();
+            NewName.Text = booking.FullName;
+            NewPhone.Text = booking.Phone;
+        }
+
+        // The request's test list is free text ("CBC, Vitamin D"): add whichever names match the catalog exactly.
+        var missing = new List<string>();
+        foreach (var name in (booking.TestDetails ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var test = _catalog.Tests.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase) || string.Equals(t.TestCode, name, StringComparison.OrdinalIgnoreCase));
+            if (test is null) missing.Add(name);
+            else if (_selected.All(s => s.Name != test.Name)) _selected.Add(new SelectedTest { Name = test.Name, Price = test.Price });
+        }
+        UpdateTotal();
+        ResultText.Text = $"From the booking by {booking.FullName}." + (missing.Count > 0 ? $" Add by hand: {string.Join(", ", missing)}." : "");
     }
 
     public void FocusFirstField() => (_existingMode ? PatientSearch : NewName).Focus();
@@ -198,6 +228,7 @@ public partial class RegisterVisitView : UserControl
                     string.IsNullOrWhiteSpace(PayRef.Text) ? null : PayRef.Text.Trim()) : null);
 
             var visit = _visits.Register(input);
+            var fromBooking = _bookingId; // Clear() forgets it, so remember which request this visit was for
             Clear();
             _lastReceipt = visit.Receipt;
             _lastVisitId = visit.VisitId;
@@ -205,6 +236,11 @@ public partial class RegisterVisitView : UserControl
             ReceiptButton.IsVisible = visit.Receipt is not null;
             var paid = visit.Receipt is null ? "no payment taken" : $"{visit.Receipt.Amount:0.##} received" + (visit.Receipt.Balance > 0 ? $", {visit.Receipt.Balance:0.##} due" : ", paid in full");
             ResultText.Text = $"Saved: {visit.PatientName}, total {visit.Total:0.##}, {paid}" + (visit.ReusedPatient ? " (existing patient matched by phone)" : "") + $". Bill {visit.InvoiceNumber}. It is sent to the server when online.";
+            if (fromBooking is not null)
+            {
+                new BookingService(_session.Store, _session.Workspace.OrganizationId, _session.Account.SavedUserId).MarkConverted(fromBooking, visit.PatientId);
+                ResultText.Text += " The booking is marked converted.";
+            }
             Registered?.Invoke();
         }
         catch (ArgumentException ex)
@@ -229,7 +265,7 @@ public partial class RegisterVisitView : UserControl
 
     private void Clear()
     {
-        _picked = null; _package = null;
+        _picked = null; _package = null; _bookingId = null;
         PickedPatient.Text = ""; PickedChip.IsVisible = false; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
         NewName.Text = ""; NewPhone.Text = ""; NewDob.Text = ""; NotesBox.Text = "";
         _selected.Clear();

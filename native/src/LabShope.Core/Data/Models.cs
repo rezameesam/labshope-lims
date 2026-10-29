@@ -75,3 +75,12 @@ public sealed record TestCount(string TestName, int Count);
 public sealed record ReportSummary(
     int Visits, decimal Billed, decimal Collected, decimal Outstanding, int TestsOrdered, int TestsCompleted,
     IReadOnlyList<DayAmount> DailyCollections, IReadOnlyList<MethodAmount> ByMethod, IReadOnlyList<TestCount> TopTests);
+
+/// <summary>A booking made by a patient on the website (new, contacted, scheduled, converted, closed).</summary>
+public sealed record BookingRequest(
+    string Id, string FullName, string Phone, string? Email, string BookingType, string? PreferredDate,
+    string? TestDetails, string? Notes, string Status, string? PatientId, string CreatedAt, bool Waiting = false)
+{
+    public string Created => DateTimeOffset.TryParse(CreatedAt, out var d) ? d.ToLocalTime().ToString("dd MMM HH:mm") : CreatedAt;
+    public string Type => BookingType.Replace('_', ' ');
+}

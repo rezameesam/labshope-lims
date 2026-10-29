@@ -99,6 +99,7 @@ insert into labs (id, lab_code, name, organization_id) values ('$LAB', 'ITL', 'I
 insert into user_roles (user_id, role) values ('$USER_ID', 'admin') on conflict do nothing;
 insert into organization_users (organization_id, user_id, role) values ('$ORG', '$USER_ID', 'owner');
 insert into employees (email, employee_id, full_name, user_id, organization_id, lab_id, is_active) values ('$EMAIL', 'E-IT', 'IT Admin', '$USER_ID', '$ORG', '$LAB', true);
+insert into booking_requests (id, full_name, phone, booking_type, status, organization_id, test_details) values ('99999999-0000-0000-0000-0000000000b1', 'Web Booker', '9877777777', 'home_collection', 'new', '$ORG', 'CBC');
 -- the standard chart of accounts the finance triggers post to
 insert into accounts (organization_id, code, name, type) values
   ('$ORG', '1001', 'Cash', 'asset'), ('$ORG', '1003', 'Accounts Receivable', 'asset'), ('$ORG', '4001', 'Test Revenue', 'revenue');

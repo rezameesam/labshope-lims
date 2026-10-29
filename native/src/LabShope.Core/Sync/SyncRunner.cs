@@ -33,6 +33,7 @@ public sealed class SyncRunner
             if (_slug is not null) await _engine.PullBrandingAsync(_slug, _labName, ct: ct);
             await _engine.PullPatientsAsync(ct);
             await _engine.PullPatientTestsAsync(ct);
+            await _engine.PullBookingsAsync(ct);
             await _engine.PullInvoicesAsync(ct);
             _lastSyncedAt = DateTimeOffset.UtcNow;
             return Status(null, null);

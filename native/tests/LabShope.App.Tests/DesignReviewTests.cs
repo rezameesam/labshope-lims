@@ -34,6 +34,9 @@ public class DesignReviewTests : IDisposable
         for (var i = 0; i < names.Length; i++)
             _store.UpsertPatient(new Patient($"p{i}", $"IRM-{i + 1:0000}", names[i], $"+9198{i:00}000{i + 1:000}", i % 2 == 0 ? "female" : "male", $"19{70 + i}-05-0{i % 9 + 1}"));
 
+        _store.UpsertBooking(new BookingRequest("b1", "Meera Nair", "9811111111", "m@x.in", "home_collection", "2026-10-30", "CBC, Vitamin D", "after 8am", "new", null, DateTimeOffset.UtcNow.ToString("O")));
+        _store.UpsertBooking(new BookingRequest("b2", "Kiran Patel", "9822222222", null, "walk_in", null, "Liver Function Test", null, "new", null, DateTimeOffset.UtcNow.AddHours(-3).ToString("O")));
+        _store.UpsertBooking(new BookingRequest("b3", "Ravi Kumar", "9833333333", null, "walk_in", null, "TSH", null, "contacted", null, DateTimeOffset.UtcNow.AddDays(-1).ToString("O")));
         var visits = new VisitService(_store);
         string[][] tests = [["CBC", "Liver Function Test"], ["Haemoglobin"], ["TSH", "Vitamin D"], ["CBC"], ["Liver Function Test"]];
         for (var i = 0; i < 5; i++)
@@ -82,7 +85,7 @@ public class DesignReviewTests : IDisposable
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         if (dir is null) { window.Close(); return; }
 
-        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog" })
+        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog", "bookings" })
         {
             window.Show(page);
             if (page == "register")
@@ -170,6 +173,93 @@ public class FinanceViewTests : IDisposable
         Assert.True(view.FindControl<Border>("MessageCard")!.IsVisible);
         Assert.Contains("internet", view.FindControl<TextBlock>("MessageText")!.Text);
         Assert.False(view.FindControl<Border>("TallyChip")!.IsVisible);
+    }
+
+    public void Dispose()
+    {
+        foreach (var w in _windows) w.Close();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
+
+public class BookingScreenTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-ui-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    private readonly AppSession _session;
+    private readonly List<Window> _windows = [];
+
+    public BookingScreenTests()
+    {
+        _store = new LocalStore(_path);
+        _store.ReplaceCatalog(new Catalog([new CatalogTest("t1", "CBC", "CBC", 350m, null), new CatalogTest("t2", "VITD", "Vitamin D", 900m, null)], [], [], [new LabRef("l1", "Main", "M")], []));
+        _store.UpsertBooking(new BookingRequest("b1", "Meera Nair", "9811111111", "m@x.in", "home_collection", "2026-10-30", "CBC, Vitamin D, Allergy panel", "after 8am", "new", null, DateTimeOffset.UtcNow.ToString("O")));
+        _store.UpsertBooking(new BookingRequest("b2", "Ravi Kumar", "9822222222", null, "walk_in", null, "LFT", null, "contacted", null, DateTimeOffset.UtcNow.AddDays(-1).ToString("O")));
+        var api = new SupabaseApi(new System.Net.Http.HttpClient(), "https://x.supabase.co", "anon");
+        _session = new AppSession(new Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), _store,
+            new SyncRunner(new SyncEngine(_store, api, "org-1"), _store), new AccountService(api, _path + ".json"));
+    }
+
+    private static T Find<T>(Control root, string name) where T : Control => root.FindControl<T>(name)!;
+
+    [AvaloniaFact]
+    public void ListsNewRequestsAndAStatusChangeIsQueued()
+    {
+        var view = new BookingsView(_session);
+        var window = new Window { Width = 1300, Height = 600, Content = view };
+        window.Show(); _windows.Add(window);
+
+        var grid = Find<DataGrid>(view, "Grid");
+        Assert.Equal(["Meera Nair"], grid.ItemsSource.Cast<BookingRequest>().Select(b => b.FullName)); // "New" is the default view
+
+        grid.SelectedIndex = 0;
+        Assert.Contains("Meera Nair", Find<TextBlock>(view, "NameText").Text);
+        Find<ComboBox>(view, "StatusBox").SelectedItem = "contacted";
+
+        Assert.Equal("contacted", _store.GetBooking("b1")!.Status);
+        Assert.Equal((1, 0), _store.OutboxCounts());
+        Assert.Equal(0, _store.NewBookingCount());
+    }
+
+    [AvaloniaFact]
+    public void RegisteringFromABookingPrefillsThePatientAndTestsThenMarksItConverted()
+    {
+        var view = new RegisterVisitView(_session);
+        var window = new Window { Width = 1300, Height = 800, Content = view };
+        window.Show(); _windows.Add(window);
+
+        view.PrefillFromBooking(_store.GetBooking("b1")!);
+
+        Assert.Equal("Meera Nair", Find<TextBox>(view, "NewName").Text);
+        Assert.Equal("9811111111", Find<TextBox>(view, "NewPhone").Text);
+        Assert.Equal("Total 1250", Find<TextBlock>(view, "TotalText").Text); // CBC + Vitamin D matched; "Allergy panel" is not in the catalog
+        Assert.Contains("Allergy panel", Find<TextBlock>(view, "ResultText").Text); // the person is told to add it by hand
+
+        Find<TextBox>(view, "PayAmount").Text = "0";
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        var booking = _store.GetBooking("b1")!;
+        Assert.True(booking.Status == "converted", "ResultText: " + Find<TextBlock>(view, "ResultText").Text);
+        Assert.NotNull(booking.PatientId);
+        Assert.Equal(booking.PatientId, _store.SearchPatients("meera").Single().Id);
+        Assert.Equal((2, 0), _store.OutboxCounts()); // the visit, then the booking update (so the patient exists on the server first)
+    }
+
+    [AvaloniaFact]
+    public void AKnownPhoneNumberPicksTheExistingPatientInsteadOfCreatingADuplicate()
+    {
+        _store.UpsertPatient(new Patient("p1", "IRM-0001", "Meera N.", "+919811111111", "female", null));
+        var view = new RegisterVisitView(_session);
+        var window = new Window { Width = 1300, Height = 800, Content = view };
+        window.Show(); _windows.Add(window);
+
+        view.PrefillFromBooking(_store.GetBooking("b1")!);
+
+        Assert.Contains("IRM-0001", Find<TextBlock>(view, "PickedPatient").Text);
+        Assert.Equal("", Find<TextBox>(view, "NewName").Text ?? "");
     }
 
     public void Dispose()

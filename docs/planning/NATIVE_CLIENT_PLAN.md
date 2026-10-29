@@ -124,3 +124,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   tests row, online); the new values reach the PC with the next catalog pull. Verified against the real database.
 - Not yet native: employees/roles, labs & collection centres, external labs, inventory, booking requests, notice board, report templates, settings,
   subscription. Analyzer integration waits for the machine models.
+
+## Update: Booking requests
+- Booking requests made on the website are pulled to the PC (90 days, then changes), listed with New/All/Contacted/Scheduled/Converted/Closed (the website's
+  statuses), with a red count of new ones on the sidebar. Status changes work offline and are queued as a PATCH of that booking_requests row.
+- "Register a visit for this person": opens Register visit with the patient (existing one matched by phone, else a new one pre-filled) and the requested tests
+  that match the catalog by name; on save the booking is marked converted and linked to the patient (queued after the visit so the patient exists first).
+  Verified against the real database.

@@ -111,6 +111,15 @@ public class IntegrationLocalTests
         var cbcTest = store.GetCatalog().Tests.Single(t => t.Name == "CBC");
         Assert.Equal((325m, "x10^9/L", 4m, 11m), (cbcTest.Price, cbcTest.Unit, cbcTest.NormalMin, cbcTest.NormalMax));
 
+        // A booking made on the website reaches this PC; working it here updates the real row.
+        await engine.PullBookingsAsync();
+        var booking = store.SearchBookings("web booker").Single();
+        Assert.Equal("new", booking.Status);
+        new BookingService(store, org, session.UserId).MarkConverted(booking.Id, synced.Id);
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+        var bookingRow = (await api.SelectAsync("booking_requests", $"select=status,patient_id,converted_by&id=eq.{booking.Id}")).Body!.Value[0];
+        Assert.Equal(("converted", synced.Id, session.UserId), (bookingRow.GetProperty("status").GetString(), bookingRow.GetProperty("patient_id").GetString(), bookingRow.GetProperty("converted_by").GetString()));
+
         // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
         var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
         Assert.Null(books.Error);
