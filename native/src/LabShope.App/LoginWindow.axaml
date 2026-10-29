@@ -56,6 +56,8 @@
 
       <Button x:Name="SignInButton" Classes="primary" Content="Sign in" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
               IsDefault="True" Click="OnSignIn" Margin="0,10,0,0" Padding="0,12" FontSize="14" />
+      <Button x:Name="ForgotButton" Content="Forgot password?" Click="OnForgot" Background="Transparent" BorderThickness="0" Padding="0,6" HorizontalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" Cursor="Hand" />
+      <TextBlock x:Name="InfoText" IsVisible="False" Foreground="{StaticResource PrimaryBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" />
       <TextBlock Text="The first sign-in on a computer needs internet. After that the app opens offline." Classes="muted" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
     </StackPanel>
   </Grid>

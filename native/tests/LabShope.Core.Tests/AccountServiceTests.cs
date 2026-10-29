@@ -185,6 +185,34 @@ public class SessionPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task ForgotPasswordEmailsALinkToTheLabsOwnAddressForAKnownAccount()
+    {
+        var refreshes = 0;
+        var server = new FakeServer();
+        server.Handler = (req, _) => req.RequestUri!.AbsolutePath.EndsWith("/recover") ? (HttpStatusCode.OK, "{}") : Server(req, ref refreshes);
+        var account = new AccountService(new SupabaseApi(new HttpClient(server), "https://x.supabase.co", "anon"), SettingsPath);
+        Assert.True((await account.SignInAsync("a@b.c", "pw")).Ok); // the computer now knows this email's lab
+
+        Assert.True((await account.ForgotPasswordAsync(" A@B.C ")).Ok);
+        var request = server.Requests.Single(r => r.Url.Contains("/auth/v1/recover"));
+        Assert.Contains(Uri.EscapeDataString("https://demo.labshope.com/staff/reset-password"), request.Url);
+        Assert.Contains("A@B.C", request.Body);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordForAnUnknownEmailSendsNothingAndPointsToTheLabsWebsite()
+    {
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, "{}") };
+        var account = new AccountService(new SupabaseApi(new HttpClient(server), "https://x.supabase.co", "anon"), SettingsPath);
+
+        var result = await account.ForgotPasswordAsync("stranger@lab.com");
+        Assert.False(result.Ok);
+        Assert.Contains("lab's website", result.Error);
+        Assert.Empty(server.Requests);
+        Assert.False((await account.ForgotPasswordAsync("")).Ok);
+    }
+
+    [Fact]
     public async Task ARenewedLoginIsSavedSoTheNextStartStillWorks()
     {
         var refreshes = 0;

@@ -66,7 +66,7 @@ public class SubscriptionTests : IDisposable
         Assert.Equal(new DateTimeOffset(2026, 11, 5, 0, 0, 0, TimeSpan.Zero), cached.TrialEndsAt);
 
         Assert.False(await SubscriptionService.RefreshAsync(Api(server), _store, "org-1")); // too soon: skipped
-        Assert.Equal(1, server.Requests.Count);
+        Assert.Single(server.Requests);
         Assert.NotNull(SubscriptionService.Cached(_store)); // still there with no connection
     }
 

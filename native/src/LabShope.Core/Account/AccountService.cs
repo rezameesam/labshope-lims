@@ -24,6 +24,26 @@ public sealed class AccountService
     private sealed record Saved(string Slug, string OrganizationId, string OrganizationName, string? LabId, string RefreshToken, string UserId, string? Email, List<string>? Roles = null);
 
     /// <summary>
+    /// Emails a password reset link. The website's reset page only works on the lab's own address (reset links are tied
+    /// to one lab), and the app can only know that address for an email that signed in on this computer before.
+    /// </summary>
+    public async Task<LoginResult> ForgotPasswordAsync(string email, CancellationToken ct = default)
+    {
+        email = email.Trim();
+        if (!email.Contains('@') || email.Length < 5) return new(false, "Enter your email address above first.");
+
+        var saved = Load();
+        if (saved is null || !string.Equals(saved.Email, email, StringComparison.OrdinalIgnoreCase))
+            return new(false, "To reset the password, open your lab's website (the address you were given, like yourlab.labshope.com), choose Staff sign in and then Forgot password. Then come back here and sign in.");
+
+        var result = await _api.RequestPasswordResetAsync(email, $"https://{saved.Slug}.labshope.com/staff/reset-password", ct);
+        if (result.NetworkFailure) return new(false, "Can't reach the server. Check the internet connection.");
+        if (!result.Ok && result.Status == 429) return new(false, "Too many requests. Please wait a minute and try again.");
+        if (!result.Ok) return new(false, result.ErrorMessage ?? "The reset email could not be sent.");
+        return new(true, null);
+    }
+
+    /// <summary>
     /// Signs in with just email and password; the lab is found from the account (customers sign up on the
     /// website, they never need to know a lab name). If the account belongs to several labs the caller gets
     /// the list to choose from and then calls <see cref="ChooseAsync"/>.

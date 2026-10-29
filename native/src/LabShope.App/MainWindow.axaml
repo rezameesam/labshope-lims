@@ -24,6 +24,9 @@
           <Button Classes="nav" Click="OnSync">
             <StackPanel Orientation="Horizontal" Spacing="12"><mi:MaterialIcon Kind="Sync" Width="18" Height="18" /><TextBlock Text="Sync now" /><TextBlock Text="F9" Opacity="0.55" /></StackPanel>
           </Button>
+          <Button Classes="nav" Click="OnFullScreen">
+            <StackPanel Orientation="Horizontal" Spacing="12"><mi:MaterialIcon Kind="Fullscreen" Width="18" Height="18" /><TextBlock Text="Full screen" /><TextBlock Text="F11" Opacity="0.55" /></StackPanel>
+          </Button>
           <Button Classes="nav" Click="OnSignOut">
             <StackPanel Orientation="Horizontal" Spacing="12"><mi:MaterialIcon Kind="LogoutVariant" Width="18" Height="18" /><TextBlock Text="Sign out" /></StackPanel>
           </Button>

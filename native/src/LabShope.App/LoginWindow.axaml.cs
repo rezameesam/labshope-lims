@@ -22,6 +22,17 @@ public partial class LoginWindow : Window
         Opened += (_, _) => (string.IsNullOrEmpty(EmailBox.Text) ? EmailBox : PasswordBox).Focus();
     }
 
+    private async void OnForgot(object? sender, RoutedEventArgs e)
+    {
+        ForgotButton.IsEnabled = false;
+        ErrorBox.IsVisible = false;
+        InfoText.IsVisible = false;
+        var result = await _account.ForgotPasswordAsync(EmailBox.Text ?? "");
+        if (result.Ok) { InfoText.Text = "If that address has an account, a reset link is on its way. Open it, choose a new password, then sign in here."; InfoText.IsVisible = true; }
+        else { ErrorText.Text = result.Error; ErrorBox.IsVisible = true; }
+        ForgotButton.IsEnabled = true;
+    }
+
     private async void OnSignIn(object? sender, RoutedEventArgs e)
     {
         SignInButton.IsEnabled = false;

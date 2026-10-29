@@ -36,6 +36,10 @@ public sealed class SupabaseApi
         return (result.Ok ? Session : null, result);
     }
 
+    /// <summary>Asks the server to email a password reset link (the same call the website's "Forgot password" makes).</summary>
+    public Task<ApiResult> RequestPasswordResetAsync(string email, string redirectTo, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"/auth/v1/recover?redirect_to={Uri.EscapeDataString(redirectTo)}", JsonSerializer.Serialize(new { email }), authenticated: false, ct);
+
     /// <summary>Gets a fresh access token. Returns false when the refresh token is no longer valid.</summary>
     public async Task<bool> RefreshAsync(CancellationToken ct = default)
     {

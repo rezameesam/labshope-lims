@@ -220,6 +220,8 @@ public partial class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.F11) { e.Handled = true; ToggleFullScreen(); return; }
+        if (e.Key == Key.Escape && WindowState == WindowState.FullScreen) { e.Handled = true; ToggleFullScreen(); return; }
         if (e.Key == Key.F9) { e.Handled = true; _ = SyncAsync(); return; }
         if (_nav.FirstOrDefault(n => n.Hotkey == e.Key) is { } hit) { e.Handled = true; Show(hit.Key); return; }
 
@@ -299,6 +301,10 @@ public partial class MainWindow : Window
         SyncDot.Fill = fgBrush;
         SyncChip.Background = new SolidColorBrush(Color.Parse(bg));
     }
+
+    private void OnFullScreen(object? sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    private void ToggleFullScreen() => WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
 
     private void OnSignOut(object? sender, RoutedEventArgs e)
     {
