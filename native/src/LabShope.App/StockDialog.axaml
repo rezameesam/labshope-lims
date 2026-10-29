@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.StockDialog"
+        Title="Stock" Width="420" SizeToContent="Height" CanResize="False" WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="26" Spacing="8">
+    <TextBlock x:Name="Heading" Classes="h2" TextWrapping="Wrap" />
+    <TextBlock x:Name="Sub" Classes="muted" />
+    <TextBlock x:Name="QtyLabel" Text="QUANTITY" Classes="label" Margin="0,8,0,0" />
+    <TextBox x:Name="QtyBox" />
+    <StackPanel x:Name="BuyPanel" Spacing="8" IsVisible="False">
+      <TextBlock Text="COST PER UNIT" Classes="label" Margin="0,4,0,0" />
+      <TextBox x:Name="CostBox" />
+      <TextBlock Text="SUPPLIER (optional)" Classes="label" Margin="0,4,0,0" />
+      <TextBox x:Name="SupplierBox" />
+    </StackPanel>
+    <StackPanel x:Name="UsePanel" Spacing="8">
+      <TextBlock Text="NOTE (optional)" Classes="label" Margin="0,4,0,0" />
+      <TextBox x:Name="NoteBox" />
+    </StackPanel>
+    <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+      <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+    </Border>
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button Content="Cancel" Click="OnCancel" />
+      <Button x:Name="SaveButton" Classes="primary" IsDefault="True" Click="OnSave" Padding="20,9" />
+    </StackPanel>
+  </StackPanel>
+</Window>

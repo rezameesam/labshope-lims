@@ -65,7 +65,7 @@ public class OutboxAdminTests : IDisposable
         Assert.Empty(_store.SearchWorklist(""));
         Assert.Empty(_store.PaymentsFor(v.VisitId));
         Assert.Equal(0, _store.PatientCount());
-        Assert.Empty(_store.ListOutbox().Where(e => e.Kind is "visit" or "payment"));
+        Assert.DoesNotContain(_store.ListOutbox(), e => e.Kind is "visit" or "payment");
     }
 
     [Fact]

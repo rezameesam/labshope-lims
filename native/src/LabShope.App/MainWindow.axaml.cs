@@ -82,6 +82,7 @@ public partial class MainWindow : Window
             }),
             new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
             new("reports", "Reports", MaterialIconKind.ChartBoxOutline, Key.F6, () => new ReportsView(session)),
+            new("inventory", "Inventory", MaterialIconKind.PackageVariantClosed, Key.None, () => new InventoryView(session)),
             new("organization", "Labs & team", MaterialIconKind.OfficeBuildingOutline, Key.None, () => new OrganizationView(session)),
             new("catalog", "Test catalog", MaterialIconKind.FlaskOutline, Key.None, () =>
             {
@@ -172,6 +173,7 @@ public partial class MainWindow : Window
         RefreshPage(page);
         (page as RegisterVisitView)?.FocusFirstField();
         if (page is FinanceView finance) _ = finance.EnsureLoadedAsync();
+        if (page is InventoryView inventory) _ = inventory.EnsureLoadedAsync();
     }
 
     private static void RefreshPage(Control page)
@@ -188,6 +190,7 @@ public partial class MainWindow : Window
             case BookingsView bv: bv.Refresh(); break;
             case OrganizationView ov: ov.Refresh(); break;
             case SettingsView sv: sv.Refresh(); break;
+            case InventoryView: break; // loaded from the server on first view; has its own Refresh
             case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;
         }

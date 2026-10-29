@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vis="using:LabShope.Core.Visits"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.InventoryView">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <StackPanel Orientation="Horizontal" Spacing="14">
+        <Grid ColumnDefinitions="Auto,*">
+          <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
+          <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+          <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="260" PlaceholderText="Search items" />
+        </Grid>
+        <CheckBox x:Name="LowOnly" Content="Only low or out of stock" VerticalAlignment="Center" />
+        <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
+        <Button x:Name="BoughtButton" Click="OnBought"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CartPlus" Width="17" Height="17" /><TextBlock Text="Stock bought" /></StackPanel></Button>
+        <Button x:Name="UsedButton" Classes="primary" Click="OnUsed"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="MinusCircleOutline" Width="17" Height="17" /><TextBlock Text="Stock used" /></StackPanel></Button>
+      </StackPanel>
+    </Grid>
+    <Border x:Name="MessageCard" DockPanel.Dock="Top" Classes="card" Background="#FFF8E6" BorderBrush="#F2D488" Margin="0,0,0,16" IsVisible="False">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <mi:MaterialIcon Kind="CloudOffOutline" Width="20" Height="20" Foreground="{StaticResource WarnBrush}" />
+        <TextBlock x:Name="MessageText" VerticalAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+    <TextBlock x:Name="DoneText" DockPanel.Dock="Bottom" Margin="2,10,0,0" Foreground="{StaticResource SuccessBrush}" FontWeight="Medium" />
+    <DataGrid x:Name="Grid" x:DataType="vis:InventoryItem" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="ITEM" Binding="{Binding Name}" Width="*" MinWidth="160" />
+        <DataGridTextColumn Header="TYPE" Binding="{Binding Type}" Width="120" />
+        <DataGridTextColumn Header="IN STOCK" Binding="{Binding CurrentStock}" Width="100" />
+        <DataGridTextColumn Header="UNIT" Binding="{Binding Unit}" Width="80" />
+        <DataGridTextColumn Header="MINIMUM" Binding="{Binding MinStock}" Width="100" />
+        <DataGridTextColumn Header="LOCATION" Binding="{Binding Location}" Width="140" />
+        <DataGridTemplateColumn Header="LEVEL" Width="100">
+          <DataTemplate x:DataType="vis:InventoryItem">
+            <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Level, Converter={x:Static app:Pills.Background}}">
+              <TextBlock Text="{Binding Level}" Foreground="{Binding Level, Converter={x:Static app:Pills.Foreground}}" />
+            </Border>
+          </DataTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

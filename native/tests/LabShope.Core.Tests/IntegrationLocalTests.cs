@@ -125,6 +125,18 @@ public class IntegrationLocalTests
         Assert.Null(team.Error);
         Assert.Contains(team.Members, m => m.FullName == "IT Admin" && m.IsActive);
 
+        // Inventory: stock used and bought move the real stock level and are logged.
+        var stock = await InventoryService.LoadAsync(api, org);
+        Assert.Null(stock.Error);
+        var reagent = stock.Items.Single(i => i.Name == "IT Reagent");
+        Assert.Equal(50m, reagent.CurrentStock);
+        Assert.True((await InventoryService.RecordUsageAsync(api, org, session.UserId, reagent, "5", "integration run")).Ok);
+        Assert.Equal(45m, (await InventoryService.LoadAsync(api, org)).Items.Single(i => i.Name == "IT Reagent").CurrentStock);
+        Assert.True((await InventoryService.RecordPurchaseAsync(api, org, session.UserId, reagent, "20", "4", "Supplier")).Ok);
+        Assert.Equal(65m, (await InventoryService.LoadAsync(api, org)).Items.Single(i => i.Name == "IT Reagent").CurrentStock);
+        var tooMuch = reagent with { CurrentStock = 65m };
+        Assert.False((await InventoryService.RecordUsageAsync(api, org, session.UserId, tooMuch, "999", null)).Ok); // more than is in stock is refused
+
         // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
         var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
         Assert.Null(books.Error);

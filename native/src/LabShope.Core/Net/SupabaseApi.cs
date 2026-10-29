@@ -88,6 +88,10 @@ public sealed class SupabaseApi
     public Task<ApiResult> PatchAsync(string table, string query, object body, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(new HttpMethod("PATCH"), $"/rest/v1/{table}?{query}", JsonSerializer.Serialize(body), true, ct, "return=representation"), ct);
 
+    /// <summary>Adds a row to a table.</summary>
+    public Task<ApiResult> InsertAsync(string table, object row, CancellationToken ct = default) =>
+        WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/{table}", JsonSerializer.Serialize(row), true, ct), ct);
+
     public Task<ApiResult> RpcAsync(string function, object args, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/rpc/{function}", JsonSerializer.Serialize(args), true, ct), ct);
 

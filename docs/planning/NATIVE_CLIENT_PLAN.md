@@ -154,3 +154,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
 - Server: migration 20261029000600 lets register_visit accept patient.new.no_phone and patient.new.allow_duplicate_phone. Until it is applied, a no-phone registration is
   refused by the server (shows under Sync & settings), and "create anyway" is merged by the old function. Tested in supabase/tests/register_visit.test.sql (6d).
 - Pending production migrations (applied later by the owner): 000300, 000400, 000500, 000600.
+
+## Update: Labs & team, Inventory
+- Labs & team: labs and collection centres (from the PC's catalog) and the staff list (read from the server, read-only; accounts and access are managed on the website).
+- Inventory (needs internet): items with stock, minimum and Low/Out warnings; "Stock used" and "Stock bought" follow the website's two steps (a log line in
+  inventory_usage / inventory_purchases, then the item's stock moves) but use the freshly read stock level, refuse more than is in stock, and say plainly when the log line
+  was saved but the stock update was not. Verified against the real database (50 -> 45 -> 65, over-use refused).
+- Still not native: external labs, report templates (test_templates), subscription, notification settings, roles/permissions, visitor logs, quick setup.

@@ -385,3 +385,56 @@ public class OrganizationViewTests : IDisposable
         File.Delete(_path);
     }
 }
+
+public class InventoryScreenTests : IDisposable
+{
+    private sealed class StockHandler : System.Net.Http.HttpMessageHandler
+    {
+        protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage r, CancellationToken ct) =>
+            Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new System.Net.Http.StringContent("""
+                    [{"id":"a","name":"Gloves","type":"consumable","sku":null,"unit":"box","current_stock":3,"min_stock_level":5,"unit_price":120,"supplier":null,"location":"Shelf 1","is_active":true},
+                     {"id":"b","name":"CBC reagent","type":"reagent","sku":"R1","unit":"ml","current_stock":0,"min_stock_level":10,"unit_price":8,"supplier":null,"location":"Fridge","is_active":true},
+                     {"id":"d","name":"Slides","type":"consumable","sku":null,"unit":"box","current_stock":40,"min_stock_level":5,"unit_price":50,"supplier":null,"location":null,"is_active":true}]
+                    """, System.Text.Encoding.UTF8, "application/json"),
+            });
+    }
+
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-ui-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    private readonly List<Window> _windows = [];
+    public InventoryScreenTests() => _store = new LocalStore(_path);
+
+    [AvaloniaFact]
+    public async Task ShowsStockWithLowWarningsAndFilters()
+    {
+        var api = new SupabaseApi(new System.Net.Http.HttpClient(new StockHandler()), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };
+        var session = new AppSession(new Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), _store,
+            new SyncRunner(new SyncEngine(_store, api, "org-1"), _store), new AccountService(api, _path + ".json"), api);
+        var view = new InventoryView(session);
+        var window = new Window { Width = 1200, Height = 600, Content = view };
+        window.Show(); _windows.Add(window);
+
+        await view.LoadAsync();
+        var grid = view.FindControl<DataGrid>("Grid")!;
+        Assert.Equal(["low", "out", "ok"], grid.ItemsSource.Cast<InventoryItem>().Select(i => i.Level));
+        Assert.Contains("2 low or out", view.FindControl<TextBlock>("CountText")!.Text);
+
+        view.FindControl<CheckBox>("LowOnly")!.IsChecked = true;
+        Assert.Equal(["Gloves", "CBC reagent"], grid.ItemsSource.Cast<InventoryItem>().Select(i => i.Name));
+        view.FindControl<CheckBox>("LowOnly")!.IsChecked = false;
+        view.FindControl<TextBox>("SearchBox")!.Text = "slides";
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["Slides"], grid.ItemsSource.Cast<InventoryItem>().Select(i => i.Name));
+    }
+
+    public void Dispose()
+    {
+        foreach (var w in _windows) w.Close();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
