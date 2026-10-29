@@ -22,3 +22,9 @@ lists, works offline, and talks to barcode scanners and lab analyzers. Replaces 
 4. Registration + billing screens, then result entry, reports/printing (silent print, labels).
 5. Analyzer listener (serial + TCP, ASTM/HL7), starting with the most-used machine. Needs the model list.
 6. Installers: .dmg, .msi/.exe, .deb via GitHub release workflow; auto-update.
+
+## Update: sync core done (tests: 19 fake-server + 1 real-database)
+- `SupabaseApi`: password sign-in, token refresh (one retry on expiry), PostgREST select, RPC. No SDK.
+- `SyncEngine`: keyset pulls for patients and bills, visit outbox through `register_visit`, same error rules as the web app.
+- Login decision taken: the native app signs in directly with Supabase email + password (no Turnstile, which only a browser can
+  produce). Still to add: device registration / org check at sign-in, and 2FA if the lab has it on.

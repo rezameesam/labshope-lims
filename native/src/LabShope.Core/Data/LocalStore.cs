@@ -6,6 +6,8 @@ namespace LabShope.Core.Data;
 /// The lab's local database (one SQLite file per organisation). Every screen reads from here, so the
 /// app is fast and works offline; sync fills it from the server and sends local changes back.
 /// </summary>
+public sealed record OutboxItem(string VisitId, string PayloadJson, string Status, int Attempts, string? LastError, string PatientName, decimal TotalAmount);
+
 public sealed class LocalStore : IDisposable
 {
     private readonly SqliteConnection _db;
@@ -26,6 +28,11 @@ public sealed class LocalStore : IDisposable
               paid_amount REAL NOT NULL, payment_status TEXT, created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_invoices_number ON invoices(invoice_number COLLATE NOCASE);
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE IF NOT EXISTS outbox (
+              visit_id TEXT PRIMARY KEY, payload TEXT NOT NULL, status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+              patient_name TEXT NOT NULL, total_amount REAL NOT NULL, result TEXT);
+            CREATE INDEX IF NOT EXISTS ix_outbox_status ON outbox(status, created_at);
             """);
     }
 
@@ -142,6 +149,109 @@ public sealed class LocalStore : IDisposable
         }
         return list;
     }
+
+    // ── meta (cursors, session, settings) ──────────────────────────────────
+
+    public string? GetMeta(string key)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT value FROM meta WHERE key = $k";
+        cmd.Parameters.AddWithValue("$k", key);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    public void SetMeta(string key, string? value)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO meta (key, value) VALUES ($k, $v) ON CONFLICT(key) DO UPDATE SET value = $v";
+        cmd.Parameters.AddWithValue("$k", key);
+        cmd.Parameters.AddWithValue("$v", (object?)value ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Runs several writes as one all-or-nothing, much faster than separate commits.</summary>
+    public void InTransaction(Action work)
+    {
+        using var tx = _db.BeginTransaction();
+        try { work(); tx.Commit(); }
+        catch { tx.Rollback(); throw; }
+    }
+
+    // ── outbox ─────────────────────────────────────────────────────────────
+
+    public void EnqueueVisit(OutboxItem item)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO outbox (visit_id, payload, status, attempts, last_error, created_at, updated_at, patient_name, total_amount, result)
+            VALUES ($id, $payload, 'pending', 0, NULL, $now, $now, $name, $total, NULL)
+            ON CONFLICT(visit_id) DO NOTHING;
+            """;
+        cmd.Parameters.AddWithValue("$id", item.VisitId);
+        cmd.Parameters.AddWithValue("$payload", item.PayloadJson);
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.Parameters.AddWithValue("$name", item.PatientName);
+        cmd.Parameters.AddWithValue("$total", (double)item.TotalAmount);
+        cmd.ExecuteNonQuery();
+    }
+
+    public OutboxItem? NextPendingVisit()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT visit_id, payload, status, attempts, last_error, patient_name, total_amount FROM outbox WHERE status = 'pending' ORDER BY created_at LIMIT 1";
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadOutbox(r) : null;
+    }
+
+    public OutboxItem? GetVisit(string visitId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT visit_id, payload, status, attempts, last_error, patient_name, total_amount FROM outbox WHERE visit_id = $id";
+        cmd.Parameters.AddWithValue("$id", visitId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadOutbox(r) : null;
+    }
+
+    public void SetVisitStatus(string visitId, string status, string? error = null, bool countAttempt = false, string? resultJson = null)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = $"UPDATE outbox SET status=$s, last_error=$e, updated_at=$now, result=COALESCE($r, result){(countAttempt ? ", attempts = attempts + 1" : "")} WHERE visit_id=$id";
+        cmd.Parameters.AddWithValue("$id", visitId);
+        cmd.Parameters.AddWithValue("$s", status);
+        cmd.Parameters.AddWithValue("$e", (object?)error ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$r", (object?)resultJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>A crash mid-sync leaves "syncing" rows behind; sending again is safe (the server is idempotent).</summary>
+    public void RequeueStuckVisits(TimeSpan olderThan)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "UPDATE outbox SET status='pending' WHERE status='syncing' AND updated_at < $cutoff";
+        cmd.Parameters.AddWithValue("$cutoff", DateTimeOffset.UtcNow.Add(-olderThan).ToUnixTimeMilliseconds());
+        cmd.ExecuteNonQuery();
+    }
+
+    public (int Pending, int Failed) OutboxCounts()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COALESCE(SUM(status IN ('pending','syncing')),0), COALESCE(SUM(status='failed'),0) FROM outbox";
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        return (r.GetInt32(0), r.GetInt32(1));
+    }
+
+    public void DeletePatient(string id)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM patients WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    private static OutboxItem ReadOutbox(SqliteDataReader r) =>
+        new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), (decimal)r.GetDouble(6));
 
     private void Exec(string sql)
     {

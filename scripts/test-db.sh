@@ -109,4 +109,11 @@ LIMS_IT_URL="$API_URL" LIMS_IT_ANON_KEY="$ANON_KEY" LIMS_IT_EMAIL="$EMAIL" LIMS_
   LIMS_IT_ORG="$ORG" LIMS_IT_LAB="$LAB" \
   npx vitest run src/lib/offline/__tests__/integration.local.test.ts
 
+if command -v dotnet >/dev/null 2>&1; then
+  echo "==> 3b/3 Native client integration test (same database)"
+  LIMS_IT_URL="$API_URL" LIMS_IT_ANON_KEY="$ANON_KEY" LIMS_IT_EMAIL="$EMAIL" LIMS_IT_PASSWORD="$PASSWORD" \
+    LIMS_IT_ORG="$ORG" LIMS_IT_LAB="$LAB" \
+    dotnet test native/tests/LabShope.Core.Tests --filter "FullyQualifiedName~IntegrationLocalTests" --logger "console;verbosity=minimal"
+fi
+
 echo "==> Database tests passed"
