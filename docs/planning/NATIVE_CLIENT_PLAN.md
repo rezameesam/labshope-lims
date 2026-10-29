@@ -146,3 +146,11 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
 - Sync & settings screen: sync state, everything waiting to be sent or refused (with the server's reason), Retry (put back in the queue) and Discard
   (removes a refused visit with its bill, tests, payments and a patient created only for it; other kinds just drop), account/lab/access/version, and the logs folder.
   The sidebar shows a red count of refused items.
+
+## Update: phone is optional, shared numbers are a choice
+- A patient may be registered with no phone ("No phone number" option; stored empty, never matched on phone). A phone that is already registered now raises the website's
+  "phone number already registered" choice (use that patient, or carry on with a new one: family members often share a number) instead of silently merging.
+  Editing a patient's phone is optional and may be shared too.
+- Server: migration 20261029000600 lets register_visit accept patient.new.no_phone and patient.new.allow_duplicate_phone. Until it is applied, a no-phone registration is
+  refused by the server (shows under Sync & settings), and "create anyway" is merged by the old function. Tested in supabase/tests/register_visit.test.sql (6d).
+- Pending production migrations (applied later by the owner): 000300, 000400, 000500, 000600.

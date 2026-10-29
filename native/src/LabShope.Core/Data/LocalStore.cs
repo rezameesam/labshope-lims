@@ -521,6 +521,18 @@ public sealed class LocalStore : IDisposable
         return Branding.Minimal(fallbackName);
     }
 
+    /// <summary>Every active patient whose stored phone is one of the given forms (a number may be shared by family members).</summary>
+    public IReadOnlyList<Patient> FindPatientsByPhone(IEnumerable<string> variants)
+    {
+        var list = variants.Where(v => v.Length > 0).ToList();
+        if (list.Count == 0) return [];
+        using var cmd = _db.CreateCommand();
+        var names = list.Select((_, n) => $"$p{n}").ToList();
+        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY full_name COLLATE NOCASE";
+        for (var n = 0; n < list.Count; n++) cmd.Parameters.AddWithValue(names[n], list[n]);
+        return ReadPatients(cmd);
+    }
+
     // ── meta (cursors, session, settings) ──────────────────────────────────
 
     public string? GetMeta(string key)
@@ -837,7 +849,8 @@ public sealed class LocalStore : IDisposable
         cmd.CommandText = """
             UPDATE outbox SET payload = json_set(payload,
                 '$.patient.new.full_name', $n, '$.patient.new.phone', $p, '$.patient.new.gender', $g,
-                '$.patient.new.date_of_birth', $d, '$.patient.new.phone_variants', json($v))
+                '$.patient.new.date_of_birth', $d, '$.patient.new.phone_variants', json($v),
+                '$.patient.new.no_phone', json($nophone), '$.patient.new.allow_duplicate_phone', json('true'))
             WHERE kind = 'visit' AND status = 'pending' AND json_extract(payload, '$.patient.new.id') = $id
             """;
         cmd.Parameters.AddWithValue("$n", name);
@@ -845,6 +858,7 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$g", (object?)gender ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$d", (object?)dob ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$v", System.Text.Json.JsonSerializer.Serialize(phoneVariants));
+        cmd.Parameters.AddWithValue("$nophone", phone.Length == 0 ? "true" : "false");
         cmd.Parameters.AddWithValue("$id", patientId);
         cmd.ExecuteNonQuery();
     }

@@ -61,17 +61,56 @@ public class VisitServiceTests : IDisposable
     }
 
     [Fact]
-    public void ReusesAPatientWithTheSamePhoneInAnyFormat()
+    public void ASharedPhoneNumberAsksInsteadOfSilentlyMerging()
     {
         _store.UpsertPatient(new Patient("server-1", "IRM-0001", "Asha Rao", "+919876543210", null, null));
 
-        var visit = _visits.Register(Input(new NewPatient("Asha R", "09876543210")));
+        var ask = Assert.Throws<DuplicatePhoneException>(() => _visits.Register(Input(new NewPatient("Asha R", "09876543210")))); // any format
 
-        Assert.True(visit.ReusedPatient);
-        Assert.Equal(1, _store.PatientCount());
+        Assert.Equal(["Asha Rao"], ask.Matches.Select(p => p.FullName));
+        Assert.Equal(1, _store.PatientCount());       // nothing was created or queued while the question is open
+        Assert.Equal((0, 0), _store.OutboxCounts());
+    }
+
+    [Fact]
+    public void TheCashierCanChooseTheExistingPatientInstead()
+    {
+        _store.UpsertPatient(new Patient("server-1", "IRM-0001", "Asha Rao", "+919876543210", null, null));
+        var visit = _visits.Register(Input(existing: _store.GetPatient("server-1")));
         var payload = JsonDocument.Parse(_store.GetVisit(visit.VisitId)!.PayloadJson).RootElement;
         Assert.Equal("server-1", payload.GetProperty("patient").GetProperty("id").GetString());
+        Assert.Equal(1, _store.PatientCount());
     }
+
+    [Fact]
+    public void OrContinueWithANewPatientWhoSharesTheNumber()
+    {
+        _store.UpsertPatient(new Patient("server-1", "IRM-0001", "Asha Rao", "+919876543210", null, null));
+
+        var visit = _visits.Register(Input(new NewPatient("Baby Rao", "9876543210", AllowDuplicatePhone: true)));
+
+        Assert.Equal(2, _store.PatientCount());
+        var created = JsonDocument.Parse(_store.GetVisit(visit.VisitId)!.PayloadJson).RootElement.GetProperty("patient").GetProperty("new");
+        Assert.True(created.GetProperty("allow_duplicate_phone").GetBoolean()); // so the server doesn't merge them either
+        Assert.Equal("+919876543210", created.GetProperty("phone").GetString());
+    }
+
+    [Fact]
+    public void ARegistrationCanHaveNoPhoneNumberAndTwoSuchPatientsAreNeverMerged()
+    {
+        var one = _visits.Register(Input(new NewPatient("Old Mr Das", "", NoPhone: true)));
+        var two = _visits.Register(Input(new NewPatient("Old Mrs Das", "ignored text", NoPhone: true)));
+
+        Assert.Equal(2, _store.PatientCount());
+        Assert.All(_store.SearchPatients(""), p => Assert.Equal("", p.Phone));
+        var sent = JsonDocument.Parse(_store.GetVisit(one.VisitId)!.PayloadJson).RootElement.GetProperty("patient").GetProperty("new");
+        Assert.Equal(("", true), (sent.GetProperty("phone").GetString(), sent.GetProperty("no_phone").GetBoolean()));
+        Assert.Equal(0, sent.GetProperty("phone_variants").GetArrayLength());
+    }
+
+    [Fact]
+    public void WithoutTheNoPhoneOptionAPhoneIsStillNeededAndMustBeValid() =>
+        Assert.Contains("No phone number", Assert.Throws<ArgumentException>(() => _visits.Register(Input(new NewPatient("A", "123")))).Message);
 
     [Fact]
     public void ASyncedPatientTravelsAsJustItsId()

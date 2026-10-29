@@ -32,7 +32,10 @@
               <TextBlock Text="Full name" Classes="muted" VerticalAlignment="Center" />
               <TextBox x:Name="NewName" Grid.Column="1" />
               <TextBlock Text="Phone" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
-              <TextBox x:Name="NewPhone" Grid.Row="1" Grid.Column="1" PlaceholderText="10-digit mobile number" />
+              <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                <TextBox x:Name="NewPhone" PlaceholderText="10-digit mobile number" />
+                <CheckBox x:Name="NoPhoneBox" Content="No phone number" IsCheckedChanged="OnNoPhoneChanged" />
+              </StackPanel>
               <TextBlock Text="Gender" Classes="muted" Grid.Row="2" VerticalAlignment="Center" />
               <ComboBox x:Name="NewGender" Grid.Row="2" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch">
                 <ComboBoxItem>male</ComboBoxItem>

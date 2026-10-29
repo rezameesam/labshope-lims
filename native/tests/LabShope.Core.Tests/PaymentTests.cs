@@ -22,9 +22,12 @@ public class PaymentTests : IDisposable
         _payments = new PaymentService(_store, Org, () => new DateTimeOffset(2026, 10, 29, 4, 5, 0, TimeSpan.Zero));
     }
 
+    private int _next;
+
+    // Each call is a different person with their own number (the same number would raise the duplicate-phone choice).
     private RegisteredVisit Visit(InitialPayment? pay = null) => _visits.Register(new RegisterVisitInput(
         Org, "lab-1", "2026-10-29", [new VisitTest("CBC", 300), new VisitTest("LFT", 450)],
-        NewPatient: new NewPatient("Asha Rao", "9876543210"), Payment: pay));
+        NewPatient: new NewPatient("Asha Rao", $"98765{++_next:00000}"), Payment: pay));
 
     private static SupabaseApi Api(HttpMessageHandler h) =>
         new(new HttpClient(h), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };

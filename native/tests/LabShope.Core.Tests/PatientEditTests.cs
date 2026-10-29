@@ -43,9 +43,19 @@ public class PatientEditTests : IDisposable
         Assert.Throws<ArgumentException>(() => _patients.Edit("p1", new PatientEdit("  ", "9876543210", null, null)));
         Assert.Throws<ArgumentException>(() => _patients.Edit("p1", new PatientEdit("A", "123", null, null)));
         Assert.Throws<ArgumentException>(() => _patients.Edit("p1", new PatientEdit("A", "9876543210", null, "not-a-date")));
-        Assert.Contains("Ravi Kumar", Assert.Throws<ArgumentException>(() => _patients.Edit("p1", new PatientEdit("Asha", "88888 88888", null, null))).Message);
         Assert.Throws<ArgumentException>(() => _patients.Edit("nope", new PatientEdit("A", "9876543210", null, null)));
         Assert.Equal((0, 0), _store.OutboxCounts());
+    }
+
+    [Fact]
+    public void ThePhoneIsOptionalAndANumberMayBeSharedByFamilyMembers()
+    {
+        var shared = _patients.Edit("p1", new PatientEdit("Asha Rao", "88888 88888", "female", "1990-05-01")); // Ravi's number
+        Assert.Equal("+918888888888", shared.Phone);
+
+        var none = _patients.Edit("p1", new PatientEdit("Asha Rao", "  ", "female", "1990-05-01"));
+        Assert.Equal("", none.Phone);
+        Assert.Equal(2, _store.OutboxCounts().Pending);
     }
 
     [Fact]
@@ -107,6 +117,7 @@ public class PatientEditTests : IDisposable
         var sent = JsonDocument.Parse(_store.GetVisit(visit.VisitId)!.PayloadJson).RootElement.GetProperty("patient").GetProperty("new");
         Assert.Equal(("Asha Rao", "+919876500002"), (sent.GetProperty("full_name").GetString(), sent.GetProperty("phone").GetString()));
         Assert.Contains("+919876500002", sent.GetProperty("phone_variants").EnumerateArray().Select(v => v.GetString()));
+        Assert.True(sent.GetProperty("allow_duplicate_phone").GetBoolean()); // a deliberate edit must not be merged away by the server
         Assert.Equal((1, 0), _store.OutboxCounts()); // still just the visit: no separate edit for a row that doesn't exist yet
     }
 

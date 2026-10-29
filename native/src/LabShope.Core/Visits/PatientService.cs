@@ -25,14 +25,11 @@ public sealed class PatientService
         var patient = _store.GetPatient(patientId) ?? throw new ArgumentException("That patient isn't on this computer.");
         var name = edit.FullName.Trim();
         if (name.Length == 0) throw new ArgumentException("Enter the patient's name.");
-        var phone = PhoneNumbers.Normalize(edit.Phone) ?? throw new ArgumentException("Enter a valid phone number.");
+        // The phone is optional (some patients have none), and a number may be shared by family members.
+        var phone = string.IsNullOrWhiteSpace(edit.Phone) ? "" : PhoneNumbers.Normalize(edit.Phone) ?? throw new ArgumentException("Enter a valid phone number, or leave it empty.");
         var dob = string.IsNullOrWhiteSpace(edit.DateOfBirth) ? null : edit.DateOfBirth.Trim();
         if (dob is not null && !DateOnly.TryParse(dob, out _)) throw new ArgumentException("Enter the date of birth as yyyy-mm-dd.");
         var gender = string.IsNullOrWhiteSpace(edit.Gender) ? null : edit.Gender.Trim();
-
-        var other = _store.FindPatientByPhone(PhoneNumbers.LookupVariants(phone));
-        if (other is not null && other.Id != patientId)
-            throw new ArgumentException($"{other.FullName} ({other.PatientCode}) already has that phone number.");
 
         var changed = patient with { FullName = name, Phone = phone, Gender = gender, DateOfBirth = dob };
         if (changed == patient) return patient;
@@ -44,7 +41,7 @@ public sealed class PatientService
             _store.InTransaction(() =>
             {
                 _store.UpsertPatient(changed);
-                _store.UpdateWaitingVisitPatient(patientId, name, phone, gender, dob, PhoneNumbers.LookupVariants(phone));
+                _store.UpdateWaitingVisitPatient(patientId, name, phone, gender, dob, phone.Length == 0 ? [] : PhoneNumbers.LookupVariants(phone));
             });
             return changed;
         }

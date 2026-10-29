@@ -77,6 +77,84 @@ public class RegisterVisitViewTests : IDisposable
         Assert.Equal("Total 0", Find<TextBlock>(view, "TotalText").Text); // form cleared for the next patient
     }
 
+    private (Window Window, RegisterVisitView View) NewPatientForm(string name, string phone)
+    {
+        var (window, view) = Show();
+        Find<Button>(view, "NewButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Type(Find<TextBox>(view, "NewName"), name);
+        Type(Find<TextBox>(view, "NewPhone"), phone);
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter);
+        Type(Find<TextBox>(view, "PayAmount"), "0");
+        return (window, view);
+    }
+
+    private static void ClickSave(RegisterVisitView view) =>
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+    [AvaloniaFact]
+    public void APatientWithNoPhoneNumberCanBeRegisteredWithTheNoPhoneOption()
+    {
+        var (_, view) = NewPatientForm("Old Mr Das", "");
+        var tick = Find<CheckBox>(view, "NoPhoneBox");
+        tick.IsChecked = true;
+        Assert.False(Find<TextBox>(view, "NewPhone").IsEnabled); // the box is switched off while ticked
+
+        ClickSave(view);
+
+        var patient = _store.SearchPatients("das").Single();
+        Assert.Equal("", patient.Phone);
+        var sent = JsonDocument.Parse(_store.NextPendingVisit()!.PayloadJson).RootElement.GetProperty("patient").GetProperty("new");
+        Assert.True(sent.GetProperty("no_phone").GetBoolean());
+        Assert.False(tick.IsChecked); // cleared for the next patient
+    }
+
+    [AvaloniaFact]
+    public void WithoutThatOptionAMissingPhoneIsExplained()
+    {
+        var (_, view) = NewPatientForm("Someone", "");
+        ClickSave(view);
+        Assert.Contains("No phone number", Find<TextBlock>(view, "ResultText").Text);
+        Assert.Null(_store.NextPendingVisit());
+    }
+
+    [AvaloniaFact]
+    public async Task ASharedPhoneNumberAsksAndTheCashierMayContinueWithANewPatient()
+    {
+        var (_, view) = NewPatientForm("Baby Rao", "98765 43210"); // Asha Rao's number
+        IReadOnlyList<Patient>? offered = null;
+        view.DuplicateChooser = (matches, phone) => { offered = matches; return Task.FromResult(new DuplicateChoice(DuplicateChoiceKind.CreateNew)); };
+
+        ClickSave(view);
+        await Task.Yield();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["Asha Rao"], offered!.Select(p => p.FullName));
+        Assert.Equal(2, _store.PatientCount());
+        var sent = JsonDocument.Parse(_store.NextPendingVisit()!.PayloadJson).RootElement.GetProperty("patient").GetProperty("new");
+        Assert.True(sent.GetProperty("allow_duplicate_phone").GetBoolean());
+    }
+
+    [AvaloniaFact]
+    public async Task OrTheCashierPicksTheExistingPatientOrCancels()
+    {
+        var (_, view) = NewPatientForm("Asha again", "98765 43210");
+        view.DuplicateChooser = (matches, _) => Task.FromResult(new DuplicateChoice(DuplicateChoiceKind.UseExisting, matches[0]));
+        ClickSave(view);
+        await Task.Yield();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, _store.PatientCount()); // no new patient
+        Assert.Equal("p1", JsonDocument.Parse(_store.NextPendingVisit()!.PayloadJson).RootElement.GetProperty("patient").GetProperty("id").GetString());
+
+        var (_, second) = NewPatientForm("Cancelled", "98765 43210");
+        second.DuplicateChooser = (_, _) => Task.FromResult(new DuplicateChoice(DuplicateChoiceKind.Cancel));
+        ClickSave(second);
+        await Task.Yield();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Contains("already registered", Find<TextBlock>(second, "ResultText").Text);
+        Assert.Equal(1, _store.OutboxCounts().Pending);
+    }
+
     [AvaloniaFact]
     public void PayingNowFollowsTheTotalAndSavesAReceipt()
     {
@@ -417,10 +495,10 @@ public class PatientScreenTests : IDisposable
         var dialog = new PatientDialog(service, _store.GetPatient("p1")!);
         dialog.Show(); _windows.Add(dialog);
 
-        Find<TextBox>(dialog, "PhoneBox").Text = "88888 88888"; // Ravi's number
+        Find<TextBox>(dialog, "PhoneBox").Text = "123"; // not a usable number
         var save = dialog.GetVisualDescendants().OfType<Button>().Single(b => (b.Content as string) == "Save");
         save.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        Assert.Contains("Ravi Kumar", Find<TextBlock>(dialog, "ErrorText").Text);
+        Assert.Contains("valid phone", Find<TextBlock>(dialog, "ErrorText").Text);
         Assert.Null(dialog.Result);
 
         Find<TextBox>(dialog, "PhoneBox").Text = "98765 43299";

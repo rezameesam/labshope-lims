@@ -6,7 +6,7 @@
     <TextBlock x:Name="Heading" FontSize="16" FontWeight="SemiBold" />
     <TextBlock Text="Full name" />
     <TextBox x:Name="NameBox" />
-    <TextBlock Text="Phone" />
+    <TextBlock Text="Phone (optional)" />
     <TextBox x:Name="PhoneBox" />
     <TextBlock Text="Gender" />
     <ComboBox x:Name="GenderBox" HorizontalAlignment="Stretch">

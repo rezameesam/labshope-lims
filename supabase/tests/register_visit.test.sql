@@ -114,6 +114,32 @@ begin
     raise notice 'OK 6c client-chosen test ids';
   end;
 
+  -- 6d. no phone, and an explicit "same phone, new patient" (family members sharing a number)
+  declare vn1 uuid := gen_random_uuid(); vn2 uuid := gen_random_uuid(); vd uuid := gen_random_uuid(); rn jsonb; rd jsonb; cnt int;
+  begin
+    rn := public.register_visit(jsonb_build_object('visit_id', vn1, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','No Phone One','phone','','no_phone',true)),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rn->>'patient_created')::boolean, 'a patient without a phone is created';
+    rn := public.register_visit(jsonb_build_object('visit_id', vn2, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','No Phone Two','phone','','no_phone',true)),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rn->>'patient_created')::boolean and not (rn->>'patient_matched')::boolean, 'empty phones never match each other';
+    select count(*) into cnt from patients where organization_id = org and phone = '' and full_name like 'No Phone%'; assert cnt = 2, 'two patients without phones';
+    begin
+      perform public.register_visit(jsonb_build_object('visit_id', gen_random_uuid(), 'organization_id', org, 'lab_id', lab,
+        'patient', jsonb_build_object('new', jsonb_build_object('full_name','X','phone','')), 'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',1))));
+      raise exception 'empty phone was accepted without the flag';
+    exception when sqlstate '22023' then null; end;
+    rd := public.register_visit(jsonb_build_object('visit_id', vd, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Family Member','phone','+919876543210','allow_duplicate_phone',true,'phone_variants',jsonb_build_array('+919876543210','9876543210'))),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rd->>'patient_created')::boolean and not (rd->>'patient_matched')::boolean, 'override creates a new patient';
+    assert rd->>'patient_uuid' <> r->>'patient_uuid', 'a different patient from the existing one';
+    select count(*) into cnt from patients where organization_id = org and phone = '+919876543210'; assert cnt = 2, 'two patients now share the phone';
+    raise notice 'OK 6d no phone and shared phone';
+  end;
+
   -- 7. atomic: a failure after the patient insert leaves nothing behind
   begin
     perform public.register_visit(jsonb_build_object('visit_id', gen_random_uuid(), 'organization_id', org, 'lab_id', lab,

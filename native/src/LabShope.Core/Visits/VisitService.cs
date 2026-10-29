@@ -6,7 +6,19 @@ namespace LabShope.Core.Visits;
 
 public sealed record VisitTest(string TestName, decimal Price, bool InPackage = false);
 public sealed record PackageRef(string Id, string Name, decimal Price);
-public sealed record NewPatient(string FullName, string Phone, string? Gender = null, string? DateOfBirth = null);
+/// <param name="NoPhone">The patient has no phone number (the visit is registered without one).</param>
+/// <param name="AllowDuplicatePhone">Create a new patient even though the phone is already registered (family members often share one).</param>
+public sealed record NewPatient(string FullName, string Phone, string? Gender = null, string? DateOfBirth = null, bool NoPhone = false, bool AllowDuplicatePhone = false);
+
+/// <summary>
+/// The phone number is already registered with someone. The person registering decides: use that patient, or continue with a
+/// new patient anyway (the same choice the website's "phone number already registered" warning gives).
+/// </summary>
+public sealed class DuplicatePhoneException(IReadOnlyList<Patient> matches, string phone) : Exception($"The phone number {phone} is already registered with {matches.Count} patient(s).")
+{
+    public IReadOnlyList<Patient> Matches { get; } = matches;
+    public string Phone { get; } = phone;
+}
 
 public sealed record RegisterVisitInput(
     string OrganizationId,
@@ -69,25 +81,19 @@ public sealed class VisitService
         else
         {
             var fresh = input.NewPatient!;
-            var phone = PhoneNumbers.Normalize(fresh.Phone) ?? throw new ArgumentException("Enter a valid phone number.", nameof(input));
-            var variants = PhoneNumbers.LookupVariants(phone);
-            var match = _store.FindPatientByPhone(variants);
+            // Not everyone has a phone. Without one the patient is never matched on phone.
+            var phone = fresh.NoPhone ? "" : PhoneNumbers.Normalize(fresh.Phone) ?? throw new ArgumentException("Enter a valid phone number, or tick \"No phone number\".", nameof(input));
+            var variants = phone.Length == 0 ? [] : PhoneNumbers.LookupVariants(phone);
 
-            if (match is not null)
-            {
-                reused = true;
-                patientName = match.FullName;
-                patient = PatientRef(match);
-            }
-            else
-            {
-                var id = Guid.NewGuid().ToString();
-                var code = $"PAT{_now():yy}{_randomDigits()}";
-                var name = fresh.FullName.Trim();
-                patientName = name;
-                _store.UpsertPatient(new Patient(id, code, name, phone, fresh.Gender, fresh.DateOfBirth, Pending: true));
-                patient = NewPatientNode(id, code, name, phone, fresh.Gender, fresh.DateOfBirth, variants);
-            }
+            if (phone.Length > 0 && !fresh.AllowDuplicatePhone && _store.FindPatientsByPhone(variants) is { Count: > 0 } matches)
+                throw new DuplicatePhoneException(matches, phone);
+
+            var id = Guid.NewGuid().ToString();
+            var code = $"PAT{_now():yy}{_randomDigits()}";
+            var name = fresh.FullName.Trim();
+            patientName = name;
+            _store.UpsertPatient(new Patient(id, code, name, phone, fresh.Gender, fresh.DateOfBirth, Pending: true));
+            patient = NewPatientNode(id, code, name, phone, fresh.Gender, fresh.DateOfBirth, variants, noPhone: phone.Length == 0, allowDuplicate: fresh.AllowDuplicatePhone);
         }
 
         var visitId = Guid.NewGuid().ToString();
@@ -136,14 +142,16 @@ public sealed class VisitService
         ? NewPatientNode(p.Id, p.PatientCode, p.FullName, p.Phone, p.Gender, p.DateOfBirth, [p.Phone])
         : new JsonObject { ["id"] = p.Id };
 
-    private static JsonNode NewPatientNode(string id, string code, string name, string phone, string? gender, string? dob, IReadOnlyList<string> variants) =>
-        new JsonObject
+    private static JsonNode NewPatientNode(string id, string code, string name, string phone, string? gender, string? dob, IReadOnlyList<string> variants, bool noPhone = false, bool allowDuplicate = false)
+    {
+        var node = new JsonObject
         {
-            ["new"] = new JsonObject
-            {
-                ["id"] = id, ["patient_code"] = code, ["full_name"] = name, ["phone"] = phone,
-                ["gender"] = gender, ["date_of_birth"] = dob,
-                ["phone_variants"] = new JsonArray(variants.Select(v => (JsonNode)JsonValue.Create(v)!).ToArray()),
-            },
+            ["id"] = id, ["patient_code"] = code, ["full_name"] = name, ["phone"] = phone,
+            ["gender"] = gender, ["date_of_birth"] = dob,
+            ["phone_variants"] = new JsonArray(variants.Select(v => (JsonNode)JsonValue.Create(v)!).ToArray()),
         };
+        if (noPhone) node["no_phone"] = true;
+        if (allowDuplicate) node["allow_duplicate_phone"] = true;
+        return new JsonObject { ["new"] = node };
+    }
 }

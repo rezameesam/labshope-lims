@@ -26,6 +26,10 @@ public partial class RegisterVisitView : UserControl
     private List<CatalogTest> _matches = [];
     private bool _payEdited;
     private bool _existingMode = true;
+    private bool _allowDuplicatePhone;
+
+    /// <summary>Asks what to do when the phone number is shared. Tests replace this so no window has to open.</summary>
+    public Func<IReadOnlyList<Patient>, string, Task<DuplicateChoice>>? DuplicateChooser { get; set; }
     private Receipt? _lastReceipt;
     private string? _lastVisitId;
     private string? _bookingId;
@@ -94,6 +98,7 @@ public partial class RegisterVisitView : UserControl
             UpdateMode();
             NewName.Text = booking.FullName;
             NewPhone.Text = booking.Phone;
+            NoPhoneBox.IsChecked = string.IsNullOrWhiteSpace(booking.Phone);
         }
 
         // The request's test list is free text ("CBC, Vitamin D"): add whichever names match the catalog exactly.
@@ -109,6 +114,13 @@ public partial class RegisterVisitView : UserControl
     }
 
     public void FocusFirstField() => (_existingMode ? PatientSearch : NewName).Focus();
+
+    private void OnNoPhoneChanged(object? sender, RoutedEventArgs e)
+    {
+        var none = NoPhoneBox.IsChecked == true;
+        NewPhone.IsEnabled = !none;
+        if (none) NewPhone.Text = "";
+    }
 
     private void OnExistingMode(object? sender, RoutedEventArgs e) { _existingMode = true; UpdateMode(); }
     private void OnNewMode(object? sender, RoutedEventArgs e) { _existingMode = false; UpdateMode(); NewName.Focus(); }
@@ -200,7 +212,7 @@ public partial class RegisterVisitView : UserControl
         if (!_payEdited) PayAmount.Text = total.ToString("0.##");
     }
 
-    private void OnSave(object? sender, RoutedEventArgs e)
+    private async void OnSave(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -219,7 +231,8 @@ public partial class RegisterVisitView : UserControl
                 _session.Workspace.OrganizationId, _session.Workspace.LabId, DateTime.Now.ToString("yyyy-MM-dd"), Tests(),
                 ExistingPatient: existing ? _picked : null,
                 NewPatient: existing ? null : new NewPatient(NewName.Text!, NewPhone.Text ?? "", (NewGender.SelectedItem as ComboBoxItem)?.Content?.ToString(),
-                    string.IsNullOrWhiteSpace(NewDob.Text) ? null : NewDob.Text!.Trim()),
+                    string.IsNullOrWhiteSpace(NewDob.Text) ? null : NewDob.Text!.Trim(),
+                    NoPhone: NoPhoneBox.IsChecked == true, AllowDuplicatePhone: _allowDuplicatePhone),
                 CollectionCenterId: center?.Id,
                 Notes: string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text!.Trim(),
                 Package: PackageRef(),
@@ -243,10 +256,26 @@ public partial class RegisterVisitView : UserControl
             }
             Registered?.Invoke();
         }
+        catch (DuplicatePhoneException duplicate)
+        {
+            // The same question the website asks: use that patient, or carry on with a new one.
+            var choose = DuplicateChooser ?? ShowDuplicateDialogAsync;
+            var choice = await choose(duplicate.Matches, duplicate.Phone);
+            if (choice.Kind == DuplicateChoiceKind.UseExisting && choice.Patient is not null) { UsePatient(choice.Patient); OnSave(null, null!); }
+            else if (choice.Kind == DuplicateChoiceKind.CreateNew) { _allowDuplicatePhone = true; OnSave(null, null!); }
+            else ResultText.Text = "Not saved: that phone number is already registered.";
+        }
         catch (ArgumentException ex)
         {
             ResultText.Text = ex.Message.Split('\n')[0].Replace(" (Parameter 'input')", "");
         }
+    }
+
+    private async Task<DuplicateChoice> ShowDuplicateDialogAsync(IReadOnlyList<Patient> matches, string phone)
+    {
+        var dialog = new DuplicatePhoneDialog(matches, phone);
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+        return dialog.Result;
     }
 
     private void OnClear(object? sender, RoutedEventArgs e) { Clear(); ResultText.Text = ""; ReceiptButton.IsVisible = false; LabelButton.IsVisible = false; }
@@ -265,7 +294,8 @@ public partial class RegisterVisitView : UserControl
 
     private void Clear()
     {
-        _picked = null; _package = null; _bookingId = null;
+        _picked = null; _package = null; _bookingId = null; _allowDuplicatePhone = false;
+        NoPhoneBox.IsChecked = false;
         PickedPatient.Text = ""; PickedChip.IsVisible = false; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
         NewName.Text = ""; NewPhone.Text = ""; NewDob.Text = ""; NotesBox.Text = "";
         _selected.Clear();
