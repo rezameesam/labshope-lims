@@ -1,3 +1,4 @@
+import { visibleInterval } from "@/lib/visibleInterval";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -101,20 +102,8 @@ export const usePlatformNotifications = () => {
   useEffect(() => {
     void fetchNotifications();
 
-    const channel = supabase
-      .channel("platform-notifications")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "platform_notifications" },
-        () => {
-          void fetchNotifications();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    // Polled while the page is visible (Realtime subscriptions keep the database busy even when idle).
+    return visibleInterval(() => void fetchNotifications(), 60_000);
   }, [fetchNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { useNotificationTrigger } from "@/hooks/useNotificationTrigger";
 import PlatformRoute from "@/components/platform/PlatformRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { visibleInterval } from "@/lib/visibleInterval";
 import { AttentionSection } from "@/components/platform/dashboard/AttentionSection";
 import { KpiStrip } from "@/components/platform/dashboard/KpiStrip";
 import { LatestLeads } from "@/components/platform/dashboard/LatestLeads";
@@ -52,50 +52,30 @@ const PlatformDashboard = () => {
   const leadsChartData = data?.leadsChartData ?? EMPTY_LIST;
   const planChartData = data?.planChartData ?? EMPTY_LIST;
 
-  useEffect(() => {
-    const channel = supabase
-      .channel("platform-dashboard")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "platform_demo_requests" },
-        (payload: { eventType: string; new: Record<string, unknown> }) => {
-          void queryClient.invalidateQueries({ queryKey: PLATFORM_DASHBOARD_QUERY_KEY });
-          if (payload.eventType === "INSERT") {
-            const row = payload.new;
-            void createNotification({
-              title: "New demo request",
-              description: `${String(row.full_name ?? "Someone")} from ${String(row.lab_name ?? "a lab")} submitted a demo request.`,
-              type: "lead",
-              link: "/platform/leads",
-            });
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "platform_onboarding_requests" },
-        (payload: { eventType: string; new: Record<string, unknown> }) => {
-          void queryClient.invalidateQueries({ queryKey: PLATFORM_DASHBOARD_QUERY_KEY });
-          if (payload.eventType === "INSERT") {
-            const row = payload.new;
-            void createNotification({
-              title: "New onboarding request",
-              description: `${String(row.organization_name ?? "An organization")} submitted an onboarding request.`,
-              type: "onboarding",
-              link: "/platform/onboarding",
-            });
-          }
-        },
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "organizations" }, () => {
-        void queryClient.invalidateQueries({ queryKey: PLATFORM_DASHBOARD_QUERY_KEY });
-      })
-      .subscribe();
+  // Refresh quietly while the page is open. (This used to hold Realtime subscriptions; Realtime polls the
+  // database around the clock for them, which was the biggest load on the project.)
+  useEffect(
+    () => visibleInterval(() => void queryClient.invalidateQueries({ queryKey: PLATFORM_DASHBOARD_QUERY_KEY }), 60_000),
+    [queryClient],
+  );
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [queryClient, createNotification]);
+  // Notify about leads / onboarding requests that appear between refreshes.
+  const seenRequests = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const items = [
+      ...recentLeads.map((l) => ({ key: `lead:${l.id}`, title: "New demo request", type: "lead" as const, link: "/platform/leads", description: `${l.full_name || "Someone"} from ${l.lab_name || "a lab"} submitted a demo request.` })),
+      ...recentOnboarding.map((r) => ({ key: `onboarding:${r.id}`, title: "New onboarding request", type: "onboarding" as const, link: "/platform/onboarding", description: `${r.organization_name || "An organization"} submitted an onboarding request.` })),
+    ];
+    if (seenRequests.current) {
+      for (const item of items) {
+        if (!seenRequests.current.has(item.key)) {
+          void createNotification({ title: item.title, description: item.description, type: item.type, link: item.link });
+        }
+      }
+    }
+    seenRequests.current = new Set(items.map((i) => i.key));
+  }, [data, recentLeads, recentOnboarding, createNotification]);
 
   const attentionItems = useMemo(
     () =>
