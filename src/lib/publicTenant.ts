@@ -12,6 +12,14 @@ export const getConfiguredBaseDomain = () =>
 export const getConfiguredPlatformHostname = () =>
   import.meta.env.VITE_PLATFORM_HOSTNAME?.trim().toLowerCase() || null;
 
+/**
+ * The host that serves the product marketing site (home, features, pricing, contact, demo request).
+ * Defaults to the base domain; set VITE_MARKETING_HOSTNAME when the base domain is used for
+ * something else (labshope.com is the company site, so the product site lives on healthcare.labshope.com).
+ */
+export const getConfiguredMarketingHostname = () =>
+  import.meta.env.VITE_MARKETING_HOSTNAME?.trim().toLowerCase() || getConfiguredBaseDomain();
+
 const matchesHostnameOrWwwAlias = (hostname: string | null, configuredHostname: string | null) => {
   if (!hostname || !configuredHostname) {
     return false;
@@ -58,6 +66,10 @@ export const isPlatformHostname = (hostname: string | null) => {
     return true;
   }
 
+  if (matchesHostnameOrWwwAlias(hostname, getConfiguredMarketingHostname())) {
+    return true;
+  }
+
   return getPublicSlugCandidate(hostname) === null;
 };
 
@@ -73,13 +85,13 @@ export const isDefinitelyPlatformHostname = (hostname: string | null) => {
   const platformHostname = getConfiguredPlatformHostname();
   if (matchesHostnameOrWwwAlias(hostname, platformHostname)) return true;
 
+  if (matchesHostnameOrWwwAlias(hostname, getConfiguredMarketingHostname())) return true;
+
   return false;
 };
 
-export const isMarketingHostname = (hostname: string | null) => {
-  const configuredBaseDomain = getConfiguredBaseDomain();
-  return matchesHostnameOrWwwAlias(hostname, configuredBaseDomain);
-};
+export const isMarketingHostname = (hostname: string | null) =>
+  matchesHostnameOrWwwAlias(hostname, getConfiguredMarketingHostname());
 
 export const isOperationsHostname = (hostname: string | null) => {
   const platformHostname = getConfiguredPlatformHostname();
@@ -109,6 +121,6 @@ const buildAbsoluteUrl = (hostname: string | null, path = "/") => {
   return `${protocol}//${hostname}${portPart}${normalizedPath}`;
 };
 
-export const buildMarketingUrl = (path = "/") => buildAbsoluteUrl(getConfiguredBaseDomain(), path);
+export const buildMarketingUrl = (path = "/") => buildAbsoluteUrl(getConfiguredMarketingHostname(), path);
 
 export const buildOperationsUrl = (path = "/") => buildAbsoluteUrl(getConfiguredPlatformHostname(), path);

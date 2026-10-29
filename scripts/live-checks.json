@@ -5,6 +5,9 @@
       "host": "lims.labshope.com"
     },
     {
+      "host": "healthcare.labshope.com"
+    },
+    {
       "host": "demo.labshope.com",
       "tenant": "demo"
     },

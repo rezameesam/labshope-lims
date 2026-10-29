@@ -15,6 +15,8 @@ interface PlatformAccessPageProps {
   secondaryCtaTo: string;
   helperTitle: string;
   helperBody: string;
+  /** Optional link shown under the helper text (e.g. to the product website). */
+  helperLink?: { href: string; label: string };
 }
 
 function getPortalPattern(): string {
@@ -45,6 +47,7 @@ const PlatformAccessPage = ({
   secondaryCtaTo,
   helperTitle,
   helperBody,
+  helperLink,
 }: PlatformAccessPageProps) => {
   const renderCta = (to: string, label: string, variant: "clinical" | "outline") => {
     const isExternal = /^https?:\/\//.test(to);
@@ -109,6 +112,14 @@ const PlatformAccessPage = ({
               <p className="mt-3 text-sm leading-7 text-foreground/70">
                 {helperBody}
               </p>
+              {helperLink && (
+                <a
+                  href={helperLink.href}
+                  className="mt-3 inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline"
+                >
+                  {helperLink.label}
+                </a>
+              )}
 
               <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-5">
                 <p className="text-sm font-medium text-foreground">Portal pattern</p>

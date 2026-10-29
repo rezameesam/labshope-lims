@@ -70,13 +70,14 @@ const Index = () => {
           <PlatformAccessPage
             eyebrow="LabShope LIMS Access"
             title="Operational access for staff, admins, and platform management."
-            description="Use this host for staff sign-in, platform administration, and tenant-specific lab operations. Product marketing, pricing, and demo requests live on labshope.com."
+            description="Use this host for staff sign-in, platform administration, and tenant-specific lab operations. Product information, pricing, and demo requests live on the product website."
             primaryCtaLabel="Staff Login"
             primaryCtaTo="/auth/staff"
             secondaryCtaLabel="Platform Admin"
             secondaryCtaTo="/platform/login"
-            helperTitle="Main website"
-            helperBody={`The public homepage, plan details, and lead capture flow are served from ${buildMarketingUrl("/")}.`}
+            helperTitle="Product website"
+            helperBody="The product homepage, features, pricing, and demo requests are on the LabShope Healthcare website."
+            helperLink={{ href: buildMarketingUrl("/"), label: "Visit the product website →" }}
           />
         </>
       );
