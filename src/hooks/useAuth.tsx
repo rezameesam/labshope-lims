@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { extractSessionIdFromAccessToken, getClientSessionMetadata } from "@/utils/sessionMetadata";
+import { visibleInterval } from "@/lib/visibleInterval";
 import { getPublicHostname, getPublicSlugCandidate, isDefinitelyPlatformHostname } from "@/lib/publicTenant";
 import { TIMED_OUT, clearCachedRoles, raceTimeout, readCachedRoles, readStoredSession, writeCachedRoles } from "@/lib/offline/authCache";
 
@@ -425,7 +426,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let trackingDisabled = false;
     let isMounted = true;
     const lastTrackedAt = { current: 0 };
-    const MIN_INTERVAL = 60000; // 1 minute throttle for manual triggers
+    const MIN_INTERVAL = 120000; // 2 minute throttle for manual triggers
 
     const trackSession = async (force = false) => {
       if (!isMounted || trackingDisabled) {
@@ -470,9 +471,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Initial track on mount/session change
     void trackSession(true);
 
-    const intervalId = window.setInterval(() => {
-      void trackSession();
-    }, 120000); // Check every 2 minutes
+    const stopInterval = visibleInterval(() => void trackSession(), 180000); // Every 3 minutes, only while the page is visible
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -489,7 +488,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       isMounted = false;
-      window.clearInterval(intervalId);
+      stopInterval();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleWindowFocus);
     };

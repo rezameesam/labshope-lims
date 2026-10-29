@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { visibleInterval } from "@/lib/visibleInterval";
 import { getLabDb, type LabDB } from "@/lib/offline/db";
 import { flushOutbox } from "@/lib/offline/outbox";
 import { editPatient as queuePatientEdit, flushEdits } from "@/lib/offline/edits";
@@ -127,13 +128,13 @@ export const OfflineProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => void syncNow(), PULL_INTERVAL_MS);
+    const stopTimer = visibleInterval(() => void syncNow(), PULL_INTERVAL_MS);
 
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisible);
-      window.clearInterval(timer);
+      stopTimer();
     };
   }, [db, syncNow]);
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { visibleInterval } from "@/lib/visibleInterval";
 import { supabase } from "@/integrations/supabase/client";
 
 export type AdminSidebarCounts = {
@@ -113,13 +114,7 @@ export const useAdminSidebarCounts = ({
 
     void fetchSidebarCounts();
 
-    const intervalId = window.setInterval(() => {
-      void fetchSidebarCounts();
-    }, 60000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
+    return visibleInterval(() => void fetchSidebarCounts(), 120_000);
   }, [enabled, fetchSidebarCounts, organizationId]);
 
   return {

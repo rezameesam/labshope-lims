@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { visibleInterval } from "@/lib/visibleInterval";
 import { Session } from "@supabase/supabase-js";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -264,9 +265,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
     void trackSession(true);
 
-    const intervalId = window.setInterval(() => {
-      void trackSession();
-    }, 120000);
+    const stopInterval = visibleInterval(() => void trackSession(), 180000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -283,7 +282,7 @@ export const PatientAuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       isMounted = false;
-      window.clearInterval(intervalId);
+      stopInterval();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleWindowFocus);
     };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { visibleInterval } from "@/lib/visibleInterval";
 import {
   AlertCircle,
   CheckCircle2,
@@ -292,10 +293,7 @@ const NoticeBoard = ({ onNavigate, onStatsChange }: NoticeBoardProps) => {
     }
 
     void fetchNotices();
-    const interval = setInterval(() => {
-      void fetchNotices();
-    }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return visibleInterval(() => void fetchNotices(), 5 * 60 * 1000);
   }, [fetchNotices, organizationLoading]);
 
   const getPriorityBadge = (priority: string) => {

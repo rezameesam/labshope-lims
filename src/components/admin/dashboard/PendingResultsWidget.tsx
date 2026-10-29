@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { visibleInterval } from "@/lib/visibleInterval";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useLab } from "@/contexts/LabContext";
@@ -75,6 +76,7 @@ const PendingResultsWidget = ({ onNavigate }: PendingResultsWidgetProps) => {
 
   const [pendingTests, setPendingTests] = useState<PendingTest[]>([]);
   const [testCatalog, setTestCatalog] = useState<CatalogTest[]>([]);
+  const catalogLoaded = useRef<string | null>(null); // organization the catalog was loaded for
   const [loading, setLoading] = useState(true);
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null);
 
@@ -110,18 +112,24 @@ const PendingResultsWidget = ({ onNavigate }: PendingResultsWidgetProps) => {
         query = query.eq("collected_by", user.id);
       }
 
+      // The catalog barely changes, so it is loaded once, not on every refresh.
       const [testsRes, catalogRes] = await Promise.all([
         query,
-        (supabase as any)
-          .from("tests")
-          .select("id, name, unit, normal_range_text, normal_range_min, normal_range_max")
-          .eq("is_active", true)
-          .eq("organization_id", organizationId),
+        catalogLoaded.current === organizationId
+          ? Promise.resolve(null)
+          : (supabase as any)
+              .from("tests")
+              .select("id, name, unit, normal_range_text, normal_range_min, normal_range_max")
+              .eq("is_active", true)
+              .eq("organization_id", organizationId),
       ]);
 
       if (testsRes.error) throw testsRes.error;
       setPendingTests(testsRes.data || []);
-      setTestCatalog((catalogRes.data || []) as CatalogTest[]);
+      if (catalogRes && !catalogRes.error) {
+        catalogLoaded.current = organizationId;
+        setTestCatalog((catalogRes.data || []) as CatalogTest[]);
+      }
     } catch (error) {
       console.error("Error fetching pending tests:", error);
     } finally {
@@ -132,10 +140,8 @@ const PendingResultsWidget = ({ onNavigate }: PendingResultsWidgetProps) => {
   useEffect(() => {
     void fetchPending();
 
-    // Refresh every 30s so newly added tests show up
-    const intervalId = window.setInterval(() => {
-      void fetchPending();
-    }, 30_000);
+    // Refresh every minute (only while visible) so newly added tests show up
+    const stopInterval = visibleInterval(() => void fetchPending(), 60_000);
 
     // Also refresh when tab becomes visible or when QuickRegisterForm submits
     const handleVisibility = () => {
@@ -147,7 +153,7 @@ const PendingResultsWidget = ({ onNavigate }: PendingResultsWidgetProps) => {
     window.addEventListener("quick-register-submitted", handleTestsAdded);
 
     return () => {
-      window.clearInterval(intervalId);
+      stopInterval();
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("quick-register-submitted", handleTestsAdded);
     };
