@@ -40,6 +40,21 @@ public sealed class SupabaseApi
         return true;
     }
 
+    /// <summary>Reads every row of a query by paging (the server returns at most a page at a time). Throws nothing; returns the failure instead.</summary>
+    public async Task<(List<JsonElement> Rows, ApiResult? Failure)> SelectAllAsync(string table, string query, int pageSize = 1000, int maxRows = 50_000, CancellationToken ct = default)
+    {
+        var rows = new List<JsonElement>();
+        for (var offset = 0; offset < maxRows; offset += pageSize)
+        {
+            var result = await SelectAsync(table, $"{query}&limit={pageSize}&offset={offset}", ct);
+            if (!result.Ok) return (rows, result);
+            var page = result.Body is { ValueKind: JsonValueKind.Array } arr ? arr.EnumerateArray().ToList() : [];
+            rows.AddRange(page);
+            if (page.Count < pageSize) break;
+        }
+        return (rows, null);
+    }
+
     /// <summary>Downloads a public file (such as the lab's logo). Returns null on any failure or when it is not an image or too large.</summary>
     public async Task<(byte[] Bytes, string ContentType)?> DownloadImageAsync(string url, int maxBytes = 600_000, CancellationToken ct = default)
     {

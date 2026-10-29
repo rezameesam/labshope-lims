@@ -98,6 +98,10 @@ insert into organizations (id, slug, display_name) values ('$ORG', 'it-org', 'IT
 insert into labs (id, lab_code, name, organization_id) values ('$LAB', 'ITL', 'IT Lab', '$ORG');
 insert into user_roles (user_id, role) values ('$USER_ID', 'admin') on conflict do nothing;
 insert into organization_users (organization_id, user_id, role) values ('$ORG', '$USER_ID', 'owner');
+insert into employees (email, employee_id, full_name, user_id, organization_id, lab_id, is_active) values ('$EMAIL', 'E-IT', 'IT Admin', '$USER_ID', '$ORG', '$LAB', true);
+-- the standard chart of accounts the finance triggers post to
+insert into accounts (organization_id, code, name, type) values
+  ('$ORG', '1001', 'Cash', 'asset'), ('$ORG', '1003', 'Accounts Receivable', 'asset'), ('$ORG', '4001', 'Test Revenue', 'revenue');
 insert into test_categories (id, name, organization_id) values ('99999999-0000-0000-0000-0000000000c1', 'Blood', '$ORG');
 insert into tests (name, price, category_id, organization_id, is_active, test_id) values
   ('CBC', 300, '99999999-0000-0000-0000-0000000000c1', '$ORG', true, 'CBC'),

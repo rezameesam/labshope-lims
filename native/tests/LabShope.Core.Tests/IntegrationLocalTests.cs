@@ -3,6 +3,7 @@ using LabShope.Core.Data;
 using LabShope.Core.Net;
 using LabShope.Core.Sync;
 using LabShope.Core.Visits;
+using LabShope.Core;
 
 namespace LabShope.Core.Tests;
 
@@ -102,6 +103,14 @@ public class IntegrationLocalTests
         // The lab's branding comes from the same public lookup the website uses.
         Assert.True(await engine.PullBrandingAsync("it-org", "fallback", force: true));
         Assert.Equal("IT Org", store.GetBranding("fallback").Name);
+
+        // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
+        var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
+        Assert.Null(books.Error);
+        Assert.True(books.Data!.Tallied, $"books out of balance: {books.Data.TotalDebit} vs {books.Data.TotalCredit}");
+        Assert.True(books.Data.EntryCount >= 3, "bill and payments should have posted entries");
+        var cashAccount = books.Data.Accounts.Single(a => a.Code == "1001");
+        Assert.True(cashAccount.TotalDebit >= 750m, $"cash debited {cashAccount.TotalDebit}"); // this test's 300 + 450 payments (plus other tests')
 
         // The server refuses to be paid twice for the same thing: replaying the same payment changes nothing.
         var payment = store.PaymentsFor(visit.VisitId).First();

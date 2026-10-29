@@ -12,9 +12,11 @@ public sealed class AppSession : IDisposable
     public LocalStore Store { get; }
     public SyncRunner Sync { get; }
     public AccountService Account { get; }
+    public LabShope.Core.Net.SupabaseApi? Api { get; }
 
-    public AppSession(Workspace workspace, LocalStore store, SyncRunner sync, AccountService account)
+    public AppSession(Workspace workspace, LocalStore store, SyncRunner sync, AccountService account, LabShope.Core.Net.SupabaseApi? api = null)
     {
+        Api = api;
         Workspace = workspace;
         Store = store;
         Sync = sync;

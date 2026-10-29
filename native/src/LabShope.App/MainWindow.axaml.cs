@@ -74,6 +74,9 @@ public partial class MainWindow : Window
             new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
             new("reports", "Reports", MaterialIconKind.ChartBoxOutline, Key.F6, () => new ReportsView(session)),
         ];
+        // The books are for admins and staff, not collectors.
+        if (session.Workspace.Roles is null || session.Workspace.Roles.Any(r => r is "admin" or "employee"))
+            _nav.Add(new("finance", "Finance", MaterialIconKind.BankOutline, Key.None, () => new FinanceView(session)));
 
         foreach (var n in _nav)
         {
@@ -117,6 +120,7 @@ public partial class MainWindow : Window
         foreach (var (k, b) in _navButtons) b.Classes.Set("active", k == key);
         RefreshPage(page);
         (page as RegisterVisitView)?.FocusFirstField();
+        if (page is FinanceView finance) _ = finance.EnsureLoadedAsync();
     }
 
     private static void RefreshPage(Control page)
@@ -129,6 +133,7 @@ public partial class MainWindow : Window
             case ResultsView r: r.Refresh(); break;
             case CashBookView c: c.Refresh(); break;
             case ReportsView rv: rv.Refresh(); break;
+            case FinanceView: break; // the books are not on this PC; refreshed with its own button
             case RegisterVisitView v: v.ReloadCatalog(); break;
         }
     }
