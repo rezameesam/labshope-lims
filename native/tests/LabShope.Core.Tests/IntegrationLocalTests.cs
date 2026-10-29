@@ -147,6 +147,33 @@ public class IntegrationLocalTests
         Assert.Equal(("99999999-0000-0000-0000-0000000000e1", 180m), (lftRow.GetProperty("external_lab_id").GetString(), lftRow.GetProperty("outsource_cost").GetDecimal()));
         Assert.NotEqual(System.Text.Json.JsonValueKind.Null, lftRow.GetProperty("outsource_journal_entry_id").ValueKind); // the books were posted
 
+        // A discounted bill: what is owed is final_amount, so paying exactly that settles it on the server too.
+        var second = new VisitService(store).Register(new RegisterVisitInput(org, Env("LIMS_IT_LAB"), DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            [new VisitTest("CBC", 300), new VisitTest("LFT", 450)], NewPatient: new NewPatient("Discount Patient", $"9{Random.Shared.Next(100000000, 999999999)}")));
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+        var discounted = await api.PatchAsync("invoices", $"id=eq.{second.VisitId}&organization_id=eq.{org}", new { discount_amount = 100, final_amount = 650 });
+        Assert.True(discounted.Ok, discounted.ErrorMessage);
+        await engine.PullInvoicesAsync();
+        var owed = store.GetInvoice(second.VisitId)!;
+        Assert.Equal((650m, 100m), (owed.TotalAmount, owed.Discount));
+        new PaymentService(store, org).Record(new PaymentInput(second.VisitId, 650m, "cash"));
+        Assert.Equal(new FlushOutcome(1, 0, null), await engine.FlushOutboxAsync());
+        var settled = (await api.SelectAsync("invoices", $"select=payment_status,paid_amount,final_amount&id=eq.{second.VisitId}")).Body!.Value[0];
+        Assert.Equal(("paid", 650m), (settled.GetProperty("payment_status").GetString(), settled.GetProperty("paid_amount").GetDecimal()));
+
+        // Payments taken anywhere reach this PC: a fresh PC pulling from the real server sees them, with the payment of this test among them.
+        var freshPath = Path.Combine(Path.GetTempPath(), $"labshope-it2-{Guid.NewGuid():N}.db");
+        using (var fresh = new LocalStore(freshPath))
+        {
+            await new SyncEngine(fresh, api, org).PullPaymentsAsync();
+            var seen = fresh.PaymentsFor(visit.VisitId);
+            Assert.Equal(2, seen.Count); // the 300 and the 450 paid earlier in this test
+            Assert.Equal(750m, seen.Sum(p => p.Amount));
+            Assert.All(seen, p => Assert.True(p.Synced));
+        }
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(freshPath);
+
         // The books: everything above (bills and payments) was posted automatically, and the Finance screen sees it balanced.
         var books = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
         Assert.Null(books.Error);

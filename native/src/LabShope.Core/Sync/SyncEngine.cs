@@ -37,19 +37,19 @@ public sealed class SyncEngine
         return raw is null ? null : JsonSerializer.Deserialize<Cursor>(raw);
     }
 
-    private static string AfterCursor(Cursor c) =>
-        $"({"updated_at.gt." + c.UpdatedAt},and(updated_at.eq.{c.UpdatedAt},id.gt.{c.Id}))";
+    private static string AfterCursor(Cursor c, string stamp) =>
+        $"({stamp}.gt.{c.UpdatedAt},and({stamp}.eq.{c.UpdatedAt},id.gt.{c.Id}))";
 
     /// <summary>Pages through rows changed since the saved cursor. Returns how many rows were applied.</summary>
-    private async Task<int> PullAsync(string table, string columns, string cursorKey, Action<JsonElement> apply, string? firstRunFilter, CancellationToken ct)
+    private async Task<int> PullAsync(string table, string columns, string cursorKey, Action<JsonElement> apply, string? firstRunFilter, CancellationToken ct, string stamp = "updated_at")
     {
         var cursor = LoadCursor(cursorKey);
         var applied = 0;
 
         for (;;)
         {
-            var query = $"select={columns}&organization_id=eq.{_organizationId}&order=updated_at.asc,id.asc&limit={PageSize}";
-            query += cursor is not null ? "&or=" + Uri.EscapeDataString(AfterCursor(cursor)) : firstRunFilter is not null ? "&" + firstRunFilter : "";
+            var query = $"select={columns}&organization_id=eq.{_organizationId}&order={stamp}.asc,id.asc&limit={PageSize}";
+            query += cursor is not null ? "&or=" + Uri.EscapeDataString(AfterCursor(cursor, stamp)) : firstRunFilter is not null ? "&" + firstRunFilter : "";
 
             var result = await _api.SelectAsync(table, query, ct);
             if (!result.Ok) throw new SyncException(result);
@@ -59,7 +59,7 @@ public sealed class SyncEngine
 
             _store.InTransaction(() => { foreach (var row in rows) apply(row); });
             var last = rows[^1];
-            cursor = new Cursor(last.GetProperty("updated_at").GetString()!, last.GetProperty("id").GetString()!);
+            cursor = new Cursor(last.GetProperty(stamp).GetString()!, last.GetProperty("id").GetString()!);
             _store.SetMeta(cursorKey, JsonSerializer.Serialize(cursor));
             applied += rows.Count;
 
@@ -78,6 +78,26 @@ public sealed class SyncEngine
                 row.GetProperty("full_name").GetString()!, row.GetProperty("phone").GetString() ?? "",
                 Opt(row, "gender"), Opt(row, "date_of_birth")));
         }, null, ct);
+
+    private const int PaymentHistoryDays = 90;
+
+    /// <summary>
+    /// Pulls payments taken anywhere (the website, other computers), so the cash book, reports and home screen show the whole lab's takings,
+    /// not only this PC's. The last 90 days on first run, then only new ones. Payments made on this PC already exist and are left as they are.
+    /// </summary>
+    public Task<int> PullPaymentsAsync(CancellationToken ct = default)
+    {
+        var floor = DateTimeOffset.UtcNow.AddDays(-PaymentHistoryDays).ToString("yyyy-MM-dd");
+        return PullAsync("payments", "id,invoice_id,amount,payment_method,transaction_id,notes,payment_date,created_at", "payments_cursor", row =>
+        {
+            _store.AddPayment(new LocalPayment(
+                row.GetProperty("id").GetString()!, row.GetProperty("invoice_id").GetString()!, Num(row, "amount"), Opt(row, "payment_method") ?? "cash",
+                Opt(row, "transaction_id"), Opt(row, "notes"),
+                // One fixed UTC form, so a day can be compared as text (the server sends it with an offset).
+                DateTimeOffset.TryParse(Opt(row, "payment_date"), out var when) ? when.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") : Opt(row, "created_at") ?? "",
+                Synced: true));
+        }, "payment_date=gte." + floor, ct, stamp: "created_at");
+    }
 
     private const int BookingHistoryDays = 90;
 
@@ -115,13 +135,16 @@ public sealed class SyncEngine
     public Task<int> PullInvoicesAsync(CancellationToken ct = default)
     {
         var floor = DateTimeOffset.UtcNow.AddDays(-InvoiceHistoryDays).ToString("O");
-        return PullAsync("invoices", "id,invoice_number,patient_id,total_amount,paid_amount,payment_status,created_at,updated_at", "invoices_cursor", row =>
+        return PullAsync("invoices", "id,invoice_number,patient_id,total_amount,final_amount,discount_amount,paid_amount,payment_status,created_at,updated_at", "invoices_cursor", row =>
         {
             var id = row.GetProperty("id").GetString()!;
+            // What the patient has to pay is final_amount (after any discount); fall back to total_amount if the server didn't send it.
+            var payable = NumOrNull(row, "final_amount") ?? Num(row, "total_amount");
             _store.UpsertInvoice(new Invoice(
                 id, row.GetProperty("invoice_number").GetString()!,
-                row.GetProperty("patient_id").GetString()!, Num(row, "total_amount"), Num(row, "paid_amount"),
-                Opt(row, "payment_status"), DateTimeOffset.Parse(row.GetProperty("created_at").GetString()!).ToString("O")));
+                row.GetProperty("patient_id").GetString()!, payable, Num(row, "paid_amount"),
+                Opt(row, "payment_status"), DateTimeOffset.Parse(row.GetProperty("created_at").GetString()!).ToString("O"),
+                Discount: Num(row, "discount_amount")));
             // Money taken on this PC that the server hasn't confirmed yet still counts.
             var waiting = _store.UnsyncedPaymentTotal(id);
             if (waiting > 0) _store.SetInvoicePaid(id, Num(row, "paid_amount") + waiting);

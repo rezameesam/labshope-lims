@@ -220,3 +220,136 @@ public class ReceiptHtmlTests
         Assert.Contains("Provisional receipt", html);
     }
 }
+
+public class DiscountTests : IDisposable
+{
+    private const string Org = "org-1";
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    public DiscountTests()
+    {
+        _store = new LocalStore(_path);
+        _store.UpsertPatient(new Patient("p1", "IRM-0001", "Asha Rao", "+919876543210", null, null));
+    }
+
+    private static SupabaseApi Api(HttpMessageHandler h) =>
+        new(new HttpClient(h), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };
+
+    // A bill made on the website: price 1000, 200 discount, so 800 is payable.
+    private const string Row = """[{"id":"i1","invoice_number":"INV2600001","patient_id":"p1","total_amount":1000,"final_amount":800,"discount_amount":200,"paid_amount":0,"payment_status":"pending","created_at":"2026-10-29T04:00:00+00:00","updated_at":"2026-10-29T04:00:00+00:00"}]""";
+
+    private async Task PullDiscounted() =>
+        await new SyncEngine(_store, Api(new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, Row) }), Org).PullInvoicesAsync();
+
+    [Fact]
+    public async Task ADiscountedBillIsOwedAtItsFinalAmountNotItsFullPrice()
+    {
+        await PullDiscounted();
+
+        var bill = _store.SearchBills("").Single();
+        Assert.Equal((800m, 200m, 800m), (bill.TotalAmount, bill.Discount, bill.Balance)); // not 1000
+        Assert.Equal(800m, _store.GetDashboard("2026-10-29T00:00:00.000Z", "2026-10-30T00:00:00.000Z").UnpaidBalance);
+        Assert.Equal(800m, _store.GetReport("2026-10-29", "2026-10-29", 0).Billed); // reports count what was billed, after the discount
+    }
+
+    [Fact]
+    public async Task PayingTheFinalAmountSettlesTheBillAndMoreThanThatIsRefused()
+    {
+        await PullDiscounted();
+        var payments = new PaymentService(_store, Org);
+
+        Assert.Contains("more than the balance due (800)", Assert.Throws<ArgumentException>(() => payments.Record(new PaymentInput("i1", 801m))).Message);
+        var receipt = payments.Record(new PaymentInput("i1", 800m));
+
+        Assert.Equal(("paid", 0m, 200m), (receipt.Status, receipt.Balance, receipt.Discount));
+        Assert.Equal("paid", _store.GetInvoice("i1")!.PaymentStatus); // fully paid, not "partial"
+    }
+
+    [Fact]
+    public async Task TheReceiptShowsThePriceTheDiscountAndWhatWasBilled()
+    {
+        await PullDiscounted();
+        var receipt = new PaymentService(_store, Org).Record(new PaymentInput("i1", 800m));
+
+        var html = ReceiptHtml.Build(receipt, "Lab");
+
+        Assert.Contains("1000.00", html);   // the price
+        Assert.Contains("-200.00", html);   // the discount
+        Assert.Contains("PAID IN FULL", html);
+    }
+
+    public void Dispose()
+    {
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}
+
+public class PulledPaymentTests : IDisposable
+{
+    private const string Org = "org-1";
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"labshope-{Guid.NewGuid():N}.db");
+    private readonly LocalStore _store;
+    public PulledPaymentTests()
+    {
+        _store = new LocalStore(_path);
+        _store.UpsertPatient(new Patient("p1", "IRM-0001", "Asha Rao", "+919876543210", null, null));
+        _store.UpsertInvoice(new Invoice("i1", "INV1", "p1", 1000m, 700m, "partial", "2026-10-29T04:00:00+00:00"));
+    }
+
+    private static SupabaseApi Api(HttpMessageHandler h) =>
+        new(new HttpClient(h), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };
+
+    private const string Rows = """
+        [{"id":"w1","invoice_id":"i1","amount":500,"payment_method":"cash","transaction_id":null,"notes":null,"payment_date":"2026-10-29T10:30:00+05:30","created_at":"2026-10-29T05:00:00.5+00:00"},
+         {"id":"w2","invoice_id":"i1","amount":200,"payment_method":"upi","transaction_id":"U1","notes":null,"payment_date":"2026-10-29T06:00:00+00:00","created_at":"2026-10-29T06:00:01+00:00"}]
+        """;
+
+    [Fact]
+    public async Task PaymentsTakenOnTheWebsiteOrAnotherComputerReachTheCashBookAndTotals()
+    {
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, Rows) };
+        await new SyncEngine(_store, Api(server), Org).PullPaymentsAsync();
+
+        var book = _store.TakingsBetween("2026-10-29T00:00:00.000Z", "2026-10-30T00:00:00.000Z").ToDictionary(t => t.Method);
+        Assert.Equal((500m, 200m), (book["cash"].Total, book["upi"].Total));
+        Assert.Equal(700m, _store.GetDashboard("2026-10-29T00:00:00.000Z", "2026-10-30T00:00:00.000Z").TakingsToday);
+        Assert.Equal(700m, _store.GetReport("2026-10-29", "2026-10-29", 0).Collected);
+        // The server's offset was turned into one fixed UTC form (10:30 at +05:30 is 05:00Z).
+        Assert.Equal("2026-10-29T05:00:00.000Z", _store.PaymentsFor("i1").Single(p => p.Id == "w1").PaidAt);
+        Assert.All(_store.PaymentsFor("i1"), p => Assert.True(p.Synced));
+        Assert.Contains("/rest/v1/payments?", server.Requests[0].Url);
+        Assert.Contains("order=created_at.asc,id.asc", server.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task APaymentMadeOnThisPcIsNotCountedTwiceWhenItComesBackFromTheServer()
+    {
+        _store.AddPayment(new LocalPayment("w1", "i1", 500m, "cash", null, null, "2026-10-29T05:00:00.000Z", Synced: false)); // ours, still waiting
+        await new SyncEngine(_store, Api(new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, Rows) }), Org).PullPaymentsAsync();
+
+        Assert.Equal(2, _store.PaymentsFor("i1").Count);
+        Assert.Equal(700m, _store.TakingsBetween("2026-10-29T00:00:00.000Z", "2026-10-30T00:00:00.000Z").Sum(t => t.Total));
+    }
+
+    [Fact]
+    public async Task OnlyNewPaymentsAreAskedForTheNextTime()
+    {
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, Rows) };
+        var engine = new SyncEngine(_store, Api(server), Org);
+        await engine.PullPaymentsAsync();
+        server.Handler = (_, _) => (HttpStatusCode.OK, "[]");
+        await engine.PullPaymentsAsync();
+
+        Assert.Contains("or=", server.Requests.Last().Url);
+        Assert.Contains("created_at.gt.2026-10-29T06%3A00%3A01", server.Requests.Last().Url); // from the last one seen
+    }
+
+    public void Dispose()
+    {
+        _store.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        File.Delete(_path);
+    }
+}

@@ -9,6 +9,10 @@ public sealed record Patient(
     string? DateOfBirth,
     bool Pending = false);
 
+/// <summary>
+/// A bill. <see cref="TotalAmount"/> is what the patient has to pay (the website's final_amount, after any discount);
+/// <see cref="Discount"/> is how much was taken off the full price.
+/// </summary>
 public sealed record Invoice(
     string Id,
     string InvoiceNumber,
@@ -16,7 +20,8 @@ public sealed record Invoice(
     decimal TotalAmount,
     decimal PaidAmount,
     string? PaymentStatus,
-    string CreatedAt);
+    string CreatedAt,
+    decimal Discount = 0m);
 
 public abstract record ScanMatch
 {
@@ -28,7 +33,7 @@ public abstract record ScanMatch
 /// <summary>A bill as the counter sees it: who it is for and what is still owed.</summary>
 public sealed record BillRow(
     string Id, string InvoiceNumber, string PatientId, string PatientName, string PatientCode,
-    decimal TotalAmount, decimal PaidAmount, string PaymentStatus, string CreatedAt)
+    decimal TotalAmount, decimal PaidAmount, string PaymentStatus, string CreatedAt, decimal Discount = 0m)
 {
     public decimal Balance => Math.Max(TotalAmount - PaidAmount, 0);
     public bool Provisional => InvoiceNumber.StartsWith("L-");

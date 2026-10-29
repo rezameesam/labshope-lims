@@ -27,7 +27,7 @@ public sealed class LocalStore : IDisposable
             CREATE INDEX IF NOT EXISTS ix_patients_phone ON patients(phone);
             CREATE TABLE IF NOT EXISTS invoices (
               id TEXT PRIMARY KEY, invoice_number TEXT NOT NULL, patient_id TEXT NOT NULL, total_amount REAL NOT NULL,
-              paid_amount REAL NOT NULL, payment_status TEXT, created_at TEXT NOT NULL);
+              paid_amount REAL NOT NULL, payment_status TEXT, created_at TEXT NOT NULL, discount REAL NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS ix_invoices_number ON invoices(invoice_number COLLATE NOCASE);
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
             CREATE TABLE IF NOT EXISTS catalog (kind TEXT NOT NULL, id TEXT NOT NULL, sort TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (kind, id));
@@ -65,6 +65,12 @@ public sealed class LocalStore : IDisposable
         {
             info2.CommandText = "SELECT COUNT(*) FROM pragma_table_info('patient_tests') WHERE name = 'result_items'";
             if ((long)info2.ExecuteScalar()! == 0) Exec("ALTER TABLE patient_tests ADD COLUMN result_items TEXT");
+        }
+        // Databases created before discounts were understood have no discount column on bills.
+        using (var info4 = _db.CreateCommand())
+        {
+            info4.CommandText = "SELECT COUNT(*) FROM pragma_table_info('invoices') WHERE name = 'discount'";
+            if ((long)info4.ExecuteScalar()! == 0) Exec("ALTER TABLE invoices ADD COLUMN discount REAL NOT NULL DEFAULT 0");
         }
         // Databases created before outsourcing existed have no external lab columns.
         using (var info3 = _db.CreateCommand())
@@ -108,10 +114,10 @@ public sealed class LocalStore : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO invoices (id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at)
-            VALUES ($id, $number, $patient, $total, $paid, $status, $created)
+            INSERT INTO invoices (id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at, discount)
+            VALUES ($id, $number, $patient, $total, $paid, $status, $created, $discount)
             ON CONFLICT(id) DO UPDATE SET invoice_number=$number, patient_id=$patient, total_amount=$total,
-              paid_amount=$paid, payment_status=$status, created_at=$created;
+              paid_amount=$paid, payment_status=$status, created_at=$created, discount=$discount;
             """;
         cmd.Parameters.AddWithValue("$id", i.Id);
         cmd.Parameters.AddWithValue("$number", i.InvoiceNumber);
@@ -120,6 +126,7 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$paid", (double)i.PaidAmount);
         cmd.Parameters.AddWithValue("$status", (object?)i.PaymentStatus ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$created", i.CreatedAt);
+        cmd.Parameters.AddWithValue("$discount", (double)i.Discount);
         cmd.ExecuteNonQuery();
     }
 
@@ -159,7 +166,7 @@ public sealed class LocalStore : IDisposable
         using var cmd = _db.CreateCommand();
         var where = words.Select((_, n) => $"(LOWER(i.invoice_number) LIKE $w{n} OR p.search LIKE $w{n})").ToList();
         if (onlyUnpaid) where.Add("COALESCE(i.payment_status,'pending') <> 'paid'");
-        cmd.CommandText = "SELECT i.id, i.invoice_number, i.patient_id, COALESCE(p.full_name,''), COALESCE(p.patient_code,''), i.total_amount, i.paid_amount, COALESCE(i.payment_status,'pending'), i.created_at " +
+        cmd.CommandText = "SELECT i.id, i.invoice_number, i.patient_id, COALESCE(p.full_name,''), COALESCE(p.patient_code,''), i.total_amount, i.paid_amount, COALESCE(i.payment_status,'pending'), i.created_at, i.discount " +
                           "FROM invoices i LEFT JOIN patients p ON p.id = i.patient_id " +
                           (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "") +
                           "ORDER BY i.created_at DESC LIMIT $limit";
@@ -169,7 +176,7 @@ public sealed class LocalStore : IDisposable
         using var r = cmd.ExecuteReader();
         while (r.Read())
             list.Add(new BillRow(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
-                (decimal)r.GetDouble(5), (decimal)r.GetDouble(6), r.GetString(7), r.GetString(8)));
+                (decimal)r.GetDouble(5), (decimal)r.GetDouble(6), r.GetString(7), r.GetString(8), (decimal)r.GetDouble(9)));
         return list;
     }
 
@@ -807,11 +814,11 @@ public sealed class LocalStore : IDisposable
     public Invoice? GetInvoice(string id)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at FROM invoices WHERE id = $id";
+        cmd.CommandText = "SELECT id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at, discount FROM invoices WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", id);
         using var r = cmd.ExecuteReader();
         return r.Read()
-            ? new Invoice(r.GetString(0), r.GetString(1), r.GetString(2), (decimal)r.GetDouble(3), (decimal)r.GetDouble(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6))
+            ? new Invoice(r.GetString(0), r.GetString(1), r.GetString(2), (decimal)r.GetDouble(3), (decimal)r.GetDouble(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6), (decimal)r.GetDouble(7))
             : null;
     }
 

@@ -193,3 +193,10 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   (machine names such as NEUT#, RDW-SD are mapped; values with no panel row are kept under the machine's name), single-value tests get the value, unit and flag.
 - Tested with simulated machines over real sockets, byte-by-byte delivery, bad checksums and HL7 back-to-back messages. NOT tested against a physical analyzer: every model has quirks
   (field positions, code names, line endings). First step with a real machine: capture what it sends (the log file records connections) and adjust the alias table.
+
+## Update: two money bugs found in review and fixed
+- Discounts: the website's bills can carry a discount; what is owed is `final_amount`, not `total_amount`. The native app used total_amount, so a discounted bill showed too much owed and paying the
+  right amount looked like a part payment. Now bills use final_amount (and keep the discount, shown on the receipt). Verified on the real database (price 750, discount 100, paid 650 -> paid).
+  Applying a discount is still done on the website (it has its own audit trail).
+- Payments from elsewhere: the cash book, reports and home screen only knew about payments taken on this PC. Payments taken on the website or other computers are now pulled too
+  (90 days on first run, then new ones), so the lab's takings are complete. Verified on the real database.

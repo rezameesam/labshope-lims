@@ -8,7 +8,7 @@ public sealed record PaymentInput(string InvoiceId, decimal Amount, string Metho
 /// <summary>What the cashier hands the patient. Provisional until the server gives the bill its official number.</summary>
 public sealed record Receipt(
     string PaymentId, string InvoiceNumber, bool Provisional, string PatientName,
-    decimal Total, decimal Amount, decimal Paid, decimal Balance, string Status, string Method, string PaidAt);
+    decimal Total, decimal Amount, decimal Paid, decimal Balance, string Status, string Method, string PaidAt, decimal Discount = 0m);
 
 /// <summary>
 /// Takes a payment against a bill on this PC first (the bill shows it paid at once), and queues it for the
@@ -71,7 +71,7 @@ public sealed class PaymentService
         var patient = _store.GetPatient(bill.PatientId);
         return new Receipt(payment.Id, bill.InvoiceNumber, IsProvisional(bill.InvoiceNumber), patient?.FullName ?? "",
             bill.TotalAmount, payment.Amount, bill.PaidAmount, Math.Max(bill.TotalAmount - bill.PaidAmount, 0),
-            bill.PaymentStatus ?? "pending", payment.Method, payment.PaidAt);
+            bill.PaymentStatus ?? "pending", payment.Method, payment.PaidAt, bill.Discount);
     }
 
     public static bool IsProvisional(string invoiceNumber) => invoiceNumber.StartsWith("L-");
