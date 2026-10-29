@@ -26,6 +26,7 @@ public partial class RegisterVisitView : UserControl
     private List<CatalogTest> _matches = [];
     private bool _payEdited;
     private Receipt? _lastReceipt;
+    private string? _lastVisitId;
 
     /// <summary>Raised after a visit is saved so the window can sync and refresh its lists.</summary>
     public event Action? Registered;
@@ -193,6 +194,8 @@ public partial class RegisterVisitView : UserControl
             var visit = _visits.Register(input);
             Clear();
             _lastReceipt = visit.Receipt;
+            _lastVisitId = visit.VisitId;
+            LabelButton.IsVisible = true;
             ReceiptButton.IsVisible = visit.Receipt is not null;
             var paid = visit.Receipt is null ? "no payment taken" : $"{visit.Receipt.Amount:0.##} received" + (visit.Receipt.Balance > 0 ? $", {visit.Receipt.Balance:0.##} due" : ", paid in full");
             ResultText.Text = $"Saved: {visit.PatientName}, total {visit.Total:0.##}, {paid}" + (visit.ReusedPatient ? " (existing patient matched by phone)" : "") + $". Bill {visit.InvoiceNumber}. It is sent to the server when online.";
@@ -204,7 +207,14 @@ public partial class RegisterVisitView : UserControl
         }
     }
 
-    private void OnClear(object? sender, RoutedEventArgs e) { Clear(); ResultText.Text = ""; ReceiptButton.IsVisible = false; }
+    private void OnClear(object? sender, RoutedEventArgs e) { Clear(); ResultText.Text = ""; ReceiptButton.IsVisible = false; LabelButton.IsVisible = false; }
+
+    private void OnPrintLabels(object? sender, RoutedEventArgs e)
+    {
+        if (_lastVisitId is null) return;
+        var label = LabelBuilder.ForVisit(_session.Store, _session.Workspace.OrganizationName, _lastVisitId);
+        if (label is not null) ReceiptPrinter.OpenHtml($"labels-{label.PatientCode}", LabelHtml.Build(label));
+    }
 
     private void OnPrintReceipt(object? sender, RoutedEventArgs e)
     {

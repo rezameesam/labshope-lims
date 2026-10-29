@@ -9,6 +9,7 @@
       <CheckBox x:Name="UnpaidOnly" Content="Only unpaid" />
       <Button x:Name="ReceiveButton" Content="Receive payment (F6)" Click="OnReceive" />
       <Button x:Name="ReceiptButton" Content="Print last receipt" Click="OnPrintReceipt" />
+      <Button x:Name="LabelButton" Content="Print labels" Click="OnPrintLabels" />
       <TextBlock x:Name="CountText" VerticalAlignment="Center" Foreground="#555" />
     </StackPanel>
     <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="#1B5E20" />

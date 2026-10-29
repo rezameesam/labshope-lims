@@ -50,6 +50,14 @@ public partial class BillsView : UserControl
         PaymentTaken?.Invoke();
     }
 
+    private void OnPrintLabels(object? sender, RoutedEventArgs e)
+    {
+        if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }
+        var label = LabelBuilder.ForVisit(_session.Store, _session.Workspace.OrganizationName, bill.Id);
+        if (label is null) { MessageText.Text = "Can't make a label for that bill."; return; }
+        ReceiptPrinter.OpenHtml($"labels-{label.PatientCode}", LabelHtml.Build(label));
+    }
+
     private void OnPrintReceipt(object? sender, RoutedEventArgs e)
     {
         if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }

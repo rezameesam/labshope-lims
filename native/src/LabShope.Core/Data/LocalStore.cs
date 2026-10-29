@@ -43,6 +43,8 @@ public sealed class LocalStore : IDisposable
               waiting INTEGER NOT NULL DEFAULT 0, result_items TEXT);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_status ON patient_tests(status);
             CREATE INDEX IF NOT EXISTS ix_patient_tests_patient ON patient_tests(patient_id);
+            CREATE TABLE IF NOT EXISTS aliases (
+              alias TEXT NOT NULL COLLATE NOCASE PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS payments (
               id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, amount REAL NOT NULL, method TEXT NOT NULL,
               transaction_id TEXT, notes TEXT, paid_at TEXT NOT NULL, synced INTEGER NOT NULL DEFAULT 0);
@@ -203,9 +205,15 @@ public sealed class LocalStore : IDisposable
         if (patient is not null) return new ScanMatch.FoundPatient(patient);
 
         var invoice = FindInvoiceByNumber(code);
-        return invoice is not null
-            ? new ScanMatch.FoundInvoice(invoice, GetPatient(invoice.PatientId))
-            : new ScanMatch.NotFound(code);
+        if (invoice is not null) return new ScanMatch.FoundInvoice(invoice, GetPatient(invoice.PatientId));
+
+        // A label printed before the server issued the official number still has to scan.
+        if (FindAlias(code) is { } alias)
+        {
+            if (alias.Kind == "patient" && GetPatient(alias.TargetId) is { } owner) return new ScanMatch.FoundPatient(owner);
+            if (alias.Kind == "invoice" && GetInvoice(alias.TargetId) is { } bill) return new ScanMatch.FoundInvoice(bill, GetPatient(bill.PatientId));
+        }
+        return new ScanMatch.NotFound(code);
     }
 
     private static List<Patient> ReadPatients(SqliteCommand cmd)
@@ -271,6 +279,28 @@ public sealed class LocalStore : IDisposable
         cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY pending, id LIMIT 1";
         for (var n = 0; n < list.Count; n++) cmd.Parameters.AddWithValue(names[n], list[n]);
         return ReadPatients(cmd).FirstOrDefault();
+    }
+
+    // ── aliases: old provisional numbers that must keep working (printed labels/receipts) ───
+
+    /// <summary>Remembers that a provisional code or bill number printed earlier now means this patient or bill.</summary>
+    public void AddAlias(string alias, string kind, string targetId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO aliases (alias, kind, target_id) VALUES ($a, $k, $t) ON CONFLICT(alias) DO UPDATE SET kind=$k, target_id=$t";
+        cmd.Parameters.AddWithValue("$a", alias);
+        cmd.Parameters.AddWithValue("$k", kind);
+        cmd.Parameters.AddWithValue("$t", targetId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public (string Kind, string TargetId)? FindAlias(string alias)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT kind, target_id FROM aliases WHERE alias = $a";
+        cmd.Parameters.AddWithValue("$a", alias);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetString(0), r.GetString(1)) : null;
     }
 
     // ── meta (cursors, session, settings) ──────────────────────────────────

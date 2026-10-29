@@ -89,6 +89,7 @@ public class RegisterVisitViewTests : IDisposable
 
         Assert.Contains("paid in full", Find<TextBlock>(view, "ResultText").Text);
         Assert.True(Find<Button>(view, "ReceiptButton").IsVisible);
+        Assert.True(Find<Button>(view, "LabelButton").IsVisible);
         Assert.Equal((2, 0), _store.OutboxCounts()); // the visit and its payment
         Assert.Equal("paid", _store.SearchBills("").Single().PaymentStatus);
     }

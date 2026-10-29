@@ -233,7 +233,10 @@ public sealed class SyncEngine
     {
         // The bill we made on this PC now has its official number.
         if (result.TryGetProperty("invoice_number", out var number) && number.GetString() is { Length: > 0 } official)
+        {
+            if (_store.GetInvoice(visitId) is { } bill && bill.InvoiceNumber != official) _store.AddAlias(bill.InvoiceNumber, "invoice", visitId);
             _store.SetInvoiceNumber(visitId, official);
+        }
 
         if (!payload.TryGetProperty("patient", out var patient) || !patient.TryGetProperty("new", out var created)) return;
 
@@ -242,13 +245,19 @@ public sealed class SyncEngine
 
         if (serverId is not null && serverId != localId)
         {
-            // The server matched an existing patient by phone; drop our provisional copy.
+            // The server matched an existing patient by phone; drop our provisional copy. Labels already printed
+            // with the provisional code must now find the real patient.
+            if (_store.GetPatient(localId) is { } provisional) _store.AddAlias(provisional.PatientCode, "patient", serverId);
             _store.DeletePatient(localId);
         }
         else if (result.TryGetProperty("patient_code", out var code) && code.GetString() is { } patientCode)
         {
             var row = _store.GetPatient(localId);
-            if (row is not null) _store.UpsertPatient(row with { PatientCode = patientCode, Pending = false });
+            if (row is not null)
+            {
+                if (row.PatientCode != patientCode) _store.AddAlias(row.PatientCode, "patient", localId);
+                _store.UpsertPatient(row with { PatientCode = patientCode, Pending = false });
+            }
         }
     }
 

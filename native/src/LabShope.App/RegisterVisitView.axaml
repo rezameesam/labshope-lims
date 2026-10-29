@@ -68,6 +68,7 @@
           <TextBlock x:Name="ResultText" VerticalAlignment="Center" TextWrapping="Wrap" />
         </DockPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button x:Name="LabelButton" Content="Print labels" Click="OnPrintLabels" IsVisible="False" />
           <Button x:Name="ReceiptButton" Content="Print receipt" Click="OnPrintReceipt" IsVisible="False" />
           <Button x:Name="ClearButton" Content="Clear" Click="OnClear" />
           <Button x:Name="SaveButton" Content="Save visit (F8)" Click="OnSave" Padding="18,6" />
