@@ -15,6 +15,9 @@ public sealed class AppSession : IDisposable
     public LabShope.Core.Net.SupabaseApi? Api { get; }
     public SyncEngine? Engine { get; }
 
+    /// <summary>Something the person should be told when the app opens (for example that damaged data was restored from a backup).</summary>
+    public string? StartupNotice { get; init; }
+
     public AppSession(Workspace workspace, LocalStore store, SyncRunner sync, AccountService account, LabShope.Core.Net.SupabaseApi? api = null, SyncEngine? engine = null)
     {
         Api = api;

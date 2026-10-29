@@ -130,7 +130,11 @@ public partial class MainWindow : Window
         var syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         syncTimer.Tick += async (_, _) => await SyncAsync();
         syncTimer.Start();
-        Opened += async (_, _) => await SyncAsync();
+        Opened += async (_, _) =>
+        {
+            if (session.StartupNotice is { } notice) { Toast(notice); _scanHide?.Stop(); } // stays until the next message
+            await SyncAsync();
+        };
 
         Shot.Attach(this);
     }
@@ -274,6 +278,7 @@ public partial class MainWindow : Window
         SetChip("Syncing…", "#0B81B7", "#E7F3F9");
         try
         {
+            LabShope.Core.Data.DatabaseGuard.BackupIfDue(_store, System.IO.Path.Combine(AppConfig.DataDirectory, "backups"), 7, DateTime.Now); // a new day, a new backup
             var status = await _session.Sync.RunOnceAsync();
             if (_pages.TryGetValue("settings", out var settings)) ((SettingsView)settings).ShowStatus(status);
             var waiting = status.Pending > 0 ? $" · {status.Pending} waiting to send" : "";

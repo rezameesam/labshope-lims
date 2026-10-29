@@ -200,3 +200,8 @@ Next in milestone 1: payments + receipts, bill detail/print, offline invoice num
   Applying a discount is still done on the website (it has its own audit trail).
 - Payments from elsewhere: the cash book, reports and home screen only knew about payments taken on this PC. Payments taken on the website or other computers are now pulled too
   (90 days on first run, then new ones), so the lab's takings are complete. Verified on the real database.
+
+## Update: protecting the local data
+- On every start the lab's local database is checked; a daily backup copy is made (last 7 kept, in the app's data folder under `backups`); if the file is ever damaged
+  it is set aside (kept for support) and the newest healthy backup is restored, or the app starts fresh and downloads everything again; the person is told which happened.
+- Also fixed in review: first sync now also fetches old waiting tests, old unpaid bills and open booking requests; patients deactivated on the website disappear from the PC.

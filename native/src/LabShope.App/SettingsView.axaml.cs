@@ -51,7 +51,8 @@ public partial class SettingsView : UserControl
         LabLine.Text = _session.Workspace.OrganizationName;
         RoleLine.Text = _session.Workspace.Roles is { Count: > 0 } roles ? string.Join(", ", roles) : "";
         VersionLine.Text = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "";
-        DataLine.Text = AppConfig.DataDirectory;
+        var latest = LabShope.Core.Data.DatabaseGuard.Backups(System.IO.Path.Combine(AppConfig.DataDirectory, "backups")).OrderByDescending(f => f).FirstOrDefault();
+        DataLine.Text = AppConfig.DataDirectory + (latest is null ? "" : $"   ·   last backup {System.IO.File.GetLastWriteTime(latest):d MMM HH:mm}");
     }
 
     private void UpdateButtons()

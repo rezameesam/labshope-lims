@@ -73,9 +73,11 @@ public partial class App : Application
             workspace = login.Result;
         }
 
-        var store = new LocalStore(Path.Combine(AppConfig.DataDirectory, $"lims-{workspace.OrganizationId}.db"));
+        // Open the lab's data safely: checked on every start, backed up daily, and recovered automatically if damaged.
+        var opened = DatabaseGuard.Open(Path.Combine(AppConfig.DataDirectory, $"lims-{workspace.OrganizationId}.db"), Path.Combine(AppConfig.DataDirectory, "backups"));
+        var store = opened.Store;
         var engine = new SyncEngine(store, api, workspace.OrganizationId);
-        var session = new AppSession(workspace, store, new SyncRunner(engine, store, workspace.Slug, workspace.OrganizationName), account, api, engine);
+        var session = new AppSession(workspace, store, new SyncRunner(engine, store, workspace.Slug, workspace.OrganizationName), account, api, engine) { StartupNotice = opened.Notice };
 
         var main = new MainWindow(session);
         main.Closed += (_, _) => { session.Dispose(); desktop.Shutdown(); };

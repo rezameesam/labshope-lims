@@ -610,6 +610,26 @@ public sealed class LocalStore : IDisposable
         return ReadPatients(cmd);
     }
 
+    // ── safety: integrity check and backup copies ───────────────────────────
+
+    /// <summary>True when SQLite finds nothing wrong with the file (a quick structural check).</summary>
+    public bool IsHealthy()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "PRAGMA quick_check";
+        return cmd.ExecuteScalar() as string == "ok";
+    }
+
+    /// <summary>Writes a consistent copy of the whole database to <paramref name="file"/> while the app keeps running.</summary>
+    public void BackupTo(string file)
+    {
+        if (File.Exists(file)) File.Delete(file);
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "VACUUM INTO $f";
+        cmd.Parameters.AddWithValue("$f", file);
+        cmd.ExecuteNonQuery();
+    }
+
     // ── meta (cursors, session, settings) ──────────────────────────────────
 
     public string? GetMeta(string key)
