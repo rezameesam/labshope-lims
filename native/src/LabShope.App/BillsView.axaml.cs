@@ -56,6 +56,18 @@ public partial class BillsView : UserControl
         await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
     }
 
+    private async void OnPrintInvoice(object? sender, RoutedEventArgs e)
+    {
+        if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }
+        if (_session.Api is null) { MessageText.Text = "Printing an itemised invoice needs an internet connection."; return; }
+
+        var details = await BillingAdmin.LoadAsync(_session.Api, _session.Workspace.OrganizationId, bill.Id);
+        if (details.Error is not null) { MessageText.Text = details.Error; return; }
+        var html = InvoiceHtml.Build(bill, _session.Store.GetPatient(bill.PatientId), details, _session.Store.GetBranding(_session.Workspace.OrganizationName));
+        ReceiptPrinter.OpenHtml($"invoice-{bill.InvoiceNumber}", html);
+        MessageText.Text = "";
+    }
+
     private async void OnNewBill(object? sender, RoutedEventArgs e)
     {
         if (_session.Api is null) { MessageText.Text = "Making a bill needs an internet connection."; return; }
