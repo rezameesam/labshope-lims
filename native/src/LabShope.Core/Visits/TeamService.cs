@@ -54,6 +54,52 @@ public static class TeamService
         return outcome;
     }
 
+    public sealed record StaffEdit(string FullName, string Phone, string Designation, string Department);
+
+    /// <summary>Changes a person's name, phone, designation and department, as the website's edit form does (an admin may change all four).</summary>
+    public static async Task<AdminResult> UpdateAsync(SupabaseApi api, string organizationId, string employeeId, StaffEdit edit, CancellationToken ct = default)
+    {
+        var name = edit.FullName?.Trim() ?? "";
+        if (name.Length == 0) return new(false, "Enter the person's name.");
+        if (name.Length > 120) return new(false, "The name is too long.");
+        static string? Opt(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        var result = await api.PatchAsync("employees", $"id=eq.{employeeId}&organization_id=eq.{organizationId}",
+            new { full_name = name, phone = Opt(edit.Phone), designation = Opt(edit.Designation), department = Opt(edit.Department) }, ct);
+        var outcome = Outcome(result, "This needs an internet connection.", "Your account isn't allowed to change staff.", "The change was not saved.");
+        if (outcome.Ok && result.Body is { ValueKind: JsonValueKind.Array } rows && rows.GetArrayLength() == 0)
+            return new(false, "The server did not accept the change (your account isn't allowed to change staff).");
+        return outcome;
+    }
+
+    public enum ResetMode { Email, Temporary, Custom }
+
+    public sealed record ResetOutcome(bool Ok, string? Error, string? TempPassword = null);
+
+    /// <summary>
+    /// Resets a person's password with the website's server function: send them a reset link, give them a temporary password
+    /// (shown once; they must change it), or set one you choose (at least 6 characters). Only an admin may, and only for an active person.
+    /// </summary>
+    public static async Task<ResetOutcome> ResetPasswordAsync(SupabaseApi api, string employeeId, ResetMode mode, string? customPassword, string resetBaseUrl, CancellationToken ct = default)
+    {
+        if (mode == ResetMode.Custom && (customPassword ?? "").Length < 6) return new(false, "The password needs at least 6 characters.");
+        object body = mode switch
+        {
+            ResetMode.Temporary => new { employee_id = employeeId, reset_base_url = resetBaseUrl, mode = "temp" },
+            ResetMode.Custom => new { employee_id = employeeId, reset_base_url = resetBaseUrl, mode = "set", custom_password = customPassword },
+            _ => new { employee_id = employeeId, reset_base_url = resetBaseUrl, mode = "email" },
+        };
+        var result = await api.FunctionAsync("employee-admin-reset-password", body, ct);
+        var outcome = Outcome(result, "Resetting a password needs an internet connection.", "Only an admin can reset a password.", "The password was not reset.");
+        if (!outcome.Ok) return new(false, outcome.Error);
+        string? temp = null;
+        if (mode == ResetMode.Temporary)
+        {
+            temp = result.Body is { ValueKind: JsonValueKind.Object } o && o.TryGetProperty("temp_password", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
+            if (string.IsNullOrEmpty(temp)) return new(false, "The server did not return a temporary password.");
+        }
+        return new(true, null, temp);
+    }
+
     private static AdminResult Outcome(ApiResult result, string offline, string denied, string failed)
     {
         if (result.NetworkFailure) return new(false, offline);

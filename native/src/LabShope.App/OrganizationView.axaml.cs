@@ -56,6 +56,22 @@ public partial class OrganizationView : UserControl
         if (dialog.Saved) await LoadTeamAsync();
     }
 
+    private async void OnEditStaff(object? sender, RoutedEventArgs e)
+    {
+        if (!CanManageTeam || _session.Api is null || TeamGrid.SelectedItem is not TeamMember person) return;
+        var dialog = new StaffEditDialog(_session.Api, _session.Workspace.OrganizationId, person);
+        await dialog.ShowDialog(Owner);
+        if (dialog.Saved) await LoadTeamAsync();
+    }
+
+    private async void OnResetStaff(object? sender, RoutedEventArgs e)
+    {
+        if (!CanManageTeam || _session.Api is null || TeamGrid.SelectedItem is not TeamMember person) return;
+        if (!person.IsActive) { Say("Switch the person on before resetting their password."); return; }
+        var dialog = new ResetPasswordDialog(_session.Api, person, $"https://{_session.Workspace.Slug}.labshope.com/staff/reset-password");
+        await dialog.ShowDialog(Owner);
+    }
+
     private async void OnToggleStaff(object? sender, RoutedEventArgs e)
     {
         if (!CanManageTeam || _session.Api is null || TeamGrid.SelectedItem is not TeamMember person) return;

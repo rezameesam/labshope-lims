@@ -239,6 +239,38 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task EditingStaffSendsTheFourFieldsAndResettingShowsATemporaryPasswordOnce()
+    {
+        var person = new TeamMember("e1", "E001", "Asha Rao", "asha@lab.in", "9876543210", "Technician", "Lab", "l1", true);
+        var edit = new Server(HttpStatusCode.OK, "[{\"id\":\"e1\"}]");
+        var dialog = new StaffEditDialog(Api(edit), "org-1", person);
+        dialog.Show();
+        Assert.Equal("Asha Rao", dialog.FindControl<TextBox>("NameBox")!.Text);
+        dialog.FindControl<TextBox>("DesignationBox")!.Text = "Senior technician";
+        await Click(dialog, "SaveButton");
+        Assert.True(dialog.Saved);
+        var call = Assert.Single(edit.Calls);
+        Assert.Contains("/rest/v1/employees?id=eq.e1&organization_id=eq.org-1", call.Url);
+        Assert.Contains("\"designation\":\"Senior technician\"", call.Body);
+
+        var reset = new Server(HttpStatusCode.OK, "{\"success\":true,\"temp_password\":\"Tmp123abc456\"}");
+        var resetDialog = new ResetPasswordDialog(Api(reset), person, "https://demo.labshope.com/staff/reset-password");
+        resetDialog.Show();
+        resetDialog.FindControl<RadioButton>("TempChoice")!.IsChecked = true;
+        await Click(resetDialog, "ResetButton");
+        Assert.True(resetDialog.FindControl<Border>("ResultBox")!.IsVisible);
+        Assert.Equal("Tmp123abc456", resetDialog.FindControl<TextBox>("TempBox")!.Text);
+        Assert.Contains("\"mode\":\"temp\"", reset.Calls.Single().Body);
+
+        var bad = new ResetPasswordDialog(Api(new Server(HttpStatusCode.OK, "{}")), person, "https://x");
+        bad.Show();
+        bad.FindControl<RadioButton>("CustomChoice")!.IsChecked = true;
+        bad.FindControl<TextBox>("PasswordBox")!.Text = "123";
+        await Click(bad, "ResetButton");
+        Assert.Contains("6 characters", bad.FindControl<TextBlock>("ErrorText")!.Text);
+    }
+
+    [AvaloniaFact]
     public async Task APackageShowsItsPriceAsTestsAreTickedAndSavesThePackageAndItsTests()
     {
         var server = new Server(HttpStatusCode.Created, "[]");

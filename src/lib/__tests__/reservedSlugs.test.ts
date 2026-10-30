@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { RESERVED_SLUGS, slugProblem } from "../../../supabase/functions/_shared/reserved-slugs";
 
 describe("lab name rules", () => {
-  it.each(["lab", "shop", "healthcare", "business", "email", "site", "contact", "lims", "www", "Healthcare"])(
+  it.each(["lab", "shop", "healthcare", "business", "email", "site", "contact", "lims", "lims-downloads", "radarx-downloads", "www", "Healthcare"])(
     "blocks the reserved word %s",
     (name) => expect(slugProblem(name)).not.toBeNull(),
   );
@@ -25,7 +25,12 @@ describe("lab name rules", () => {
   });
 
   it("is the same list the database uses", () => {
-    const sql = readFileSync("supabase/migrations/20261029000300_reserve_site_names.sql", "utf8");
+    // The newest migration that defines the list is the one in force.
+    const latest = readdirSync("supabase/migrations")
+      .filter((file) => file.endsWith(".sql") && readFileSync(`supabase/migrations/${file}`, "utf8").includes("function public.reserved_org_slugs()"))
+      .sort()
+      .pop()!;
+    const sql = readFileSync(`supabase/migrations/${latest}`, "utf8");
     const block = sql.slice(sql.indexOf("select array["), sql.indexOf("$$;"));
     const inDatabase = [...block.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]).sort();
     expect(inDatabase).toEqual([...RESERVED_SLUGS].sort());
