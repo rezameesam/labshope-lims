@@ -55,6 +55,15 @@ public partial class PatientRegisterView : UserControl
         UpdateButtons();
     }
 
+    /// <summary>The patients now on screen as spreadsheet text.</summary>
+    public string ExportCsv() => CsvExport.Patients(Grid.ItemsSource as IEnumerable<Patient> ?? []);
+
+    private async void OnExport(object? sender, RoutedEventArgs e)
+    {
+        var saved = await SheetSaver.SaveAsync(this, $"patients-{DateTime.Today:yyyy-MM-dd}.csv", ExportCsv());
+        if (saved is not null) CountText.Text = $"Saved {saved}.";
+    }
+
     private bool Inactive => InactiveBox.IsChecked == true;
 
     private void UpdateButtons()

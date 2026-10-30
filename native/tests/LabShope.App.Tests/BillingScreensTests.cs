@@ -129,6 +129,19 @@ public class BillingScreensTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void ExportCoversExactlyTheBillsOnScreen()
+    {
+        var view = new BillsView(_session);
+        new Window { Width = 1300, Height = 800, Content = view }.Show();
+        var all = view.ExportCsv().Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(4, all.Length); // header + 3 bills
+
+        view.FindControl<ComboBox>("StatusBox")!.SelectedIndex = 3; // paid
+        var paid = view.ExportCsv().Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(paid.Length < all.Length);
+    }
+
+    [AvaloniaFact]
     public void BillsCanBeFilteredByStatusAndDateAndTheSummaryFollows()
     {
         var view = new BillsView(_session);

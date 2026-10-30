@@ -23,6 +23,7 @@
         <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Click="OnExport"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="FileExcelOutline" Width="17" Height="17" /><TextBlock Text="Export" /></StackPanel></Button>
         <Button x:Name="DetailsButton" Click="OnDetails"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="TextBoxSearchOutline" Width="17" Height="17" /><TextBlock Text="Details" /></StackPanel></Button>
         <Button x:Name="NewBillButton" Click="OnNewBill"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="ReceiptTextPlusOutline" Width="17" Height="17" /><TextBlock Text="New bill" /></StackPanel></Button>
         <Button x:Name="EditButton" Click="OnEditBill"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="PencilOutline" Width="17" Height="17" /><TextBlock Text="Edit bill" /></StackPanel></Button>

@@ -572,6 +572,20 @@ public class PatientScreenTests : IDisposable
     private static T Find<T>(Control root, string name) where T : Control => root.FindControl<T>(name)!;
 
     [AvaloniaFact]
+    public void PatientExportFollowsTheSearch()
+    {
+        var view = new PatientRegisterView(_session);
+        var window = new Window { Width = 1100, Height = 500, Content = view };
+        window.Show(); _windows.Add(window);
+        Find<TextBox>(view, "SearchBox").Text = "ravi";
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var lines = view.ExportCsv().Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.Contains("Ravi", lines[1]);
+    }
+
+    [AvaloniaFact]
     public void SearchFiltersAndRegisterVisitHandsThePatientOver()
     {
         var view = new PatientRegisterView(_session);
