@@ -10,6 +10,8 @@ public sealed record DoctorInput(string Name, string Specialization, string Phon
 /// <summary>Everything the website's doctor form holds (this PC keeps only name, specialisation and commission).</summary>
 public sealed record DoctorFull(string Id, DoctorInput Input);
 
+public sealed record ExternalLabInput(string Name, string Code, string ContactPerson, string Phone, string Email, string Address, string GstNumber, string Notes);
+
 public sealed record PackageInput(string Name, string Description, string DiscountPercent, IReadOnlyList<string> TestIds, bool Active);
 
 /// <summary>
@@ -179,5 +181,73 @@ public static class CatalogManage
         var discount = r.TryGetProperty("discount_percentage", out var d) && d.ValueKind == JsonValueKind.Number ? d.GetDecimal() : 0m;
         var active = !r.TryGetProperty("is_active", out var a) || a.ValueKind != JsonValueKind.False;
         return (new PackageInput(Text("name"), Text("description"), discount.ToString("0.##", CultureInfo.InvariantCulture), package.TestIds, active), null);
+    }
+
+    // ── external labs and categories ─────────────────────────────────────
+
+    private static (object? Row, string? Error) ExternalLabRow(string organizationId, ExternalLabInput l)
+    {
+        var name = l.Name?.Trim() ?? "";
+        if (name.Length == 0) return (null, "Name is required.");
+        if (name.Length > 120) return (null, "The name is too long.");
+        return (new
+        {
+            organization_id = organizationId,
+            name,
+            code = Blank(l.Code),
+            contact_person = Blank(l.ContactPerson),
+            phone = Blank(l.Phone),
+            email = Blank(l.Email),
+            address = Blank(l.Address),
+            gst_number = Blank(l.GstNumber),
+            notes = Blank(l.Notes),
+        }, null);
+    }
+
+    public static async Task<AdminResult> AddExternalLabAsync(SupabaseApi api, string organizationId, ExternalLabInput input, CancellationToken ct = default)
+    {
+        var (row, error) = ExternalLabRow(organizationId, input);
+        if (row is null) return new(false, error);
+        var result = await api.InsertAsync("external_labs", row, ct);
+        return result.Ok ? new(true, null) : Failed(result, "The external lab");
+    }
+
+    public static async Task<AdminResult> UpdateExternalLabAsync(SupabaseApi api, string organizationId, string labId, ExternalLabInput input, CancellationToken ct = default)
+    {
+        var (row, error) = ExternalLabRow(organizationId, input);
+        if (row is null) return new(false, error);
+        var result = await api.PatchAsync("external_labs", $"id=eq.{labId}&organization_id=eq.{organizationId}", row, ct);
+        if (!result.Ok) return Failed(result, "The external lab");
+        return Empty(result) ? new(false, "The server did not accept the change (lab not found, or your account isn't allowed to change the catalog).") : new(true, null);
+    }
+
+    /// <summary>Switches an external lab off (it is no longer offered when sending a test out) or on again, as the website's toggle does.</summary>
+    public static async Task<AdminResult> SetExternalLabActiveAsync(SupabaseApi api, string organizationId, string labId, bool active, CancellationToken ct = default)
+    {
+        var result = await api.PatchAsync("external_labs", $"id=eq.{labId}&organization_id=eq.{organizationId}", new { is_active = active }, ct);
+        if (!result.Ok) return Failed(result, "The external lab");
+        return Empty(result) ? new(false, "The server did not accept the change (lab not found, or your account isn't allowed to change the catalog).") : new(true, null);
+    }
+
+    public static async Task<(ExternalLabInput? Lab, string? Error)> LoadExternalLabAsync(SupabaseApi api, string organizationId, string labId, CancellationToken ct = default)
+    {
+        var result = await api.SelectAsync("external_labs", $"select=name,code,contact_person,phone,email,address,gst_number,notes&id=eq.{labId}&organization_id=eq.{organizationId}&limit=1", ct);
+        if (result.NetworkFailure) return (null, "Editing an external lab needs an internet connection.");
+        if (!result.Ok) return (null, result.ErrorMessage ?? "Could not load the lab.");
+        if (result.Body is not { ValueKind: JsonValueKind.Array } rows || rows.GetArrayLength() == 0) return (null, "That lab was not found on the server.");
+        var r = rows[0];
+        string Text(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+        return (new ExternalLabInput(Text("name"), Text("code"), Text("contact_person"), Text("phone"), Text("email"), Text("address"), Text("gst_number"), Text("notes")), null);
+    }
+
+    public static async Task<AdminResult> AddCategoryAsync(SupabaseApi api, string organizationId, string name, string description, IEnumerable<string> existingNames, CancellationToken ct = default)
+    {
+        name = name?.Trim() ?? "";
+        if (name.Length == 0) return new(false, "Category name is required.");
+        if (name.Length > 120) return new(false, "The name is too long.");
+        if (existingNames.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase))) return new(false, "A category with that name already exists.");
+        var result = await api.InsertAsync("test_categories", new { name, description = Blank(description), organization_id = organizationId }, ct);
+        if (result.Status == 409) return new(false, "A category with that name already exists.");
+        return result.Ok ? new(true, null) : Failed(result, "The category");
     }
 }

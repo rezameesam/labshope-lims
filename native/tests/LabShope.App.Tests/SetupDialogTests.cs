@@ -161,6 +161,31 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task AnExternalLabAndACategoryAreSentAndADuplicateCategoryIsRefused()
+    {
+        var server = new Server(HttpStatusCode.Created, "[]");
+        var lab = new ExternalLabDialog(Api(server), "org-1", null, null);
+        lab.Show();
+        lab.FindControl<TextBox>("NameBox")!.Text = "Metro Labs";
+        lab.FindControl<TextBox>("GstBox")!.Text = "29ABCDE1234F1Z5";
+        await Click(lab, "SaveButton");
+        Assert.True(lab.Saved);
+        Assert.Contains("/rest/v1/external_labs", server.Calls.Single().Url);
+        Assert.Contains("\"gst_number\":\"29ABCDE1234F1Z5\"", server.Calls.Single().Body);
+
+        var category = new CategoryDialog(Api(server), "org-1", ["Haematology"]);
+        category.Show();
+        category.FindControl<TextBox>("NameBox")!.Text = "haematology";
+        await Click(category, "SaveButton");
+        Assert.False(category.Saved);
+        Assert.Contains("already exists", category.FindControl<TextBlock>("ErrorText")!.Text);
+        category.FindControl<TextBox>("NameBox")!.Text = "Biochemistry";
+        await Click(category, "SaveButton");
+        Assert.True(category.Saved);
+        Assert.Equal(2, server.Calls.Count);
+    }
+
+    [AvaloniaFact]
     public async Task APackageShowsItsPriceAsTestsAreTickedAndSavesThePackageAndItsTests()
     {
         var server = new Server(HttpStatusCode.Created, "[]");
@@ -203,6 +228,13 @@ public class SetupDialogTests
             Assert.True(catalog.FindControl<Button>("DeleteButton")!.IsVisible);
             catalog.FindControl<Button>("DoctorsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Equal("Edit doctor", catalog.FindControl<TextBlock>("EditText")!.Text);
+            catalog.FindControl<Button>("LabsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("New external lab", catalog.FindControl<TextBlock>("NewText")!.Text);
+            Assert.Equal("Switch off", catalog.FindControl<TextBlock>("DeleteText")!.Text);
+            catalog.FindControl<Button>("CategoriesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("New category", catalog.FindControl<TextBlock>("NewText")!.Text);
+            Assert.False(catalog.FindControl<Button>("EditButton")!.IsVisible); // the website only adds categories
+            Assert.False(catalog.FindControl<Button>("DeleteButton")!.IsVisible);
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }
