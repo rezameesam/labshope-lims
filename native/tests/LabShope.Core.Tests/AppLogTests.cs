@@ -41,3 +41,27 @@ public class AppLogTests : IDisposable
 
     public void Dispose() { AppLog.Start(Path.Combine(Path.GetTempPath(), "labshope-log-unused")); try { Directory.Delete(_dir, true); } catch { } }
 }
+
+public class StartupFailureLogTests
+{
+    [Fact]
+    public void AStartupFailureIsWrittenWithTheErrorAndTheComputerDetails()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"labshope-startup-{Guid.NewGuid():N}");
+        try
+        {
+            var file = AppLog.WriteStartupFailure(new InvalidOperationException("boom at start"), dir);
+
+            Assert.Equal(Path.Combine(dir, "startup-error.log"), file);
+            var text = File.ReadAllText(file!);
+            Assert.Contains("STARTUP FAILURE", text);
+            Assert.Contains("boom at start", text);
+            Assert.Contains("InvalidOperationException", text);
+
+            AppLog.WriteStartupFailure(new Exception("second"), dir); // appended, not replaced
+            Assert.Contains("second", File.ReadAllText(file));
+            Assert.Contains("boom at start", File.ReadAllText(file));
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+}

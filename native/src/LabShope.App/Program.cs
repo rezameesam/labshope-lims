@@ -15,6 +15,17 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        try { Run(args); }
+        catch (Exception ex)
+        {
+            // Anything that stops the app before the normal log is running would otherwise leave no trace at all.
+            LabShope.Core.AppLog.WriteStartupFailure(ex);
+            throw;
+        }
+    }
+
+    private static void Run(string[] args)
+    {
         LabShope.Core.AppCulture.Apply(); // numbers and dates behave the same on every computer
 
         // Must run first: handles the installer's own start-up calls (install, update, uninstall) and exits.
