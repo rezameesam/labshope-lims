@@ -3,7 +3,9 @@ using LabShope.Core.Data;
 
 namespace LabShope.Core.Visits;
 
-public sealed record PaymentInput(string InvoiceId, decimal Amount, string Method = "cash", string? TransactionId = null, string? Notes = null);
+/// <param name="NotifyPatient">Tell the patient by email when this payment settles the bill. Set for payments taken on Bills &amp; payments, as on the website;
+/// not for the payment taken while registering a visit, when no results exist yet.</param>
+public sealed record PaymentInput(string InvoiceId, decimal Amount, string Method = "cash", string? TransactionId = null, string? Notes = null, bool NotifyPatient = false);
 
 /// <summary>What the cashier hands the patient. Provisional until the server gives the bill its official number.</summary>
 public sealed record Receipt(
@@ -55,6 +57,7 @@ public sealed class PaymentService
                 ["amount"] = input.Amount, ["payment_method"] = input.Method,
                 ["transaction_id"] = input.TransactionId, ["notes"] = input.Notes, ["payment_date"] = paidAt,
             };
+            if (input.NotifyPatient) payload["notify_patient"] = true; // read when the payment has reached the server (not sent on as a column)
             var patient = _store.GetPatient(bill.PatientId);
             _store.EnqueueVisit(new OutboxItem(paymentId, payload.ToJsonString(), "pending", 0, null, patient?.FullName ?? "", input.Amount, Kind: "payment"));
         });

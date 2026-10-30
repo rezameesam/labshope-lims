@@ -67,6 +67,13 @@ public partial class MainWindow : Window
                 v.RegisterMoreRequested += patient => { Show("register"); ((RegisterVisitView)_pages["register"]).UsePatient(patient); };
                 return v;
             }, Badge: () => _store.OpenVisitCount()),
+            new("notices", "Notice board", MaterialIconKind.BellOutline, Key.None, () =>
+            {
+                var v = new NoticeView(session);
+                v.OpenTestRequested += patient => { Show("results"); ((ResultsView)_pages["results"]).ShowPatient(patient); };
+                v.OpenBillRequested += patient => { Show("bills"); ((BillsView)_pages["bills"]).ShowPatient(patient); };
+                return v;
+            }, Badge: () => { var late = LabShope.Core.Visits.NoticeBoard.Build(_store, DateOnly.FromDateTime(DateTime.Today)).Stats; return late.OverdueTests + late.OverdueBills; }),
             new("bookings", "Booking requests", MaterialIconKind.CalendarClockOutline, Key.F12, () =>
             {
                 var v = new BookingsView(session);
@@ -225,6 +232,7 @@ public partial class MainWindow : Window
         {
             case OverviewView o: o.Refresh(); break;
             case PatientRegisterView p: p.Refresh(); break;
+            case NoticeView nv: nv.Refresh(); break;
             case FlowView f: f.Refresh(); break;
             case BillsView b: b.Refresh(); break;
             case ResultsView r: r.Refresh(); break;

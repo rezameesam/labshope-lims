@@ -19,6 +19,9 @@ public static class NotificationTemplates
     public const string AllTestsReadySubject = "All Test Results Ready ({test_count})";
     public const string AllTestsReadyMessage = "Dear {patient_name},\n\nAll your test results are now ready. Tests: {test_list}.\n\nPlease log in to your patient portal to view and download your report:\n{portal_url}\n\nThank you!";
 
+    public const string PaymentReceivedSubject = "Payment Received - View Your Reports";
+    public const string PaymentReceivedMessage = "Dear {patient_name},\n\nWe have received your payment of ₹{amount}{invoice_suffix}.\n\nYou can now view and download your test reports from {business_name}:\n{portal_url}\n\nThank you!";
+
     /// <summary>Replaces {name} markers, exactly as the website does.</summary>
     public static string Render(string template, IReadOnlyDictionary<string, string> context) =>
         context.Aggregate(template, (text, kv) => text.Replace("{" + kv.Key + "}", kv.Value ?? ""));

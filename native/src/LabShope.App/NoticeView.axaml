@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vis="using:LabShope.Core.Visits"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.NoticeView">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,*,*,*" ColumnSpacing="14" Margin="0,0,0,16">
+      <Border Classes="card"><StackPanel><TextBlock Text="Tests waiting" Classes="muted" /><TextBlock x:Name="PendingTests" FontSize="26" FontWeight="SemiBold" /></StackPanel></Border>
+      <Border Classes="card" Grid.Column="1"><StackPanel><TextBlock Text="Tests late (over a day)" Classes="muted" /><TextBlock x:Name="LateTests" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}" /></StackPanel></Border>
+      <Border Classes="card" Grid.Column="2"><StackPanel><TextBlock Text="Bills to collect" Classes="muted" /><TextBlock x:Name="PendingBills" FontSize="26" FontWeight="SemiBold" /></StackPanel></Border>
+      <Border Classes="card" Grid.Column="3"><StackPanel><TextBlock Text="Bills late (over 30 days)" Classes="muted" /><TextBlock x:Name="LateBills" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}" /></StackPanel></Border>
+    </Grid>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <TextBlock x:Name="SummaryText" VerticalAlignment="Center" Classes="muted" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
+        <Button x:Name="OpenButton" Classes="primary" Click="OnOpen"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="OpenInNew" Width="17" Height="17" /><TextBlock x:Name="OpenText" Text="Open" /></StackPanel></Button>
+      </StackPanel>
+    </Grid>
+    <Grid>
+      <DataGrid x:Name="Grid" x:DataType="vis:Notice" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+        <DataGrid.Columns>
+          <DataGridTemplateColumn Header="PRIORITY" Width="130">
+            <DataTemplate x:DataType="vis:Notice">
+              <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Priority, Converter={x:Static app:Pills.Background}}">
+                <TextBlock Text="{Binding PriorityText}" Foreground="{Binding Priority, Converter={x:Static app:Pills.Foreground}}" />
+              </Border>
+            </DataTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="WHAT" Binding="{Binding Title}" Width="*" MinWidth="220" />
+          <DataGridTextColumn Header="DETAILS" Binding="{Binding Description}" Width="*" MinWidth="220" />
+          <DataGridTextColumn Header="SINCE" Binding="{Binding DateText}" Width="110" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <StackPanel x:Name="EmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" IsVisible="False">
+        <mi:MaterialIcon Kind="CheckCircleOutline" Width="48" Height="48" Foreground="{StaticResource SuccessBrush}" HorizontalAlignment="Center" />
+        <TextBlock Text="All clear. Nothing is waiting or unpaid." Classes="muted" />
+      </StackPanel>
+    </Grid>
+  </DockPanel>
+</UserControl>

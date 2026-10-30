@@ -299,11 +299,61 @@ public sealed class SyncEngine
         return sent;
     }
 
+    /// <summary>
+    /// Emails patients that their payment was received (the bill is fully paid), once the payment has reached the server. Uses the website's own wording
+    /// and layout; a patient with no email is skipped, as on the website. Returns how many emails were sent.
+    /// </summary>
+    public async Task<int> SendPaymentNotificationsAsync(string slug, string labName, CancellationToken ct = default)
+    {
+        var sent = 0;
+        foreach (var (invoiceId, patientId) in _store.PendingPaymentNotifications())
+        {
+            var invoice = _store.GetInvoice(invoiceId);
+            if (invoice is null || invoice.PaymentStatus != "paid") { _store.RemovePaymentNotification(invoiceId); continue; }
+
+            var patient = await _api.SelectAsync("patients", $"select=full_name,email&id=eq.{patientId}&limit=1", ct);
+            if (patient.NetworkFailure || ErrorClassifier.Classify(patient) is ErrorKind.Transient or ErrorKind.Auth) break;
+            var row = patient.Body is { ValueKind: JsonValueKind.Array } a && a.GetArrayLength() > 0 ? a[0] : (JsonElement?)null;
+            var email = row is { } r ? Opt(r, "email") : null;
+            if (row is null || string.IsNullOrWhiteSpace(email)) { _store.RemovePaymentNotification(invoiceId); continue; }
+
+            var texts = await NotificationTextsAsync(ct, "notification_payment_received_subject", "notification_payment_received_message",
+                Notify.NotificationTemplates.PaymentReceivedSubject, Notify.NotificationTemplates.PaymentReceivedMessage);
+            var host = _store.GetMeta("portal_host") ?? slug + ".labshope.com";
+            var brand = Notify.EmailBrand.From(_store.GetBranding(labName), host);
+            var context = new Dictionary<string, string>
+            {
+                ["patient_name"] = Opt(row.Value, "full_name") ?? "", ["amount"] = invoice.PaidAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+                ["invoice_number"] = invoice.InvoiceNumber, ["invoice_suffix"] = $" for invoice {invoice.InvoiceNumber}",
+                ["business_name"] = _store.GetBranding(labName).Name, ["portal_url"] = $"https://{host}/auth/patient",
+            };
+            var subject = Notify.NotificationTemplates.Render(texts.Subject, context);
+            var message = Notify.NotificationTemplates.Render(texts.Message, context);
+            var withSite = message.Contains(brand.Website, StringComparison.OrdinalIgnoreCase) ? message : $"{message}\n\nWebsite: {brand.Website}";
+            var response = await _api.FunctionAsync("send-email", new
+            {
+                to = email, subject,
+                htmlContent = Notify.EmailTemplate.Html(subject, withSite, brand, DateTime.Now.Year),
+                textContent = Notify.EmailTemplate.Text(subject, withSite, brand),
+                patientId, organizationId = _organizationId,
+            }, ct);
+
+            if (response.NetworkFailure || ErrorClassifier.Classify(response) is ErrorKind.Transient or ErrorKind.Auth) break;
+            var ok = response.Ok && response.Body is { ValueKind: JsonValueKind.Object } b && b.TryGetProperty("success", out var s) && s.ValueKind == JsonValueKind.True;
+            _store.SetMeta("notify_last_error", ok ? "" : response.ErrorMessage ?? "The email could not be sent.");
+            _store.RemovePaymentNotification(invoiceId); // sent, or refused for good: never send twice
+            if (ok) sent++;
+        }
+        return sent;
+    }
+
     /// <summary>The lab's own wording from its settings (then the platform's), else the website's defaults.</summary>
-    private async Task<(string Subject, string Message)> NotificationTextsAsync(CancellationToken ct)
+    private async Task<(string Subject, string Message)> NotificationTextsAsync(CancellationToken ct,
+        string subjectKey = "notification_all_tests_ready_subject", string messageKey = "notification_all_tests_ready_message",
+        string? defaultSubject = null, string? defaultMessage = null)
     {
         string? subject = null, message = null;
-        const string keys = "(notification_all_tests_ready_subject,notification_all_tests_ready_message)";
+        var keys = $"({subjectKey},{messageKey})";
         foreach (var (table, filter) in new[] { ("organization_settings", $"&organization_id=eq.{_organizationId}"), ("system_settings", "") })
         {
             var res = await _api.SelectAsync(table, $"select=setting_key,setting_value&setting_key=in.{keys}{filter}", ct);
@@ -312,12 +362,12 @@ public sealed class SyncEngine
             {
                 var key = Opt(r, "setting_key"); var value = Opt(r, "setting_value");
                 if (string.IsNullOrWhiteSpace(value)) continue;
-                if (key == "notification_all_tests_ready_subject") subject ??= value;
-                if (key == "notification_all_tests_ready_message") message ??= value;
+                if (key == subjectKey) subject ??= value;
+                if (key == messageKey) message ??= value;
             }
             if (subject is not null && message is not null) break;
         }
-        return (subject ?? Notify.NotificationTemplates.AllTestsReadySubject, message ?? Notify.NotificationTemplates.AllTestsReadyMessage);
+        return (subject ?? defaultSubject ?? Notify.NotificationTemplates.AllTestsReadySubject, message ?? defaultMessage ?? Notify.NotificationTemplates.AllTestsReadyMessage);
     }
 
     /// <summary>Sends queued visits one at a time, oldest first. Overlapping calls are skipped, not doubled.</summary>
@@ -354,7 +404,14 @@ public sealed class SyncEngine
                 if (result.Ok && (isRowPatch ? result.Body is { ValueKind: JsonValueKind.Array } : result.Body is { ValueKind: JsonValueKind.Object }))
                 {
                     var body = result.Body!.Value;
-                    if (isPayment) _store.MarkPaymentSynced(item.VisitId);
+                    if (isPayment)
+                    {
+                        _store.MarkPaymentSynced(item.VisitId);
+                        // The payment is safe on the server: if it settled the bill, the patient is told (once the bill is paid, however many payments it took).
+                        var paidInvoice = Opt(payload, "invoice_id") is { } invoiceId ? _store.GetInvoice(invoiceId) : null;
+                        var notify = payload.TryGetProperty("notify_patient", out var flag) && flag.ValueKind == JsonValueKind.True;
+                        if (notify && paidInvoice is { PaymentStatus: "paid" }) _store.QueuePaymentNotification(paidInvoice.Id, paidInvoice.PatientId);
+                    }
                     else if (isResult)
                     {
                         var testId = payload.GetProperty("id").GetString()!;

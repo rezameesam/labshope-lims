@@ -32,7 +32,7 @@ public partial class PaymentDialog : Window
         try
         {
             Result = _payments.Record(new PaymentInput(_bill.Id, amount, (MethodBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "cash",
-                string.IsNullOrWhiteSpace(RefBox.Text) ? null : RefBox.Text.Trim()));
+                string.IsNullOrWhiteSpace(RefBox.Text) ? null : RefBox.Text.Trim(), NotifyPatient: true));
             Close();
         }
         catch (ArgumentException ex) { Fail(ex.Message); }
