@@ -38,8 +38,8 @@ echo ""
 
 # Set Mailjet secrets
 if supabase secrets set \
-  MAILJET_API_KEY=cb79571d5659c6745f28f555dda16daa \
-  MAILJET_SECRET_KEY=30b54ec068ada7245c6f20d5396acc9d \
+  MAILJET_API_KEY="${MAILJET_API_KEY:?set MAILJET_API_KEY in your shell first}" \
+  MAILJET_SECRET_KEY="${MAILJET_SECRET_KEY:?set MAILJET_SECRET_KEY in your shell first}" \
   MAILJET_FROM_EMAIL=no-reply@irmclinic.com \
   MAILJET_FROM_NAME="IRM Clinic"; then
     echo ""

@@ -34,3 +34,8 @@ supabase/.temp/
 # Desktop app: bundled web build
 desktop/app/
 desktop/.env.desktop
+
+# Local assistant settings and old env copies never belong in the repository
+.claude/settings.json
+.env.old
+.env.*.local

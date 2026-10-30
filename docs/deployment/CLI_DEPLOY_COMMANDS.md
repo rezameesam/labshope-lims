@@ -16,8 +16,8 @@ This will:
 
 ```bash
 supabase secrets set \
-  MAILJET_API_KEY=cb79571d5659c6745f28f555dda16daa \
-  MAILJET_SECRET_KEY=30b54ec068ada7245c6f20d5396acc9d \
+  MAILJET_API_KEY=<your-mailjet-api-key> \
+  MAILJET_SECRET_KEY=<your-mailjet-secret-key> \
   MAILJET_FROM_EMAIL=no-reply@irmclinic.com \
   MAILJET_FROM_NAME="IRM Clinic"
 ```
