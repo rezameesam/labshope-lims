@@ -1,6 +1,6 @@
 name: Native Release
 
-# Builds the LabShope LIMS native desktop app installers (Windows for now; Mac and Linux are switched off in the matrix below) and attaches
+# Builds the LabShope LIMS native desktop app installers (Windows and macOS; Linux is switched off in the matrix below) and attaches
 # them to the GitHub release that triggered the run.
 #
 # Run it manually (Actions -> Native Release -> Run workflow) to do a dry run: the installers are built and kept
@@ -30,11 +30,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Windows only for now: macOS builds cost ten times as many GitHub Actions minutes as Linux, Windows twice as many.
-        # To build Mac or Linux installers again, remove the "# " in front of their lines below (and see docs/NATIVE_DOWNLOADS.md).
+        # Windows and macOS for now. macOS minutes cost ten times a Linux minute and Windows twice, so Linux is left off until it is needed:
+        # remove the "# " in front of its line below to build it again (and see docs/NATIVE_DOWNLOADS.md).
         include:
-          # - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, platform: mac-apple-silicon, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims --channel osx-arm64", exe: LabShope }
-          # - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   platform: mac-intel, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims --channel osx-x64", exe: LabShope }
+          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, platform: mac-apple-silicon, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims --channel osx-arm64", exe: LabShope }
+          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   platform: mac-intel, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims --channel osx-x64", exe: LabShope }
           - { name: "Windows (64-bit)",       os: windows-latest, rid: win-x64,  platform: windows-64bit, icon: assets/icon.ico, extra: "", exe: LabShope.exe }
           - { name: "Windows (32-bit)",       os: windows-latest, rid: win-x86,  platform: windows-32bit, icon: assets/icon.ico, extra: "--channel win-x86", exe: LabShope.exe }
           # - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  platform: linux, icon: assets/icon.png, extra: "", exe: LabShope }
