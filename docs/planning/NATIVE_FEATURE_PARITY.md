@@ -4,6 +4,11 @@ The native app must offer what the online (web) app offers, reusing the same tab
 This list is built from the web app's own admin menu (`src/components/admin/adminDashboardConfig.ts`, 26 sections) and
 the actions inside each screen. Status: **Done** (works and tested), **Partial** (some of it), **Missing**.
 
+> **Status update, 30 Oct 2026:** since this table was written the native app gained: billing details/edit/filters, patients (add alone, switch off/on, history, email),
+> repeat-test warning, catalog management (packages, doctors, external labs, categories, report templates), inventory item management, labs, collection centres,
+> staff edit and reset password, lab profile and logo, and automatic updates. Rows below that still say Missing/Partial for those are out of date; the
+> list of what is genuinely still missing is in `HANDOFF_2026-10-30.md`.
+
 ## Work
 
 | Web section | Native | Status | What is missing |
