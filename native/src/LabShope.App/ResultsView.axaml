@@ -54,6 +54,7 @@
             <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" />
             <Button x:Name="SaveButton" Classes="primary" Content="Save result (Enter)" IsDefault="True" Click="OnSave" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
             <Button x:Name="OutsourceButton" Content="Send to an external lab…" Click="OnOutsource" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button x:Name="HistoryButton" Content="Who changed this result" Click="OnHistory" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
             <Button x:Name="ReportButton" Content="Print this patient's report" Click="OnPrintReport" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
           </StackPanel>
 

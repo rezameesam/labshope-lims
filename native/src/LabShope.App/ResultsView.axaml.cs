@@ -112,6 +112,12 @@ public partial class ResultsView : UserControl
         if (panel && _panel.Count == 0) _panel.Add(new PanelRow());
     }
 
+    private async void OnHistory(object? sender, RoutedEventArgs e)
+    {
+        if (_current is null) return;
+        await new ResultHistoryDialog(_session, _current.Test).ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+    }
+
     private void OnPrintReport(object? sender, RoutedEventArgs e)
     {
         if (_current is null) return;
