@@ -46,6 +46,12 @@
                 <TextBlock x:Name="ScanText" Foreground="{StaticResource PrimaryBrush}" />
               </StackPanel>
             </Border>
+            <Button x:Name="UpdateChip" Classes="primary" IsVisible="False" Padding="12,6" Click="OnUpdateChip">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="DownloadCircleOutline" Width="16" Height="16" />
+                <TextBlock x:Name="UpdateText" />
+              </StackPanel>
+            </Button>
             <Border x:Name="SyncChip" Classes="pill" Background="{StaticResource SuccessBgBrush}">
               <StackPanel Orientation="Horizontal" Spacing="7">
                 <Ellipse x:Name="SyncDot" Width="8" Height="8" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" />

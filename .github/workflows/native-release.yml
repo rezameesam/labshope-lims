@@ -31,8 +31,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, platform: mac-apple-silicon, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
-          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   platform: mac-intel, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
+          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, platform: mac-apple-silicon, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims --channel osx-arm64", exe: LabShope }
+          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   platform: mac-intel, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims --channel osx-x64", exe: LabShope }
           - { name: "Windows (64-bit)",       os: windows-latest, rid: win-x64,  platform: windows-64bit, icon: assets/icon.ico, extra: "", exe: LabShope.exe }
           - { name: "Windows (32-bit)",       os: windows-latest, rid: win-x86,  platform: windows-32bit, icon: assets/icon.ico, extra: "--channel win-x86", exe: LabShope.exe }
           - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  platform: linux, icon: assets/icon.png, extra: "", exe: LabShope }
@@ -101,6 +101,9 @@ jobs:
           endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           # Every file of this build, kept under its version.
           aws s3 cp . "s3://${R2_BUCKET}/releases/${VERSION}/" --recursive --endpoint-url "$endpoint"
+          # The update feed the installed apps check: the packages first, then the lists that point at them (so nobody sees a list before its package exists).
+          for f in *.nupkg; do [ -f "$f" ] && aws s3 cp "$f" "s3://${R2_BUCKET}/updates/$f" --endpoint-url "$endpoint"; done
+          for f in releases.*.json RELEASES-*; do [ -f "$f" ] && aws s3 cp "$f" "s3://${R2_BUCKET}/updates/$f" --endpoint-url "$endpoint" --cache-control "max-age=60"; done
           # The installer under a fixed name, so the website's download button never changes.
           setup=$(ls | grep -v -i -E 'nupkg|json|portable|releases' | grep -i -E 'setup\.(exe|pkg)$|\.AppImage$' | head -n 1)
           if [ -z "$setup" ]; then echo "No installer found to publish as latest."; exit 1; fi
@@ -122,7 +125,7 @@ jobs:
           for f in *Setup* *Portable*; do
             [ -f "$f" ] || continue
             case "$f" in
-              LabShopeLIMS-osx-*) cp "$f" "${f/LabShopeLIMS-osx-/LabShopeLIMS-osx-${{ matrix.rid }}-}"; rm "$f" ;;
+              LabShopeLIMS-osx-Setup*|LabShopeLIMS-osx-Portable*) cp "$f" "${f/LabShopeLIMS-osx-/LabShopeLIMS-osx-${{ matrix.rid }}-}"; rm "$f" ;;
             esac
           done
           for f in *Setup* *Portable* *.nupkg releases.*.json RELEASES-*; do

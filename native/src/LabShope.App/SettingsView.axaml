@@ -85,7 +85,12 @@
       </Border>
 
       <Border Classes="card">
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="24">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="24">
+          <TextBlock Text="Updates" Classes="muted" Grid.Row="6" />
+          <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="12">
+            <TextBlock x:Name="UpdateLine" VerticalAlignment="Center" />
+            <Button x:Name="CheckUpdateButton" Content="Check for updates" Click="OnCheckUpdate" Padding="10,5" />
+          </StackPanel>
           <TextBlock Text="Lab profile" Classes="muted" Grid.Row="5" />
           <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="12">
             <TextBlock Text="Name, logo, contact details and report footer" VerticalAlignment="Center" />

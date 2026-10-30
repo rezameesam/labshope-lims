@@ -160,4 +160,40 @@ public partial class SettingsView : UserControl
         await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
         if (dialog.Saved && LabProfileChanged is not null) await LabProfileChanged.Invoke();
     }
+
+    private AppUpdater? _updater;
+
+    /// <summary>The window's updater, shown and driven from the Updates row.</summary>
+    public AppUpdater? Updater
+    {
+        get => _updater;
+        set
+        {
+            _updater = value;
+            if (value is null) return;
+            value.Changed += () => Avalonia.Threading.Dispatcher.UIThread.Post(ShowUpdate);
+            ShowUpdate();
+        }
+    }
+
+    private void ShowUpdate()
+    {
+        if (_updater is null) { UpdateLine.Text = ""; return; }
+        UpdateLine.Text = _updater.State switch
+        {
+            UpdateState.Checking => "Looking for a newer version…",
+            UpdateState.Downloading => $"Downloading version {_updater.NewVersion}… {_updater.Percent}%",
+            UpdateState.Ready => $"Version {_updater.NewVersion} is ready. Use the Restart button at the top to install it.",
+            UpdateState.UpToDate => "You have the newest version.",
+            UpdateState.NotInstalled => "Updates work in the installed app (this copy was not installed).",
+            UpdateState.Failed => "Could not check for updates. They are checked again automatically.",
+            _ => "Checked automatically when the app starts and every few hours.",
+        };
+        CheckUpdateButton.IsEnabled = _updater.State is not (UpdateState.Checking or UpdateState.Downloading or UpdateState.Ready);
+    }
+
+    private async void OnCheckUpdate(object? sender, RoutedEventArgs e)
+    {
+        if (_updater is not null) await _updater.RunAsync();
+    }
 }
