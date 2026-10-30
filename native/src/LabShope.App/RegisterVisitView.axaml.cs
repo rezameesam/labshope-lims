@@ -54,6 +54,7 @@ public partial class RegisterVisitView : UserControl
         TestSearch.KeyDown += (_, e) => { if (e.Key == Key.Enter) { AddFirstOrSelectedTest(); e.Handled = true; } };
         TestResults.DoubleTapped += (_, _) => AddFirstOrSelectedTest();
         PackageBox.SelectionChanged += (_, _) => PickPackage();
+        DiscountBox.TextChanged += (_, _) => UpdateTotal();
         PayAmount.TextChanged += (_, _) => { if (PayAmount.IsFocused) _payEdited = true; UpdateBalance(); };
         SelectedGrid.KeyDown += (_, e) => { if (e.Key == Key.Delete) RemoveSelected(); };
         KeyDown += (_, e) => { if (e.Key == Key.F8) { OnSave(null, null!); e.Handled = true; } };
@@ -206,10 +207,20 @@ public partial class RegisterVisitView : UserControl
     private IReadOnlyList<VisitTest> Tests() => _selected.Select(s => new VisitTest(s.Name, s.Price, s.InPackage)).ToList();
     private PackageRef? PackageRef() => _package is not null && _selected.Any(s => s.InPackage) ? new PackageRef(_package.Id, _package.Name, _package.Price) : null;
 
+    /// <summary>What the patient has to pay: the price of the tests less the discount typed (never below nothing).</summary>
+    private (decimal Gross, decimal Discount, decimal Payable) Amounts()
+    {
+        var gross = VisitService.Total(Tests(), PackageRef());
+        var typed = decimal.TryParse(DiscountBox.Text, out var d) ? d : 0m;
+        var discount = VisitService.ClampDiscount(typed, gross);
+        return (gross, discount, gross - discount);
+    }
+
     private void UpdateTotal()
     {
-        var total = VisitService.Total(Tests(), PackageRef());
+        var (gross, discount, total) = Amounts();
         TotalText.Text = $"Total {total:0.##}";
+        DiscountNote.Text = discount > 0 ? $"Price {gross:0.##} less discount {discount:0.##}" : "Amount taken off the price (optional)";
         // Most patients pay in full at the counter, so the amount follows the total until the cashier changes it.
         if (!_payEdited) PayAmount.Text = total.ToString("0.##");
         UpdateBalance();
@@ -218,7 +229,7 @@ public partial class RegisterVisitView : UserControl
     /// <summary>Says plainly what happens with the amount typed: paid in full, a balance left, or too much.</summary>
     private void UpdateBalance()
     {
-        var total = VisitService.Total(Tests(), PackageRef());
+        var total = Amounts().Payable;
         var received = decimal.TryParse(PayAmount.Text, out var r) ? r : 0m;
         var (text, brush) =
             total <= 0 ? ("Add tests to see the amount to collect.", "MutedBrush")
@@ -244,7 +255,8 @@ public partial class RegisterVisitView : UserControl
 
             decimal pay = 0;
             if (!string.IsNullOrWhiteSpace(PayAmount.Text) && !decimal.TryParse(PayAmount.Text, out pay)) { ResultText.Text = "Enter the amount being paid as a number (0 if nothing is paid yet)."; return; }
-            var total = VisitService.Total(Tests(), PackageRef());
+            var (_, discount, total) = Amounts();
+            if (!string.IsNullOrWhiteSpace(DiscountBox.Text) && !decimal.TryParse(DiscountBox.Text, out var typedDiscount)) { ResultText.Text = "Enter the discount as a number (0 for none)."; return; }
             if (pay > total) { ResultText.Text = $"The amount paid can't be more than the total ({total:0.##})."; return; }
 
             var doctor = DoctorBox.SelectedItem as Named;
@@ -260,7 +272,8 @@ public partial class RegisterVisitView : UserControl
                 Package: PackageRef(),
                 ReferralDoctorId: doctor?.Id,
                 Payment: pay > 0 ? new InitialPayment(pay, (PayMethod.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "cash",
-                    string.IsNullOrWhiteSpace(PayRef.Text) ? null : PayRef.Text.Trim()) : null);
+                    string.IsNullOrWhiteSpace(PayRef.Text) ? null : PayRef.Text.Trim()) : null,
+                Discount: discount);
 
             var visit = _visits.Register(input);
             var fromBooking = _bookingId; // Clear() forgets it, so remember which request this visit was for
@@ -321,7 +334,7 @@ public partial class RegisterVisitView : UserControl
         PickedPatient.Text = ""; PickedChip.IsVisible = false; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
         NewName.Text = ""; NewPhone.Text = ""; NewDob.SelectedDate = null; NotesBox.Text = "";
         _selected.Clear();
-        _payEdited = false; PayRef.Text = ""; PayMethod.SelectedIndex = 0;
+        _payEdited = false; PayRef.Text = ""; PayMethod.SelectedIndex = 0; DiscountBox.Text = "0";
         DoctorBox.SelectedIndex = 0; CenterBox.SelectedIndex = 0; PackageBox.SelectedIndex = 0;
         UpdateTotal();
         FocusFirstField();

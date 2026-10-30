@@ -55,6 +55,36 @@ public class PatientRulesTests : IDisposable
         Assert.Empty(_store.SearchPatients("")); // nothing half-created
     }
 
+    [Fact]
+    public void ADiscountIsTakenOffTheBillSentWithTheVisitAndShownOnTheReceipt()
+    {
+        var visits = new VisitService(_store);
+        var visit = visits.Register(new RegisterVisitInput("org-1", "lab-1", "2026-10-29", [new VisitTest("CBC", 100), new VisitTest("TSH", 200)],
+            NewPatient: new NewPatient("Asha Rao", "9876543210"), Discount: 50m, Payment: new InitialPayment(250m)));
+
+        Assert.Equal(250m, visit.Total); // what the patient pays
+        var bill = _store.GetInvoice(visit.VisitId)!;
+        Assert.Equal((250m, 50m, 250m, "paid"), (bill.TotalAmount, bill.Discount, bill.PaidAmount, bill.PaymentStatus));
+        Assert.Equal(50m, visit.Receipt!.Discount);
+        Assert.Equal(0m, visit.Receipt.Balance);
+        Assert.Equal(50m, System.Text.Json.JsonDocument.Parse(_store.GetVisit(visit.VisitId)!.PayloadJson).RootElement.GetProperty("discount").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData(9999, 300)]   // never more than the bill
+    [InlineData(-20, 0)]      // never negative
+    [InlineData(10.005, 10.01)] // whole paise
+    public void TheDiscountIsKeptWithinTheBill(double typed, double expected) =>
+        Assert.Equal((decimal)expected, VisitService.ClampDiscount((decimal)typed, 300m));
+
+    [Fact]
+    public void WithoutADiscountNothingChanges()
+    {
+        var visit = new VisitService(_store).Register(new RegisterVisitInput("org-1", "lab-1", "2026-10-29", [new VisitTest("CBC", 100)], NewPatient: new NewPatient("Asha Rao", "9876543210")));
+        Assert.Equal(100m, visit.Total);
+        Assert.False(System.Text.Json.JsonDocument.Parse(_store.GetVisit(visit.VisitId)!.PayloadJson).RootElement.TryGetProperty("discount", out _));
+    }
+
     [Theory]
     [InlineData("100.005", "100.01")]
     [InlineData("0.001", "0")]

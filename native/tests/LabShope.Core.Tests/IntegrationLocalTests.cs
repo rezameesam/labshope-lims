@@ -204,6 +204,24 @@ public class IntegrationLocalTests
         Assert.True(replay.Ok, replay.ErrorMessage);
         Assert.True(replay.Body!.Value.GetProperty("replayed").GetBoolean());
 
+        // A discount given at the counter: the server stores it the way the website does, the patient owes the discountVisit amount,
+        // and the books (which post from the final amount) still balance.
+        var discountVisit = new VisitService(store).Register(new RegisterVisitInput(org, Env("LIMS_IT_LAB"), DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            [new VisitTest("CBC", 300), new VisitTest("LFT", 450)], NewPatient: new NewPatient("Discount Integration Patient", $"9{Random.Shared.Next(100000000, 999999999)}"),
+            Discount: 150m, Payment: new InitialPayment(600m, "cash")));
+        Assert.Equal(600m, discountVisit.Total);
+        var discountFlush = await engine.FlushOutboxAsync();
+        Assert.True(discountFlush == new FlushOutcome(2, 0, null), "discount visit: " + string.Join(" | ", store.ListOutbox().Select(o => $"{o.What}/{o.Badge}/{o.Detail}")));
+        var discountRow = (await api.SelectAsync("invoices", $"select=total_amount,discount_amount,final_amount,payment_status,discount_entered_by&id=eq.{discountVisit.VisitId}")).Body!.Value[0];
+        Assert.Equal((750m, 150m, 600m, "paid"), (discountRow.GetProperty("total_amount").GetDecimal(), discountRow.GetProperty("discount_amount").GetDecimal(),
+            discountRow.GetProperty("final_amount").GetDecimal(), discountRow.GetProperty("payment_status").GetString()));
+        Assert.Equal(session.UserId, discountRow.GetProperty("discount_entered_by").GetString());
+        await engine.PullInvoicesAsync();
+        var pulled = store.GetInvoice(discountVisit.VisitId)!;
+        Assert.Equal((600m, 150m, "paid"), (pulled.TotalAmount, pulled.Discount, pulled.PaymentStatus)); // the server agrees with what the PC showed
+        var booksAfter = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
+        Assert.True(booksAfter.Data!.Tallied, "the books still balance after a discountVisit bill");
+
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         File.Delete(path);
     }
