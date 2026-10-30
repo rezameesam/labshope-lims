@@ -271,6 +271,31 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task ANewReportTemplateIsSentWithItsScopeAndLayout()
+    {
+        var server = new Server(HttpStatusCode.Created, "[]");
+        var catalog = new Catalog([new CatalogTest("t1", "CBC", "CBC", 300m, null)], [], [], [], [], [new TestCategory("c1", "Haematology")]);
+        var dialog = new TemplateDialog(Api(server), "org-1", catalog, null);
+        dialog.Show();
+        dialog.FindControl<TextBox>("NameBox")!.Text = "Haematology report";
+        dialog.FindControl<TextBox>("HeaderBox")!.Text = "<h1>{lab_name}</h1>";
+        dialog.FindControl<ComboBox>("CategoryBox")!.SelectedIndex = 1;
+        dialog.FindControl<ComboBox>("FormatBox")!.SelectedIndex = 1;
+        await Click(dialog, "SaveButton");
+        Assert.True(dialog.Saved);
+        var body = server.Calls.Single().Body;
+        Assert.Contains("/rest/v1/test_templates", server.Calls.Single().Url);
+        Assert.Contains("\"test_category\":\"Haematology\"", body);
+        Assert.Contains("\"result_format\":\"list\"", body);
+        Assert.Contains("{lab_name}", body);
+
+        var blank = new TemplateDialog(Api(server), "org-1", catalog, null);
+        blank.Show();
+        await Click(blank, "SaveButton");
+        Assert.Contains("name is required", blank.FindControl<TextBlock>("ErrorText")!.Text);
+    }
+
+    [AvaloniaFact]
     public async Task APackageShowsItsPriceAsTestsAreTickedAndSavesThePackageAndItsTests()
     {
         var server = new Server(HttpStatusCode.Created, "[]");
@@ -320,6 +345,9 @@ public class SetupDialogTests
             Assert.Equal("New category", catalog.FindControl<TextBlock>("NewText")!.Text);
             Assert.False(catalog.FindControl<Button>("EditButton")!.IsVisible); // the website only adds categories
             Assert.False(catalog.FindControl<Button>("DeleteButton")!.IsVisible);
+            catalog.FindControl<Button>("TemplatesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("New report template", catalog.FindControl<TextBlock>("NewText")!.Text);
+            Assert.True(catalog.FindControl<Button>("DeleteButton")!.IsVisible);
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }

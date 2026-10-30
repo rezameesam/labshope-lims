@@ -12,6 +12,7 @@
           <Button x:Name="DoctorsButton" Classes="seg" Content="Doctors" Click="OnTab" Tag="doctors" />
           <Button x:Name="LabsButton" Classes="seg" Content="External labs" Click="OnTab" Tag="labs" />
           <Button x:Name="CategoriesButton" Classes="seg" Content="Categories" Click="OnTab" Tag="categories" />
+          <Button x:Name="TemplatesButton" Classes="seg" Content="Report templates" Click="OnTab" Tag="templates" />
         </StackPanel>
         <Grid ColumnDefinitions="Auto,*">
           <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
@@ -62,6 +63,14 @@
           <DataGridTextColumn Header="EXTERNAL LAB" Binding="{Binding Name}" Width="*" />
           <DataGridTextColumn Header="CODE" Binding="{Binding Code}" Width="140" />
           <DataGridTextColumn Header="PHONE" Binding="{Binding Phone}" Width="180" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="TemplateGrid" x:DataType="data:ReportTemplate" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="TEMPLATE" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="CATEGORY" Binding="{Binding TestCategory}" Width="180" />
+          <DataGridTextColumn Header="LAYOUT" Binding="{Binding ResultFormat}" Width="110" />
+          <DataGridCheckBoxColumn Header="DEFAULT" Binding="{Binding IsDefault}" Width="100" />
         </DataGrid.Columns>
       </DataGrid>
       <DataGrid x:Name="CategoryGrid" x:DataType="data:TestCategory" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">

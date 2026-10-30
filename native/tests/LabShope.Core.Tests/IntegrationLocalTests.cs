@@ -220,6 +220,16 @@ public class IntegrationLocalTests
         var meRow = (await api.SelectAsync("employees", $"select=designation,department&id=eq.{me.Id}")).Body!.Value[0];
         Assert.Equal(("Chief tester", "QA"), (meRow.GetProperty("designation").GetString(), meRow.GetProperty("department").GetString()));
 
+        // An admin can add, edit and delete the lab's own report template.
+        Assert.True((await TemplateAdmin.AddAsync(api, org, new TemplateInput("Integration template", null, null, "<h1>{lab_name}</h1>", "", "table", true, true, true, "", false))).Ok);
+        var tplRow = (await api.SelectAsync("test_templates", $"select=id,result_format&organization_id=eq.{org}&name=eq.Integration%20template")).Body!.Value[0];
+        var tplId = tplRow.GetProperty("id").GetString()!;
+        Assert.True((await TemplateAdmin.UpdateAsync(api, org, tplId, new TemplateInput("Integration template", null, null, "<h1>{lab_name}</h1>", "bye", "list", true, false, true, "p{margin:0}", false))).Ok);
+        var tplAfter = (await api.SelectAsync("test_templates", $"select=result_format,footer_template,custom_css&id=eq.{tplId}")).Body!.Value[0];
+        Assert.Equal(("list", "bye", "p{margin:0}"), (tplAfter.GetProperty("result_format").GetString(), tplAfter.GetProperty("footer_template").GetString(), tplAfter.GetProperty("custom_css").GetString()));
+        Assert.Equal("p{margin:0}", await TemplateAdmin.LoadCssAsync(api, org, tplId));
+        Assert.True((await TemplateAdmin.DeleteAsync(api, org, tplId)).Ok);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));
