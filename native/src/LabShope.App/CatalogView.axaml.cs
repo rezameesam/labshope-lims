@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using LabShope.Core.Data;
+using LabShope.Core.Visits;
 
 namespace LabShope.App;
 
@@ -34,7 +35,10 @@ public partial class CatalogView : UserControl
     {
         foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors") }) b.Classes.Set("on", key == _tab);
         TestGrid.IsVisible = _tab == "tests"; PackageGrid.IsVisible = _tab == "packages"; DoctorGrid.IsVisible = _tab == "doctors";
-        EditButton.IsVisible = NewButton.IsVisible = _tab == "tests" && CanEdit;
+        NewButton.IsVisible = EditButton.IsVisible = CanEdit;
+        DeleteButton.IsVisible = CanEdit && _tab != "tests";
+        NewText.Text = _tab switch { "packages" => "New package", "doctors" => "New doctor", _ => "New test" };
+        EditText.Text = _tab == "tests" ? "Edit price and range" : _tab == "packages" ? "Edit package" : "Edit doctor";
 
         var words = (SearchBox.Text ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool Match(params string?[] fields) => words.All(w => fields.Any(f => f?.Contains(w, StringComparison.OrdinalIgnoreCase) == true));
@@ -56,29 +60,88 @@ public partial class CatalogView : UserControl
 
     private bool CanEdit => _session.Api is not null && _session.Workspace.IsAdmin;
 
-    private async void OnNew(object? sender, RoutedEventArgs e)
+    private Window Owner => (Window)TopLevel.GetTopLevel(this)!;
+
+    private void Done(string message)
     {
-        if (_tab != "tests" || !CanEdit || _session.Api is null) return;
-
-        var dialog = new NewTestDialog(_session.Api, _session.Workspace.OrganizationId, _session.Store.GetCatalog());
-        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
-        if (!dialog.Saved) return;
-
-        MessageText.Text = "Test added. It appears here and on other computers at the next sync (press F9).";
+        MessageText.Text = message;
         MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("SuccessBrush")!;
         CatalogChanged?.Invoke();
     }
 
+    private void Problem(string message)
+    {
+        MessageText.Text = message;
+        MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("DangerBrush")!;
+    }
+
+    private async void OnNew(object? sender, RoutedEventArgs e)
+    {
+        if (!CanEdit || _session.Api is null) return;
+        var org = _session.Workspace.OrganizationId;
+        switch (_tab)
+        {
+            case "packages":
+                var package = new PackageDialog(_session.Api, org, _session.Store.GetCatalog(), null, null);
+                await package.ShowDialog(Owner);
+                if (package.Saved) Done("Package added. It appears on other computers at the next sync (press F9).");
+                break;
+            case "doctors":
+                var doctor = new DoctorDialog(_session.Api, org, null);
+                await doctor.ShowDialog(Owner);
+                if (doctor.Saved) Done("Doctor added. They appear on other computers at the next sync (press F9).");
+                break;
+            default:
+                var dialog = new NewTestDialog(_session.Api, org, _session.Store.GetCatalog());
+                await dialog.ShowDialog(Owner);
+                if (dialog.Saved) Done("Test added. It appears here and on other computers at the next sync (press F9).");
+                break;
+        }
+    }
+
     private async void OnEdit(object? sender, RoutedEventArgs e)
     {
-        if (_tab != "tests" || !CanEdit || TestGrid.SelectedItem is not CatalogTest test || _session.Api is null) return;
+        if (!CanEdit || _session.Api is null) return;
+        var org = _session.Workspace.OrganizationId;
+        switch (_tab)
+        {
+            case "packages" when PackageGrid.SelectedItem is TestPackage selected:
+                var (details, packageError) = await CatalogManage.LoadPackageAsync(_session.Api, org, selected);
+                if (details is null) { Problem(packageError ?? "Could not open the package."); return; }
+                var package = new PackageDialog(_session.Api, org, _session.Store.GetCatalog(), selected, details);
+                await package.ShowDialog(Owner);
+                if (package.Saved) Done($"{selected.Name} updated. The change reaches other computers at their next sync.");
+                break;
+            case "doctors" when DoctorGrid.SelectedItem is Doctor picked:
+                var (full, doctorError) = await CatalogManage.LoadDoctorAsync(_session.Api, org, picked.Id);
+                if (full is null) { Problem(doctorError ?? "Could not open the doctor."); return; }
+                var doctor = new DoctorDialog(_session.Api, org, full);
+                await doctor.ShowDialog(Owner);
+                if (doctor.Saved) Done($"{picked.Name} updated. The change reaches other computers at their next sync.");
+                break;
+            case "tests" when TestGrid.SelectedItem is CatalogTest test:
+                var dialog = new TestEditDialog(_session.Api, org, test);
+                await dialog.ShowDialog(Owner);
+                if (dialog.Saved) Done($"{test.Name} updated. The new values reach other computers at their next sync.");
+                break;
+        }
+    }
 
-        var dialog = new TestEditDialog(_session.Api, _session.Workspace.OrganizationId, test);
-        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
-        if (!dialog.Saved) return;
+    private async void OnDelete(object? sender, RoutedEventArgs e)
+    {
+        if (!CanEdit || _session.Api is null) return;
+        var org = _session.Workspace.OrganizationId;
+        string? id = null, name = null;
+        if (_tab == "packages" && PackageGrid.SelectedItem is TestPackage p) (id, name) = (p.Id, p.Name);
+        else if (_tab == "doctors" && DoctorGrid.SelectedItem is Doctor d) (id, name) = (d.Id, d.Name);
+        if (id is null) return;
 
-        MessageText.Text = $"{test.Name} updated. The new values reach other computers at their next sync.";
-        MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("SuccessBrush")!;
-        CatalogChanged?.Invoke();
+        var confirm = new ConfirmDialog($"Delete {name}?", _tab == "packages" ? "The package is removed for every computer in the lab. Bills already made keep their tests." : "The doctor is removed for every computer in the lab.", "Delete");
+        await confirm.ShowDialog(Owner);
+        if (!confirm.Confirmed) return;
+
+        var result = _tab == "packages" ? await CatalogManage.DeletePackageAsync(_session.Api, org, id) : await CatalogManage.DeleteDoctorAsync(_session.Api, org, id);
+        if (result.Ok) Done($"{name} deleted. It disappears from other computers at their next sync.");
+        else Problem(result.Error ?? "Not deleted.");
     }
 }
