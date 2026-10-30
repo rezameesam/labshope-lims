@@ -16,6 +16,7 @@ const Index = lazyRoute(() => import("./pages/Index"));
 const BookDemo = lazyRoute(() => import("./pages/BookDemo"));
 const BookTest = lazyRoute(() => import("./pages/BookTest"));
 const Features = lazyRoute(() => import("./pages/Features"));
+const Download = lazyRoute(() => import("./pages/Download"));
 const Pricing = lazyRoute(() => import("./pages/Pricing"));
 const Contact = lazyRoute(() => import("./pages/Contact"));
 const Start = lazyRoute(() => import("./pages/Start"));
@@ -105,6 +106,7 @@ const AppRouter = () => {
         <Route element={renderPublicRoute(<PublicOrganizationLayout />)}>
           <Route path="/" element={renderPublicRoute(<Index />)} />
           <Route path="/features" element={renderPublicRoute(<Features />)} />
+          <Route path="/download" element={renderPublicRoute(<Download />)} />
           <Route path="/pricing" element={renderPublicRoute(<Pricing />)} />
           <Route path="/contact" element={renderPublicRoute(<Contact />)} />
           <Route path="/start" element={renderPublicRoute(<Start />)} />

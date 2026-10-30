@@ -69,6 +69,11 @@ const PlatformSiteFooter = () => {
                 </a>
               </li>
               <li>
+                <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/download"))} className="transition hover:text-primary">
+                  Download App
+                </a>
+              </li>
+              <li>
                 <a href={buildMarketingUrl(buildPlatformPathWithMarketing("/start"))} className="transition hover:text-primary">
                   Get Started
                 </a>
