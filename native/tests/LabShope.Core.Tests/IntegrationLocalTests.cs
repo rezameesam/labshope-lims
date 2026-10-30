@@ -269,6 +269,15 @@ public class IntegrationLocalTests
         Assert.Equal(rebilled.Invoice.InvoiceNumber, rebilledRow.GetProperty("invoice_number").GetString());
         Assert.Equal(1, (await api.SelectAsync("invoice_items", $"select=id&invoice_id=eq.{rebilled.Invoice.Id}")).Body!.Value.GetArrayLength());
 
+        // Reminders: add, tick, change and delete against the real table.
+        Assert.True((await Reminders.SaveAsync(api, org, null, rebill.PatientId, "follow_up", "IT reminder", "", "2026-12-01", null)).Ok);
+        var reminder = (await Reminders.LoadAsync(api, org)).Items.Single(r => r.Title == "IT reminder");
+        Assert.False(reminder.Done);
+        Assert.True((await Reminders.SetDoneAsync(api, org, reminder.Id, true, DateTimeOffset.UtcNow)).Ok);
+        Assert.True((await Reminders.LoadAsync(api, org)).Items.Single(r => r.Id == reminder.Id).Done);
+        Assert.True((await Reminders.DeleteAsync(api, org, reminder.Id)).Ok);
+        Assert.DoesNotContain((await Reminders.LoadAsync(api, org)).Items, r => r.Id == reminder.Id);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));
