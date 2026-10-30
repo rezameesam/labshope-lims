@@ -230,6 +230,16 @@ public class IntegrationLocalTests
         Assert.Equal("p{margin:0}", await TemplateAdmin.LoadCssAsync(api, org, tplId));
         Assert.True((await TemplateAdmin.DeleteAsync(api, org, tplId)).Ok);
 
+        // An admin can read and change the lab profile (name and contact on the organization, tagline and footer in the settings).
+        var (profileBefore, profileError) = await LabProfile.LoadAsync(api, org);
+        Assert.Null(profileError);
+        var profileAfter = profileBefore! with { Phone = "9000012345", Tagline = "Integration tagline", ReportFooterNote = "Integration footer" };
+        var profileSaved = await LabProfile.SaveAsync(api, org, session.UserId, profileBefore, profileAfter);
+        Assert.True(profileSaved.Ok, profileSaved.Error);
+        var (profileReloaded, _) = await LabProfile.LoadAsync(api, org);
+        Assert.Equal(("9000012345", "Integration tagline", "Integration footer"), (profileReloaded!.Phone, profileReloaded.Tagline, profileReloaded.ReportFooterNote));
+        Assert.True((await LabProfile.SaveAsync(api, org, session.UserId, profileReloaded, profileBefore)).Ok); // and put it back
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

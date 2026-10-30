@@ -85,7 +85,12 @@
       </Border>
 
       <Border Classes="card">
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="24">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="24">
+          <TextBlock Text="Lab profile" Classes="muted" Grid.Row="5" />
+          <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="Name, logo, contact details and report footer" VerticalAlignment="Center" />
+            <Button x:Name="LabProfileButton" Content="Edit lab profile" Click="OnLabProfile" Padding="10,5" IsVisible="False" />
+          </StackPanel>
           <TextBlock Text="Signed in as" Classes="muted" /><TextBlock x:Name="UserLine" Grid.Column="1" />
           <TextBlock Text="Lab" Classes="muted" Grid.Row="1" /><TextBlock x:Name="LabLine" Grid.Row="1" Grid.Column="1" />
           <TextBlock Text="Access" Classes="muted" Grid.Row="2" /><TextBlock x:Name="RoleLine" Grid.Row="2" Grid.Column="1" />

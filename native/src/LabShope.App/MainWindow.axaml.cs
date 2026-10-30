@@ -114,6 +114,12 @@ public partial class MainWindow : Window
                 var v = new SettingsView(session);
                 v.SyncRequested += async () => await SyncAsync();
                 v.QueueChanged += () => RefreshPages();
+                v.LabProfileChanged += async () =>
+                {
+                    // Fetch the new name, logo and report footer now, so reports and receipts printed next already use them.
+                    if (_session.Engine is not null) { try { await _session.Engine.PullBrandingAsync(_session.Workspace.Slug, _session.Workspace.OrganizationName, force: true); } catch (SyncException) { } }
+                    RefreshPages();
+                };
                 return v;
             }, Badge: () => _store.OutboxCounts().Failed));
 
