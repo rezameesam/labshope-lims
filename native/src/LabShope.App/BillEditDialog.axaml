@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:LabShope.App"
+        x:Class="LabShope.App.BillEditDialog"
+        Title="Edit bill" Width="640" Height="620" CanResize="False" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="26">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="8">
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Save bill" IsDefault="True" Click="OnSave" Padding="20,9" IsEnabled="False" />
+      </StackPanel>
+    </StackPanel>
+    <StackPanel Spacing="8">
+      <TextBlock x:Name="Heading" Classes="h2" TextWrapping="Wrap" />
+      <TextBlock Text="Change the price of a test or the discount. The server keeps a history of every change." Classes="muted" TextWrapping="Wrap" />
+      <TextBlock x:Name="LoadText" Text="Loading the bill's items…" Classes="muted" />
+      <ItemsControl x:Name="ItemList" MaxHeight="260">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="app:EditableBillItem">
+            <Grid ColumnDefinitions="*,120,90" ColumnSpacing="10" Margin="0,3">
+              <TextBlock Text="{Binding TestName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <TextBox Grid.Column="1" Text="{Binding PriceText, Mode=TwoWay}" TextChanged="OnPriceChanged" HorizontalContentAlignment="Right" />
+              <TextBlock Grid.Column="2" Text="{Binding AmountText}" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Border Height="1" Background="{StaticResource GridLineBrush}" Margin="0,6" />
+      <Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+        <TextBlock Text="Subtotal" VerticalAlignment="Center" /><TextBlock x:Name="SubtotalText" Grid.Column="1" HorizontalAlignment="Right" />
+        <TextBlock Text="Discount" Grid.Row="1" VerticalAlignment="Center" /><TextBox x:Name="DiscountBox" Grid.Row="1" Grid.Column="1" HorizontalContentAlignment="Right" TextChanged="OnPriceChanged" />
+        <TextBlock Text="To pay" Grid.Row="2" FontWeight="SemiBold" /><TextBlock x:Name="FinalText" Grid.Row="2" Grid.Column="1" HorizontalAlignment="Right" FontWeight="SemiBold" FontSize="16" />
+        <TextBlock x:Name="PaidText" Grid.Row="3" Grid.ColumnSpan="2" Classes="muted" TextWrapping="Wrap" />
+      </Grid>
+    </StackPanel>
+  </DockPanel>
+</Window>

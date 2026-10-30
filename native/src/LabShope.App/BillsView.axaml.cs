@@ -20,8 +20,11 @@ public partial class BillsView : UserControl
         _session = session;
         InitializeComponent();
         SearchBox.TextChanged += (_, _) => Refresh();
-        UnpaidOnly.IsCheckedChanged += (_, _) => Refresh();
-        Grid.DoubleTapped += (_, _) => OnReceive(null, null!);
+        StatusBox.SelectionChanged += (_, _) => Refresh();
+        FromBox.SelectedDateChanged += (_, _) => Refresh();
+        ToBox.SelectedDateChanged += (_, _) => Refresh();
+        Grid.DoubleTapped += (_, _) => OnDetails(null, null!);
+        EditButton.IsVisible = true;
         KeyDown += (_, e) => { if (e.Key == Key.F10) { OnReceive(null, null!); e.Handled = true; } };
         Refresh();
     }
@@ -29,10 +32,36 @@ public partial class BillsView : UserControl
     public void Refresh()
     {
         var keep = (Grid.SelectedItem as BillRow)?.Id;
-        var rows = _session.Store.SearchBills(SearchBox.Text ?? "", UnpaidOnly.IsChecked == true);
+        var status = StatusBox.SelectedIndex switch { 1 => "pending", 2 => "partial", 3 => "paid", _ => null };
+        // A day is the local calendar day; bills are stored in UTC, so the window is converted (as text: yyyy-MM-ddTHH:mm:ss).
+        static string? Utc(DateTime? day) => day is { } d ? new DateTimeOffset(d.Date, TimeZoneInfo.Local.GetUtcOffset(d.Date)).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) : null;
+        var rows = _session.Store.SearchBills(SearchBox.Text ?? "", false, 500, status, Utc(FromBox.SelectedDate), Utc(ToBox.SelectedDate?.AddDays(1)));
+        SummaryText.Text = $"{rows.Count} bill(s):   collected {rows.Sum(r => r.PaidAmount):0.##}   ·   still to collect {rows.Sum(r => r.Balance):0.##}   ·   billed {rows.Sum(r => r.TotalAmount):0.##}";
         Grid.ItemsSource = rows;
         if (keep is not null) Grid.SelectedItem = rows.FirstOrDefault(r => r.Id == keep);
         CountText.Text = $"{rows.Count} shown of {_session.Store.InvoiceCount()}";
+    }
+
+    private async void OnDetails(object? sender, RoutedEventArgs e)
+    {
+        if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }
+        var dialog = new BillDetailsDialog(_session.Api, _session.Workspace.OrganizationId, _session.Store, bill);
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+    }
+
+    private async void OnEditBill(object? sender, RoutedEventArgs e)
+    {
+        if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }
+        if (_session.Api is null) { MessageText.Text = "Editing a bill needs an internet connection."; return; }
+        if (!_session.Workspace.IsAdmin && bill.PaymentStatus == "paid") { MessageText.Text = "Only administrators can edit a paid bill."; return; }
+
+        var dialog = new BillEditDialog(_session.Api, _session.Workspace.OrganizationId, _session.Account.SavedUserId, _session.Workspace.IsAdmin, bill);
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+        if (dialog.Saved is not { } saved) return;
+
+        _session.Store.UpsertInvoice(saved);
+        MessageText.Text = $"Bill {bill.Number} updated: to pay {saved.TotalAmount:0.##}, {saved.PaymentStatus}.";
+        Refresh();
     }
 
     private async void OnReceive(object? sender, RoutedEventArgs e)

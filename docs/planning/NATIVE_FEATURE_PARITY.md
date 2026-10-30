@@ -11,10 +11,10 @@ the actions inside each screen. Status: **Done** (works and tested), **Partial**
 | Overview | Overview | Partial | Charts and trends; notice board panel |
 | Notice Board | none | Missing | Read and post notices |
 | Booking Requests | Booking requests | Partial | Link to an existing patient from the request; create patient from request (only "register from request" exists) |
-| Patients | Patients | Partial | Add patient on its own (without a visit), activate/deactivate, history of visits/bills/results, send/reset portal password, ABHA/ABDM |
+| Patients | Patients | Partial | ~~Add patient on its own, activate/deactivate, history of bills/tests~~ (done); send/reset portal password, ABHA/ABDM |
 | Lab Sheets | none | Missing | Everything |
 | Patient Tests | Results | Partial | Add tests to an existing patient's visit later, edit a saved result, audit history, bulk print of selected tests |
-| Billing | Bills & payments | Partial | **Edit an invoice** (line prices, discount), payment history per bill, billing audit history, PDF download, bill reprint |
+| Billing | Bills & payments | Partial | ~~Edit invoice, bill details (items, payments, audit history), status/date filters, summary~~ (done); invoice for existing tests, PDF download, payment-received message |
 | Reminders | none | Missing | Everything |
 
 ## Catalog
