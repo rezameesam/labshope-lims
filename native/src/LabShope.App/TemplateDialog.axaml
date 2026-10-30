@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.TemplateDialog"
+        Title="Report template" Width="620" Height="780" MinHeight="560" WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Margin="26" Spacing="8">
+      <TextBlock x:Name="Heading" Text="Add a report template" Classes="h2" />
+      <TextBlock Text="NAME" Classes="label" />
+      <TextBox x:Name="NameBox" />
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="APPLIES TO CATEGORY" Classes="label" /><ComboBox x:Name="CategoryBox" HorizontalAlignment="Stretch" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="APPLIES TO ONE TEST" Classes="label" /><ComboBox x:Name="TestBox" HorizontalAlignment="Stretch" /></StackPanel>
+      </Grid>
+      <TextBlock Text="HEADER" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="HeaderBox" AcceptsReturn="True" Height="84" TextWrapping="Wrap" />
+      <TextBlock Text="FOOTER" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="FooterBox" AcceptsReturn="True" Height="84" TextWrapping="Wrap" />
+      <TextBlock x:Name="MarkersText" Classes="muted" TextWrapping="Wrap" />
+      <TextBlock Text="RESULT LAYOUT" Classes="label" Margin="0,6,0,0" />
+      <ComboBox x:Name="FormatBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+        <ComboBoxItem Tag="table">Table</ComboBoxItem>
+        <ComboBoxItem Tag="list">List</ComboBoxItem>
+        <ComboBoxItem Tag="custom">Custom (stored; reports still use the table layout)</ComboBoxItem>
+      </ComboBox>
+      <CheckBox x:Name="RangeBox" Content="Show the normal range" IsChecked="True" />
+      <CheckBox x:Name="FlagBox" Content="Flag abnormal results" IsChecked="True" />
+      <CheckBox x:Name="NotesBox" Content="Include notes" IsChecked="True" />
+      <TextBlock Text="CUSTOM CSS (optional)" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="CssBox" AcceptsReturn="True" Height="70" TextWrapping="Wrap" />
+      <CheckBox x:Name="DefaultBox" Content="Use as the default template" />
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Save" IsDefault="True" Click="OnSave" Padding="20,9" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Window>
