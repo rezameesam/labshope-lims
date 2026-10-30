@@ -283,6 +283,16 @@ public class IntegrationLocalTests
         Assert.Null(historyError);
         Assert.NotEmpty(history); // at least "created"
 
+        // Roles: an admin creates a role with permissions, changes it, and deletes it.
+        Assert.True((await RolesAdmin.SaveAsync(api, org, null, "IT Role", "integration", true, new HashSet<string> { "view_patients", "view_tests" })).Ok);
+        var role = (await RolesAdmin.LoadAsync(api, org)).Roles.Single(r => r.Name == "IT Role");
+        Assert.Equal(2, role.Permissions);
+        Assert.True((await RolesAdmin.SaveAsync(api, org, role.Id, "IT Role", "integration", false, new HashSet<string> { "view_patients", "create_patients", "edit_patients" })).Ok);
+        role = (await RolesAdmin.LoadAsync(api, org)).Roles.Single(r => r.Id == role.Id);
+        Assert.Equal((3, false), (role.Permissions, role.IsActive));
+        Assert.True((await RolesAdmin.DeleteAsync(api, org, role)).Ok);
+        Assert.DoesNotContain((await RolesAdmin.LoadAsync(api, org)).Roles, r => r.Id == role.Id);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));
