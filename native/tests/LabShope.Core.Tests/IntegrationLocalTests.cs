@@ -136,6 +136,20 @@ public class IntegrationLocalTests
         Assert.True((await TeamService.SetActiveAsync(api, org, me.Id, true)).Ok);
         Assert.True((await TeamService.LoadAsync(api, org)).Members.Single(m => m.Id == me.Id).IsActive);
 
+        // A patient can be added on their own, switched off (hidden and listed as switched off) and switched on again.
+        var alone = await PatientAdmin.AddAsync(api, store, org, session.UserId, new StandalonePatient("Solo Patient", "9000011122", "female", "1988-03-04", "solo@example.com", "1 Test Road", "B+"));
+        Assert.True(alone.Ok, alone.Error);
+        var soloRow = (await api.SelectAsync("patients", $"select=patient_id,full_name,blood_group,is_active,created_by&id=eq.{alone.Patient!.Id}")).Body!.Value[0];
+        Assert.Equal((alone.Patient.PatientCode, "Solo Patient", "B+", true, session.UserId),
+            (soloRow.GetProperty("patient_id").GetString(), soloRow.GetProperty("full_name").GetString(), soloRow.GetProperty("blood_group").GetString(), soloRow.GetProperty("is_active").GetBoolean(), soloRow.GetProperty("created_by").GetString()));
+        Assert.True((await PatientAdmin.SetActiveAsync(api, store, org, alone.Patient, active: false)).Ok);
+        Assert.Null(store.GetPatient(alone.Patient.Id));
+        var (switchedOff, offError) = await PatientAdmin.LoadInactiveAsync(api, org);
+        Assert.Null(offError);
+        Assert.Contains(switchedOff, p => p.Id == alone.Patient.Id);
+        Assert.True((await PatientAdmin.SetActiveAsync(api, store, org, switchedOff.Single(p => p.Id == alone.Patient.Id), active: true)).Ok);
+        Assert.NotNull(store.GetPatient(alone.Patient.Id));
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

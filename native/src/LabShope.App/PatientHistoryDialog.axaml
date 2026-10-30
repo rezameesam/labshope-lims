@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.PatientHistoryDialog"
+        Title="Patient history" Width="860" Height="640" MinWidth="700" MinHeight="460" WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,*,Auto,*,Auto" Margin="24">
+    <TextBlock x:Name="Heading" FontSize="18" FontWeight="SemiBold" />
+    <TextBlock x:Name="SummaryText" Grid.Row="1" Classes="muted" Margin="0,4,0,12" />
+    <DataGrid x:Name="BillGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="BILL" Binding="{Binding Number}" Width="150" />
+        <DataGridTextColumn Header="DATE" Binding="{Binding Date}" Width="150" />
+        <DataGridTextColumn Header="TOTAL" Binding="{Binding Total}" Width="110" />
+        <DataGridTextColumn Header="PAID" Binding="{Binding Paid}" Width="110" />
+        <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="*" />
+      </DataGrid.Columns>
+    </DataGrid>
+    <TextBlock Text="Tests" Grid.Row="3" FontWeight="SemiBold" Margin="0,14,0,6" />
+    <DataGrid x:Name="TestGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="DATE" Binding="{Binding Date}" Width="130" />
+        <DataGridTextColumn Header="TEST" Binding="{Binding Test}" Width="*" />
+        <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="130" />
+        <DataGridTextColumn Header="RESULT" Binding="{Binding Result}" Width="200" />
+      </DataGrid.Columns>
+    </DataGrid>
+    <Button Grid.Row="5" Content="Close" HorizontalAlignment="Right" Margin="0,14,0,0" Click="OnClose" Padding="18,6" />
+  </Grid>
+</Window>

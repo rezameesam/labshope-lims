@@ -514,6 +514,51 @@ public class PatientScreenTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void PatientButtonsFollowTheSelectionAndHistoryShowsThatPatientsBillsAndTests()
+    {
+        _store.UpsertInvoice(new Invoice("inv-h1", "INV-H1", "p1", 500m, 200m, "partial", "2026-10-20T10:00:00", 0m));
+        _store.UpsertPatientTest(new PatientTest("pt-h1", "p1", "Haemoglobin", "2026-10-20", "completed", "13.2", 13.2m, "g/dL"));
+
+        var view = new PatientRegisterView(_session);
+        var window = new Window { Width = 1300, Height = 600, Content = view };
+        window.Show(); _windows.Add(window);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.False(Find<Button>(view, "HistoryButton").IsEnabled); // nothing selected yet
+        Assert.False(Find<Button>(view, "ActiveButton").IsEnabled);
+        Assert.True(Find<Button>(view, "AddButton").IsEnabled);
+        var grid = Find<DataGrid>(view, "Grid");
+        grid.SelectedItem = grid.ItemsSource.Cast<Patient>().First(p => p.Id == "p1");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.True(Find<Button>(view, "HistoryButton").IsEnabled);
+        Assert.Equal("Switch off", Find<TextBlock>(view, "ActiveText").Text);
+
+        var dialog = new PatientHistoryDialog(_store, _store.GetPatient("p1")!);
+        dialog.Show(); _windows.Add(dialog);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var bills = dialog.FindControl<DataGrid>("BillGrid")!.ItemsSource.Cast<PatientHistoryDialog.BillLine>().ToList();
+        var tests = dialog.FindControl<DataGrid>("TestGrid")!.ItemsSource.Cast<PatientHistoryDialog.TestLine>().ToList();
+        Assert.Equal("INV-H1", bills.Single().Number);
+        Assert.Equal(("Haemoglobin", "completed", "13.2 g/dL"), (tests.Single().Test, tests.Single().Status, tests.Single().Result));
+        Assert.Contains("1 bill(s), 1 test(s)", dialog.FindControl<TextBlock>("SummaryText")!.Text);
+        Assert.Contains("still to pay ₹300.00", dialog.FindControl<TextBlock>("SummaryText")!.Text);
+    }
+
+    [AvaloniaFact]
+    public void SwitchedOffPatientsNeedTheInternetAndSayWhenOffline()
+    {
+        var view = new PatientRegisterView(_session);
+        var window = new Window { Width = 1300, Height = 600, Content = view };
+        window.Show(); _windows.Add(window);
+
+        Find<CheckBox>(view, "InactiveBox").IsChecked = true;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Contains("internet", Find<TextBlock>(view, "CountText").Text);
+        Assert.False(Find<Button>(view, "AddButton").IsEnabled); // adding happens on the normal list
+    }
+
+    [AvaloniaFact]
     public void TheEditDialogSavesChangesAndShowsProblemsInPlainWords()
     {
         var service = new Core.Visits.PatientService(_store, "org-1");
