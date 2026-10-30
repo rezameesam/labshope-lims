@@ -49,6 +49,15 @@ public partial class BillsView : UserControl
         CountText.Text = $"{rows.Count} shown of {_session.Store.InvoiceCount()}";
     }
 
+    /// <summary>The bills now on screen (current search, status and dates) as spreadsheet text.</summary>
+    public string ExportCsv() => CsvExport.Bills(Grid.ItemsSource as IEnumerable<BillRow> ?? []);
+
+    private async void OnExport(object? sender, RoutedEventArgs e)
+    {
+        var saved = await SheetSaver.SaveAsync(this, $"bills-{DateTime.Today:yyyy-MM-dd}.csv", ExportCsv());
+        if (saved is not null) MessageText.Text = $"Saved {saved}.";
+    }
+
     private async void OnDetails(object? sender, RoutedEventArgs e)
     {
         if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }
