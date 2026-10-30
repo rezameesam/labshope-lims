@@ -93,7 +93,12 @@ public partial class MainWindow : Window
             new("cash", "Daily cash book", MaterialIconKind.CashMultiple, Key.F7, () => new CashBookView(_store)),
             new("reports", "Reports", MaterialIconKind.ChartBoxOutline, Key.F6, () => new ReportsView(session)),
             new("inventory", "Inventory", MaterialIconKind.PackageVariantClosed, Key.None, () => new InventoryView(session)),
-            new("organization", "Labs & team", MaterialIconKind.OfficeBuildingOutline, Key.None, () => new OrganizationView(session)),
+            new("organization", "Labs & team", MaterialIconKind.OfficeBuildingOutline, Key.None, () =>
+            {
+                var v = new OrganizationView(session);
+                v.CatalogChanged += async () => { await ForceCatalogAsync(); };
+                return v;
+            }),
             new("catalog", "Test catalog", MaterialIconKind.FlaskOutline, Key.None, () =>
             {
                 var v = new CatalogView(session);

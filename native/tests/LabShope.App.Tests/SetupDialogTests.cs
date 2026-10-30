@@ -136,6 +136,8 @@ public class SetupDialogTests
             new Window { Content = team }.Show();
             team.FindControl<Button>("TeamButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Equal(allowed, team.FindControl<StackPanel>("TeamActions")!.IsVisible);
+            team.FindControl<Button>("LabsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(allowed, team.FindControl<StackPanel>("OrgActions")!.IsVisible);
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }
@@ -183,6 +185,34 @@ public class SetupDialogTests
         await Click(category, "SaveButton");
         Assert.True(category.Saved);
         Assert.Equal(2, server.Calls.Count);
+    }
+
+    [AvaloniaFact]
+    public async Task ALabAndACentreAreSentWithUpperCaseCodesAndBadMapPositionsAreRefused()
+    {
+        var server = new Server(HttpStatusCode.Created, "[]");
+        var labs = new[] { new LabRef("l1", "Main Lab", "ML") };
+        var lab = new LabDialog(Api(server), "org-1", labs, null);
+        lab.Show();
+        lab.FindControl<TextBox>("CodeBox")!.Text = "br1";
+        lab.FindControl<TextBox>("NameBox")!.Text = "Branch One";
+        lab.FindControl<TextBox>("LatBox")!.Text = "95";
+        await Click(lab, "SaveButton");
+        Assert.Contains("Latitude", lab.FindControl<TextBlock>("ErrorText")!.Text);
+        Assert.Empty(server.Calls);
+        lab.FindControl<TextBox>("LatBox")!.Text = "18.5";
+        await Click(lab, "SaveButton");
+        Assert.True(lab.Saved);
+        Assert.Contains("\"lab_code\":\"BR1\"", server.Calls.Single().Body);
+
+        var center = new CenterDialog(Api(server), "org-1", labs, "l1", null, null);
+        center.Show();
+        center.FindControl<TextBox>("CodeBox")!.Text = "tn";
+        center.FindControl<TextBox>("NameBox")!.Text = "Town Centre";
+        await Click(center, "SaveButton");
+        Assert.True(center.Saved);
+        Assert.Contains("\"lab_id\":\"l1\"", server.Calls[1].Body);
+        Assert.Contains("\"code\":\"TN\"", server.Calls[1].Body);
     }
 
     [AvaloniaFact]
