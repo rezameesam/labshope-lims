@@ -141,6 +141,73 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task ANewDoctorIsSentAndABadCommissionIsRefusedInPlainWords()
+    {
+        var server = new Server(HttpStatusCode.Created, "[]");
+        var dialog = new DoctorDialog(Api(server), "org-1", null);
+        dialog.Show();
+        dialog.FindControl<TextBox>("NameBox")!.Text = "Dr Rao";
+        dialog.FindControl<TextBox>("CommissionBox")!.Text = "150";
+        await Click(dialog, "SaveButton");
+        Assert.Contains("percentage from 0 to 100", dialog.FindControl<TextBlock>("ErrorText")!.Text);
+        Assert.Empty(server.Calls);
+
+        dialog.FindControl<TextBox>("CommissionBox")!.Text = "12.5";
+        await Click(dialog, "SaveButton");
+        Assert.True(dialog.Saved);
+        var call = Assert.Single(server.Calls);
+        Assert.Contains("/rest/v1/doctors", call.Url);
+        Assert.Contains("\"commission_percentage\":12.5", call.Body);
+    }
+
+    [AvaloniaFact]
+    public async Task APackageShowsItsPriceAsTestsAreTickedAndSavesThePackageAndItsTests()
+    {
+        var server = new Server(HttpStatusCode.Created, "[]");
+        var catalog = new Catalog([new CatalogTest("t1", "CBC", "CBC", 300m, null), new CatalogTest("t2", "LFT", "Liver Function Test", 450m, null)], [], [], [], []);
+        var dialog = new PackageDialog(Api(server), "org-1", catalog, null, null);
+        dialog.Show();
+        var list = dialog.FindControl<ListBox>("TestList")!;
+        list.SelectedItems!.Add(catalog.Tests[0]);
+        list.SelectedItems.Add(catalog.Tests[1]);
+        dialog.FindControl<TextBox>("DiscountBox")!.Text = "10";
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Contains("package price ₹675", dialog.FindControl<TextBlock>("PriceText")!.Text);
+        Assert.Contains("2 test(s) chosen", dialog.FindControl<TextBlock>("PriceText")!.Text);
+
+        dialog.FindControl<TextBox>("NameBox")!.Text = "Basic health";
+        await Click(dialog, "SaveButton");
+        Assert.True(dialog.Saved);
+        Assert.Equal(2, server.Calls.Count);
+        Assert.Contains("/rest/v1/test_packages", server.Calls[0].Url);
+        Assert.Contains("\"price\":675", server.Calls[0].Body);
+        Assert.Contains("/rest/v1/test_package_tests", server.Calls[1].Url);
+    }
+
+    [AvaloniaFact]
+    public void ThePackageAndDoctorTabsOfferTheirOwnButtonsToAdminsOnly()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"labshope-cat-{Guid.NewGuid():N}.db");
+        var store = new LocalStore(path);
+        try
+        {
+            var api = Api(new Server(HttpStatusCode.OK, "[]"));
+            var session = new AppSession(new LabShope.Core.Account.Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), store,
+                new LabShope.Core.Sync.SyncRunner(new LabShope.Core.Sync.SyncEngine(store, api, "org-1"), store), new LabShope.Core.Account.AccountService(api, path + ".json"), api);
+            var catalog = new CatalogView(session);
+            new Window { Content = catalog }.Show();
+
+            Assert.False(catalog.FindControl<Button>("DeleteButton")!.IsVisible); // tests are switched off, not deleted
+            catalog.FindControl<Button>("PackagesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("New package", catalog.FindControl<TextBlock>("NewText")!.Text);
+            Assert.True(catalog.FindControl<Button>("DeleteButton")!.IsVisible);
+            catalog.FindControl<Button>("DoctorsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("Edit doctor", catalog.FindControl<TextBlock>("EditText")!.Text);
+        }
+        finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
+    }
+
+    [AvaloniaFact]
     public void TheEyeShowsAndHidesThePasswordWhileTyping()
     {
         var dialog = new StaffDialog(Api(new Server(HttpStatusCode.OK, "{}")), "org-1", [new LabRef("l1", "Main Lab", "ML")], "l1");

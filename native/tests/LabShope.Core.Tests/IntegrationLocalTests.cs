@@ -150,6 +150,31 @@ public class IntegrationLocalTests
         Assert.True((await PatientAdmin.SetActiveAsync(api, store, org, switchedOff.Single(p => p.Id == alone.Patient.Id), active: true)).Ok);
         Assert.NotNull(store.GetPatient(alone.Patient.Id));
 
+        // An admin can manage doctors and packages the way the website does.
+        Assert.True((await CatalogManage.AddDoctorAsync(api, org, new DoctorInput("Dr Integration", "Pathology", "9000099999", "", "", "7.5", true, ""))).Ok);
+        var doctorRow = (await api.SelectAsync("doctors", $"select=id,commission_percentage,is_active&organization_id=eq.{org}&name=eq.Dr%20Integration")).Body!.Value[0];
+        var doctorId = doctorRow.GetProperty("id").GetString()!;
+        Assert.Equal(7.5m, doctorRow.GetProperty("commission_percentage").GetDecimal());
+        var (loadedDoctor, doctorLoadError) = await CatalogManage.LoadDoctorAsync(api, org, doctorId);
+        Assert.Null(doctorLoadError);
+        Assert.True((await CatalogManage.UpdateDoctorAsync(api, org, doctorId, loadedDoctor!.Input with { Commission = "9", Active = false })).Ok);
+        var doctorAfter = (await api.SelectAsync("doctors", $"select=commission_percentage,is_active&id=eq.{doctorId}")).Body!.Value[0];
+        Assert.Equal((9m, false), (doctorAfter.GetProperty("commission_percentage").GetDecimal(), doctorAfter.GetProperty("is_active").GetBoolean()));
+        Assert.True((await CatalogManage.DeleteDoctorAsync(api, org, doctorId)).Ok);
+
+        await engine.PullCatalogAsync(force: true);
+        var pkgCatalog = store.GetCatalog();
+        var pkgTests = pkgCatalog.Tests.Take(2).Select(t => t.Id).ToList();
+        Assert.True((await CatalogManage.AddPackageAsync(api, org, new PackageInput("Integration Package", "d", "10", pkgTests, true), pkgCatalog)).Ok);
+        var pkgRow = (await api.SelectAsync("test_packages", $"select=id,price,discount_percentage&organization_id=eq.{org}&name=eq.Integration%20Package")).Body!.Value[0];
+        var pkgId = pkgRow.GetProperty("id").GetString()!;
+        Assert.Equal(CatalogManage.PackagePrice(pkgCatalog.Tests.Take(2).Select(t => t.Price), 10m), pkgRow.GetProperty("price").GetDecimal());
+        Assert.Equal(2, (await api.SelectAsync("test_package_tests", $"select=test_id&package_id=eq.{pkgId}")).Body!.Value.GetArrayLength());
+        Assert.True((await CatalogManage.UpdatePackageAsync(api, org, pkgId, new PackageInput("Integration Package", "d", "0", pkgTests.Take(1).ToList(), true), pkgCatalog)).Ok);
+        Assert.Equal(1, (await api.SelectAsync("test_package_tests", $"select=test_id&package_id=eq.{pkgId}")).Body!.Value.GetArrayLength());
+        Assert.True((await CatalogManage.DeletePackageAsync(api, org, pkgId)).Ok);
+        Assert.Equal(0, (await api.SelectAsync("test_packages", $"select=id&id=eq.{pkgId}")).Body!.Value.GetArrayLength());
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.PackageDialog"
+        Title="Test package" Width="560" Height="700" MinHeight="560" WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="26">
+    <StackPanel Spacing="8">
+      <TextBlock x:Name="Heading" Text="Add a package" Classes="h2" />
+      <TextBlock Text="NAME" Classes="label" />
+      <TextBox x:Name="NameBox" />
+      <TextBlock Text="DESCRIPTION (optional)" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="DescriptionBox" />
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="DISCOUNT %" Classes="label" /><TextBox x:Name="DiscountBox" Text="0" /></StackPanel>
+        <CheckBox x:Name="ActiveBox" Grid.Column="2" Content="Active" IsChecked="True" VerticalAlignment="Bottom" />
+      </Grid>
+      <TextBlock Text="TESTS IN THE PACKAGE" Classes="label" Margin="0,8,0,0" />
+      <TextBox x:Name="SearchBox" Watermark="Search tests" />
+    </StackPanel>
+    <ListBox x:Name="TestList" Grid.Row="1" Margin="0,6,0,0" SelectionMode="Multiple,Toggle" />
+    <StackPanel Grid.Row="2" Spacing="8" Margin="0,10,0,0">
+      <TextBlock x:Name="PriceText" FontWeight="SemiBold" />
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Save" IsDefault="True" Click="OnSave" Padding="20,9" />
+      </StackPanel>
+    </StackPanel>
+  </Grid>
+</Window>

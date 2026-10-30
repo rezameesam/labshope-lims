@@ -122,6 +122,10 @@ public sealed class SupabaseApi
     public Task<ApiResult> InsertAsync(string table, object row, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/{table}", JsonSerializer.Serialize(row), true, ct), ct);
 
+    /// <summary>Deletes matching rows and asks for them back, so "nothing matched" (wrong id, or not allowed) shows as an empty list.</summary>
+    public Task<ApiResult> DeleteAsync(string table, string query, CancellationToken ct = default) =>
+        WithRefreshAsync(() => SendAsync(HttpMethod.Delete, $"/rest/v1/{table}?{query}", null, true, ct, "return=representation"), ct);
+
     public Task<ApiResult> RpcAsync(string function, object args, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/rpc/{function}", JsonSerializer.Serialize(args), true, ct), ct);
 

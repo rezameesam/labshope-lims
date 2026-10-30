@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.DoctorDialog"
+        Title="Doctor" Width="480" Height="640" CanResize="False" WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Margin="26" Spacing="8">
+      <TextBlock x:Name="Heading" Text="Add a doctor" Classes="h2" />
+      <TextBlock Text="NAME" Classes="label" />
+      <TextBox x:Name="NameBox" />
+      <TextBlock Text="SPECIALISATION" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="SpecBox" />
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="PHONE" Classes="label" /><TextBox x:Name="PhoneBox" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="COMMISSION %" Classes="label" /><TextBox x:Name="CommissionBox" Text="0" /></StackPanel>
+      </Grid>
+      <TextBlock Text="EMAIL" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="EmailBox" />
+      <TextBlock Text="ADDRESS" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="AddressBox" />
+      <TextBlock Text="NOTES" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="NotesBox" AcceptsReturn="True" Height="70" TextWrapping="Wrap" />
+      <CheckBox x:Name="ActiveBox" Content="Active (shown when registering a visit)" IsChecked="True" Margin="0,6,0,0" />
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Save" IsDefault="True" Click="OnSave" Padding="20,9" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Window>
