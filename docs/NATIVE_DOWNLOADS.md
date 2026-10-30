@@ -10,6 +10,8 @@ latest/latest.json                     version, published date, file and size pe
 
 Platforms: `windows-64bit` (.exe), `windows-32bit` (.exe), `mac-apple-silicon` (.pkg), `mac-intel` (.pkg), `linux` (.AppImage).
 
+**Right now only the Windows installers are built** (to save GitHub Actions minutes: a macOS build costs 10 times a Linux one, Windows twice). The download page shows the other platforms as "Coming soon" because they are missing from `latest.json`. To build Mac or Linux again, remove the `# ` in front of their lines in the matrix of `.github/workflows/native-release.yml`.
+
 The website page `https://lims.labshope.com/download` (platform site) reads `latest/latest.json` and links to the fixed names. If the list can't be read it still links to the fixed names.
 
 ## One-time setup
