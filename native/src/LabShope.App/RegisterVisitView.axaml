@@ -124,6 +124,7 @@
           <TextBlock Text="SELECTED  -  Delete removes the highlighted test" Classes="label" Margin="0,6,0,0" />
         </StackPanel>
 
+        <TextBlock x:Name="RepeatNote" DockPanel.Dock="Bottom" IsVisible="False" TextWrapping="Wrap" Foreground="#B45309" Margin="0,8,0,0" />
         <DataGrid x:Name="SelectedGrid" x:DataType="app:SelectedTest" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120">
           <DataGrid.Columns>
             <DataGridTextColumn Header="TEST" Binding="{Binding Name}" Width="*" />

@@ -174,6 +174,27 @@ public class RegisterVisitViewTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void WarnsWhenAChosenTestWasAlreadyOrderedForThePatientLately()
+    {
+        _store.UpsertPatientTest(new PatientTest("prev1", "p1", "CBC", DateTime.Today.AddDays(-2).ToString("yyyy-MM-dd"), "completed"));
+        var (_, view) = Show();
+        var note = Find<TextBlock>(view, "RepeatNote");
+        var search = Find<TextBox>(view, "TestSearch");
+
+        view.UsePatient(_store.GetPatient("p1")!);
+        Assert.False(note.IsVisible); // nothing chosen yet
+
+        Type(search, "cbc"); Press(search, Key.Enter);
+        Assert.True(note.IsVisible);
+        Assert.Contains("CBC was ordered 2 day(s) ago", note.Text);
+
+        Type(search, "vit"); Press(search, Key.Enter); // a test not ordered lately adds no warning of its own
+        Assert.DoesNotContain("Vitamin", note.Text);
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(2, _store.OutboxCounts().Pending); // a warning never blocks saving
+    }
+
+    [AvaloniaFact]
     public void APartPaymentLeavesABalance()
     {
         var (_, view) = Show();
