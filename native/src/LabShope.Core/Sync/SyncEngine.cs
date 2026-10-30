@@ -174,21 +174,24 @@ public sealed class SyncEngine
             return false;
 
         string Org(string table, string cols, string extra = "") => $"select={cols}&organization_id=eq.{_organizationId}{extra}";
+        // The server returns at most 1000 rows per request, and a lab can have far more tests than that: read every page, in a fixed order so
+        // no row is skipped or repeated between pages.
+        async Task<(List<JsonElement> Rows, ApiResult? Failure)> All(string table, string query) => await _api.SelectAllAsync(table, query, ct: ct);
         var calls = await Task.WhenAll(
-            _api.SelectAsync("tests", Org("tests", "id,test_id,name,price,category_id,unit,normal_range_text,normal_range_min,normal_range_max", "&is_active=eq.true"), ct),
-            _api.SelectAsync("test_packages", Org("test_packages", "id,name,price", "&is_active=eq.true"), ct),
-            _api.SelectAsync("test_package_tests", "select=package_id,test_id", ct),
-            _api.SelectAsync("doctors", Org("doctors", "id,name,specialization,commission_percentage", "&is_active=eq.true"), ct),
-            _api.SelectAsync("labs", Org("labs", "id,name,lab_code", "&is_active=eq.true&order=name.asc"), ct),
-            _api.SelectAsync("collection_centers", Org("collection_centers", "id,name,code,lab_id", "&is_active=eq.true&order=name.asc"), ct),
-            _api.SelectAsync("test_categories", Org("test_categories", "id,name"), ct),
+            All("tests", Org("tests", "id,test_id,name,price,category_id,unit,normal_range_text,normal_range_min,normal_range_max", "&is_active=eq.true&order=id.asc")),
+            All("test_packages", Org("test_packages", "id,name,price", "&is_active=eq.true&order=id.asc")),
+            All("test_package_tests", "select=package_id,test_id&order=package_id.asc,test_id.asc"),
+            All("doctors", Org("doctors", "id,name,specialization,commission_percentage", "&is_active=eq.true&order=id.asc")),
+            All("labs", Org("labs", "id,name,lab_code", "&is_active=eq.true&order=name.asc,id.asc")),
+            All("collection_centers", Org("collection_centers", "id,name,code,lab_id", "&is_active=eq.true&order=name.asc,id.asc")),
+            All("test_categories", Org("test_categories", "id,name", "&order=id.asc")),
             // The lab's own templates, plus any shared ones (no organisation), like the website.
-            _api.SelectAsync("test_templates", $"select=id,name,organization_id,test_category,test_id,header_template,footer_template,result_format,include_normal_range,include_abnormal_flag,include_notes,is_default&or=(organization_id.eq.{_organizationId},organization_id.is.null)&order=created_at.asc", ct),
-            _api.SelectAsync("external_labs", Org("external_labs", "id,name,code,phone", "&is_active=eq.true&order=name.asc"), ct));
+            All("test_templates", $"select=id,name,organization_id,test_category,test_id,header_template,footer_template,result_format,include_normal_range,include_abnormal_flag,include_notes,is_default&or=(organization_id.eq.{_organizationId},organization_id.is.null)&order=created_at.asc,id.asc"),
+            All("external_labs", Org("external_labs", "id,name,code,phone", "&is_active=eq.true&order=name.asc,id.asc")));
 
         // Throw before touching local data so a failed refresh keeps what we have.
-        foreach (var call in calls) if (!call.Ok) throw new SyncException(call);
-        IEnumerable<JsonElement> Rows(int i) => calls[i].Body is { ValueKind: JsonValueKind.Array } a ? a.EnumerateArray() : [];
+        foreach (var call in calls) if (call.Failure is not null) throw new SyncException(call.Failure);
+        IEnumerable<JsonElement> Rows(int i) => calls[i].Rows;
 
         var testsByPackage = Rows(2).GroupBy(r => r.GetProperty("package_id").GetString()!)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(r => r.GetProperty("test_id").GetString()!).ToList());

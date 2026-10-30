@@ -71,6 +71,34 @@ public class SyncEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ALargeCatalogComesDownCompleteEvenThoughTheServerGivesAThousandRowsAtATime()
+    {
+        const int tests = 2300, links = 2100;
+        var server = new FakeServer
+        {
+            Handler = (r, _) =>
+            {
+                var path = r.RequestUri!.AbsolutePath;
+                var query = System.Web.HttpUtility.ParseQueryString(r.RequestUri.Query);
+                int limit = int.Parse(query["limit"] ?? "1000"), offset = int.Parse(query["offset"] ?? "0");
+                string Page(int total, Func<int, string> row) => "[" + string.Join(",", Enumerable.Range(offset, Math.Max(0, Math.Min(limit, total - offset))).Select(row)) + "]";
+                if (path.EndsWith("/tests")) return (HttpStatusCode.OK, Page(tests, i => $$"""{"id":"t{{i}}","test_id":"T{{i}}","name":"Test {{i}}","price":{{100 + i}},"category_id":null}"""));
+                if (path.EndsWith("/test_packages")) return (HttpStatusCode.OK, """[{"id":"pk1","name":"Big package","price":1}]""");
+                if (path.EndsWith("/test_package_tests")) return (HttpStatusCode.OK, Page(links, i => $$"""{"package_id":"pk1","test_id":"t{{i}}"}"""));
+                return (HttpStatusCode.OK, "[]");
+            },
+        };
+
+        Assert.True(await new SyncEngine(_store, Api(server), Org).PullCatalogAsync(force: true));
+
+        var catalog = _store.GetCatalog();
+        Assert.Equal(tests, catalog.Tests.Count);
+        Assert.Equal(tests, catalog.Tests.Select(t => t.Id).Distinct().Count()); // nothing repeated between pages
+        Assert.Equal(links, catalog.Packages.Single().TestIds.Count);
+        Assert.Contains(server.Requests, c => c.Url.Contains("/tests?") && c.Url.Contains("order=id.asc") && c.Url.Contains("offset=2000")); // a stable order, three pages
+    }
+
+    [Fact]
     public async Task AFailedCatalogRefreshKeepsTheCopyAlreadyOnThisPc()
     {
         var engine = new SyncEngine(_store, Api(new FakeServer { Handler = (r, _) => CatalogRoute(r) }), Org);
