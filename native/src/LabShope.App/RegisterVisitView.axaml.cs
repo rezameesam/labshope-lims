@@ -136,6 +136,17 @@ public partial class RegisterVisitView : UserControl
         _picked = patient;
         PickedPatient.Text = $"{patient.FullName}  ·  {patient.PatientCode}  ·  {patient.Phone}";
         PickedChip.IsVisible = true;
+        UpdateRepeatNote();
+    }
+
+    /// <summary>Warns (without blocking) when a chosen test was already ordered for this patient in the last 30 days.</summary>
+    private void UpdateRepeatNote()
+    {
+        var repeats = _existingMode && _picked is not null
+            ? RepeatTests.Find(_session.Store, _picked.Id, _selected.Select(s => s.Name), DateOnly.FromDateTime(DateTime.Today))
+            : [];
+        RepeatNote.IsVisible = repeats.Count > 0;
+        RepeatNote.Text = repeats.Count == 0 ? "" : "Check before saving: " + string.Join("; ", repeats.Select(r => r.Text)) + ".";
     }
 
     private void UpdateMode()
@@ -220,6 +231,7 @@ public partial class RegisterVisitView : UserControl
     {
         var (gross, discount, total) = Amounts();
         TotalText.Text = $"Total {total:0.##}";
+        UpdateRepeatNote();
         DiscountNote.Text = discount > 0 ? $"Price {gross:0.##} less discount {discount:0.##}" : "Amount taken off the price (optional)";
         // Most patients pay in full at the counter, so the amount follows the total until the cashier changes it.
         if (!_payEdited) PayAmount.Text = total.ToString("0.##");
