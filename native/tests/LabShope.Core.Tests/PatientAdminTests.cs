@@ -21,7 +21,7 @@ public sealed class PatientAdminTests : IDisposable
     private static readonly DateTimeOffset Now = new(2026, 10, 30, 10, 0, 0, TimeSpan.Zero);
 
     private static Task<AddPatientResult> Add(SupabaseApi api, LocalStore store, StandalonePatient p) =>
-        PatientAdmin.AddAsync(api, store, "org-1", "user-1", p, () => Now, () => "4821");
+        PatientAdmin.AddAsync(api, store, "org-1", "lab-1", "user-1", p, () => Now, () => "4821");
 
     [Fact]
     public async Task AddsAPatientWithTheWebsitesIdAndSavesItHere()
@@ -39,6 +39,7 @@ public sealed class PatientAdminTests : IDisposable
         Assert.Equal(("PAT264821", "org-1", "user-1", "O+", "1990-05-12", false),
             (body.GetProperty("patient_id").GetString(), body.GetProperty("organization_id").GetString(), body.GetProperty("created_by").GetString(),
              body.GetProperty("blood_group").GetString(), body.GetProperty("date_of_birth").GetString(), body.GetProperty("password_reset_required").GetBoolean()));
+        Assert.Equal("lab-1", body.GetProperty("lab_id").GetString());
         Assert.Equal(result.Patient.Id, body.GetProperty("id").GetString());
         Assert.Equal(result.Patient, _store.GetPatient(result.Patient.Id)); // searchable straight away
     }
@@ -70,6 +71,16 @@ public sealed class PatientAdminTests : IDisposable
         var result = await Add(Api(server), _store, new StandalonePatient(name, phone, null, null));
         Assert.False(result.Ok);
         Assert.Contains(expected, result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task NeedsALabBecauseTheServerRequiresOne()
+    {
+        var server = new FakeServer();
+        var result = await PatientAdmin.AddAsync(Api(server), _store, "org-1", null, "user-1", new StandalonePatient("Asha Rao", "", null, null));
+        Assert.False(result.Ok);
+        Assert.Contains("lab", result.Error);
         Assert.Empty(server.Requests);
     }
 

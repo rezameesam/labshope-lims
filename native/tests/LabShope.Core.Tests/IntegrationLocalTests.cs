@@ -137,7 +137,7 @@ public class IntegrationLocalTests
         Assert.True((await TeamService.LoadAsync(api, org)).Members.Single(m => m.Id == me.Id).IsActive);
 
         // A patient can be added on their own, switched off (hidden and listed as switched off) and switched on again.
-        var alone = await PatientAdmin.AddAsync(api, store, org, session.UserId, new StandalonePatient("Solo Patient", "9000011122", "female", "1988-03-04", "solo@example.com", "1 Test Road", "B+"));
+        var alone = await PatientAdmin.AddAsync(api, store, org, Env("LIMS_IT_LAB"), session.UserId, new StandalonePatient("Solo Patient", "9000011122", "female", "1988-03-04", "solo@example.com", "1 Test Road", "B+"));
         Assert.True(alone.Ok, alone.Error);
         var soloRow = (await api.SelectAsync("patients", $"select=patient_id,full_name,blood_group,is_active,created_by&id=eq.{alone.Patient!.Id}")).Body!.Value[0];
         Assert.Equal((alone.Patient.PatientCode, "Solo Patient", "B+", true, session.UserId),

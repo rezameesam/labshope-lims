@@ -12,6 +12,7 @@ public partial class AddPatientDialog : Window
     private readonly LocalStore _store;
     private readonly string _organizationId;
     private readonly string? _userId;
+    private readonly string? _labId;
 
     /// <summary>The patient that was added, or null when cancelled.</summary>
     public Patient? Result { get; private set; }
@@ -24,6 +25,7 @@ public partial class AddPatientDialog : Window
         _store = session.Store;
         _organizationId = session.Workspace.OrganizationId;
         _userId = session.Account.SavedUserId;
+        _labId = session.Workspace.LabId;
         InitializeComponent();
         DobBox.DisplayDateEnd = DateTime.Today;
         Opened += (_, _) => NameBox.Focus();
@@ -40,7 +42,7 @@ public partial class AddPatientDialog : Window
         SaveButton.IsEnabled = false;
         try
         {
-            var result = await PatientAdmin.AddAsync(_api, _store, _organizationId, _userId,
+            var result = await PatientAdmin.AddAsync(_api, _store, _organizationId, _labId, _userId,
                 new StandalonePatient(NameBox.Text ?? "", PhoneBox.Text ?? "", Choice(GenderBox), DobBox.SelectedDate?.ToString("yyyy-MM-dd"),
                     EmailBox.Text, AddressBox.Text, Choice(BloodBox), allowDuplicate));
             if (result.Ok) { Result = result.Patient; Close(); return; }

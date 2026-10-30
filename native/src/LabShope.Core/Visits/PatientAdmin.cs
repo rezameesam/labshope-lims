@@ -25,11 +25,13 @@ public static class PatientAdmin
         new(store.TestsOfPatient(patientId), store.InvoicesOfPatient(patientId));
 
     /// <summary>Adds a patient without a visit, as the website's "Add patient" does (same id format, same duplicate-phone warning).</summary>
-    public static async Task<AddPatientResult> AddAsync(SupabaseApi api, LocalStore store, string organizationId, string? userId, StandalonePatient input,
+    public static async Task<AddPatientResult> AddAsync(SupabaseApi api, LocalStore store, string organizationId, string? labId, string? userId, StandalonePatient input,
         Func<DateTimeOffset>? now = null, Func<string>? randomDigits = null, CancellationToken ct = default)
     {
         now ??= () => DateTimeOffset.Now;
         randomDigits ??= () => Random.Shared.Next(1000, 10000).ToString();
+
+        if (string.IsNullOrWhiteSpace(labId)) return new(false, "This computer isn't set to a lab yet. Choose the lab in Settings first.");
 
         string name;
         try { name = PatientRules.CleanName(input.FullName); }
@@ -65,6 +67,7 @@ public static class PatientAdmin
             ["blood_group"] = string.IsNullOrWhiteSpace(input.BloodGroup) ? null : input.BloodGroup.Trim(),
             ["password_reset_required"] = false,
             ["organization_id"] = organizationId,
+            ["lab_id"] = labId,
             ["created_by"] = userId,
         };
 
