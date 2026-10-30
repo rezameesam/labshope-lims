@@ -125,6 +125,20 @@ public class RemindersViewTests : IDisposable
         Assert.Equal("1 change(s), newest first.", dialog.FindControl<TextBlock>("StatusText")!.Text);
     }
 
+    [AvaloniaFact]
+    public void TheOverviewDrawsTheTrendChartsAndTheMostOrderedTests()
+    {
+        _store.UpsertPatientTest(new PatientTest("t1", "p1", "CBC", DateTime.Today.ToString("yyyy-MM-dd"), "completed"));
+        var view = new OverviewView(_session);
+        var window = new Window { Width = 1300, Height = 900, Content = view };
+        window.Show(); _windows.Add(window);
+
+        Assert.Equal(14, view.FindControl<Grid>("MoneyChart")!.Children.Count);
+        Assert.Equal(14, view.FindControl<Grid>("TestsChart")!.Children.Count);
+        Assert.Equal("1 test(s)", view.FindControl<TextBlock>("TestsSummary")!.Text);
+        Assert.Single(view.FindControl<ItemsControl>("TopTests")!.ItemsSource!.Cast<object>());
+    }
+
     public void Dispose()
     {
         foreach (var w in _windows) w.Close();

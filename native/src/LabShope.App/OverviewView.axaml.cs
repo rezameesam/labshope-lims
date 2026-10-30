@@ -59,6 +59,45 @@ public partial class OverviewView : UserControl
         }
 
         RecentGrid.ItemsSource = _session.Store.SearchBills("", limit: 8);
+        ShowTrends(LabShope.Core.Visits.OverviewTrends.Build(_session.Store, DateOnly.FromDateTime(DateTime.Today)));
+    }
+
+    private void ShowTrends(LabShope.Core.Visits.Trends t)
+    {
+        MoneySummary.Text = $"Billed {Money(t.TotalBilled)}  ·  collected {Money(t.TotalCollected)}";
+        TestsSummary.Text = $"{t.TotalTests} test(s)";
+        var blue = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("PrimaryBrush")!;
+        var green = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("SuccessBrush")!;
+        Bars(MoneyChart, t.Days, [(blue, d => (double)d.Billed), (green, d => (double)d.Collected)]);
+        Bars(TestsChart, t.Days, [(blue, d => d.Tests)]);
+
+        TopEmpty.IsVisible = t.TopTests.Count == 0;
+        var max = Math.Max(1, t.TopTests.Select(x => x.Count).DefaultIfEmpty(1).Max());
+        TopTests.ItemsSource = t.TopTests.Select(x => (Control)new StackPanel
+        {
+            Spacing = 2,
+            Children =
+            {
+                new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { new TextBlock { Text = x.Name, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis }, new TextBlock { Text = x.Count.ToString(), [Grid.ColumnProperty] = 1 } } },
+                new Border { Height = 5, CornerRadius = new Avalonia.CornerRadius(3), Background = blue, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, Width = 250.0 * x.Count / max },
+            },
+        }).ToList();
+    }
+
+    /// <summary>Draws one column group per day; each series is a bar as tall as its value relative to the biggest value shown.</summary>
+    private static void Bars(Grid chart, IReadOnlyList<LabShope.Core.Visits.TrendDay> days, (Avalonia.Media.IBrush Brush, Func<LabShope.Core.Visits.TrendDay, double> Value)[] series)
+    {
+        chart.Children.Clear();
+        chart.ColumnDefinitions = new ColumnDefinitions(string.Join(",", days.Select(_ => "*")));
+        var max = Math.Max(1.0, days.SelectMany(d => series.Select(s => s.Value(d))).DefaultIfEmpty(1).Max());
+        for (var i = 0; i < days.Count; i++)
+        {
+            var group = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 1, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, [Grid.ColumnProperty] = i };
+            foreach (var (brush, value) in series)
+                group.Children.Add(new Border { Width = series.Length == 1 ? 10 : 5, Height = Math.Max(2, 118 * value(days[i]) / max), Background = brush, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom });
+            Avalonia.Controls.ToolTip.SetTip(group, $"{days[i].Label}: billed {days[i].Billed:0.##}, collected {days[i].Collected:0.##}, {days[i].Tests} test(s)");
+            chart.Children.Add(group);
+        }
     }
 
     private static string Money(decimal v) => v.ToString("#,##0.##").Length == 0 ? "0" : v.ToString("#,##0.##");
