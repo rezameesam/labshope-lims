@@ -1,7 +1,8 @@
+import { deliverPdf, type PdfOutput } from "@/lib/pdf/deliverPdf";
 import { useState, useEffect, useCallback } from "react";
 import {
   Eye, Receipt, CreditCard, Banknote,
-  IndianRupee, Printer,
+  IndianRupee, Printer, Download,
   CheckCircle, Clock, XCircle, Edit2, BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1101,7 +1102,7 @@ const ManageBilling = () => {
     }
   };
 
-  const handlePrintInvoice = async (invoice: Invoice) => {
+  const handlePrintInvoice = async (invoice: Invoice, output: PdfOutput = "print") => {
     // Fetch invoice items for the invoice
     const { data: items, error } = await supabase
       .from("invoice_items")
@@ -1266,10 +1267,10 @@ const ManageBilling = () => {
     doc.setTextColor(128, 128, 128);
     doc.text("Thank you for choosing our laboratory services.", pageWidth / 2, doc.internal.pageSize.getHeight() - 20, { align: "center" });
     
-    // Save PDF directly instead of opening print dialog (avoids popup blockers)
-    doc.save(`Invoice_${invoice.invoice_number}.pdf`);
-    
-    toast.success("Invoice downloaded successfully");
+    // Print opens the print dialog (from a hidden frame, so pop-up blockers cannot stop it); Download saves the file.
+    await deliverPdf(doc, `Invoice_${invoice.invoice_number}.pdf`, output);
+
+    toast.success(output === "print" ? "Invoice sent to the printer" : "Invoice downloaded successfully");
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
@@ -1725,6 +1726,14 @@ const ManageBilling = () => {
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print Invoice
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handlePrintInvoice(selectedInvoice, "download")}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
                 </Button>
               </div>
             </div>
