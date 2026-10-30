@@ -125,6 +125,37 @@ public class RemindersViewTests : IDisposable
         Assert.Equal("1 change(s), newest first.", dialog.FindControl<TextBlock>("StatusText")!.Text);
     }
 
+    [AvaloniaFact]
+    public void TheOverviewDrawsTheTrendChartsAndTheMostOrderedTests()
+    {
+        _store.UpsertPatientTest(new PatientTest("t1", "p1", "CBC", DateTime.Today.ToString("yyyy-MM-dd"), "completed"));
+        var view = new OverviewView(_session);
+        var window = new Window { Width = 1300, Height = 900, Content = view };
+        window.Show(); _windows.Add(window);
+
+        Assert.Equal(14, view.FindControl<Grid>("MoneyChart")!.Children.Count);
+        Assert.Equal(14, view.FindControl<Grid>("TestsChart")!.Children.Count);
+        Assert.Equal("1 test(s)", view.FindControl<TextBlock>("TestsSummary")!.Text);
+        Assert.Single(view.FindControl<ItemsControl>("TopTests")!.ItemsSource!.Cast<object>());
+    }
+
+    [AvaloniaFact]
+    public void TheSubscriptionPageShowsThePlanFromTheLastCheck()
+    {
+        var empty = new SubscriptionView(_session);
+        Assert.Equal("Unknown", empty.FindControl<TextBlock>("StatusText")!.Text);
+
+        _store.SetMeta("subscription", System.Text.Json.JsonSerializer.Serialize(new SubscriptionInfo("active", "pro_plus", null, DateTimeOffset.Now.AddDays(5), false, null)));
+        var view = new SubscriptionView(_session);
+        var window = new Window { Content = view };
+        window.Show(); _windows.Add(window);
+
+        Assert.Equal("Active", view.FindControl<TextBlock>("StatusText")!.Text);
+        Assert.Equal("Pro plus", view.FindControl<TextBlock>("PlanText")!.Text);
+        Assert.True(view.FindControl<Border>("NoticeCard")!.IsVisible); // ends in 5 days
+        Assert.Contains("ends in", view.FindControl<TextBlock>("NoticeText")!.Text);
+    }
+
     public void Dispose()
     {
         foreach (var w in _windows) w.Close();

@@ -56,6 +56,32 @@
         </StackPanel>
       </Border>
 
+      <Grid ColumnDefinitions="*,16,*,16,300">
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Billed and collected" Classes="h2" FontSize="15" />
+            <TextBlock x:Name="MoneySummary" Classes="muted" />
+            <Grid x:Name="MoneyChart" Height="120" />
+            <TextBlock Text="last 14 days: blue billed, green collected" Classes="muted" FontSize="11" />
+          </StackPanel>
+        </Border>
+        <Border Classes="card" Grid.Column="2">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Tests ordered" Classes="h2" FontSize="15" />
+            <TextBlock x:Name="TestsSummary" Classes="muted" />
+            <Grid x:Name="TestsChart" Height="120" />
+            <TextBlock Text="last 14 days" Classes="muted" FontSize="11" />
+          </StackPanel>
+        </Border>
+        <Border Classes="card" Grid.Column="4">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Most ordered tests" Classes="h2" FontSize="15" />
+            <ItemsControl x:Name="TopTests" />
+            <TextBlock x:Name="TopEmpty" Text="No tests yet." Classes="muted" IsVisible="False" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
       <Grid ColumnDefinitions="*,16,Auto">
         <StackPanel Spacing="10">
           <TextBlock Text="Recent bills" Classes="h2" />

@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.SubscriptionView">
+  <ScrollViewer>
+    <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
+      <TextBlock Text="Subscription" Classes="h1" />
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="Status" Classes="muted" /><Border Grid.Column="1" x:Name="StatusPill" Classes="pill" HorizontalAlignment="Left"><TextBlock x:Name="StatusText" /></Border>
+            <TextBlock Text="Plan" Grid.Row="1" Classes="muted" /><TextBlock x:Name="PlanText" Grid.Row="1" Grid.Column="1" FontWeight="SemiBold" />
+            <TextBlock Text="Runs until" Grid.Row="2" Classes="muted" /><TextBlock x:Name="UntilText" Grid.Row="2" Grid.Column="1" />
+            <TextBlock Text="Checked" Grid.Row="3" Classes="muted" /><TextBlock x:Name="CheckedText" Grid.Row="3" Grid.Column="1" />
+          </Grid>
+        </StackPanel>
+      </Border>
+      <Border x:Name="NoticeCard" Classes="card" IsVisible="False"><TextBlock x:Name="NoticeText" TextWrapping="Wrap" /></Border>
+      <TextBlock x:Name="MessageText" Classes="muted" TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Check again" /></StackPanel></Button>
+        <Button Classes="primary" Click="OnManage"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="OpenInNew" Width="17" Height="17" /><TextBlock Text="Renew or change plan on the website" /></StackPanel></Button>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
