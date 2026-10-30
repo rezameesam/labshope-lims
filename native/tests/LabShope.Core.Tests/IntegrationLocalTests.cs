@@ -204,6 +204,11 @@ public class IntegrationLocalTests
         Assert.True((await OrgAdmin.DeleteCenterAsync(api, org, centerId)).Ok);
         Assert.True((await OrgAdmin.DeleteLabAsync(api, org, newLabId)).Ok);
 
+        // An admin can edit a person's details (name, designation, department).
+        Assert.True((await TeamService.UpdateAsync(api, org, me.Id, new TeamService.StaffEdit("IT Admin", "", "Chief tester", "QA"))).Ok);
+        var meRow = (await api.SelectAsync("employees", $"select=designation,department&id=eq.{me.Id}")).Body!.Value[0];
+        Assert.Equal(("Chief tester", "QA"), (meRow.GetProperty("designation").GetString(), meRow.GetProperty("department").GetString()));
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

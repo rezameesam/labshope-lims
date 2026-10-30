@@ -165,7 +165,7 @@ public sealed class SupabaseApi
             if (body is { ValueKind: JsonValueKind.Object } obj)
             {
                 code = Str(obj, "code") ?? Str(obj, "error_code");
-                message = Str(obj, "message") ?? Str(obj, "msg") ?? Str(obj, "error_description") ?? text;
+                message = Str(obj, "message") ?? Str(obj, "msg") ?? Str(obj, "error_description") ?? Str(obj, "error") ?? text;
             }
             return new ApiResult((int)response.StatusCode, body, code, message);
         }
