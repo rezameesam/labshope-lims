@@ -46,13 +46,13 @@ the actions inside each screen. Status: **Done** (works and tested), **Partial**
 
 | Web section | Native | Status | What is missing |
 |---|---|---|---|
-| Subscription | trial notice only | Partial | Plan details, upgrade and payment |
+| Subscription | Subscription page (admins) | Done | Paying/changing plan stays on the website |
 | Finance | Finance | Done (online only) | |
-| Quick Setup | none | Missing | Guided first-time setup |
-| System Settings | none | Missing | Lab details (name, address, logo), report branding |
-| Notifications | none | Missing | Notification wording and channels (the app already uses the lab's wording) |
-| Roles & Permissions | none | Missing | Everything |
-| Security | none | Missing | Sessions/devices |
+| Quick Setup | none | Website only | First-time lab onboarding is done on the website |
+| System Settings | Lab profile in Sync & settings | Partial | Payment, WhatsApp and email provider keys stay on the website (secrets) |
+| Notifications | none | Website only | Provider keys and test email; the app already uses the lab's wording |
+| Roles & Permissions | Roles & permissions (admins) | Done (online only) | |
+| Security | none | Website only | Browser sessions/devices |
 | Visitor Logs | none | Not wanted | Website only, by decision (2026-10-31); do not build in the native app |
 
 ## Native-only (desktop reasons)
