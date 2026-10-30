@@ -216,6 +216,29 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task ANewItemIsSentWithItsStockAndAnEditLocksTheStockBox()
+    {
+        var server = new Server(HttpStatusCode.Created, "[]");
+        var dialog = new ItemDialog(Api(server), "org-1", null);
+        dialog.Show();
+        dialog.FindControl<TextBox>("NameBox")!.Text = "CBC reagent";
+        dialog.FindControl<TextBox>("StockBox")!.Text = "25";
+        await Click(dialog, "SaveButton");
+        Assert.True(dialog.Saved);
+        Assert.Contains("\"current_stock\":25", server.Calls.Single().Body);
+
+        var item = new LabShope.Core.Visits.InventoryItem("i1", "CBC reagent", "supply", "R1", "ml", 25m, 5m, 12.5m, "Acme", "Shelf");
+        var edit = new Server(HttpStatusCode.OK, "[{\"id\":\"i1\"}]");
+        var editDialog = new ItemDialog(Api(edit), "org-1", item, "Keep cold");
+        editDialog.Show();
+        Assert.False(editDialog.FindControl<TextBox>("StockBox")!.IsEnabled);
+        Assert.Equal("Keep cold", editDialog.FindControl<TextBox>("DescriptionBox")!.Text);
+        await Click(editDialog, "SaveButton");
+        Assert.True(editDialog.Saved);
+        Assert.DoesNotContain("current_stock", edit.Calls.Single().Body);
+    }
+
+    [AvaloniaFact]
     public async Task EditingStaffSendsTheFourFieldsAndResettingShowsATemporaryPasswordOnce()
     {
         var person = new TeamMember("e1", "E001", "Asha Rao", "asha@lab.in", "9876543210", "Technician", "Lab", "l1", true);
