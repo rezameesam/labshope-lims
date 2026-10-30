@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.AddPatientDialog"
+        Title="Add patient" Width="440" Height="640" CanResize="False" WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Margin="24" Spacing="8">
+      <TextBlock Text="Add a patient" FontSize="16" FontWeight="SemiBold" />
+      <TextBlock Text="Adds the patient only. To add them with tests, use Register visit (works offline)." Classes="muted" TextWrapping="Wrap" />
+      <TextBlock Text="Full name" />
+      <TextBox x:Name="NameBox" />
+      <TextBlock Text="Phone (optional)" />
+      <TextBox x:Name="PhoneBox" />
+      <TextBlock Text="Gender" />
+      <ComboBox x:Name="GenderBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+        <ComboBoxItem>(not set)</ComboBoxItem>
+        <ComboBoxItem>male</ComboBoxItem>
+        <ComboBoxItem>female</ComboBoxItem>
+        <ComboBoxItem>other</ComboBoxItem>
+      </ComboBox>
+      <TextBlock Text="Date of birth (optional)" />
+      <CalendarDatePicker x:Name="DobBox" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" Watermark="dd/mm/yyyy" HorizontalAlignment="Stretch" />
+      <TextBlock Text="Email (optional)" />
+      <TextBox x:Name="EmailBox" />
+      <TextBlock Text="Address (optional)" />
+      <TextBox x:Name="AddressBox" />
+      <TextBlock Text="Blood group (optional)" />
+      <ComboBox x:Name="BloodBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+        <ComboBoxItem>(not set)</ComboBoxItem>
+        <ComboBoxItem>A+</ComboBoxItem><ComboBoxItem>A-</ComboBoxItem>
+        <ComboBoxItem>B+</ComboBoxItem><ComboBoxItem>B-</ComboBoxItem>
+        <ComboBoxItem>AB+</ComboBoxItem><ComboBoxItem>AB-</ComboBoxItem>
+        <ComboBoxItem>O+</ComboBoxItem><ComboBoxItem>O-</ComboBoxItem>
+      </ComboBox>
+      <TextBlock x:Name="ErrorText" Foreground="#B00020" TextWrapping="Wrap" IsVisible="False" />
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="AnywayButton" Content="Add anyway" Click="OnAddAnyway" IsVisible="False" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Add patient" IsDefault="True" Click="OnSave" Padding="18,6" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

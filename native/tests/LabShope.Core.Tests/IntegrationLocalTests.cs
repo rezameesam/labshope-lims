@@ -136,6 +136,20 @@ public class IntegrationLocalTests
         Assert.True((await TeamService.SetActiveAsync(api, org, me.Id, true)).Ok);
         Assert.True((await TeamService.LoadAsync(api, org)).Members.Single(m => m.Id == me.Id).IsActive);
 
+        // A patient can be added on their own, switched off (hidden and listed as switched off) and switched on again.
+        var alone = await PatientAdmin.AddAsync(api, store, org, Env("LIMS_IT_LAB"), session.UserId, new StandalonePatient("Solo Patient", "9000011122", "female", "1988-03-04", "solo@example.com", "1 Test Road", "B+"));
+        Assert.True(alone.Ok, alone.Error);
+        var soloRow = (await api.SelectAsync("patients", $"select=patient_id,full_name,blood_group,is_active,created_by&id=eq.{alone.Patient!.Id}")).Body!.Value[0];
+        Assert.Equal((alone.Patient.PatientCode, "Solo Patient", "B+", true, session.UserId),
+            (soloRow.GetProperty("patient_id").GetString(), soloRow.GetProperty("full_name").GetString(), soloRow.GetProperty("blood_group").GetString(), soloRow.GetProperty("is_active").GetBoolean(), soloRow.GetProperty("created_by").GetString()));
+        Assert.True((await PatientAdmin.SetActiveAsync(api, store, org, alone.Patient, active: false)).Ok);
+        Assert.Null(store.GetPatient(alone.Patient.Id));
+        var (switchedOff, offError) = await PatientAdmin.LoadInactiveAsync(api, org);
+        Assert.Null(offError);
+        Assert.Contains(switchedOff, p => p.Id == alone.Patient.Id);
+        Assert.True((await PatientAdmin.SetActiveAsync(api, store, org, switchedOff.Single(p => p.Id == alone.Patient.Id), active: true)).Ok);
+        Assert.NotNull(store.GetPatient(alone.Patient.Id));
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));
@@ -225,6 +239,24 @@ public class IntegrationLocalTests
         var reloaded = await BillingAdmin.LoadAsync(api, org, visit.VisitId);
         Assert.Equal(250m, reloaded.Items.Single(i => i.TestName == "CBC").UnitPrice);
         Assert.Contains(reloaded.History, h => h.Action is "discount_updated" or "invoice_updated");
+
+        // A discount given at the counter: the server stores it the way the website does, the patient owes the discountVisit amount,
+        // and the books (which post from the final amount) still balance.
+        var discountVisit = new VisitService(store).Register(new RegisterVisitInput(org, Env("LIMS_IT_LAB"), DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            [new VisitTest("CBC", 300), new VisitTest("LFT", 450)], NewPatient: new NewPatient("Discount Integration Patient", $"9{Random.Shared.Next(100000000, 999999999)}"),
+            Discount: 150m, Payment: new InitialPayment(600m, "cash")));
+        Assert.Equal(600m, discountVisit.Total);
+        var discountFlush = await engine.FlushOutboxAsync();
+        Assert.True(discountFlush == new FlushOutcome(2, 0, null), "discount visit: " + string.Join(" | ", store.ListOutbox().Select(o => $"{o.What}/{o.Badge}/{o.Detail}")));
+        var discountRow = (await api.SelectAsync("invoices", $"select=total_amount,discount_amount,final_amount,payment_status,discount_entered_by&id=eq.{discountVisit.VisitId}")).Body!.Value[0];
+        Assert.Equal((750m, 150m, 600m, "paid"), (discountRow.GetProperty("total_amount").GetDecimal(), discountRow.GetProperty("discount_amount").GetDecimal(),
+            discountRow.GetProperty("final_amount").GetDecimal(), discountRow.GetProperty("payment_status").GetString()));
+        Assert.Equal(session.UserId, discountRow.GetProperty("discount_entered_by").GetString());
+        await engine.PullInvoicesAsync();
+        var pulled = store.GetInvoice(discountVisit.VisitId)!;
+        Assert.Equal((600m, 150m, "paid"), (pulled.TotalAmount, pulled.Discount, pulled.PaymentStatus)); // the server agrees with what the PC showed
+        var booksAfter = await Finance.FinanceService.LoadAsync(api, org, new DateOnly(2020, 4, 1), new DateOnly(2100, 3, 31));
+        Assert.True(booksAfter.Data!.Tallied, "the books still balance after a discountVisit bill");
 
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         File.Delete(path);

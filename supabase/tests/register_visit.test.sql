@@ -140,6 +140,40 @@ begin
     raise notice 'OK 6d no phone and shared phone';
   end;
 
+  -- 6e. an optional discount: same rule as the website (clamped to 0..total, who entered it, final = total - discount)
+  declare vd1 uuid := gen_random_uuid(); vd2 uuid := gen_random_uuid(); vd3 uuid := gen_random_uuid(); vd4 uuid := gen_random_uuid(); rd jsonb; inv record;
+  begin
+    rd := public.register_visit(jsonb_build_object('visit_id', vd1, 'organization_id', org, 'lab_id', lab, 'discount', 30.5,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Discount One','phone','9300000001')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100), jsonb_build_object('test_name','TSH','price',200))));
+    assert (rd->>'total_amount')::numeric = 300 and (rd->>'discount')::numeric = 30.5 and (rd->>'final_amount')::numeric = 269.5, 'the result reports total, discount and final';
+    select total_amount, discount_amount, final_amount, discount_entered_by into inv from invoices where id = vd1;
+    assert inv.total_amount = 300 and inv.discount_amount = 30.5 and inv.final_amount = 269.5, 'the invoice stores the discount';
+    assert inv.discount_entered_by = '00000000-0000-0000-0000-0000000000a1', 'who gave the discount is recorded';
+
+    -- more than the bill is cut back to the bill; negative and missing mean no discount
+    rd := public.register_visit(jsonb_build_object('visit_id', vd2, 'organization_id', org, 'lab_id', lab, 'discount', 9999,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Discount Two','phone','9300000002')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rd->>'discount')::numeric = 100 and (rd->>'final_amount')::numeric = 0, 'a discount is never more than the bill';
+    rd := public.register_visit(jsonb_build_object('visit_id', vd3, 'organization_id', org, 'lab_id', lab, 'discount', -50,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Discount Three','phone','9300000003')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rd->>'discount')::numeric = 0 and (rd->>'final_amount')::numeric = 100, 'a negative discount is no discount';
+    select discount_entered_by into inv from invoices where id = vd3; assert inv.discount_entered_by is null, 'nobody is credited with no discount';
+    rd := public.register_visit(jsonb_build_object('visit_id', vd4, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Discount Four','phone','9300000004')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rd->>'discount')::numeric = 0 and (rd->>'final_amount')::numeric = 100, 'no discount key: as before';
+
+    -- a replay returns what was stored, including the discount
+    rd := public.register_visit(jsonb_build_object('visit_id', vd1, 'organization_id', org, 'lab_id', lab, 'discount', 1,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Discount One','phone','9300000001')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    assert (rd->>'replayed')::boolean and (rd->>'discount')::numeric = 30.5 and (rd->>'final_amount')::numeric = 269.5, 'a replay keeps the first discount';
+    raise notice 'OK 6e discount';
+  end;
+
   -- 7. atomic: a failure after the patient insert leaves nothing behind
   begin
     perform public.register_visit(jsonb_build_object('visit_id', gen_random_uuid(), 'organization_id', org, 'lab_id', lab,

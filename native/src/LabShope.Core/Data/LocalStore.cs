@@ -771,6 +771,34 @@ public sealed class LocalStore : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>Every test ordered for a patient on this computer, newest first.</summary>
+    public IReadOnlyList<PatientTest> TestsOfPatient(string patientId, int limit = 500)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items, external_lab_id, outsource_cost FROM patient_tests WHERE patient_id = $p ORDER BY test_date DESC, test_name LIMIT $limit";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$limit", limit);
+        var list = new List<PatientTest>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(ReadTest(r));
+        return list;
+    }
+
+    /// <summary>Every bill of a patient on this computer, newest first.</summary>
+    public IReadOnlyList<Invoice> InvoicesOfPatient(string patientId, int limit = 500)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, invoice_number, patient_id, total_amount, paid_amount, payment_status, created_at, discount FROM invoices WHERE patient_id = $p ORDER BY created_at DESC LIMIT $limit";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$limit", limit);
+        var list = new List<Invoice>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new Invoice(r.GetString(0), r.GetString(1), r.GetString(2), (decimal)r.GetDouble(3), (decimal)r.GetDouble(4),
+                r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6), (decimal)r.GetDouble(7)));
+        return list;
+    }
+
     public PatientTest? GetPatientTest(string id)
     {
         using var cmd = _db.CreateCommand();

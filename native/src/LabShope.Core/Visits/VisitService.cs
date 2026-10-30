@@ -32,7 +32,8 @@ public sealed record RegisterVisitInput(
     PackageRef? Package = null,
     string? ReferralDoctorId = null,
     string? ReferralCustomName = null,
-    InitialPayment? Payment = null);
+    InitialPayment? Payment = null,
+    decimal Discount = 0m);
 
 /// <summary>Money collected at the counter while registering.</summary>
 public sealed record InitialPayment(decimal Amount, string Method = "cash", string? TransactionId = null);
@@ -55,6 +56,9 @@ public sealed class VisitService
         _now = now ?? (() => DateTimeOffset.UtcNow);
         _randomDigits = randomDigits ?? (() => Random.Shared.Next(1000, 10000));
     }
+
+    /// <summary>The discount the server will accept: whole paise, never negative, never more than the bill (the website's rule).</summary>
+    public static decimal ClampDiscount(decimal discount, decimal gross) => Math.Min(Math.Max(PatientRules.Paise(discount), 0m), gross);
 
     /// <summary>The price rules the server uses: a package replaces the prices of the tests inside it.</summary>
     public static decimal Total(IReadOnlyList<VisitTest> tests, PackageRef? package)
@@ -119,7 +123,10 @@ public sealed class VisitService
             ["referral"] = input.ReferralDoctorId is null ? null : new JsonObject { ["doctor_id"] = input.ReferralDoctorId, ["custom_name"] = input.ReferralCustomName },
         };
 
-        var total = Total(input.Tests, input.Package);
+        var gross = Total(input.Tests, input.Package);
+        var discount = ClampDiscount(input.Discount, gross);
+        if (discount > 0) payload["discount"] = discount;
+        var total = gross - discount; // what the patient actually has to pay
         var patientId = patient["new"]?["id"]?.GetValue<string>() ?? patient["id"]!.GetValue<string>();
         var number = _store.NextLocalBillNumber(_now());
 
@@ -129,7 +136,7 @@ public sealed class VisitService
             _store.EnqueueVisit(new OutboxItem(visitId, payload.ToJsonString(), "pending", 0, null, patientName, total));
             // The bill exists on this PC straight away (its id is the visit id, as on the server); the server
             // gives it its official number when the visit is sent.
-            _store.UpsertInvoice(new Invoice(visitId, number, patientId, total, 0m, "pending", _now().ToString("O")));
+            _store.UpsertInvoice(new Invoice(visitId, number, patientId, total, 0m, "pending", _now().ToString("O"), discount));
             // ...and its tests are on the worklist at once, so the bench can start before anything is sent.
             for (var n = 0; n < input.Tests.Count; n++)
                 _store.UpsertPatientTest(new PatientTest(testIds[n], patientId, input.Tests[n].TestName, input.TestDate, "pending"));
