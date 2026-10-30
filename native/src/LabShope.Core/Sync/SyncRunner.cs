@@ -42,6 +42,7 @@ public sealed class SyncRunner
             await _engine.PullInvoicesAsync(ct);
             await _engine.PullPaymentsAsync(ct);
             if (_slug is not null) await _engine.SendReadyNotificationsAsync(_slug, _labName, ct);
+            if (_slug is not null) await _engine.SendPaymentNotificationsAsync(_slug, _labName, ct);
             _lastSyncedAt = DateTimeOffset.UtcNow;
             return Status(null, null);
         }

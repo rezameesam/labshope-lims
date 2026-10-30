@@ -64,6 +64,8 @@ public sealed class LocalStore : IDisposable
             CREATE INDEX IF NOT EXISTS ix_bookings_status ON bookings(status);
             CREATE TABLE IF NOT EXISTS notify_queue (
               patient_id TEXT NOT NULL, test_date TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (patient_id, test_date));
+            CREATE TABLE IF NOT EXISTS payment_notify_queue (
+              invoice_id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, created_at INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS instrument_results (
               id TEXT PRIMARY KEY, received_at TEXT NOT NULL, protocol TEXT NOT NULL, sample_id TEXT NOT NULL, machine_patient TEXT,
               patient_id TEXT, parameters TEXT NOT NULL, status TEXT NOT NULL, note TEXT);
@@ -495,6 +497,35 @@ public sealed class LocalStore : IDisposable
     }
 
     // ── "your reports are ready" emails still to send ───────────────────────
+
+    /// <summary>Remembers that a bill was settled, so the patient can be told once the payment has reached the server.</summary>
+    public void QueuePaymentNotification(string invoiceId, string patientId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO payment_notify_queue (invoice_id, patient_id, created_at) VALUES ($i, $p, $now) ON CONFLICT DO NOTHING";
+        cmd.Parameters.AddWithValue("$i", invoiceId);
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<(string InvoiceId, string PatientId)> PendingPaymentNotifications()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT invoice_id, patient_id FROM payment_notify_queue ORDER BY created_at";
+        var list = new List<(string, string)>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), r.GetString(1)));
+        return list;
+    }
+
+    public void RemovePaymentNotification(string invoiceId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "DELETE FROM payment_notify_queue WHERE invoice_id = $i";
+        cmd.Parameters.AddWithValue("$i", invoiceId);
+        cmd.ExecuteNonQuery();
+    }
 
     public void QueueReadyNotification(string patientId, string testDate)
     {
