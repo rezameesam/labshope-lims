@@ -11,13 +11,13 @@ insert into organizations (id, slug, display_name) values
 do $$
 declare blocked int := 0; name text;
 begin
-  foreach name in array array['lims','healthcare','LIMS','Healthcare','www','lab','shop','business','email','site','contact','ab','x','12','abc','1234','-abcd','abc-'] loop
+  foreach name in array array['lims','lims-downloads','radarx-downloads','healthcare','LIMS','Healthcare','www','lab','shop','business','email','site','contact','ab','x','12','abc','1234','-abcd','abc-'] loop
     begin
       insert into organizations (slug, display_name) values (name, 'x');
     exception when check_violation then blocked := blocked + 1;
     end;
   end loop;
-  if blocked <> 18 then raise exception 'expected 18 blocked slugs, got %', blocked; end if;
+  if blocked <> 20 then raise exception 'expected 20 blocked slugs, got %', blocked; end if;
 end $$;
 
 -- renaming a lab to a reserved name is refused too
