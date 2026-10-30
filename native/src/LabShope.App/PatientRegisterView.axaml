@@ -13,6 +13,10 @@
       </Grid>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
         <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <CheckBox x:Name="InactiveBox" Content="Switched off" VerticalAlignment="Center" />
+        <Button x:Name="AddButton" Click="OnAdd"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountPlusOutline" Width="17" Height="17" /><TextBlock Text="Add patient" /></StackPanel></Button>
+        <Button x:Name="HistoryButton" Click="OnHistory"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="History" Width="17" Height="17" /><TextBlock Text="History" /></StackPanel></Button>
+        <Button x:Name="ActiveButton" Click="OnToggleActive"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountOffOutline" Width="17" Height="17" /><TextBlock x:Name="ActiveText" Text="Switch off" /></StackPanel></Button>
         <Button x:Name="EditButton" Click="OnEdit"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountEditOutline" Width="17" Height="17" /><TextBlock Text="Edit patient" /></StackPanel></Button>
         <Button x:Name="RegisterButton" Classes="primary" Click="OnRegisterVisit"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="ClipboardPlusOutline" Width="17" Height="17" /><TextBlock Text="Register visit" /></StackPanel></Button>
       </StackPanel>
