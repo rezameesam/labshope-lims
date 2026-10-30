@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vis="using:LabShope.Core.Visits"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.RolesView">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <TextBlock Text="Roles decide what each staff member may do. Staff are given a role on the website's Employees page." Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
+        <Button x:Name="EditButton" Click="OnEdit" Content="Change" />
+        <Button x:Name="DeleteButton" Click="OnDelete" Content="Delete" />
+        <Button Classes="primary" Click="OnAdd"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Plus" Width="17" Height="17" /><TextBlock Text="New role" /></StackPanel></Button>
+      </StackPanel>
+    </Grid>
+    <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" />
+    <DataGrid x:Name="Grid" x:DataType="vis:RoleRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="ROLE" Binding="{Binding Name}" Width="*" MinWidth="180" />
+        <DataGridTextColumn Header="DESCRIPTION" Binding="{Binding Description}" Width="*" MinWidth="200" />
+        <DataGridTextColumn Header="PERMISSIONS" Binding="{Binding Permissions}" Width="120" />
+        <DataGridTextColumn Header="STAFF" Binding="{Binding Users}" Width="90" />
+        <DataGridTextColumn Header="STATE" Binding="{Binding StateText}" Width="110" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>
