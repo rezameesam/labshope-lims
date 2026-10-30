@@ -12,6 +12,9 @@ public partial class OrganizationView : UserControl
     private string _tab = "labs";
     private bool _teamLoaded;
 
+    /// <summary>Raised after a lab or centre changed on the server so the window can refresh the catalog.</summary>
+    public event Action? CatalogChanged;
+
     public OrganizationView() => throw new InvalidOperationException("Use the constructor with a session.");
 
     public OrganizationView(AppSession session)
@@ -34,11 +37,13 @@ public partial class OrganizationView : UserControl
         LabGrid.IsVisible = _tab == "labs"; CenterGrid.IsVisible = _tab == "centers"; TeamGrid.IsVisible = _tab == "team";
         MessageCard.IsVisible = MessageCard.IsVisible && _tab == "team";
         TeamActions.IsVisible = _tab == "team" && CanManageTeam;
+        OrgActions.IsVisible = _tab != "team" && CanManageTeam;
+        NewOrgText.Text = _tab == "labs" ? "New lab" : "New collection centre";
 
         var catalog = _session.Store.GetCatalog();
         LabGrid.ItemsSource = catalog.Labs;
         CenterGrid.ItemsSource = catalog.Centers;
-        Footnote.Text = _tab == "team" ? CanManageTeam ? "New staff can sign in to the app and the website straight away. Roles and permissions are managed on the website." : "Staff accounts and access are managed by your lab's admin." : "Labs and collection centres are set up on the LabShope website.";
+        Footnote.Text = _tab == "team" ? CanManageTeam ? "New staff can sign in to the app and the website straight away. Roles and permissions are managed on the website." : "Staff accounts and access are managed by your lab's admin." : "Changes to labs and centres reach other computers at their next sync (press F9).";
     }
 
     private bool CanManageTeam => _session.Api is not null && _session.Workspace.IsAdmin;
@@ -64,6 +69,80 @@ public partial class OrganizationView : UserControl
         if (result.Ok) { await LoadTeamAsync(); return; }
         MessageCard.IsVisible = true;
         MessageText.Text = result.Error;
+    }
+
+    private Window Owner => (Window)TopLevel.GetTopLevel(this)!;
+
+    private void Say(string text)
+    {
+        MessageCard.IsVisible = true;
+        MessageText.Text = text;
+    }
+
+    private void Done(string text)
+    {
+        MessageCard.IsVisible = false;
+        Footnote.Text = text;
+        CatalogChanged?.Invoke();
+    }
+
+    private async void OnNewOrg(object? sender, RoutedEventArgs e)
+    {
+        if (!CanManageTeam || _session.Api is null) return;
+        var org = _session.Workspace.OrganizationId;
+        var labs = _session.Store.GetCatalog().Labs;
+        if (_tab == "labs")
+        {
+            var dialog = new LabDialog(_session.Api, org, labs, null);
+            await dialog.ShowDialog(Owner);
+            if (dialog.Saved) Done("Lab added.");
+        }
+        else
+        {
+            var dialog = new CenterDialog(_session.Api, org, labs, _session.Workspace.LabId, null, null);
+            await dialog.ShowDialog(Owner);
+            if (dialog.Saved) Done("Collection centre added.");
+        }
+    }
+
+    private async void OnEditOrg(object? sender, RoutedEventArgs e)
+    {
+        if (!CanManageTeam || _session.Api is null) return;
+        var org = _session.Workspace.OrganizationId;
+        var labs = _session.Store.GetCatalog().Labs;
+        if (_tab == "labs" && LabGrid.SelectedItem is LabRef lab)
+        {
+            var (full, error) = await OrgAdmin.LoadLabAsync(_session.Api, org, lab.Id);
+            if (full is null) { Say(error ?? "Could not open the lab."); return; }
+            var dialog = new LabDialog(_session.Api, org, labs, full);
+            await dialog.ShowDialog(Owner);
+            if (dialog.Saved) Done($"{lab.Name} updated.");
+        }
+        else if (_tab == "centers" && CenterGrid.SelectedItem is CenterRef center)
+        {
+            var (input, error) = await OrgAdmin.LoadCenterAsync(_session.Api, org, center.Id);
+            if (input is null) { Say(error ?? "Could not open the centre."); return; }
+            var dialog = new CenterDialog(_session.Api, org, labs, null, center.Id, input);
+            await dialog.ShowDialog(Owner);
+            if (dialog.Saved) Done($"{center.Name} updated.");
+        }
+    }
+
+    private async void OnDeleteOrg(object? sender, RoutedEventArgs e)
+    {
+        if (!CanManageTeam || _session.Api is null) return;
+        var org = _session.Workspace.OrganizationId;
+        string? id = null, name = null;
+        if (_tab == "labs" && LabGrid.SelectedItem is LabRef lab) (id, name) = (lab.Id, lab.Name);
+        else if (_tab == "centers" && CenterGrid.SelectedItem is CenterRef center) (id, name) = (center.Id, center.Name);
+        if (id is null) return;
+
+        var confirm = new ConfirmDialog($"Delete {name}?", "It is removed for every computer in the lab. If it already has patients or bills it can't be deleted; untick Active when editing instead.", "Delete");
+        await confirm.ShowDialog(Owner);
+        if (!confirm.Confirmed) return;
+        var result = _tab == "labs" ? await OrgAdmin.DeleteLabAsync(_session.Api, org, id) : await OrgAdmin.DeleteCenterAsync(_session.Api, org, id);
+        if (result.Ok) Done($"{name} deleted.");
+        else Say(result.Error ?? "Not deleted.");
     }
 
     private async Task LoadTeamAsync()

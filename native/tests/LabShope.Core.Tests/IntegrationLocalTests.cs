@@ -187,6 +187,23 @@ public class IntegrationLocalTests
         Assert.True((await CatalogManage.AddCategoryAsync(api, org, "Integration Category", "d", [])).Ok);
         Assert.Equal(1, (await api.SelectAsync("test_categories", $"select=id&organization_id=eq.{org}&name=eq.Integration%20Category")).Body!.Value.GetArrayLength());
 
+        // An admin can add, edit and delete a lab and a collection centre.
+        Assert.True((await OrgAdmin.AddLabAsync(api, org, new LabInput("itlab", "Integration Branch", "branch", Env("LIMS_IT_LAB"), "", "Pune", "", "", "", "", true, "18.5", "73.8", false, ""))).Ok);
+        var newLabRow = (await api.SelectAsync("labs", $"select=id,lab_code,parent_lab_id&organization_id=eq.{org}&name=eq.Integration%20Branch")).Body!.Value[0];
+        var newLabId = newLabRow.GetProperty("id").GetString()!;
+        Assert.Equal(("ITLAB", Env("LIMS_IT_LAB")), (newLabRow.GetProperty("lab_code").GetString(), newLabRow.GetProperty("parent_lab_id").GetString()));
+        var (loadedLab, labLoadError) = await OrgAdmin.LoadLabAsync(api, org, newLabId);
+        Assert.Null(labLoadError);
+        Assert.Equal("18.5", loadedLab!.Input.Latitude);
+        Assert.True((await OrgAdmin.UpdateLabAsync(api, org, loadedLab, loadedLab.Input with { City = "Mumbai" })).Ok);
+        Assert.True((await OrgAdmin.AddCenterAsync(api, org, new CenterInput(newLabId, "itc", "Integration Centre", "", "", "", "", true))).Ok);
+        var centerRow = (await api.SelectAsync("collection_centers", $"select=id,code&organization_id=eq.{org}&lab_id=eq.{newLabId}")).Body!.Value[0];
+        var centerId = centerRow.GetProperty("id").GetString()!;
+        Assert.Equal("ITC", centerRow.GetProperty("code").GetString());
+        Assert.True((await OrgAdmin.UpdateCenterAsync(api, org, centerId, new CenterInput(newLabId, "ITC", "Integration Centre 2", "", "", "", "", false))).Ok);
+        Assert.True((await OrgAdmin.DeleteCenterAsync(api, org, centerId)).Ok);
+        Assert.True((await OrgAdmin.DeleteLabAsync(api, org, newLabId)).Ok);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

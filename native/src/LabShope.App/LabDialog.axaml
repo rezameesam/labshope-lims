@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.LabDialog"
+        Title="Lab" Width="520" Height="700" MinHeight="520" WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Margin="26" Spacing="8">
+      <TextBlock x:Name="Heading" Text="Add a lab" Classes="h2" />
+      <Grid ColumnDefinitions="*,12,2*">
+        <StackPanel Spacing="4"><TextBlock Text="CODE" Classes="label" /><TextBox x:Name="CodeBox" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="NAME" Classes="label" /><TextBox x:Name="NameBox" /></StackPanel>
+      </Grid>
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="TYPE" Classes="label" />
+          <ComboBox x:Name="TypeBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+            <ComboBoxItem Tag="main">Main lab</ComboBoxItem>
+            <ComboBoxItem Tag="branch">Branch</ComboBoxItem>
+            <ComboBoxItem Tag="collection_center">Collection centre</ComboBoxItem>
+          </ComboBox></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="PARENT LAB" Classes="label" /><ComboBox x:Name="ParentBox" HorizontalAlignment="Stretch" /></StackPanel>
+      </Grid>
+      <TextBlock Text="ADDRESS" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="AddressBox" />
+      <Grid ColumnDefinitions="*,12,*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="CITY" Classes="label" /><TextBox x:Name="CityBox" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="STATE" Classes="label" /><TextBox x:Name="StateBox" /></StackPanel>
+        <StackPanel Grid.Column="4" Spacing="4"><TextBlock Text="PINCODE" Classes="label" /><TextBox x:Name="PincodeBox" /></StackPanel>
+      </Grid>
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="PHONE" Classes="label" /><TextBox x:Name="PhoneBox" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="EMAIL" Classes="label" /><TextBox x:Name="EmailBox" /></StackPanel>
+      </Grid>
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="MAP LATITUDE" Classes="label" /><TextBox x:Name="LatBox" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="MAP LONGITUDE" Classes="label" /><TextBox x:Name="LonBox" /></StackPanel>
+      </Grid>
+      <CheckBox x:Name="AbdmBox" Content="ABDM enabled" Margin="0,6,0,0" />
+      <TextBox x:Name="FacilityBox" Watermark="ABDM facility ID" />
+      <CheckBox x:Name="ActiveBox" Content="Active" IsChecked="True" />
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Save" IsDefault="True" Click="OnSave" Padding="20,9" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Window>
