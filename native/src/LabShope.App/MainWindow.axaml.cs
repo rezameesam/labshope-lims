@@ -58,6 +58,15 @@ public partial class MainWindow : Window
                 v.Registered += async () => { RefreshPages(); await SyncAsync(); };
                 return v;
             }),
+            new("flow", "Patient flow", MaterialIconKind.AccountClockOutline, Key.None, () =>
+            {
+                var v = new FlowView(session);
+                v.Changed += async () => { RefreshBadges(); await SyncAsync(); };
+                v.EnterResultsRequested += patient => { Show("results"); ((ResultsView)_pages["results"]).ShowPatient(patient); };
+                v.TakePaymentRequested += patient => { Show("bills"); ((BillsView)_pages["bills"]).ShowPatient(patient); };
+                v.RegisterMoreRequested += patient => { Show("register"); ((RegisterVisitView)_pages["register"]).UsePatient(patient); };
+                return v;
+            }, Badge: () => _store.OpenVisitCount()),
             new("bookings", "Booking requests", MaterialIconKind.CalendarClockOutline, Key.F12, () =>
             {
                 var v = new BookingsView(session);
@@ -216,6 +225,7 @@ public partial class MainWindow : Window
         {
             case OverviewView o: o.Refresh(); break;
             case PatientRegisterView p: p.Refresh(); break;
+            case FlowView f: f.Refresh(); break;
             case BillsView b: b.Refresh(); break;
             case ResultsView r: r.Refresh(); break;
             case CashBookView c: c.Refresh(); break;

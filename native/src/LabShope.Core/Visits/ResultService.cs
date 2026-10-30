@@ -138,4 +138,34 @@ public sealed class ResultService
         });
         return done;
     }
+
+    /// <summary>
+    /// Marks tests as being worked on (the website's "in progress"), at once on this PC and queued for the server like a result is. Only tests that are still
+    /// waiting are started; anything already under way or finished is left alone. Returns how many were started.
+    /// </summary>
+    public int StartTesting(IEnumerable<string> testIds)
+    {
+        var started = 0;
+        var startedAt = _now().UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        foreach (var id in testIds.Distinct())
+        {
+            var test = _store.GetPatientTest(id);
+            if (test is null || test.Status != "pending" || !string.IsNullOrEmpty(test.ExternalLabId)) continue;
+
+            var payload = new JsonObject
+            {
+                ["id"] = id,
+                ["organization_id"] = _organizationId,
+                ["patch"] = new JsonObject { ["status"] = "in_progress", ["updated_by"] = _userId },
+            };
+            _store.InTransaction(() =>
+            {
+                _store.UpsertPatientTest(test with { Status = "in_progress", Waiting = true });
+                _store.EnqueueVisit(new OutboxItem($"result-{id}-start-{startedAt}", payload.ToJsonString(), "pending", 0, null,
+                    _store.GetPatient(test.PatientId)?.FullName ?? "", 0m, Kind: "result"));
+            });
+            started++;
+        }
+        return started;
+    }
 }

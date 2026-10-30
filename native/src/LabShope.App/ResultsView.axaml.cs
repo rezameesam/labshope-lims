@@ -60,6 +60,14 @@ public partial class ResultsView : UserControl
         _ => null,
     };
 
+    /// <summary>Shows only this patient's tests (used when the front-desk board sends someone here).</summary>
+    public void ShowPatient(Patient patient)
+    {
+        FilterBox.SelectedIndex = 2; // All
+        SearchBox.Text = patient.PatientCode;
+        Refresh();
+    }
+
     public void Refresh()
     {
         var keep = _current?.Id;

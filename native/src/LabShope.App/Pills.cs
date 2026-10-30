@@ -10,9 +10,11 @@ public static class Pills
 
     private static (string Fg, string Bg) Colors(string? status) => (status ?? "").ToLowerInvariant() switch
     {
-        "paid" or "normal" or "completed" or "sent" or "accepted" or "ok" => ("#1E8E5A", "#E3F5EC"),
+        "paid" or "normal" or "completed" or "sent" or "accepted" or "ok" or "done" => ("#1E8E5A", "#E3F5EC"),
         "partial" or "pending" or "waiting" or "in_progress" or "new" or "low" => ("#B7791F", "#FDF3DD"),
         "abnormal" or "cancelled" or "failed" or "out" => ("#C53030", "#FDE8E8"),
+        "testing" => ("#1D6FA5", "#E1F0FA"),
+        "ready" => ("#6B46C1", "#EEE8FA"),
         _ => ("#5C7083", "#EAF0F4"),
     };
 

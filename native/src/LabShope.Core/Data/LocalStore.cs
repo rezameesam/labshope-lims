@@ -814,6 +814,29 @@ public sealed class LocalStore : IDisposable
         return list;
     }
 
+    /// <summary>Tests ordered between two dates (yyyy-MM-dd), plus every test still open however old, so an unfinished visit never drops off the board.</summary>
+    public IReadOnlyList<PatientTest> FlowTests(string fromDate, string toDate, int limit = 5000)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, patient_id, test_name, test_date, status, result, result_value, result_unit, normal_range_text, is_abnormal, waiting, result_items, external_lab_id, outsource_cost FROM patient_tests " +
+                          "WHERE test_date BETWEEN $from AND $to OR status IN ('pending','in_progress') ORDER BY test_date, rowid LIMIT $limit";
+        cmd.Parameters.AddWithValue("$from", fromDate);
+        cmd.Parameters.AddWithValue("$to", toDate);
+        cmd.Parameters.AddWithValue("$limit", limit);
+        var list = new List<PatientTest>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(ReadTest(r));
+        return list;
+    }
+
+    /// <summary>How many patient visits still have a test waiting or being worked on (the badge on the Patient flow screen).</summary>
+    public int OpenVisitCount()
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM (SELECT 1 FROM patient_tests WHERE status IN ('pending','in_progress') GROUP BY patient_id, test_date)";
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
     public PatientTest? GetPatientTest(string id)
     {
         using var cmd = _db.CreateCommand();

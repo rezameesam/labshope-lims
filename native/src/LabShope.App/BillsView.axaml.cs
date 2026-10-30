@@ -29,6 +29,13 @@ public partial class BillsView : UserControl
         Refresh();
     }
 
+    /// <summary>Shows only this patient's bills (used when the front-desk board sends someone here to take a payment).</summary>
+    public void ShowPatient(Patient patient)
+    {
+        SearchBox.Text = patient.PatientCode;
+        Refresh();
+    }
+
     public void Refresh()
     {
         var keep = (Grid.SelectedItem as BillRow)?.Id;
