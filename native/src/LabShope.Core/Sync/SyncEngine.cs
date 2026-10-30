@@ -69,7 +69,7 @@ public sealed class SyncEngine
     }
 
     public Task<int> PullPatientsAsync(CancellationToken ct = default) =>
-        PullAsync("patients", "id,patient_id,full_name,phone,gender,date_of_birth,is_active,updated_at", "patients_cursor", row =>
+        PullAsync("patients", "id,patient_id,full_name,phone,gender,date_of_birth,email,is_active,updated_at", "patients_cursor", row =>
         {
             // Never overwrite an edit made here that hasn't reached the server yet.
             if (_store.HasWaitingPatientEdit(row.GetProperty("id").GetString()!)) return;
@@ -82,7 +82,7 @@ public sealed class SyncEngine
             _store.UpsertPatient(new Patient(
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!,
                 row.GetProperty("full_name").GetString()!, row.GetProperty("phone").GetString() ?? "",
-                Opt(row, "gender"), Opt(row, "date_of_birth")));
+                Opt(row, "gender"), Opt(row, "date_of_birth"), Email: Opt(row, "email")));
         }, null, ct);
 
     private const int PaymentHistoryDays = 90;
@@ -423,7 +423,7 @@ public sealed class SyncEngine
         var id = payload.GetProperty("id").GetString()!;
         var prev = payload.GetProperty("previous");
         if (_store.GetPatient(id) is { } now)
-            _store.UpsertPatient(now with { FullName = Opt(prev, "full_name") ?? now.FullName, Phone = Opt(prev, "phone") ?? now.Phone, Gender = Opt(prev, "gender"), DateOfBirth = Opt(prev, "date_of_birth") });
+            _store.UpsertPatient(now with { FullName = Opt(prev, "full_name") ?? now.FullName, Phone = Opt(prev, "phone") ?? now.Phone, Gender = Opt(prev, "gender"), DateOfBirth = Opt(prev, "date_of_birth"), Email = Opt(prev, "email") });
     }
 
     /// <summary>The server refused a result: put the test back on the worklist so it can be entered again.</summary>

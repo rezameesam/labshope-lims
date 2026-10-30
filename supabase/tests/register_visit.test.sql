@@ -174,6 +174,22 @@ begin
     raise notice 'OK 6e discount';
   end;
 
+  -- 6f. a new patient may carry an email (stored lower case); something that is not an address is ignored, never an error
+  declare ve1 uuid := gen_random_uuid(); ve2 uuid := gen_random_uuid(); pe record;
+  begin
+    perform public.register_visit(jsonb_build_object('visit_id', ve1, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Email One','phone','9400000001','email','  Asha@Example.COM ')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    select p.email into pe from patients p join invoices i on i.patient_id = p.id where i.id = ve1;
+    assert pe.email = 'asha@example.com', 'the email is trimmed and stored in lower case';
+    perform public.register_visit(jsonb_build_object('visit_id', ve2, 'organization_id', org, 'lab_id', lab,
+      'patient', jsonb_build_object('new', jsonb_build_object('full_name','Email Two','phone','9400000002','email','not-an-email')),
+      'tests', jsonb_build_array(jsonb_build_object('test_name','CBC','price',100))));
+    select p.email into pe from patients p join invoices i on i.patient_id = p.id where i.id = ve2;
+    assert pe.email is null, 'a bad email is ignored and the visit is still saved';
+    raise notice 'OK 6f email';
+  end;
+
   -- 7. atomic: a failure after the patient insert leaves nothing behind
   begin
     perform public.register_visit(jsonb_build_object('visit_id', gen_random_uuid(), 'organization_id', org, 'lab_id', lab,

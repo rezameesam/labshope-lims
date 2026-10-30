@@ -7,7 +7,8 @@ public sealed record Patient(
     string Phone,
     string? Gender,
     string? DateOfBirth,
-    bool Pending = false)
+    bool Pending = false,
+    string? Email = null)
 {
     /// <summary>The date of birth as people read it (day first).</summary>
     public string BirthDate => Dates.FromIso(DateOfBirth);

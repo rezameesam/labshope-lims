@@ -48,6 +48,10 @@ public static class PatientAdmin
         try { dob = PatientRules.CleanBirthDate(input.DateOfBirth, DateOnly.FromDateTime(now().LocalDateTime)); }
         catch (ArgumentException e) { return new(false, e.Message); }
 
+        string? email;
+        try { email = PatientEmail.Clean(input.Email); }
+        catch (ArgumentException e) { return new(false, e.Message); }
+
         if (phone.Length > 0 && !input.AllowDuplicatePhone && store.FindPatientsByPhone(PhoneNumbers.LookupVariants(phone)) is { Count: > 0 } same)
             return new(false, "A patient with this phone number already exists.", null, same);
 
@@ -60,7 +64,7 @@ public static class PatientAdmin
             ["patient_id"] = code,
             ["full_name"] = name,
             ["phone"] = phone,
-            ["email"] = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim(),
+            ["email"] = email,
             ["address"] = string.IsNullOrWhiteSpace(input.Address) ? null : input.Address.Trim(),
             ["date_of_birth"] = dob,
             ["gender"] = gender,
@@ -78,7 +82,7 @@ public static class PatientAdmin
                 : result.Status == 409 ? "That patient could not be added because the ID is already used. Try again."
                 : result.ErrorMessage ?? "The patient was not added.");
 
-        var patient = new Patient(id, code, name, phone, gender, dob);
+        var patient = new Patient(id, code, name, phone, gender, dob, Email: email);
         store.UpsertPatient(patient);
         return new(true, null, patient);
     }

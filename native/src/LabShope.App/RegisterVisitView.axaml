@@ -28,7 +28,7 @@
               </Border>
             </StackPanel>
 
-            <Grid x:Name="NewPanel" IsVisible="False" ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+            <Grid x:Name="NewPanel" IsVisible="False" ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
               <TextBlock Text="Full name" Classes="muted" VerticalAlignment="Center" />
               <TextBox x:Name="NewName" Grid.Column="1" />
               <TextBlock Text="Phone" Classes="muted" Grid.Row="1" VerticalAlignment="Center" />
@@ -44,6 +44,8 @@
               </ComboBox>
               <TextBlock Text="Date of birth" Classes="muted" Grid.Row="3" VerticalAlignment="Center" />
               <CalendarDatePicker x:Name="NewDob" Grid.Row="3" Grid.Column="1" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" Watermark="dd/mm/yyyy (optional)" HorizontalAlignment="Stretch" />
+              <TextBlock Text="Email" Classes="muted" Grid.Row="4" VerticalAlignment="Center" />
+              <TextBox x:Name="NewEmail" Grid.Row="4" Grid.Column="1" Watermark="optional: for result emails and the patient portal" />
             </Grid>
           </StackPanel>
         </Border>

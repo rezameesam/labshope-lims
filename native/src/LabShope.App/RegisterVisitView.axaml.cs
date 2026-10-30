@@ -278,7 +278,7 @@ public partial class RegisterVisitView : UserControl
                 ExistingPatient: existing ? _picked : null,
                 NewPatient: existing ? null : new NewPatient(NewName.Text!, NewPhone.Text ?? "", (NewGender.SelectedItem as ComboBoxItem)?.Content?.ToString(),
                     NewDob.SelectedDate?.ToString("yyyy-MM-dd"),
-                    NoPhone: NoPhoneBox.IsChecked == true, AllowDuplicatePhone: _allowDuplicatePhone),
+                    NoPhone: NoPhoneBox.IsChecked == true, AllowDuplicatePhone: _allowDuplicatePhone, Email: NewEmail.Text),
                 CollectionCenterId: center?.Id,
                 Notes: string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text!.Trim(),
                 Package: PackageRef(),
@@ -344,7 +344,7 @@ public partial class RegisterVisitView : UserControl
         _picked = null; _package = null; _bookingId = null; _allowDuplicatePhone = false;
         NoPhoneBox.IsChecked = false;
         PickedPatient.Text = ""; PickedChip.IsVisible = false; PatientSearch.Text = ""; PatientResults.ItemsSource = null;
-        NewName.Text = ""; NewPhone.Text = ""; NewDob.SelectedDate = null; NotesBox.Text = "";
+        NewName.Text = ""; NewPhone.Text = ""; NewEmail.Text = ""; NewDob.SelectedDate = null; NotesBox.Text = "";
         _selected.Clear();
         _payEdited = false; PayRef.Text = ""; PayMethod.SelectedIndex = 0; DiscountBox.Text = "0";
         DoctorBox.SelectedIndex = 0; CenterBox.SelectedIndex = 0; PackageBox.SelectedIndex = 0;

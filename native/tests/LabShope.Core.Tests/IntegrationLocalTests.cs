@@ -240,6 +240,15 @@ public class IntegrationLocalTests
         Assert.Equal(("9000012345", "Integration tagline", "Integration footer"), (profileReloaded!.Phone, profileReloaded.Tagline, profileReloaded.ReportFooterNote));
         Assert.True((await LabProfile.SaveAsync(api, org, session.UserId, profileReloaded, profileBefore)).Ok); // and put it back
 
+        // A new patient registered with an email: the server keeps it (lower case), and a pull brings it back to this PC.
+        var emailVisit = new VisitService(store).Register(new RegisterVisitInput(org, Env("LIMS_IT_LAB"), DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            [new VisitTest("CBC", 300)], NewPatient: new NewPatient("Email Integration Patient", $"9{Random.Shared.NextInt64(100000000, 999999999)}", Email: "  Integration@Example.COM ")));
+        Assert.True((await engine.FlushOutboxAsync()).Synced >= 1);
+        var emailRow = (await api.SelectAsync("patients", $"select=email&id=eq.{emailVisit.PatientId}")).Body!.Value[0];
+        Assert.Equal("integration@example.com", emailRow.GetProperty("email").GetString());
+        await engine.PullPatientsAsync();
+        Assert.Equal("integration@example.com", store.GetPatient(emailVisit.PatientId)!.Email);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

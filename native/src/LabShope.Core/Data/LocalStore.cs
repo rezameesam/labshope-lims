@@ -37,7 +37,7 @@ public sealed class LocalStore : IDisposable
         Exec("""
             CREATE TABLE IF NOT EXISTS patients (
               id TEXT PRIMARY KEY, patient_code TEXT NOT NULL, full_name TEXT NOT NULL, phone TEXT NOT NULL,
-              gender TEXT, date_of_birth TEXT, pending INTEGER NOT NULL DEFAULT 0, search TEXT NOT NULL);
+              gender TEXT, date_of_birth TEXT, pending INTEGER NOT NULL DEFAULT 0, search TEXT NOT NULL, email TEXT);
             CREATE INDEX IF NOT EXISTS ix_patients_code ON patients(patient_code COLLATE NOCASE);
             CREATE INDEX IF NOT EXISTS ix_patients_phone ON patients(phone);
             CREATE TABLE IF NOT EXISTS invoices (
@@ -81,6 +81,16 @@ public sealed class LocalStore : IDisposable
             info2.CommandText = "SELECT COUNT(*) FROM pragma_table_info('patient_tests') WHERE name = 'result_items'";
             if ((long)info2.ExecuteScalar()! == 0) Exec("ALTER TABLE patient_tests ADD COLUMN result_items TEXT");
         }
+        // Databases created before patient emails were kept have no email column.
+        using (var infoEmail = _db.CreateCommand())
+        {
+            infoEmail.CommandText = "SELECT COUNT(*) FROM pragma_table_info('patients') WHERE name = 'email'";
+            if ((long)infoEmail.ExecuteScalar()! == 0)
+            {
+                Exec("ALTER TABLE patients ADD COLUMN email TEXT");
+                Exec("DELETE FROM meta WHERE key = 'patients_cursor'"); // fetch the patients again once, so their emails arrive
+            }
+        }
         // Databases created before discounts were understood have no discount column on bills.
         using (var info4 = _db.CreateCommand())
         {
@@ -109,10 +119,10 @@ public sealed class LocalStore : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO patients (id, patient_code, full_name, phone, gender, date_of_birth, pending, search)
-            VALUES ($id, $code, $name, $phone, $gender, $dob, $pending, $search)
+            INSERT INTO patients (id, patient_code, full_name, phone, gender, date_of_birth, pending, search, email)
+            VALUES ($id, $code, $name, $phone, $gender, $dob, $pending, $search, $email)
             ON CONFLICT(id) DO UPDATE SET patient_code=$code, full_name=$name, phone=$phone, gender=$gender,
-              date_of_birth=$dob, pending=$pending, search=$search;
+              date_of_birth=$dob, pending=$pending, search=$search, email=$email;
             """;
         cmd.Parameters.AddWithValue("$id", p.Id);
         cmd.Parameters.AddWithValue("$code", p.PatientCode);
@@ -121,6 +131,7 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$gender", (object?)p.Gender ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$dob", (object?)p.DateOfBirth ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$pending", p.Pending ? 1 : 0);
+        cmd.Parameters.AddWithValue("$email", (object?)p.Email ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$search", $"{p.FullName} {p.Phone} {p.PatientCode}".ToLowerInvariant());
         cmd.ExecuteNonQuery();
     }
@@ -151,7 +162,7 @@ public sealed class LocalStore : IDisposable
         var words = text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         using var cmd = _db.CreateCommand();
         var where = string.Join(" AND ", words.Select((_, n) => $"search LIKE $w{n}"));
-        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients " +
+        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending, email FROM patients " +
                           $"{(words.Length > 0 ? "WHERE " + where : "")} ORDER BY full_name COLLATE NOCASE LIMIT $limit";
         for (var n = 0; n < words.Length; n++) cmd.Parameters.AddWithValue($"$w{n}", $"%{words[n]}%");
         cmd.Parameters.AddWithValue("$limit", limit);
@@ -292,7 +303,7 @@ public sealed class LocalStore : IDisposable
     public Patient? FindPatientByCode(string code)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE patient_code = $c COLLATE NOCASE LIMIT 1";
+        cmd.CommandText = "SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending, email FROM patients WHERE patient_code = $c COLLATE NOCASE LIMIT 1";
         cmd.Parameters.AddWithValue("$c", code);
         return ReadPatients(cmd).FirstOrDefault();
     }
@@ -300,7 +311,7 @@ public sealed class LocalStore : IDisposable
     public Patient? GetPatient(string id)
     {
         using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE id = $id";
+        cmd.CommandText = "SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending, email FROM patients WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", id);
         return ReadPatients(cmd).FirstOrDefault();
     }
@@ -352,7 +363,7 @@ public sealed class LocalStore : IDisposable
         while (r.Read())
         {
             list.Add(new Patient(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3),
-                r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetInt32(6) == 1));
+                r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5), r.GetInt32(6) == 1, r.IsDBNull(7) ? null : r.GetString(7)));
         }
         return list;
     }
@@ -408,7 +419,7 @@ public sealed class LocalStore : IDisposable
         if (list.Count == 0) return null;
         using var cmd = _db.CreateCommand();
         var names = list.Select((_, n) => $"$p{n}").ToList();
-        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY pending, id LIMIT 1";
+        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending, email FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY pending, id LIMIT 1";
         for (var n = 0; n < list.Count; n++) cmd.Parameters.AddWithValue(names[n], list[n]);
         return ReadPatients(cmd).FirstOrDefault();
     }
@@ -628,7 +639,7 @@ public sealed class LocalStore : IDisposable
         if (list.Count == 0) return [];
         using var cmd = _db.CreateCommand();
         var names = list.Select((_, n) => $"$p{n}").ToList();
-        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY full_name COLLATE NOCASE";
+        cmd.CommandText = $"SELECT id, patient_code, full_name, phone, gender, date_of_birth, pending, email FROM patients WHERE phone IN ({string.Join(",", names)}) ORDER BY full_name COLLATE NOCASE";
         for (var n = 0; n < list.Count; n++) cmd.Parameters.AddWithValue(names[n], list[n]);
         return ReadPatients(cmd);
     }
@@ -1008,14 +1019,15 @@ public sealed class LocalStore : IDisposable
     }
 
     /// <summary>Rewrites the patient details inside visits still waiting to be sent (a new patient travels with its visit).</summary>
-    public void UpdateWaitingVisitPatient(string patientId, string name, string phone, string? gender, string? dob, IReadOnlyList<string> phoneVariants)
+    public void UpdateWaitingVisitPatient(string patientId, string name, string phone, string? gender, string? dob, IReadOnlyList<string> phoneVariants, string? email = null)
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
             UPDATE outbox SET payload = json_set(payload,
                 '$.patient.new.full_name', $n, '$.patient.new.phone', $p, '$.patient.new.gender', $g,
                 '$.patient.new.date_of_birth', $d, '$.patient.new.phone_variants', json($v),
-                '$.patient.new.no_phone', json($nophone), '$.patient.new.allow_duplicate_phone', json('true'))
+                '$.patient.new.no_phone', json($nophone), '$.patient.new.allow_duplicate_phone', json('true'),
+                '$.patient.new.email', $e)
             WHERE kind = 'visit' AND status = 'pending' AND json_extract(payload, '$.patient.new.id') = $id
             """;
         cmd.Parameters.AddWithValue("$n", name);
@@ -1024,6 +1036,7 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$d", (object?)dob ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$v", System.Text.Json.JsonSerializer.Serialize(phoneVariants));
         cmd.Parameters.AddWithValue("$nophone", phone.Length == 0 ? "true" : "false");
+        cmd.Parameters.AddWithValue("$e", (object?)email ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$id", patientId);
         cmd.ExecuteNonQuery();
     }
