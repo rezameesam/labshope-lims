@@ -117,6 +117,8 @@ const PlatformDownloadPage = () => {
                 <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                   {platforms.map((platform) => {
                     const entry = manifest?.files[platform.id];
+                    // Once the list is known, a platform that is not in it has no current installer yet.
+                    const available = !manifest || Boolean(entry);
                     const recommended = best ? platform.id === best : platform.family === family;
                     return (
                       <article
@@ -131,17 +133,34 @@ const PlatformDownloadPage = () => {
                         ) : null}
                         <h2 className="font-heading text-xl font-semibold text-foreground">{platform.title}</h2>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">{platform.subtitle}</p>
-                        <a href={buildDownloadUrl(baseUrl, platform, manifest)} className="mt-5" download>
-                          <Button variant={recommended ? "clinical" : "outline"} className="w-full">
-                            <Download className="mr-2 h-4 w-4" />
-                            Download{entry?.size ? ` (${formatSize(entry.size)})` : ""}
-                          </Button>
-                        </a>
-                        <ol className="mt-5 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-                          {platform.steps.map((step) => (
-                            <li key={step}>{step}</li>
-                          ))}
-                        </ol>
+                        {available ? (
+                          <>
+                            <a href={buildDownloadUrl(baseUrl, platform, manifest)} className="mt-5" download>
+                              <Button variant={recommended ? "clinical" : "outline"} className="w-full">
+                                <Download className="mr-2 h-4 w-4" />
+                                Download{entry?.size ? ` (${formatSize(entry.size)})` : ""}
+                              </Button>
+                            </a>
+                            <ol className="mt-5 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+                              {platform.steps.map((step) => (
+                                <li key={step}>{step}</li>
+                              ))}
+                            </ol>
+                          </>
+                        ) : (
+                          <>
+                            <Button variant="outline" className="mt-5 w-full" disabled>
+                              Coming soon
+                            </Button>
+                            <p className="mt-5 text-sm text-muted-foreground">
+                              This version is not ready yet.{" "}
+                              <Link className="text-primary underline" to={buildPlatformPathWithMarketing("/contact")}>
+                                Contact us
+                              </Link>{" "}
+                              if you need it.
+                            </p>
+                          </>
+                        )}
                       </article>
                     );
                   })}

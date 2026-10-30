@@ -58,4 +58,21 @@ describe("PlatformDownloadPage", () => {
     await waitFor(() => expect(screen.getByTestId("download-version")).toHaveTextContent("Current version 1.4.0"));
     expect(screen.getByText(/Download \(90 MB\)/)).toBeInTheDocument();
   });
+
+  it("marks a platform missing from the published list as coming soon", async () => {
+    vi.stubEnv("VITE_DOWNLOADS_BASE_URL", "https://downloads.example.com");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ version: "1.2.0", files: { "windows-64bit": { file: "LabShope-LIMS-windows-64bit.exe", size: 58 * 1024 * 1024 } } }),
+      }),
+    );
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("download-version")).toHaveTextContent("Current version 1.2.0"));
+    expect(screen.getAllByRole("button", { name: "Coming soon" })).toHaveLength(4); // 32-bit, both Macs, Linux
+    const links = Array.from(document.querySelectorAll("a[download]")).map((a) => a.getAttribute("href"));
+    expect(links).toEqual(["https://downloads.example.com/latest/LabShope-LIMS-windows-64bit.exe"]);
+  });
 });
