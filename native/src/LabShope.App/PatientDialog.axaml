@@ -1,13 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LabShope.App.PatientDialog"
-        Title="Edit patient" Width="420" Height="420" CanResize="False" WindowStartupLocation="CenterOwner">
+        Title="Edit patient" Width="420" Height="500" CanResize="False" WindowStartupLocation="CenterOwner">
   <StackPanel Margin="24" Spacing="8">
     <TextBlock x:Name="Heading" FontSize="16" FontWeight="SemiBold" />
     <TextBlock Text="Full name" />
     <TextBox x:Name="NameBox" />
     <TextBlock Text="Phone (optional)" />
     <TextBox x:Name="PhoneBox" />
+    <TextBlock Text="Email (optional, for report and result emails)" />
+    <TextBox x:Name="EmailBox" />
     <TextBlock Text="Gender" />
     <ComboBox x:Name="GenderBox" HorizontalAlignment="Stretch">
       <ComboBoxItem>(not set)</ComboBoxItem>

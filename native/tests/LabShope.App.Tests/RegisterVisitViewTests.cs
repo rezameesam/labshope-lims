@@ -53,6 +53,27 @@ public class RegisterVisitViewTests : IDisposable
         box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
 
     [AvaloniaFact]
+    public void ANewPatientsEmailIsSentWithTheVisitAndABadOneIsRefusedInPlainWords()
+    {
+        var (_, view) = Show();
+        Find<Button>(view, "NewButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Type(Find<TextBox>(view, "NewName"), "Meera Nair");
+        Type(Find<TextBox>(view, "NewPhone"), "98765 00002");
+        var search = Find<TextBox>(view, "TestSearch");
+        Type(search, "cbc"); Press(search, Key.Enter);
+
+        Type(Find<TextBox>(view, "NewEmail"), "oops");
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Contains("valid email", Find<TextBlock>(view, "ResultText").Text);
+        Assert.Null(_store.NextPendingVisit());
+
+        Find<TextBox>(view, "NewEmail").Text = "Meera@Example.com";
+        Find<Button>(view, "SaveButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        var node = JsonDocument.Parse(_store.NextPendingVisit()!.PayloadJson).RootElement.GetProperty("patient").GetProperty("new");
+        Assert.Equal("meera@example.com", node.GetProperty("email").GetString());
+    }
+
+    [AvaloniaFact]
     public void RegistersANewPatientWithTestsAndQueuesIt()
     {
         var (_, view) = Show();

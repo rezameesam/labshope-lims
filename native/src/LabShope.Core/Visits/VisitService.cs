@@ -8,7 +8,7 @@ public sealed record VisitTest(string TestName, decimal Price, bool InPackage = 
 public sealed record PackageRef(string Id, string Name, decimal Price);
 /// <param name="NoPhone">The patient has no phone number (the visit is registered without one).</param>
 /// <param name="AllowDuplicatePhone">Create a new patient even though the phone is already registered (family members often share one).</param>
-public sealed record NewPatient(string FullName, string Phone, string? Gender = null, string? DateOfBirth = null, bool NoPhone = false, bool AllowDuplicatePhone = false);
+public sealed record NewPatient(string FullName, string Phone, string? Gender = null, string? DateOfBirth = null, bool NoPhone = false, bool AllowDuplicatePhone = false, string? Email = null);
 
 /// <summary>
 /// The phone number is already registered with someone. The person registering decides: use that patient, or continue with a
@@ -98,8 +98,9 @@ public sealed class VisitService
             var name = PatientRules.CleanName(fresh.FullName);
             var birth = PatientRules.CleanBirthDate(fresh.DateOfBirth, DateOnly.FromDateTime(_now().LocalDateTime));
             patientName = name;
-            _store.UpsertPatient(new Patient(id, code, name, phone, fresh.Gender, birth, Pending: true));
-            patient = NewPatientNode(id, code, name, phone, fresh.Gender, birth, variants, noPhone: phone.Length == 0, allowDuplicate: fresh.AllowDuplicatePhone);
+            var email = PatientEmail.Clean(fresh.Email);
+            _store.UpsertPatient(new Patient(id, code, name, phone, fresh.Gender, birth, Pending: true, Email: email));
+            patient = NewPatientNode(id, code, name, phone, fresh.Gender, birth, variants, noPhone: phone.Length == 0, allowDuplicate: fresh.AllowDuplicatePhone, email: email);
         }
 
         var visitId = Guid.NewGuid().ToString();
@@ -148,10 +149,10 @@ public sealed class VisitService
 
     /// <summary>A patient that only exists on this PC travels with the visit so the server can create it.</summary>
     private static JsonNode PatientRef(Patient p) => p.Pending
-        ? NewPatientNode(p.Id, p.PatientCode, p.FullName, p.Phone, p.Gender, p.DateOfBirth, [p.Phone])
+        ? NewPatientNode(p.Id, p.PatientCode, p.FullName, p.Phone, p.Gender, p.DateOfBirth, [p.Phone], email: p.Email)
         : new JsonObject { ["id"] = p.Id };
 
-    private static JsonNode NewPatientNode(string id, string code, string name, string phone, string? gender, string? dob, IReadOnlyList<string> variants, bool noPhone = false, bool allowDuplicate = false)
+    private static JsonNode NewPatientNode(string id, string code, string name, string phone, string? gender, string? dob, IReadOnlyList<string> variants, bool noPhone = false, bool allowDuplicate = false, string? email = null)
     {
         var node = new JsonObject
         {
@@ -159,6 +160,7 @@ public sealed class VisitService
             ["gender"] = gender, ["date_of_birth"] = dob,
             ["phone_variants"] = new JsonArray(variants.Select(v => (JsonNode)JsonValue.Create(v)!).ToArray()),
         };
+        if (email is not null) node["email"] = email;
         if (noPhone) node["no_phone"] = true;
         if (allowDuplicate) node["allow_duplicate_phone"] = true;
         return new JsonObject { ["new"] = node };

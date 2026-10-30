@@ -97,7 +97,7 @@ public class SetupDialogTests
         var store = new LocalStore(Path.Combine(Path.GetTempPath(), $"labshope-dob-{Guid.NewGuid():N}.db"));
         try
         {
-            var patient = new Patient("p1", "IRM-0001", "Asha Rao", "9876543210", "female", "1985-03-07");
+            var patient = new Patient("p1", "IRM-0001", "Asha Rao", "9876543210", "female", "1985-03-07", Email: "asha@example.com");
             store.UpsertPatient(patient);
             var dialog = new PatientDialog(new LabShope.Core.Visits.PatientService(store, "org-1"), patient);
             dialog.Show();
@@ -107,9 +107,12 @@ public class SetupDialogTests
             Assert.Equal("dd/MM/yyyy", picker.CustomDateFormatString);
             Assert.Equal(DateTime.Today, picker.DisplayDateEnd);
 
+            Assert.Equal("asha@example.com", dialog.FindControl<TextBox>("EmailBox")!.Text);
+            dialog.FindControl<TextBox>("EmailBox")!.Text = "asha.new@example.com";
             picker.SelectedDate = new DateTime(1990, 12, 25);
             Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(dialog).OfType<Button>().First(b => b.Content as string == "Save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Equal("1990-12-25", dialog.Result?.DateOfBirth); // stored the way the server expects
+            Assert.Equal("asha.new@example.com", dialog.Result?.Email);
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }
