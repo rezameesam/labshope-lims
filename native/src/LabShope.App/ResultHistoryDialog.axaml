@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:LabShope.Core.Visits"
+        x:Class="LabShope.App.ResultHistoryDialog"
+        Title="Result history" Width="760" Height="480" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="24">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Content="Close" Click="OnClose" Padding="20,8" />
+    </StackPanel>
+    <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,12">
+      <TextBlock x:Name="Heading" Classes="h2" />
+      <TextBlock x:Name="StatusText" Classes="muted" TextWrapping="Wrap" />
+    </StackPanel>
+    <DataGrid x:Name="Grid" x:DataType="v:ResultHistoryEntry" AutoGenerateColumns="False" IsReadOnly="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="WHEN" Binding="{Binding When}" Width="150" />
+        <DataGridTextColumn Header="WHO" Binding="{Binding ChangedBy}" Width="150" />
+        <DataGridTextColumn Header="WHAT" Binding="{Binding What}" Width="130" />
+        <DataGridTextColumn Header="DETAILS" Binding="{Binding Summary}" Width="*" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>

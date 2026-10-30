@@ -19,7 +19,10 @@ public class RemindersViewTests : IDisposable
         {
             var body = r.Content is null ? "" : await r.Content.ReadAsStringAsync(ct);
             Calls.Add((r.Method.Method, r.RequestUri!.AbsolutePath, body));
-            var json = r.Method == HttpMethod.Get
+            var json = r.Method == HttpMethod.Get && r.RequestUri.AbsolutePath.EndsWith("/patient_test_audit")
+                ? """[{"action":"result_updated","changed_by":null,"changed_at":"2026-10-30T10:00:00Z","old_values":{"result":"12"},"new_values":{"result":"14"}}]"""
+                : r.Method == HttpMethod.Get && r.RequestUri.AbsolutePath.EndsWith("/employees") ? "[]"
+                : r.Method == HttpMethod.Get
                 ? """[{"id":"r1","patient_id":"p1","reminder_type":"follow_up","title":"Call back","message":"","reminder_date":"2020-01-01","due_date":null,"is_completed":false},{"id":"r2","patient_id":"p1","reminder_type":"payment","title":"Dues","message":"","reminder_date":"2020-01-02","due_date":null,"is_completed":true}]"""
                 : r.Method.Method is "PATCH" or "DELETE" ? """[{"id":"r1"}]""" : "";
             return new HttpResponseMessage(r.Method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.OK)
@@ -108,6 +111,18 @@ public class RemindersViewTests : IDisposable
         Assert.False(dialog.Saved);
         Assert.Equal("Choose a patient.", dialog.FindControl<TextBlock>("ErrorText")!.Text);
         Assert.DoesNotContain(_server.Calls, c => c.Method == "POST");
+    }
+
+    [AvaloniaFact]
+    public async Task TheHistoryDialogListsWhoChangedTheResult()
+    {
+        var dialog = new ResultHistoryDialog(_session, new PatientTest("t1", "p1", "CBC", "2026-10-30", "completed"));
+        dialog.Show(); _windows.Add(dialog);
+        await dialog.LoadAsync();
+
+        var rows = dialog.FindControl<DataGrid>("Grid")!.ItemsSource!.Cast<ResultHistoryEntry>().ToList();
+        Assert.Equal("Result changed from 12 to 14", Assert.Single(rows).Summary);
+        Assert.Equal("1 change(s), newest first.", dialog.FindControl<TextBlock>("StatusText")!.Text);
     }
 
     public void Dispose()

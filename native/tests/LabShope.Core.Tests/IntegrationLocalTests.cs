@@ -278,6 +278,11 @@ public class IntegrationLocalTests
         Assert.True((await Reminders.DeleteAsync(api, org, reminder.Id)).Ok);
         Assert.DoesNotContain((await Reminders.LoadAsync(api, org)).Items, r => r.Id == reminder.Id);
 
+        // Result history: the audit rows the database trigger wrote for a test are readable by staff.
+        var (history, historyError) = await ResultHistory.LoadAsync(api, org, rebillTests[0].Id);
+        Assert.Null(historyError);
+        Assert.NotEmpty(history); // at least "created"
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

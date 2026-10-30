@@ -52,7 +52,7 @@ public static class BillingAdmin
     private static BillDetails Failed(ApiResult r) => new([], [], [],
         r.NetworkFailure ? "The bill's details need an internet connection." : r.Status is 401 or 403 ? "Your account isn't allowed to see these details." : r.ErrorMessage ?? "Could not load the details.", r.NetworkFailure);
 
-    private static async Task<Dictionary<string, string>> StaffNamesAsync(SupabaseApi api, string organizationId, IReadOnlyList<string> userIds, CancellationToken ct)
+    internal static async Task<Dictionary<string, string>> StaffNamesAsync(SupabaseApi api, string organizationId, IReadOnlyList<string> userIds, CancellationToken ct)
     {
         var map = new Dictionary<string, string>();
         if (userIds.Count == 0) return map;
