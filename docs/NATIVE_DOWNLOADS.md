@@ -16,7 +16,7 @@ The website page `https://lims.labshope.com/download` (platform site) reads `lat
 
 1. **GitHub secrets** (repository settings, Secrets and variables, Actions): `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from an R2 API token with *Object Read & Write* on the `labshope-lims` bucket only. Without them the workflow skips the upload and everything else still works.
    Optional repository *variables*: `R2_ACCOUNT_ID` and `R2_BUCKET` (defaults are this project's account and `labshope-lims`).
-2. **Public address:** bucket settings, Custom Domains, connect a subdomain such as `downloads.labshope.com` (the domain must be on Cloudflare DNS) (recommended for production; the *Public Development URL* also works but is rate limited and not for production).
+2. **Public address:** bucket settings, Custom Domains, connect a subdomain such as `lims-downloads.labshope.com` (the domain must be on Cloudflare DNS) (recommended for production; the *Public Development URL* also works but is rate limited and not for production).
 3. **CORS policy** (bucket settings, CORS Policy) so the website can read `latest.json`:
 
    ```json
@@ -30,7 +30,7 @@ The website page `https://lims.labshope.com/download` (platform site) reads `lat
    ]
    ```
 
-4. **Website build setting:** `VITE_DOWNLOADS_BASE_URL=https://downloads.labshope.com` (no trailing slash). Until it is set the page says "Downloads are being prepared".
+4. **Website build setting:** `VITE_DOWNLOADS_BASE_URL=https://lims-downloads.labshope.com` (no trailing slash). Until it is set the page says "Downloads are being prepared".
 
 ## Notes
 
