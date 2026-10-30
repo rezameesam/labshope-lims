@@ -262,12 +262,12 @@ public class IntegrationLocalTests
         var ask = await BillCreator.CreateAsync(api, org, session.UserId, Env("LIMS_IT_LAB"), rebill.PatientId, [new BillTestLine(rebillTests[0].Id, "CBC", 300m)], "20", "integration", rebillTests);
         Assert.False(ask.Ok);
         Assert.NotNull(ask.NeedsConfirmation);
-        var second = await BillCreator.CreateAsync(api, org, session.UserId, Env("LIMS_IT_LAB"), rebill.PatientId, [new BillTestLine(rebillTests[0].Id, "CBC", 300m)], "20", "integration", rebillTests, confirmedDuplicates: true);
-        Assert.True(second.Ok, second.Error);
-        var secondRow = (await api.SelectAsync("invoices", $"select=invoice_number,total_amount,discount_amount,final_amount&id=eq.{second.Invoice!.Id}")).Body!.Value[0];
-        Assert.Equal((300m, 20m, 280m), (secondRow.GetProperty("total_amount").GetDecimal(), secondRow.GetProperty("discount_amount").GetDecimal(), secondRow.GetProperty("final_amount").GetDecimal()));
-        Assert.Equal(second.Invoice.InvoiceNumber, secondRow.GetProperty("invoice_number").GetString());
-        Assert.Equal(1, (await api.SelectAsync("invoice_items", $"select=id&invoice_id=eq.{second.Invoice.Id}")).Body!.Value.GetArrayLength());
+        var rebilled = await BillCreator.CreateAsync(api, org, session.UserId, Env("LIMS_IT_LAB"), rebill.PatientId, [new BillTestLine(rebillTests[0].Id, "CBC", 300m)], "20", "integration", rebillTests, confirmedDuplicates: true);
+        Assert.True(rebilled.Ok, rebilled.Error);
+        var rebilledRow = (await api.SelectAsync("invoices", $"select=invoice_number,total_amount,discount_amount,final_amount&id=eq.{rebilled.Invoice!.Id}")).Body!.Value[0];
+        Assert.Equal((300m, 20m, 280m), (rebilledRow.GetProperty("total_amount").GetDecimal(), rebilledRow.GetProperty("discount_amount").GetDecimal(), rebilledRow.GetProperty("final_amount").GetDecimal()));
+        Assert.Equal(rebilled.Invoice.InvoiceNumber, rebilledRow.GetProperty("invoice_number").GetString());
+        Assert.Equal(1, (await api.SelectAsync("invoice_items", $"select=id&invoice_id=eq.{rebilled.Invoice.Id}")).Body!.Value.GetArrayLength());
 
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
