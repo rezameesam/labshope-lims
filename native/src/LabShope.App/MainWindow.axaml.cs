@@ -111,7 +111,7 @@ public partial class MainWindow : Window
             _nav.Add(new("finance", "Finance", MaterialIconKind.BankOutline, Key.None, () => new FinanceView(session)));
         _nav.Add(new("settings", "Sync & settings", MaterialIconKind.CogOutline, Key.None, () =>
             {
-                var v = new SettingsView(session);
+                var v = new SettingsView(session) { Updater = _updater };
                 v.SyncRequested += async () => await SyncAsync();
                 v.QueueChanged += () => RefreshPages();
                 v.LabProfileChanged += async () =>
@@ -143,8 +143,14 @@ public partial class MainWindow : Window
         var syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         syncTimer.Tick += async (_, _) => await SyncAsync();
         syncTimer.Start();
+        _updater.Changed += () => Dispatcher.UIThread.Post(ShowUpdateState);
+        var updateTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        updateTimer.Tick += async (_, _) => await _updater.RunAsync();
+        updateTimer.Start();
         Opened += async (_, _) =>
         {
+            // A little after start-up, look for a newer version in the background (not in the way of the first sync).
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => Dispatcher.UIThread.Post(async () => await _updater.RunAsync()));
             if (session.StartupNotice is { } notice) { Toast(notice); _scanHide?.Stop(); } // stays until the next message
             await SyncAsync();
         };
@@ -275,6 +281,24 @@ public partial class MainWindow : Window
         _scanHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
         _scanHide.Tick += (_, _) => { ScanChip.IsVisible = false; _scanHide!.Stop(); };
         _scanHide.Start();
+    }
+
+    private readonly AppUpdater _updater = AppUpdater.Create();
+
+    private void ShowUpdateState()
+    {
+        var ready = _updater.State == UpdateState.Ready;
+        UpdateChip.IsVisible = ready || _updater.State == UpdateState.Downloading;
+        UpdateChip.IsEnabled = ready;
+        UpdateText.Text = ready ? $"Update {_updater.NewVersion} ready: restart" : $"Downloading update {_updater.NewVersion}… {_updater.Percent}%";
+    }
+
+    private async void OnUpdateChip(object? sender, RoutedEventArgs e)
+    {
+        if (_updater.State != UpdateState.Ready) return;
+        var confirm = new ConfirmDialog($"Update to version {_updater.NewVersion}?", "LabShope LIMS closes and opens again on the new version. Anything not sent yet stays safe on this computer and is sent afterwards.", "Restart and update");
+        await confirm.ShowDialog(this);
+        if (confirm.Confirmed) _updater.ApplyAndRestart();
     }
 
     /// <summary>After a catalog change, pull the new values straight away instead of waiting for the next refresh.</summary>
