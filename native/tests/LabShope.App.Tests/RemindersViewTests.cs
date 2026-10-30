@@ -139,6 +139,23 @@ public class RemindersViewTests : IDisposable
         Assert.Single(view.FindControl<ItemsControl>("TopTests")!.ItemsSource!.Cast<object>());
     }
 
+    [AvaloniaFact]
+    public void TheSubscriptionPageShowsThePlanFromTheLastCheck()
+    {
+        var empty = new SubscriptionView(_session);
+        Assert.Equal("Unknown", empty.FindControl<TextBlock>("StatusText")!.Text);
+
+        _store.SetMeta("subscription", System.Text.Json.JsonSerializer.Serialize(new SubscriptionInfo("active", "pro_plus", null, DateTimeOffset.Now.AddDays(5), false, null)));
+        var view = new SubscriptionView(_session);
+        var window = new Window { Content = view };
+        window.Show(); _windows.Add(window);
+
+        Assert.Equal("Active", view.FindControl<TextBlock>("StatusText")!.Text);
+        Assert.Equal("Pro plus", view.FindControl<TextBlock>("PlanText")!.Text);
+        Assert.True(view.FindControl<Border>("NoticeCard")!.IsVisible); // ends in 5 days
+        Assert.Contains("ends in", view.FindControl<TextBlock>("NoticeText")!.Text);
+    }
+
     public void Dispose()
     {
         foreach (var w in _windows) w.Close();

@@ -126,6 +126,8 @@ public partial class MainWindow : Window
         // The books are for admins and staff, not collectors.
         if (session.Workspace.Roles is null || session.Workspace.Roles.Any(r => r is "admin" or "employee"))
             _nav.Add(new("finance", "Finance", MaterialIconKind.BankOutline, Key.None, () => new FinanceView(session)));
+        if (session.Workspace.Roles is null || session.Workspace.Roles.Contains("admin"))
+            _nav.Add(new("subscription", "Subscription", MaterialIconKind.BadgeAccountOutline, Key.None, () => new SubscriptionView(session)));
         _nav.Add(new("settings", "Sync & settings", MaterialIconKind.CogOutline, Key.None, () =>
             {
                 var v = new SettingsView(session) { Updater = _updater };
