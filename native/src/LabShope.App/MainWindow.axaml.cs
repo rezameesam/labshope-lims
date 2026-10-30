@@ -74,6 +74,7 @@ public partial class MainWindow : Window
                 v.OpenBillRequested += patient => { Show("bills"); ((BillsView)_pages["bills"]).ShowPatient(patient); };
                 return v;
             }, Badge: () => { var late = LabShope.Core.Visits.NoticeBoard.Build(_store, DateOnly.FromDateTime(DateTime.Today)).Stats; return late.OverdueTests + late.OverdueBills; }),
+            new("reminders", "Reminders", MaterialIconKind.BellRingOutline, Key.None, () => new RemindersView(session)),
             new("bookings", "Booking requests", MaterialIconKind.CalendarClockOutline, Key.F12, () =>
             {
                 var v = new BookingsView(session);

@@ -53,7 +53,7 @@ the actions inside each screen. Status: **Done** (works and tested), **Partial**
 | Notifications | none | Missing | Notification wording and channels (the app already uses the lab's wording) |
 | Roles & Permissions | none | Missing | Everything |
 | Security | none | Missing | Sessions/devices |
-| Visitor Logs | none | Missing | Everything |
+| Visitor Logs | none | Not wanted | Website only, by decision (2026-10-31); do not build in the native app |
 
 ## Native-only (desktop reasons)
 Barcode scanning from any screen, lab-analyzer connections, offline work with a send queue, backups and recovery,
@@ -68,4 +68,4 @@ direct receipt printing, full screen.
 3. Catalog management: packages, doctors, external labs, categories, templates, inventory items.
 4. Manage: labs, collection centres, staff edits.
 5. Account: system settings (lab details/logo), notifications, subscription, roles.
-6. Notice board, reminders, lab sheets, visitor logs, security.
+6. Notice board, reminders, lab sheets, security. (Visitor logs and the patient portal are website only, by decision.)

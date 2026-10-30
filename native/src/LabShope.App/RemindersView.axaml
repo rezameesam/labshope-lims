@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vis="using:LabShope.Core.Visits"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.RemindersView">
+  <DockPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,0,0,12">
+      <ComboBox x:Name="FilterBox" Width="170" SelectedIndex="0">
+        <ComboBoxItem Content="To do" /><ComboBoxItem Content="Overdue" /><ComboBoxItem Content="Done" /><ComboBoxItem Content="All" />
+      </ComboBox>
+      <TextBlock x:Name="SummaryText" Grid.Column="1" VerticalAlignment="Center" Classes="muted" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+        <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
+        <Button x:Name="DoneButton" Click="OnDone" Content="Mark done" />
+        <Button x:Name="EditButton" Click="OnEdit" Content="Change" />
+        <Button x:Name="DeleteButton" Click="OnDelete" Content="Delete" />
+        <Button Classes="primary" Click="OnAdd"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Plus" Width="17" Height="17" /><TextBlock Text="New reminder" /></StackPanel></Button>
+      </StackPanel>
+    </Grid>
+    <TextBlock x:Name="MessageText" DockPanel.Dock="Bottom" Margin="0,8,0,0" TextWrapping="Wrap" />
+    <DataGrid x:Name="Grid" x:DataType="vis:ReminderRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="DATE" Binding="{Binding DateText}" Width="110" />
+        <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientName}" Width="*" MinWidth="160" />
+        <DataGridTextColumn Header="TYPE" Binding="{Binding TypeText}" Width="110" />
+        <DataGridTextColumn Header="TITLE" Binding="{Binding Title}" Width="*" MinWidth="200" />
+        <DataGridTextColumn Header="DUE" Binding="{Binding DueText}" Width="110" />
+        <DataGridTextColumn Header="STATE" Binding="{Binding StateText}" Width="100" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>
