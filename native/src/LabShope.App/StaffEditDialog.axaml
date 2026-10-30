@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.StaffEditDialog"
+        Title="Edit staff" Width="440" Height="470" CanResize="False" WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="26" Spacing="8">
+    <TextBlock x:Name="Heading" Text="Edit staff" Classes="h2" />
+    <TextBlock x:Name="EmailText" Classes="muted" />
+    <TextBlock Text="FULL NAME" Classes="label" Margin="0,6,0,0" />
+    <TextBox x:Name="NameBox" />
+    <TextBlock Text="PHONE" Classes="label" Margin="0,6,0,0" />
+    <TextBox x:Name="PhoneBox" />
+    <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+      <StackPanel Spacing="4"><TextBlock Text="DESIGNATION" Classes="label" /><TextBox x:Name="DesignationBox" /></StackPanel>
+      <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="DEPARTMENT" Classes="label" /><TextBox x:Name="DepartmentBox" /></StackPanel>
+    </Grid>
+    <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+      <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+    </Border>
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button Content="Cancel" Click="OnCancel" />
+      <Button x:Name="SaveButton" Classes="primary" Content="Save" IsDefault="True" Click="OnSave" Padding="20,9" />
+    </StackPanel>
+  </StackPanel>
+</Window>

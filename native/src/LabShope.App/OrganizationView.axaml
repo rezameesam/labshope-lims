@@ -10,6 +10,8 @@
         <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountPlusOutline" Width="17" Height="17" /><TextBlock Text="Add staff" /></StackPanel>
       </Button>
       <Button x:Name="ToggleStaffButton" Content="Switch selected person on / off" Click="OnToggleStaff" />
+      <Button x:Name="EditStaffButton" Content="Edit" Click="OnEditStaff" />
+      <Button x:Name="ResetStaffButton" Content="Reset password" Click="OnResetStaff" />
     </StackPanel>
     <StackPanel x:Name="OrgActions" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" IsVisible="False">
       <Button x:Name="NewOrgButton" Classes="primary" Click="OnNewOrg">
