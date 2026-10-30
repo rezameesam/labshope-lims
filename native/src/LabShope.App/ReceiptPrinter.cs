@@ -7,7 +7,7 @@ namespace LabShope.App;
 
 /// <summary>
 /// Prints receipts straight to the receipt printer when one is set up (Sync &amp; settings), otherwise, or when the printer can't be reached,
-/// opens a printable page in the system browser. Reports and labels always use the browser page.
+/// opens a printable page in the system browser, which opens its print dialog straight away. Reports and labels always use the browser page.
 /// </summary>
 public static class ReceiptPrinter
 {
@@ -41,7 +41,7 @@ public static class ReceiptPrinter
         var dir = Path.Combine(AppConfig.DataDirectory, "print");
         Directory.CreateDirectory(dir);
         var file = Path.Combine(dir, string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_')) + ".html");
-        File.WriteAllText(file, html);
+        File.WriteAllText(file, PrintPage.WithAutoPrint(html)); // opens the print dialog itself once the page has loaded
         Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
     }
 }

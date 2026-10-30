@@ -1963,11 +1963,12 @@ const ManagePatients = ({ onAssignTests, onOpenBilling }: ManagePatientsProps) =
             logoUrl: branding.logoUrl,
             reportTagline: branding.reportTagline,
             reportFooterNote: branding.reportFooterNote,
-          }
+          },
+          "print"
         );
 
       if (success) {
-        toast.success("Report downloaded successfully");
+        toast.success("Report sent to the printer");
         setPrintDialogOpen(false);
       } else {
         toast.error("Failed to generate report");

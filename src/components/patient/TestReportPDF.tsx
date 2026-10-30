@@ -1,3 +1,4 @@
+import { deliverPdf, type PdfOutput } from "@/lib/pdf/deliverPdf";
 import { differenceInMonths, differenceInYears, format, isValid, parseISO } from "date-fns";
 import logoImageUrl from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,6 +74,8 @@ interface ReportTemplate {
 }
 
 interface ReportData {
+  /** "print" opens the print dialog, "download" (the default) saves the file. */
+  output?: PdfOutput;
   patient: PatientInfo;
   test_date: string;
   sample_collection_date?: string;
@@ -837,9 +840,9 @@ export const generateTestReportPDF = async (data: ReportData) => {
 
     await addReportWatermark(doc, options, branding.logoUrl);
 
-    // Save the PDF
+    // Save the PDF, or print it, depending on the button that was pressed
     const fileName = `${data.patient.patient_id}_${format(new Date(resolvedReportDate), "yyyy-MM-dd")}_report.pdf`;
-    doc.save(fileName);
+    await deliverPdf(doc, fileName, data.output);
   } catch (error) {
     console.error("Error generating PDF:", error);
     throw error;
@@ -881,7 +884,8 @@ export const generateMultiTestReportPDF = async (
   enteredByName?: string,
   options?: ReportOptions,
   templateId?: string,
-  branding?: ReportBranding
+  branding?: ReportBranding,
+  output: PdfOutput = "download"
 ) => {
   const completedTests = tests.filter(t => t.status === "completed");
   
@@ -950,7 +954,8 @@ export const generateMultiTestReportPDF = async (
     registry_serial: firstTest.registry_serial || undefined,
     options,
     template,
-    branding
+    branding,
+    output
   });
 
   return true;

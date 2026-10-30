@@ -1459,18 +1459,19 @@ const ManageTests = ({ preselectedPatient }: ManageTestsProps) => {
             logoUrl: branding.logoUrl,
             reportTagline: branding.reportTagline,
             reportFooterNote: branding.reportFooterNote,
-          }
+          },
+          "print"
         );
         if (success) printedCount++;
       }
     } catch (error) {
       console.error("Error generating report PDFs:", error);
-      toast.error("Failed to generate report PDF");
+      toast.error("Failed to open the report for printing");
       return;
     }
 
     if (printedCount > 0) {
-      toast.success(`Generated ${printedCount} report(s)`);
+      toast.success(`Sent ${printedCount} report(s) to the printer`);
       setSelectedTestIds([]);
       setIsPrintDialogOpen(false);
     }
