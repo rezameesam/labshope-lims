@@ -33,14 +33,14 @@ public partial class CatalogView : UserControl
 
     public void Refresh()
     {
-        foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors"), (LabsButton, "labs"), (CategoriesButton, "categories") }) b.Classes.Set("on", key == _tab);
+        foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors"), (LabsButton, "labs"), (CategoriesButton, "categories"), (TemplatesButton, "templates") }) b.Classes.Set("on", key == _tab);
         TestGrid.IsVisible = _tab == "tests"; PackageGrid.IsVisible = _tab == "packages"; DoctorGrid.IsVisible = _tab == "doctors";
-        LabGrid.IsVisible = _tab == "labs"; CategoryGrid.IsVisible = _tab == "categories";
+        LabGrid.IsVisible = _tab == "labs"; CategoryGrid.IsVisible = _tab == "categories"; TemplateGrid.IsVisible = _tab == "templates";
         NewButton.IsVisible = CanEdit;
         EditButton.IsVisible = CanEdit && _tab != "categories";
-        DeleteButton.IsVisible = CanEdit && _tab is "packages" or "doctors" or "labs";
-        NewText.Text = _tab switch { "packages" => "New package", "doctors" => "New doctor", "labs" => "New external lab", "categories" => "New category", _ => "New test" };
-        EditText.Text = _tab switch { "tests" => "Edit price and range", "packages" => "Edit package", "doctors" => "Edit doctor", _ => "Edit external lab" };
+        DeleteButton.IsVisible = CanEdit && _tab is "packages" or "doctors" or "labs" or "templates";
+        NewText.Text = _tab switch { "packages" => "New package", "doctors" => "New doctor", "labs" => "New external lab", "categories" => "New category", "templates" => "New report template", _ => "New test" };
+        EditText.Text = _tab switch { "tests" => "Edit price and range", "packages" => "Edit package", "doctors" => "Edit doctor", "templates" => "Edit template", _ => "Edit external lab" };
         DeleteText.Text = _tab == "labs" ? "Switch off" : "Delete";
 
         var words = (SearchBox.Text ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -58,6 +58,9 @@ public partial class CatalogView : UserControl
             case "labs":
                 var labs = catalog.ExternalLabList.Where(l => Match(l.Name, l.Code)).ToList();
                 LabGrid.ItemsSource = labs; CountText.Text = $"{labs.Count} external lab(s)"; break;
+            case "templates":
+                var templates = catalog.TemplateList.Where(t => Match(t.Name, t.TestCategory)).ToList();
+                TemplateGrid.ItemsSource = templates; CountText.Text = $"{templates.Count} template(s)"; break;
             case "categories":
                 var categories = catalog.CategoryList.Where(c => Match(c.Name)).ToList();
                 CategoryGrid.ItemsSource = categories; CountText.Text = $"{categories.Count} categor(ies)"; break;
@@ -100,6 +103,11 @@ public partial class CatalogView : UserControl
                 await lab.ShowDialog(Owner);
                 if (lab.Saved) Done("External lab added. It appears on other computers at the next sync (press F9).");
                 break;
+            case "templates":
+                var template = new TemplateDialog(_session.Api, org, _session.Store.GetCatalog(), null);
+                await template.ShowDialog(Owner);
+                if (template.Saved) Done("Report template added. It appears on other computers at the next sync (press F9).");
+                break;
             case "categories":
                 var category = new CategoryDialog(_session.Api, org, _session.Store.GetCatalog().CategoryList.Select(c => c.Name).ToList());
                 await category.ShowDialog(Owner);
@@ -138,6 +146,13 @@ public partial class CatalogView : UserControl
                 await doctor.ShowDialog(Owner);
                 if (doctor.Saved) Done($"{picked.Name} updated. The change reaches other computers at their next sync.");
                 break;
+            case "templates" when TemplateGrid.SelectedItem is ReportTemplate chosenTemplate:
+                if (chosenTemplate.OrganizationId != org) { Problem("This is a shared template. Make your own copy with New report template."); return; }
+                var css = await TemplateAdmin.LoadCssAsync(_session.Api, org, chosenTemplate.Id);
+                var templateDialog = new TemplateDialog(_session.Api, org, _session.Store.GetCatalog(), chosenTemplate, css);
+                await templateDialog.ShowDialog(Owner);
+                if (templateDialog.Saved) Done($"{chosenTemplate.Name} updated. The change reaches other computers at their next sync.");
+                break;
             case "labs" when LabGrid.SelectedItem is ExternalLab chosen:
                 var (labInput, labError) = await CatalogManage.LoadExternalLabAsync(_session.Api, org, chosen.Id);
                 if (labInput is null) { Problem(labError ?? "Could not open the lab."); return; }
@@ -161,6 +176,11 @@ public partial class CatalogView : UserControl
         if (_tab == "packages" && PackageGrid.SelectedItem is TestPackage p) (id, name) = (p.Id, p.Name);
         else if (_tab == "doctors" && DoctorGrid.SelectedItem is Doctor d) (id, name) = (d.Id, d.Name);
         else if (_tab == "labs" && LabGrid.SelectedItem is ExternalLab x) (id, name) = (x.Id, x.Name);
+        else if (_tab == "templates" && TemplateGrid.SelectedItem is ReportTemplate tpl)
+        {
+            if (tpl.OrganizationId != org) { Problem("This is a shared template and can't be deleted here."); return; }
+            (id, name) = (tpl.Id, tpl.Name);
+        }
         if (id is null) return;
 
         if (_tab == "labs")
@@ -174,11 +194,13 @@ public partial class CatalogView : UserControl
             return;
         }
 
-        var confirm = new ConfirmDialog($"Delete {name}?", _tab == "packages" ? "The package is removed for every computer in the lab. Bills already made keep their tests." : "The doctor is removed for every computer in the lab.", "Delete");
+        var confirm = new ConfirmDialog($"Delete {name}?", _tab == "packages" ? "The package is removed for every computer in the lab. Bills already made keep their tests." : _tab == "templates" ? "The template is removed for every computer in the lab. Reports fall back to the default template." : "The doctor is removed for every computer in the lab.", "Delete");
         await confirm.ShowDialog(Owner);
         if (!confirm.Confirmed) return;
 
-        var result = _tab == "packages" ? await CatalogManage.DeletePackageAsync(_session.Api, org, id) : await CatalogManage.DeleteDoctorAsync(_session.Api, org, id);
+        var result = _tab == "packages" ? await CatalogManage.DeletePackageAsync(_session.Api, org, id)
+            : _tab == "templates" ? await TemplateAdmin.DeleteAsync(_session.Api, org, id)
+            : await CatalogManage.DeleteDoctorAsync(_session.Api, org, id);
         if (result.Ok) Done($"{name} deleted. It disappears from other computers at their next sync.");
         else Problem(result.Error ?? "Not deleted.");
     }
