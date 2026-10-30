@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:LabShope.App"
+        x:Class="LabShope.App.NewBillDialog"
+        Title="New bill" Width="700" Height="760" MinHeight="600" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="26">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="8">
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="AnywayButton" Content="Bill again anyway" Click="OnBillAgain" IsVisible="False" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Create bill" IsDefault="True" Click="OnSave" Padding="20,9" IsEnabled="False" />
+      </StackPanel>
+    </StackPanel>
+    <StackPanel Spacing="8">
+      <TextBlock Text="Bill tests a patient already has" Classes="h2" />
+      <TextBlock Text="Pick the patient, tick the tests, change a price or give a discount if needed. Needs an internet connection for the invoice number." Classes="muted" TextWrapping="Wrap" />
+      <TextBox x:Name="PatientSearch" Watermark="Search by name, phone or patient ID" />
+      <ListBox x:Name="PatientResults" MaxHeight="130" />
+      <TextBlock x:Name="PickedText" FontWeight="SemiBold" IsVisible="False" />
+      <TextBlock x:Name="LoadText" Classes="muted" IsVisible="False" />
+      <ScrollViewer MaxHeight="250">
+        <ItemsControl x:Name="TestList">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="app:BillTestRow">
+              <Grid ColumnDefinitions="Auto,*,110" ColumnSpacing="10" Margin="0,3">
+                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" Click="OnRowChanged" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Note}" Classes="muted" FontSize="11" IsVisible="{Binding Note, Converter={x:Static app:Pills.Visible}}" />
+                </StackPanel>
+                <TextBox Grid.Column="2" Text="{Binding PriceText, Mode=TwoWay}" TextChanged="OnPriceChanged" HorizontalContentAlignment="Right" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <Border Height="1" Background="{StaticResource GridLineBrush}" Margin="0,6" />
+      <Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+        <TextBlock Text="Subtotal" VerticalAlignment="Center" /><TextBlock x:Name="SubtotalText" Grid.Column="1" HorizontalAlignment="Right" Text="0" />
+        <TextBlock Text="Discount" Grid.Row="1" VerticalAlignment="Center" /><TextBox x:Name="DiscountBox" Grid.Row="1" Grid.Column="1" HorizontalContentAlignment="Right" Text="0" TextChanged="OnPriceChanged" />
+        <TextBlock Text="To pay" Grid.Row="2" FontWeight="SemiBold" /><TextBlock x:Name="FinalText" Grid.Row="2" Grid.Column="1" HorizontalAlignment="Right" FontWeight="SemiBold" FontSize="16" Text="0" />
+        <TextBox x:Name="NotesBox" Grid.Row="3" Grid.ColumnSpan="2" Watermark="Notes (optional)" />
+      </Grid>
+    </StackPanel>
+  </DockPanel>
+</Window>

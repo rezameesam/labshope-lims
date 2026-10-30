@@ -249,6 +249,26 @@ public class IntegrationLocalTests
         await engine.PullPatientsAsync();
         Assert.Equal("integration@example.com", store.GetPatient(emailVisit.PatientId)!.Email);
 
+        // Billing tests that already have a bill: the server says they are billed, the new bill needs confirming, then it is made with the next number.
+        var rebill = new VisitService(store).Register(new RegisterVisitInput(org, Env("LIMS_IT_LAB"), DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            [new VisitTest("CBC", 300)], NewPatient: new NewPatient("Rebill Integration Patient", $"9{Random.Shared.NextInt64(100000000, 999999999)}")));
+        Assert.True((await engine.FlushOutboxAsync()).Synced >= 1);
+        await engine.PullPatientTestsAsync();
+        var rebillTests = store.TestsOfPatient(rebill.PatientId);
+        Assert.Single(rebillTests);
+        var (billedNow, billedError) = await BillCreator.BilledTestsAsync(api, org, rebillTests);
+        Assert.Null(billedError);
+        Assert.True(billedNow.ContainsKey(rebillTests[0].Id)); // register_visit billed it
+        var ask = await BillCreator.CreateAsync(api, org, session.UserId, Env("LIMS_IT_LAB"), rebill.PatientId, [new BillTestLine(rebillTests[0].Id, "CBC", 300m)], "20", "integration", rebillTests);
+        Assert.False(ask.Ok);
+        Assert.NotNull(ask.NeedsConfirmation);
+        var second = await BillCreator.CreateAsync(api, org, session.UserId, Env("LIMS_IT_LAB"), rebill.PatientId, [new BillTestLine(rebillTests[0].Id, "CBC", 300m)], "20", "integration", rebillTests, confirmedDuplicates: true);
+        Assert.True(second.Ok, second.Error);
+        var secondRow = (await api.SelectAsync("invoices", $"select=invoice_number,total_amount,discount_amount,final_amount&id=eq.{second.Invoice!.Id}")).Body!.Value[0];
+        Assert.Equal((300m, 20m, 280m), (secondRow.GetProperty("total_amount").GetDecimal(), secondRow.GetProperty("discount_amount").GetDecimal(), secondRow.GetProperty("final_amount").GetDecimal()));
+        Assert.Equal(second.Invoice.InvoiceNumber, secondRow.GetProperty("invoice_number").GetString());
+        Assert.Equal(1, (await api.SelectAsync("invoice_items", $"select=id&invoice_id=eq.{second.Invoice.Id}")).Body!.Value.GetArrayLength());
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

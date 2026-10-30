@@ -56,6 +56,18 @@ public partial class BillsView : UserControl
         await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
     }
 
+    private async void OnNewBill(object? sender, RoutedEventArgs e)
+    {
+        if (_session.Api is null) { MessageText.Text = "Making a bill needs an internet connection."; return; }
+        var dialog = new NewBillDialog(_session, Grid.SelectedItem is BillRow row ? _session.Store.GetPatient(row.PatientId) : null);
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+        if (dialog.Created is not { } bill) return;
+
+        _session.Store.UpsertInvoice(bill);
+        MessageText.Text = $"Bill {bill.InvoiceNumber} created: to pay {bill.TotalAmount:0.##}.";
+        Refresh();
+    }
+
     private async void OnEditBill(object? sender, RoutedEventArgs e)
     {
         if (Grid.SelectedItem is not BillRow bill) { MessageText.Text = "Select a bill first."; return; }
