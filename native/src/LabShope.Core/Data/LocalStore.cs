@@ -17,7 +17,22 @@ public sealed class LocalStore : IDisposable
     public LocalStore(string path)
     {
         _db = new SqliteConnection($"Data Source={path}");
-        _db.Open();
+        try
+        {
+            _db.Open();
+            Initialize();
+        }
+        catch
+        {
+            // A damaged file fails here after it was opened. Release it, otherwise Windows keeps it locked and it can't be set aside.
+            _db.Dispose();
+            SqliteConnection.ClearAllPools();
+            throw;
+        }
+    }
+
+    private void Initialize()
+    {
         Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;");
         Exec("""
             CREATE TABLE IF NOT EXISTS patients (
