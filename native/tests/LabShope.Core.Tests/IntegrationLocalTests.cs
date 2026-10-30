@@ -175,6 +175,18 @@ public class IntegrationLocalTests
         Assert.True((await CatalogManage.DeletePackageAsync(api, org, pkgId)).Ok);
         Assert.Equal(0, (await api.SelectAsync("test_packages", $"select=id&id=eq.{pkgId}")).Body!.Value.GetArrayLength());
 
+        // External labs and test categories can be added and an external lab switched off, as on the website.
+        Assert.True((await CatalogManage.AddExternalLabAsync(api, org, new ExternalLabInput("Integration Ext Lab", "IEL", "Ms Test", "9000088888", "", "", "", ""))).Ok);
+        var extRow = (await api.SelectAsync("external_labs", $"select=id,code,contact_person&organization_id=eq.{org}&name=eq.Integration%20Ext%20Lab")).Body!.Value[0];
+        var extId = extRow.GetProperty("id").GetString()!;
+        Assert.Equal(("IEL", "Ms Test"), (extRow.GetProperty("code").GetString(), extRow.GetProperty("contact_person").GetString()));
+        Assert.True((await CatalogManage.UpdateExternalLabAsync(api, org, extId, new ExternalLabInput("Integration Ext Lab", "IEL2", "", "", "", "", "", ""))).Ok);
+        Assert.True((await CatalogManage.SetExternalLabActiveAsync(api, org, extId, false)).Ok);
+        var extAfter = (await api.SelectAsync("external_labs", $"select=code,is_active&id=eq.{extId}")).Body!.Value[0];
+        Assert.Equal(("IEL2", false), (extAfter.GetProperty("code").GetString(), extAfter.GetProperty("is_active").GetBoolean()));
+        Assert.True((await CatalogManage.AddCategoryAsync(api, org, "Integration Category", "d", [])).Ok);
+        Assert.Equal(1, (await api.SelectAsync("test_categories", $"select=id&organization_id=eq.{org}&name=eq.Integration%20Category")).Body!.Value.GetArrayLength());
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

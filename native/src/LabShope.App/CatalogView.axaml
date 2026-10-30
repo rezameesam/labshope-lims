@@ -10,6 +10,8 @@
           <Button x:Name="TestsButton" Classes="seg on" Content="Tests" Click="OnTab" Tag="tests" />
           <Button x:Name="PackagesButton" Classes="seg" Content="Packages" Click="OnTab" Tag="packages" />
           <Button x:Name="DoctorsButton" Classes="seg" Content="Doctors" Click="OnTab" Tag="doctors" />
+          <Button x:Name="LabsButton" Classes="seg" Content="External labs" Click="OnTab" Tag="labs" />
+          <Button x:Name="CategoriesButton" Classes="seg" Content="Categories" Click="OnTab" Tag="categories" />
         </StackPanel>
         <Grid ColumnDefinitions="Auto,*">
           <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
@@ -26,7 +28,7 @@
         <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="PencilOutline" Width="17" Height="17" /><TextBlock x:Name="EditText" Text="Edit price and range" /></StackPanel>
       </Button>
       <Button x:Name="DeleteButton" Click="OnDelete">
-        <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="DeleteOutline" Width="17" Height="17" /><TextBlock Text="Delete" /></StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="DeleteOutline" Width="17" Height="17" /><TextBlock x:Name="DeleteText" Text="Delete" /></StackPanel>
       </Button>
       </StackPanel>
     </Grid>
@@ -53,6 +55,18 @@
           <DataGridTextColumn Header="DOCTOR" Binding="{Binding Name}" Width="*" />
           <DataGridTextColumn Header="SPECIALISATION" Binding="{Binding Specialization}" Width="220" />
           <DataGridTextColumn Header="COMMISSION %" Binding="{Binding CommissionPercentage}" Width="140" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="LabGrid" x:DataType="data:ExternalLab" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="EXTERNAL LAB" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="CODE" Binding="{Binding Code}" Width="140" />
+          <DataGridTextColumn Header="PHONE" Binding="{Binding Phone}" Width="180" />
+        </DataGrid.Columns>
+      </DataGrid>
+      <DataGrid x:Name="CategoryGrid" x:DataType="data:TestCategory" AutoGenerateColumns="False" IsReadOnly="True" IsVisible="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="CATEGORY" Binding="{Binding Name}" Width="*" />
         </DataGrid.Columns>
       </DataGrid>
     </Grid>

@@ -33,12 +33,15 @@ public partial class CatalogView : UserControl
 
     public void Refresh()
     {
-        foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors") }) b.Classes.Set("on", key == _tab);
+        foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors"), (LabsButton, "labs"), (CategoriesButton, "categories") }) b.Classes.Set("on", key == _tab);
         TestGrid.IsVisible = _tab == "tests"; PackageGrid.IsVisible = _tab == "packages"; DoctorGrid.IsVisible = _tab == "doctors";
-        NewButton.IsVisible = EditButton.IsVisible = CanEdit;
-        DeleteButton.IsVisible = CanEdit && _tab != "tests";
-        NewText.Text = _tab switch { "packages" => "New package", "doctors" => "New doctor", _ => "New test" };
-        EditText.Text = _tab == "tests" ? "Edit price and range" : _tab == "packages" ? "Edit package" : "Edit doctor";
+        LabGrid.IsVisible = _tab == "labs"; CategoryGrid.IsVisible = _tab == "categories";
+        NewButton.IsVisible = CanEdit;
+        EditButton.IsVisible = CanEdit && _tab != "categories";
+        DeleteButton.IsVisible = CanEdit && _tab is "packages" or "doctors" or "labs";
+        NewText.Text = _tab switch { "packages" => "New package", "doctors" => "New doctor", "labs" => "New external lab", "categories" => "New category", _ => "New test" };
+        EditText.Text = _tab switch { "tests" => "Edit price and range", "packages" => "Edit package", "doctors" => "Edit doctor", _ => "Edit external lab" };
+        DeleteText.Text = _tab == "labs" ? "Switch off" : "Delete";
 
         var words = (SearchBox.Text ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool Match(params string?[] fields) => words.All(w => fields.Any(f => f?.Contains(w, StringComparison.OrdinalIgnoreCase) == true));
@@ -52,6 +55,12 @@ public partial class CatalogView : UserControl
             case "doctors":
                 var doctors = catalog.Doctors.Where(d => Match(d.Name, d.Specialization)).ToList();
                 DoctorGrid.ItemsSource = doctors; CountText.Text = $"{doctors.Count} doctor(s)"; break;
+            case "labs":
+                var labs = catalog.ExternalLabList.Where(l => Match(l.Name, l.Code)).ToList();
+                LabGrid.ItemsSource = labs; CountText.Text = $"{labs.Count} external lab(s)"; break;
+            case "categories":
+                var categories = catalog.CategoryList.Where(c => Match(c.Name)).ToList();
+                CategoryGrid.ItemsSource = categories; CountText.Text = $"{categories.Count} categor(ies)"; break;
             default:
                 var tests = catalog.Tests.Where(t => Match(t.Name, t.TestCode)).ToList();
                 TestGrid.ItemsSource = tests; CountText.Text = $"{tests.Count} test(s)"; break;
@@ -86,6 +95,16 @@ public partial class CatalogView : UserControl
                 await package.ShowDialog(Owner);
                 if (package.Saved) Done("Package added. It appears on other computers at the next sync (press F9).");
                 break;
+            case "labs":
+                var lab = new ExternalLabDialog(_session.Api, org, null, null);
+                await lab.ShowDialog(Owner);
+                if (lab.Saved) Done("External lab added. It appears on other computers at the next sync (press F9).");
+                break;
+            case "categories":
+                var category = new CategoryDialog(_session.Api, org, _session.Store.GetCatalog().CategoryList.Select(c => c.Name).ToList());
+                await category.ShowDialog(Owner);
+                if (category.Saved) Done("Category added. It appears on other computers at the next sync (press F9).");
+                break;
             case "doctors":
                 var doctor = new DoctorDialog(_session.Api, org, null);
                 await doctor.ShowDialog(Owner);
@@ -119,6 +138,13 @@ public partial class CatalogView : UserControl
                 await doctor.ShowDialog(Owner);
                 if (doctor.Saved) Done($"{picked.Name} updated. The change reaches other computers at their next sync.");
                 break;
+            case "labs" when LabGrid.SelectedItem is ExternalLab chosen:
+                var (labInput, labError) = await CatalogManage.LoadExternalLabAsync(_session.Api, org, chosen.Id);
+                if (labInput is null) { Problem(labError ?? "Could not open the lab."); return; }
+                var labDialog = new ExternalLabDialog(_session.Api, org, chosen.Id, labInput);
+                await labDialog.ShowDialog(Owner);
+                if (labDialog.Saved) Done($"{chosen.Name} updated. The change reaches other computers at their next sync.");
+                break;
             case "tests" when TestGrid.SelectedItem is CatalogTest test:
                 var dialog = new TestEditDialog(_session.Api, org, test);
                 await dialog.ShowDialog(Owner);
@@ -134,7 +160,19 @@ public partial class CatalogView : UserControl
         string? id = null, name = null;
         if (_tab == "packages" && PackageGrid.SelectedItem is TestPackage p) (id, name) = (p.Id, p.Name);
         else if (_tab == "doctors" && DoctorGrid.SelectedItem is Doctor d) (id, name) = (d.Id, d.Name);
+        else if (_tab == "labs" && LabGrid.SelectedItem is ExternalLab x) (id, name) = (x.Id, x.Name);
         if (id is null) return;
+
+        if (_tab == "labs")
+        {
+            var off = new ConfirmDialog($"Switch off {name}?", "It is no longer offered when sending a test out. Tests already sent keep their lab. To switch it on again, use the website's External Labs page.", "Switch off");
+            await off.ShowDialog(Owner);
+            if (!off.Confirmed) return;
+            var switched = await CatalogManage.SetExternalLabActiveAsync(_session.Api, org, id, false);
+            if (switched.Ok) Done($"{name} switched off. It disappears from other computers at their next sync.");
+            else Problem(switched.Error ?? "Not changed.");
+            return;
+        }
 
         var confirm = new ConfirmDialog($"Delete {name}?", _tab == "packages" ? "The package is removed for every computer in the lab. Bills already made keep their tests." : "The doctor is removed for every computer in the lab.", "Delete");
         await confirm.ShowDialog(Owner);
