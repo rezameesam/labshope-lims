@@ -494,7 +494,9 @@ public class InstrumentsScreenTests : IDisposable
         Assert.Contains("to check", view.FindControl<TextBlock>("InboxTitle")!.Text);
 
         grid.SelectedItem = entry;
-        Assert.Equal(2, view.FindControl<DataGrid>("DetailGrid")!.ItemsSource!.Cast<object>().Count());
+        var detail = view.FindControl<DataGrid>("DetailGrid")!;
+        for (var i = 0; i < 300 && detail.ItemsSource?.Cast<object>().Any() != true; i++) { await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
+        Assert.Equal(2, detail.ItemsSource!.Cast<object>().Count());
         var accepted = false; view.ResultAccepted += () => accepted = true;
         view.FindControl<Button>("AcceptButton")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
