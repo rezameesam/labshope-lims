@@ -25,6 +25,7 @@ public partial class SettingsView : UserControl
         _session = session;
         InitializeComponent();
         QueueGrid.SelectionChanged += (_, _) => UpdateButtons();
+        LabProfileButton.IsVisible = _session.Api is not null && _session.Workspace.IsAdmin;
         LoadPrinter();
         Refresh();
     }
@@ -147,5 +148,16 @@ public partial class SettingsView : UserControl
     {
         var dir = LabShope.Core.AppLog.Directory ?? AppConfig.DataDirectory;
         try { Process.Start(new ProcessStartInfo(dir) { UseShellExecute = true }); } catch { QueueMessage.Text = $"Logs are in {dir}"; }
+    }
+
+    /// <summary>Raised after the lab profile changed so the window can fetch the new name and logo for reports and receipts.</summary>
+    public event Func<Task>? LabProfileChanged;
+
+    private async void OnLabProfile(object? sender, RoutedEventArgs e)
+    {
+        if (_session.Api is null) return;
+        var dialog = new LabProfileDialog(_session.Api, _session.Workspace.OrganizationId, _session.Account.SavedUserId);
+        await dialog.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+        if (dialog.Saved && LabProfileChanged is not null) await LabProfileChanged.Invoke();
     }
 }

@@ -296,6 +296,28 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task TheLabProfileLoadsSavesOnlyWhatChangedAndChecksTheLogo()
+    {
+        var server = new Server(HttpStatusCode.OK, "[{\"display_name\":\"Sunrise\",\"primary_phone\":\"98\",\"primary_email\":\"a@b.in\",\"logo_url\":null,\"setting_key\":\"report_tagline\",\"setting_value\":\"Old line\"}]");
+        var dialog = new LabProfileDialog(Api(server), "org-1", "user-1");
+        dialog.Show();
+        await dialog.LoadAsync();
+        Assert.Equal("Sunrise", dialog.FindControl<TextBox>("NameBox")!.Text);
+        Assert.True(dialog.FindControl<StackPanel>("Form")!.IsVisible);
+
+        await dialog.ChooseLogoAsync("logo.gif", () => Task.FromResult<Stream>(new MemoryStream([1, 2, 3])));
+        Assert.Contains("JPG, PNG", dialog.FindControl<TextBlock>("LogoText")!.Text);
+
+        server.Calls.Clear();
+        dialog.FindControl<TextBox>("PhoneBox")!.Text = "9000000000";
+        await Click(dialog, "SaveButton");
+        Assert.True(dialog.Saved);
+        var call = Assert.Single(server.Calls);
+        Assert.Contains("/rest/v1/organizations?id=eq.org-1", call.Url);
+        Assert.Contains("\"primary_phone\":\"9000000000\"", call.Body);
+    }
+
+    [AvaloniaFact]
     public async Task APackageShowsItsPriceAsTestsAreTickedAndSavesThePackageAndItsTests()
     {
         var server = new Server(HttpStatusCode.Created, "[]");

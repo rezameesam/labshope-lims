@@ -126,6 +126,17 @@ public sealed class SupabaseApi
     public Task<ApiResult> DeleteAsync(string table, string query, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Delete, $"/rest/v1/{table}?{query}", null, true, ct, "return=representation"), ct);
 
+    /// <summary>Adds rows, or updates the existing row with the same <paramref name="onConflict"/> columns (the website's upsert).</summary>
+    public Task<ApiResult> UpsertAsync(string table, object rows, string onConflict, CancellationToken ct = default) =>
+        WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/{table}?on_conflict={onConflict}", JsonSerializer.Serialize(rows), true, ct, "resolution=merge-duplicates"), ct);
+
+    /// <summary>Stores a file in a storage bucket (replacing one with the same path).</summary>
+    public Task<ApiResult> UploadObjectAsync(string bucket, string path, byte[] bytes, string contentType, CancellationToken ct = default) =>
+        WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/storage/v1/object/{bucket}/{path}", null, true, ct, bytes: bytes, contentType: contentType, upsertHeader: true), ct);
+
+    /// <summary>The public address of a file in a public bucket.</summary>
+    public string PublicObjectUrl(string bucket, string path) => $"{_baseUrl}/storage/v1/object/public/{bucket}/{path}";
+
     public Task<ApiResult> RpcAsync(string function, object args, CancellationToken ct = default) =>
         WithRefreshAsync(() => SendAsync(HttpMethod.Post, $"/rest/v1/rpc/{function}", JsonSerializer.Serialize(args), true, ct), ct);
 
@@ -141,13 +152,20 @@ public sealed class SupabaseApi
         return result;
     }
 
-    private async Task<ApiResult> SendAsync(HttpMethod method, string path, string? json, bool authenticated, CancellationToken ct, string? prefer = null)
+    private async Task<ApiResult> SendAsync(HttpMethod method, string path, string? json, bool authenticated, CancellationToken ct, string? prefer = null,
+        byte[]? bytes = null, string? contentType = null, bool upsertHeader = false)
     {
         using var request = new HttpRequestMessage(method, _baseUrl + path);
         request.Headers.Add("apikey", _anonKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authenticated && Session is not null ? Session.AccessToken : _anonKey);
         if (prefer is not null) request.Headers.Add("Prefer", prefer);
         if (json is not null) request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        if (bytes is not null)
+        {
+            request.Content = new ByteArrayContent(bytes);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType ?? "application/octet-stream");
+            if (upsertHeader) request.Headers.Add("x-upsert", "true");
+        }
 
         try
         {
