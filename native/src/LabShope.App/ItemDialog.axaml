@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabShope.App.ItemDialog"
+        Title="Inventory item" Width="500" Height="660" MinHeight="520" WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Margin="26" Spacing="8">
+      <TextBlock x:Name="Heading" Text="Add an item" Classes="h2" />
+      <TextBlock Text="NAME" Classes="label" />
+      <TextBox x:Name="NameBox" />
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="TYPE" Classes="label" />
+          <ComboBox x:Name="TypeBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+            <ComboBoxItem Tag="supply">Supply (reagents, consumables)</ComboBoxItem>
+            <ComboBoxItem Tag="equipment">Equipment</ComboBoxItem>
+          </ComboBox></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="SKU / CODE" Classes="label" /><TextBox x:Name="SkuBox" /></StackPanel>
+      </Grid>
+      <Grid ColumnDefinitions="*,12,*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="UNIT" Classes="label" /><TextBox x:Name="UnitBox" Text="pcs" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock x:Name="StockLabel" Text="OPENING STOCK" Classes="label" /><TextBox x:Name="StockBox" Text="0" /></StackPanel>
+        <StackPanel Grid.Column="4" Spacing="4"><TextBlock Text="MINIMUM STOCK" Classes="label" /><TextBox x:Name="MinBox" Text="0" /></StackPanel>
+      </Grid>
+      <TextBlock x:Name="StockNote" Classes="muted" TextWrapping="Wrap" IsVisible="False" Text="Stock changes through Stock bought / Stock used, so two people never overwrite each other." />
+      <TextBlock Text="PRICE PER UNIT" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="PriceBox" Text="0" />
+      <Grid ColumnDefinitions="*,12,*" Margin="0,6,0,0">
+        <StackPanel Spacing="4"><TextBlock Text="SUPPLIER" Classes="label" /><TextBox x:Name="SupplierBox" /></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="4"><TextBlock Text="LOCATION" Classes="label" /><TextBox x:Name="LocationBox" /></StackPanel>
+      </Grid>
+      <TextBlock Text="DESCRIPTION" Classes="label" Margin="0,6,0,0" />
+      <TextBox x:Name="DescriptionBox" AcceptsReturn="True" Height="64" TextWrapping="Wrap" />
+      <Border x:Name="ErrorBox" Background="{StaticResource DangerBgBrush}" CornerRadius="8" Padding="12,10" IsVisible="False">
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" />
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+        <Button Content="Cancel" Click="OnCancel" />
+        <Button x:Name="SaveButton" Classes="primary" Content="Save" IsDefault="True" Click="OnSave" Padding="20,9" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

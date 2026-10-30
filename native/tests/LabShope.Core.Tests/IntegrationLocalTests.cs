@@ -204,6 +204,17 @@ public class IntegrationLocalTests
         Assert.True((await OrgAdmin.DeleteCenterAsync(api, org, centerId)).Ok);
         Assert.True((await OrgAdmin.DeleteLabAsync(api, org, newLabId)).Ok);
 
+        // An admin can add an inventory item, edit it (without touching its stock) and switch it off.
+        Assert.True((await InventoryItemAdmin.AddAsync(api, org, new InventoryItemInput("Integration reagent", "supply", "", "ml", "40", "5", "2.5", "Acme", "", ""))).Ok);
+        var itemRow = (await api.SelectAsync("inventory_items", $"select=id,current_stock&organization_id=eq.{org}&name=eq.Integration%20reagent")).Body!.Value[0];
+        var itemId = itemRow.GetProperty("id").GetString()!;
+        Assert.Equal(40m, itemRow.GetProperty("current_stock").GetDecimal());
+        Assert.True((await InventoryItemAdmin.UpdateAsync(api, org, itemId, new InventoryItemInput("Integration reagent", "supply", "IR1", "ml", "999", "8", "3", "Acme", "Shelf 1", "d"))).Ok);
+        var itemAfter = (await api.SelectAsync("inventory_items", $"select=sku,min_stock_level,current_stock&id=eq.{itemId}")).Body!.Value[0];
+        Assert.Equal(("IR1", 8m, 40m), (itemAfter.GetProperty("sku").GetString(), itemAfter.GetProperty("min_stock_level").GetDecimal(), itemAfter.GetProperty("current_stock").GetDecimal()));
+        Assert.True((await InventoryItemAdmin.SwitchOffAsync(api, org, itemId)).Ok);
+        Assert.DoesNotContain((await InventoryService.LoadAsync(api, org)).Items, i => i.Id == itemId);
+
         // The subscription details can be read by staff (row level security) and cached.
         Assert.True(await SubscriptionService.RefreshAsync(api, store, org, force: true));
         Assert.NotNull(SubscriptionService.Cached(store));

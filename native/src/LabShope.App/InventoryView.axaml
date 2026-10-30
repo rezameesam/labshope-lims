@@ -17,6 +17,9 @@
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
         <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
+        <Button x:Name="NewItemButton" Click="OnNewItem" IsVisible="False"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Plus" Width="17" Height="17" /><TextBlock Text="New item" /></StackPanel></Button>
+        <Button x:Name="EditItemButton" Content="Edit" Click="OnEditItem" IsVisible="False" />
+        <Button x:Name="SwitchOffItemButton" Content="Switch off" Click="OnSwitchOffItem" IsVisible="False" />
         <Button x:Name="BoughtButton" Click="OnBought"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="CartPlus" Width="17" Height="17" /><TextBlock Text="Stock bought" /></StackPanel></Button>
         <Button x:Name="UsedButton" Classes="primary" Click="OnUsed"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="MinusCircleOutline" Width="17" Height="17" /><TextBlock Text="Stock used" /></StackPanel></Button>
       </StackPanel>
