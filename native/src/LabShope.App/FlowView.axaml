@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vis="using:LabShope.Core.Visits"
+             xmlns:app="using:LabShope.App"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="LabShope.App.FlowView">
+  <Grid ColumnDefinitions="*,16,380">
+    <DockPanel Grid.Column="0">
+      <StackPanel DockPanel.Dock="Top" Spacing="12" Margin="0,0,0,12">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <ComboBox x:Name="RangeBox" SelectedIndex="0" Width="150">
+            <ComboBoxItem>Today</ComboBoxItem>
+            <ComboBoxItem>Yesterday</ComboBoxItem>
+            <ComboBoxItem>Last 7 days</ComboBoxItem>
+          </ComboBox>
+          <Grid ColumnDefinitions="Auto,*">
+            <Border Background="White" BorderBrush="#C7D8E1" BorderThickness="1" CornerRadius="8" Grid.ColumnSpan="2" />
+            <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+            <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="240" Watermark="Patient, ID or test" />
+          </Grid>
+          <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button x:Name="AllChip" Classes="seg on" Click="OnChip" Tag="all" />
+          <Button x:Name="WaitingChip" Classes="seg" Click="OnChip" Tag="waiting" />
+          <Button x:Name="TestingChip" Classes="seg" Click="OnChip" Tag="testing" />
+          <Button x:Name="ReadyChip" Classes="seg" Click="OnChip" Tag="ready" />
+          <Button x:Name="DoneChip" Classes="seg" Click="OnChip" Tag="done" />
+        </StackPanel>
+      </StackPanel>
+      <DataGrid x:Name="Grid" x:DataType="vis:FlowVisit" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientName}" Width="*" MinWidth="150" />
+          <DataGridTextColumn Header="TESTS" Binding="{Binding TestsSummary}" Width="*" MinWidth="140" />
+          <DataGridTemplateColumn Header="STAGE" Width="100">
+            <DataTemplate x:DataType="vis:FlowVisit">
+              <Border Classes="pill" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding StageText, Converter={x:Static app:Pills.Background}}">
+                <TextBlock Text="{Binding StageText}" Foreground="{Binding StageText, Converter={x:Static app:Pills.Foreground}}" />
+              </Border>
+            </DataTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="PROGRESS" Binding="{Binding Progress}" Width="90" />
+          <DataGridTextColumn Header="BILL" Binding="{Binding BillText}" Width="90" />
+          <DataGridTextColumn Header="DATE" Binding="{Binding Date}" Width="100" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </DockPanel>
+
+    <Border Grid.Column="2" Classes="card">
+      <Grid>
+        <StackPanel x:Name="EmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="300">
+          <mi:MaterialIcon Kind="AccountClockOutline" Width="42" Height="42" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" />
+          <TextBlock x:Name="EmptyText" Text="Pick a patient to see what to do next." TextWrapping="Wrap" TextAlignment="Center" Classes="muted" />
+        </StackPanel>
+        <DockPanel x:Name="DetailPanel" IsVisible="False">
+          <StackPanel DockPanel.Dock="Top" Spacing="4">
+            <TextBlock x:Name="PatientHeading" Classes="h2" TextWrapping="Wrap" />
+            <TextBlock x:Name="PatientSub" Classes="muted" />
+            <Border Classes="pill" HorizontalAlignment="Left" Margin="0,8,0,0" x:Name="StagePill">
+              <TextBlock x:Name="StageLabel" />
+            </Border>
+            <TextBlock x:Name="NextStepText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,0" />
+            <TextBlock x:Name="BillLine" Classes="muted" TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+            <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+            <Button x:Name="PrimaryButton" Classes="primary" Click="OnPrimary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button x:Name="PayButton" Content="Take payment" Click="OnPay" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button x:Name="ReportButton" Content="Print report" Click="OnReport" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button x:Name="MoreButton" Content="Register more tests" Click="OnMoreTests" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+          </StackPanel>
+          <TextBlock Text="TESTS" Classes="label" DockPanel.Dock="Top" Margin="0,14,0,6" />
+          <ListBox x:Name="TestList" SelectionMode="Single" />
+        </DockPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>
