@@ -13,6 +13,7 @@ const navItems = [
   { label: "Home", href: buildMarketingUrl("/") },
   { label: "Features", href: buildMarketingUrl(buildPlatformPathWithMarketing("/features")) },
   { label: "Pricing", href: buildMarketingUrl(buildPlatformPathWithMarketing("/pricing")) },
+  { label: "Download", href: buildMarketingUrl(buildPlatformPathWithMarketing("/download")) },
   { label: "Contact", href: buildMarketingUrl(buildPlatformPathWithMarketing("/contact")) },
   { label: "Careers", href: buildMarketingUrl("/careers") },
   { label: "Privacy", href: buildMarketingUrl("/privacy") },

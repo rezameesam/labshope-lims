@@ -31,11 +31,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
-          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
-          - { name: "Windows (64-bit)",       os: windows-latest, rid: win-x64,  icon: assets/icon.ico, extra: "", exe: LabShope.exe }
-          - { name: "Windows (32-bit)",       os: windows-latest, rid: win-x86,  icon: assets/icon.ico, extra: "--channel win-x86", exe: LabShope.exe }
-          - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  icon: assets/icon.png, extra: "", exe: LabShope }
+          - { name: "macOS (Apple Silicon)", os: macos-latest,  rid: osx-arm64, platform: mac-apple-silicon, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
+          - { name: "macOS (Intel)",         os: macos-latest,  rid: osx-x64,   platform: mac-intel, icon: assets/icon.icns, extra: "--bundleId com.labshope.lims", exe: LabShope }
+          - { name: "Windows (64-bit)",       os: windows-latest, rid: win-x64,  platform: windows-64bit, icon: assets/icon.ico, extra: "", exe: LabShope.exe }
+          - { name: "Windows (32-bit)",       os: windows-latest, rid: win-x86,  platform: windows-32bit, icon: assets/icon.ico, extra: "--channel win-x86", exe: LabShope.exe }
+          - { name: "Ubuntu / Linux",        os: ubuntu-22.04, rid: linux-x64,  platform: linux, icon: assets/icon.png, extra: "", exe: LabShope }
 
     steps:
       - uses: actions/checkout@v5
@@ -81,6 +81,35 @@ jobs:
           path: native/installers/*
           if-no-files-found: error
 
+      - name: Publish to the download site (Cloudflare R2)
+        # Only for real releases (not dry runs, not pre-releases), and only when the R2 keys are set as repository secrets.
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID || '35ce61837cc5b900d87bbeb2332e83ad' }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'labshope-lims' }}
+          VERSION: ${{ steps.version.outputs.value }}
+          PLATFORM: ${{ matrix.platform }}
+        working-directory: native/installers
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "R2 keys are not set (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY): skipping the download site."
+            exit 0
+          fi
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          # Every file of this build, kept under its version.
+          aws s3 cp . "s3://${R2_BUCKET}/releases/${VERSION}/" --recursive --endpoint-url "$endpoint"
+          # The installer under a fixed name, so the website's download button never changes.
+          setup=$(ls | grep -v -i -E 'nupkg|json|portable|releases' | grep -i -E 'setup\.(exe|pkg)$|\.AppImage$' | head -n 1)
+          if [ -z "$setup" ]; then echo "No installer found to publish as latest."; exit 1; fi
+          ext="${setup##*.}"
+          aws s3 cp "$setup" "s3://${R2_BUCKET}/latest/LabShope-LIMS-${PLATFORM}.${ext}" --endpoint-url "$endpoint"
+          size=$(wc -c < "$setup" | tr -d ' ')
+          printf '{"platform":"%s","file":"LabShope-LIMS-%s.%s","size":%s,"version":"%s"}\n' "$PLATFORM" "$PLATFORM" "$ext" "$size" "$VERSION" > "part-${PLATFORM}.json"
+          aws s3 cp "part-${PLATFORM}.json" "s3://${R2_BUCKET}/latest/parts/${PLATFORM}.json" --endpoint-url "$endpoint" --content-type application/json
+
       - name: Attach the installers to the release
         if: github.event_name == 'release'
         env:
@@ -93,3 +122,35 @@ jobs:
             [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber --repo "${{ github.repository }}"
           done
           exit 0
+
+  # Joins what each build published into one small file the website reads (latest/latest.json).
+  manifest:
+    name: Update the download list
+    needs: build
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Write latest.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID || '35ce61837cc5b900d87bbeb2332e83ad' }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'labshope-lims' }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then echo "R2 keys are not set: skipping."; exit 0; fi
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          mkdir parts
+          aws s3 cp "s3://${R2_BUCKET}/latest/parts/" parts/ --recursive --endpoint-url "$endpoint"
+          version="${TAG#v}"
+          python3 - "$version" <<'PY'
+          import glob, json, sys, datetime
+          parts = [json.load(open(p)) for p in sorted(glob.glob("parts/*.json"))]
+          current = [p for p in parts if p["version"] == sys.argv[1]]
+          doc = {"version": sys.argv[1], "published": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "files": {p["platform"]: {"file": p["file"], "size": p["size"]} for p in current}}
+          json.dump(doc, open("latest.json", "w"), indent=2)
+          print(json.dumps(doc, indent=2))
+          PY
+          aws s3 cp latest.json "s3://${R2_BUCKET}/latest/latest.json" --endpoint-url "$endpoint" --content-type application/json --cache-control "max-age=300"
