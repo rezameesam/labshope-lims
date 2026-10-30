@@ -18,8 +18,9 @@ const android = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chr
 describe("downloads", () => {
   it("only accepts a real http(s) base address and drops trailing slashes", () => {
     expect(getDownloadsBaseUrl("https://downloads.example.com///")).toBe("https://downloads.example.com");
-    expect(getDownloadsBaseUrl("  ")).toBe("");
-    expect(getDownloadsBaseUrl(undefined)).toBe("");
+    expect(getDownloadsBaseUrl("  ")).toBe("https://lims-downloads.labshope.com"); // not set: the default address
+    expect(getDownloadsBaseUrl(undefined)).toBe("https://lims-downloads.labshope.com");
+    expect(getDownloadsBaseUrl("off")).toBe(""); // anything that is not an http(s) address hides the downloads
     expect(getDownloadsBaseUrl("javascript:alert(1)")).toBe("");
   });
 

@@ -30,8 +30,8 @@ describe("PlatformDownloadPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("says downloads are being prepared when no download address is set", async () => {
-    vi.stubEnv("VITE_DOWNLOADS_BASE_URL", "");
+  it("says downloads are being prepared when the downloads are switched off", async () => {
+    vi.stubEnv("VITE_DOWNLOADS_BASE_URL", "off");
     await renderPage();
     expect(screen.getByTestId("download-unavailable")).toBeInTheDocument();
     expect(screen.queryByTestId("download-linux")).not.toBeInTheDocument();

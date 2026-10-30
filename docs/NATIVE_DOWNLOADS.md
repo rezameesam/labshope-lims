@@ -30,7 +30,7 @@ The website page `https://lims.labshope.com/download` (platform site) reads `lat
    ]
    ```
 
-4. **Website build setting:** `VITE_DOWNLOADS_BASE_URL=https://lims-downloads.labshope.com` (no trailing slash). Until it is set the page says "Downloads are being prepared".
+4. **Website:** nothing to set. The page uses `https://lims-downloads.labshope.com` by default. To use another address set `VITE_DOWNLOADS_BASE_URL` for the website build (no trailing slash); `off` hides the downloads.
 
 ## Notes
 

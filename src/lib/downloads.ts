@@ -89,9 +89,16 @@ export interface DownloadManifest {
   files: Partial<Record<DownloadPlatformId, { file: string; size?: number }>>;
 }
 
-/** The public address of the download bucket without a trailing slash, or "" when it is not configured. */
+/** Where the installers are served from unless VITE_DOWNLOADS_BASE_URL says otherwise. */
+export const DEFAULT_DOWNLOADS_BASE_URL = "https://lims-downloads.labshope.com";
+
+/**
+ * The public address of the download bucket without a trailing slash. VITE_DOWNLOADS_BASE_URL overrides the default;
+ * setting it to "off" hides the downloads ("Downloads are being prepared").
+ */
 export const getDownloadsBaseUrl = (value: string | undefined = import.meta.env.VITE_DOWNLOADS_BASE_URL): string => {
   const trimmed = (value ?? "").trim().replace(/\/+$/, "");
+  if (trimmed === "") return DEFAULT_DOWNLOADS_BASE_URL;
   return /^https?:\/\//i.test(trimmed) ? trimmed : "";
 };
 
