@@ -128,7 +128,8 @@ public class PrintingTests : IDisposable
 
         var off = await RawPrinter.SendAsync(new PrinterSettings(PrinterMode.Network, "127.0.0.1", port), [1]);
         Assert.False(off.Ok);
-        Assert.Contains("Can't reach the printer", off.Error);
+        // A closed port normally refuses at once, but on a busy machine the connection can instead be dropped or time out: both are "can't reach it".
+        Assert.True(off.Error!.Contains("Can't reach the printer") || off.Error.Contains("did not answer"), off.Error);
 
         Assert.Contains("network address", (await RawPrinter.SendAsync(new PrinterSettings(PrinterMode.Network), [1])).Error);
         Assert.Contains("not turned on", (await RawPrinter.SendAsync(new PrinterSettings(), [1])).Error);

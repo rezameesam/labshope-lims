@@ -118,6 +118,13 @@ jobs:
         working-directory: native/installers
         run: |
           # The installer, the portable build and the update files (the update feed uses them later).
+          # The two Mac builds produce installers with the same name: give those the chip in the name so neither overwrites the other.
+          for f in *Setup* *Portable*; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              LabShopeLIMS-osx-*) cp "$f" "${f/LabShopeLIMS-osx-/LabShopeLIMS-osx-${{ matrix.rid }}-}"; rm "$f" ;;
+            esac
+          done
           for f in *Setup* *Portable* *.nupkg releases.*.json RELEASES-*; do
             [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber --repo "${{ github.repository }}"
           done
