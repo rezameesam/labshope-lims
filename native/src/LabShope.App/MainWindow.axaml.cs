@@ -295,6 +295,12 @@ public partial class MainWindow : Window
         if (code is null) return;
 
         e.Handled = true;
+        // On the Inventory screen a scan means an item's barcode: fill (or use) its stock.
+        if (_current == "inventory" && _pages.TryGetValue("inventory", out var inv) && inv is InventoryView inventory)
+        {
+            _ = inventory.ScanAsync(code);
+            return;
+        }
         var match = _store.ResolveScan(code);
         switch (match)
         {
