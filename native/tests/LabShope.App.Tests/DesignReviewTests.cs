@@ -99,6 +99,9 @@ public class DesignReviewTests : IDisposable
                 var search = reg.FindControl<TextBox>("TestSearch")!;
                 foreach (var t in new[] { "cbc", "vitamin" }) { search.Text = t; Avalonia.Threading.Dispatcher.UIThread.RunJobs(); search.RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Enter }); }
             }
+            // Worst case for the layout: every action button shown, as for an admin who is online.
+            if (Environment.GetEnvironmentVariable("LABSHOPE_SHOT_ALL") == "1")
+                foreach (var b in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<Button>()) b.IsVisible = true;
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             window.CaptureRenderedFrame()!.Save(Path.Combine(dir, $"app-{page}.png"));
         }
