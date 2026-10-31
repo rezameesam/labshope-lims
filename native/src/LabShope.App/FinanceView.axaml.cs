@@ -13,6 +13,9 @@ public partial class FinanceView : UserControl
     private string _report = "trial";
     private Statement? _statement;
     private OutsourceReport? _outsource;
+    private Ledger? _ledger;
+    private IReadOnlyList<AccountInfo> _accounts = [];
+    private bool _filling;
     private DateOnly _from, _to;
     private bool _loadedOnce;
 
@@ -31,6 +34,7 @@ public partial class FinanceView : UserControl
 
     private void OnPrint(object? sender, RoutedEventArgs e)
     {
+        if (_report == "ledger" && _ledger is { } lg) { ReceiptPrinter.OpenHtml("account-ledger", Ledgers.ToHtml(_session.Workspace.OrganizationName, lg, _from, _to, DateTime.Now)); return; }
         if (_report == "out" && _outsource is { } o) { ReceiptPrinter.OpenHtml("outsource-report", OutsourceReports.ToHtml(_session.Workspace.OrganizationName, o, _from, _to, DateTime.Now)); return; }
         if (_statement is not { } s) return;
         ReceiptPrinter.OpenHtml(_report == "pl" ? "profit-and-loss" : "balance-sheet", Statements.ToHtml(_session.Workspace.OrganizationName, s, DateTime.Now));
@@ -46,7 +50,7 @@ public partial class FinanceView : UserControl
     {
         _loadedOnce = true;
         foreach (var (b, key) in new[] { (YearButton, "year"), (MonthButton, "month"), (TodayButton, "today") }) b.Classes.Set("on", key == _period);
-        foreach (var (b, key) in new[] { (TrialButton, "trial"), (PlButton, "pl"), (BsButton, "bs"), (OutButton, "out") }) b.Classes.Set("on", key == _report);
+        foreach (var (b, key) in new[] { (TrialButton, "trial"), (PlButton, "pl"), (BsButton, "bs"), (OutButton, "out"), (LedgerButton, "ledger"), (ChartButton, "chart") }) b.Classes.Set("on", key == _report);
 
         var today = DateOnly.FromDateTime(DateTime.Now);
         var (from, to) = _period switch
@@ -61,6 +65,32 @@ public partial class FinanceView : UserControl
         if (_session.Api is null) { Show("The books can't be loaded here.", true); return; }
         MessageCard.IsVisible = false;
 
+        ChartPanel.IsVisible = LedgerPanel.IsVisible = false;
+        if (_report is "ledger" or "chart")
+        {
+            OutsourcePanel.IsVisible = StatementPanel.IsVisible = Body.IsVisible = false;
+            TallyChip.IsVisible = false; _statement = null;
+            if (_accounts.Count == 0 || _report == "chart")
+            {
+                var chart = await Ledgers.ChartAsync(_session.Api, _session.Workspace.OrganizationId);
+                if (chart.Data is not { } accounts) { Show(chart.Error ?? "Could not load the books.", chart.Offline); return; }
+                _accounts = accounts;
+            }
+            if (_report == "chart")
+            {
+                ChartPanel.IsVisible = true; PrintButton.IsVisible = false;
+                ChartGrid.ItemsSource = _accounts;
+                return;
+            }
+            LedgerPanel.IsVisible = true; PrintButton.IsVisible = true;
+            var keep = (AccountPicker.SelectedItem as AccountInfo)?.Id;
+            _filling = true;
+            AccountPicker.ItemsSource = _accounts;
+            AccountPicker.SelectedItem = _accounts.FirstOrDefault(a => a.Id == keep) ?? _accounts.FirstOrDefault(a => a.IsActive) ?? _accounts.FirstOrDefault();
+            _filling = false;
+            await LoadLedgerAsync();
+            return;
+        }
         if (_report == "out")
         {
             var outResult = await OutsourceReports.LoadAsync(_session.Api, _session.Workspace.OrganizationId, from, to);
@@ -99,6 +129,18 @@ public partial class FinanceView : UserControl
         TallyChip.Background = new SolidColorBrush(Color.Parse(good ? "#E3F5EC" : "#FDE8E8"));
         TallyText.Foreground = new SolidColorBrush(Color.Parse(good ? "#1E8E5A" : "#C53030"));
         TallyText.Text = text;
+    }
+
+    private async void OnAccountPicked(object? sender, SelectionChangedEventArgs e) { if (!_filling && _report == "ledger") await LoadLedgerAsync(); }
+
+    private async Task LoadLedgerAsync()
+    {
+        if (AccountPicker.SelectedItem is not AccountInfo account || _session.Api is null) { LedgerGrid.ItemsSource = null; LedgerTotals.Text = ""; return; }
+        var result = await Ledgers.LedgerAsync(_session.Api, _session.Workspace.OrganizationId, account, _from, _to);
+        if (result.Data is not { } l) { Show(result.Error ?? "Could not load the ledger.", result.Offline); return; }
+        _ledger = l;
+        LedgerGrid.ItemsSource = l.Lines;
+        LedgerTotals.Text = $"{l.Lines.Count} entries · debit {l.TotalDebit:N2} · credit {l.TotalCredit:N2} · balance {l.Closing:N2}";
     }
 
     private void Show(string message, bool offline)

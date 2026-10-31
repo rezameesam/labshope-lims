@@ -132,6 +132,7 @@ public class FinanceViewTests : IDisposable
                 : p.EndsWith("/invoice_items") ? """[{"patient_test_id":"t1","amount":500}]"""
                 : p.EndsWith("/accounts") ? """[{"id":"c","code":"1001","name":"Cash","type":"asset"},{"id":"a","code":"1003","name":"Accounts Receivable","type":"asset"},{"id":"r","code":"4001","name":"Test Revenue","type":"revenue"}]"""
                 : p.EndsWith("/journal_entries") ? """[{"id":"e1","entry_number":"AUTO-00001","entry_date":"2026-10-29","description":"Invoice INV1","reference":"INV1"},{"id":"e2","entry_number":"AUTO-00002","entry_date":"2026-10-29","description":"Payment - INV1","reference":null}]"""
+                : p.EndsWith("/journal_entry_lines") && r.RequestUri.Query.Contains("account_id=eq.c") ? """[{"journal_entry_id":"e2","debit":750,"credit":0,"description":null}]"""
                 : """[{"journal_entry_id":"e1","account_id":"a","debit":750,"credit":0},{"journal_entry_id":"e1","account_id":"r","debit":0,"credit":750},{"journal_entry_id":"e2","account_id":"c","debit":750,"credit":0},{"journal_entry_id":"e2","account_id":"a","debit":0,"credit":750}]""";
             return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json") });
         }
@@ -211,6 +212,25 @@ public class FinanceViewTests : IDisposable
         await view.ShowReportAsync("trial");
         Assert.False(view.FindControl<DockPanel>("OutsourcePanel")!.IsVisible);
         Assert.True(view.FindControl<Grid>("Body")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task TheLedgerFollowsOneAccountAndTheChartListsAllOfThem()
+    {
+        var (view, _) = Open(offline: false);
+        await view.ShowReportAsync("chart");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.True(view.FindControl<DockPanel>("ChartPanel")!.IsVisible);
+        Assert.Equal(3, view.FindControl<DataGrid>("ChartGrid")!.ItemsSource.Cast<object>().Count());
+
+        await view.ShowReportAsync("ledger");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.True(view.FindControl<DockPanel>("LedgerPanel")!.IsVisible);
+        Assert.False(view.FindControl<DockPanel>("ChartPanel")!.IsVisible);
+        Assert.Equal("1001 - Cash", ((LabShope.Core.Finance.AccountInfo)view.FindControl<ComboBox>("AccountPicker")!.SelectedItem!).Display);
+        var lines = view.FindControl<DataGrid>("LedgerGrid")!.ItemsSource.Cast<LabShope.Core.Finance.LedgerLine>().ToList();
+        Assert.Equal(("AUTO-00002", 750m, 750m), (lines.Single().EntryNumber, lines.Single().Debit, lines.Single().Balance));
+        Assert.True(view.FindControl<Button>("PrintButton")!.IsVisible);
     }
 
     [AvaloniaFact]
