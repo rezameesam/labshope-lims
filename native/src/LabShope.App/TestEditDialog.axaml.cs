@@ -17,7 +17,7 @@ public partial class TestEditDialog : Window
 
     public TestEditDialog() => throw new InvalidOperationException("Use the constructor with a test.");
 
-    public TestEditDialog(SupabaseApi api, string organizationId, CatalogTest test)
+    public TestEditDialog(SupabaseApi api, string organizationId, CatalogTest test, bool active = true)
     {
         _api = api;
         _organizationId = organizationId;
@@ -29,7 +29,7 @@ public partial class TestEditDialog : Window
         MinBox.Text = test.NormalMin is { } lo ? LabShope.Core.Data.ResultFormat.Number(lo) : null;
         MaxBox.Text = test.NormalMax is { } hi ? LabShope.Core.Data.ResultFormat.Number(hi) : null;
         RangeBox.Text = test.NormalRangeText;
-        ActiveBox.IsChecked = true;
+        ActiveBox.IsChecked = active;
         Opened += (_, _) => { PriceBox.Focus(); PriceBox.SelectAll(); };
     }
 

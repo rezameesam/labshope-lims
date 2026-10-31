@@ -11,6 +11,23 @@ public class CatalogAdminTests
         new(new HttpClient(h), "https://x.supabase.co", "anon") { Session = new AuthSession("t", "r", DateTimeOffset.UtcNow.AddHours(1), "u", null) };
 
     [Fact]
+    public async Task ListsOnlyTheSwitchedOffTestsOfThisLab()
+    {
+        var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, """[{"id":"t9","test_id":"OLD1","name":"Old Panel","price":120,"category_id":null,"unit":"mg","normal_range_min":1,"normal_range_max":2}]""") };
+
+        var (tests, error) = await CatalogAdmin.InactiveTestsAsync(Api(server), "org-1");
+
+        Assert.Null(error);
+        Assert.Equal(("t9", "OLD1", "Old Panel", 120m, 1m, 2m), (tests[0].Id, tests[0].TestCode, tests[0].Name, tests[0].Price, tests[0].NormalMin, tests[0].NormalMax));
+        Assert.Contains("organization_id=eq.org-1", server.Requests[0].Url);
+        Assert.Contains("is_active=eq.false", server.Requests[0].Url);
+
+        var (none, offline) = await CatalogAdmin.InactiveTestsAsync(Api(new OfflineServer()), "org-1");
+        Assert.Empty(none);
+        Assert.Contains("internet", offline);
+    }
+
+    [Fact]
     public async Task SendsTheNewPriceUnitAndRangeForThatTestOnly()
     {
         var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, """[{"id":"t1"}]""") };
