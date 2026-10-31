@@ -84,12 +84,12 @@ public class DesignReviewTests : IDisposable
     public void TakesScreenshotsOfEveryScreen()
     {
         var dir = Environment.GetEnvironmentVariable("LABSHOPE_SHOT_DIR");
-        var window = new MainWindow(_session) { Width = 1360, Height = 860 };
+        var window = new MainWindow(_session) { Width = double.Parse(Environment.GetEnvironmentVariable("LABSHOPE_SHOT_WIDTH") ?? "1360"), Height = 860 };
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         if (dir is null) { window.Close(); return; }
 
-        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog", "bookings", "settings" })
+        foreach (var page in new[] { "home", "register", "patients", "results", "bills", "cash", "reports", "catalog", "bookings", "settings", "inventory", "flow", "reminders", "notices", "organization", "finance", "roles", "subscription" })
         {
             window.Show(page);
             if (page == "register")

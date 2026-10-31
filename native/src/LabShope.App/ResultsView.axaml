@@ -6,7 +6,7 @@
              x:Class="LabShope.App.ResultsView">
   <Grid ColumnDefinitions="*,18,430">
     <DockPanel Grid.Column="0">
-      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
+      <WrapPanel DockPanel.Dock="Top" ItemSpacing="12" LineSpacing="10" Margin="0,0,0,16">
         <ComboBox x:Name="FilterBox" SelectedIndex="0" Width="150">
           <ComboBoxItem>To do</ComboBoxItem>
           <ComboBoxItem>Completed</ComboBoxItem>
@@ -18,7 +18,7 @@
           <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="240" Watermark="Patient, ID or test" />
         </Grid>
         <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
-      </StackPanel>
+      </WrapPanel>
       <DataGrid x:Name="Grid" x:DataType="data:WorklistRow" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
         <DataGrid.Columns>
           <DataGridTextColumn Header="PATIENT" Binding="{Binding PatientLabel}" Width="*" MinWidth="170" />

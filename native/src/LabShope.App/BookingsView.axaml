@@ -6,7 +6,7 @@
              x:Class="LabShope.App.BookingsView">
   <Grid ColumnDefinitions="*,18,420">
     <DockPanel>
-      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
+      <WrapPanel DockPanel.Dock="Top" ItemSpacing="12" LineSpacing="10" Margin="0,0,0,16">
         <ComboBox x:Name="FilterBox" SelectedIndex="0" Width="150">
           <ComboBoxItem>New</ComboBoxItem>
           <ComboBoxItem>All</ComboBoxItem>
@@ -21,7 +21,7 @@
           <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" Width="240" Watermark="Name, phone or test" />
         </Grid>
         <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" />
-      </StackPanel>
+      </WrapPanel>
       <DataGrid x:Name="Grid" x:DataType="data:BookingRequest" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
         <DataGrid.Columns>
           <DataGridTextColumn Header="RECEIVED" Binding="{Binding Created}" Width="110" />
