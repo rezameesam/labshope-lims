@@ -38,6 +38,7 @@ public sealed class SyncRunner
             if (_api is not null && _organizationId is not null) await Visits.SubscriptionService.RefreshAsync(_api, _store, _organizationId, ct: ct);
             await _engine.PullPatientsAsync(ct);
             await _engine.PullPatientTestsAsync(ct);
+            await _engine.PullStaffNamesAsync(ct);
             await _engine.PullBookingsAsync(ct);
             await _engine.PullInvoicesAsync(ct);
             await _engine.PullPaymentsAsync(ct);

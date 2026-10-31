@@ -4,14 +4,15 @@ using LabShope.Core.Data;
 
 namespace LabShope.Core.Visits;
 
-public sealed record ReportLine(string Test, string Result, string Unit, string Reference, bool Abnormal);
+public sealed record ReportLine(string Test, string Result, string Unit, string Reference, bool Abnormal, string? Notes = null);
 
 public sealed record ReportSection(string TestName, IReadOnlyList<ReportLine> Lines, bool IsPanel);
 
 public sealed record ReportData(
     string LabName, string PatientName, string PatientCode, string? Gender, string? Age, string Phone,
     string ReportDate, IReadOnlyList<ReportSection> Sections, bool Provisional = false, Branding? Branding = null,
-    string? HeaderText = null, string? FooterText = null, bool ShowReference = true, bool ShowFlag = true, bool ListFormat = false, string? EnteredBy = null);
+    string? HeaderText = null, string? FooterText = null, bool ShowReference = true, bool ShowFlag = true, bool ListFormat = false, string? EnteredBy = null,
+    string? BloodGroup = null, string? RegistrySerial = null, string? Center = null, bool ShowNotes = false);
 
 /// <summary>Builds a patient's report from the completed tests held on this PC (works offline).</summary>
 public static class ReportBuilder
@@ -27,6 +28,15 @@ public static class ReportBuilder
         if (done.Count == 0) return null;
 
         var sections = done.Select(t => Section(store, t)).ToList();
+        var extra = store.GetPatientExtra(patientId);
+        var testExtras = done.Select(t => store.GetTestExtra(t.Id)).ToList();
+        var staff = store.GetStaffNames();
+        // Notes belong to a test; show them on its first line (the website does the same for panels).
+        sections = sections.Select((sec, i) => testExtras[i].Notes is { Length: > 0 } n && sec.Lines.Count > 0
+            ? sec with { Lines = sec.Lines.Select((l, j) => j == 0 ? l with { Notes = n } : l).ToList() } : sec).ToList();
+        var enteredBy = string.Join(", ", testExtras.Select(x => x.EnteredBy).Where(id => id is not null).Select(id => staff.GetValueOrDefault(id!)).Where(n => n is not null).Distinct());
+        var centerId = extra.CollectionCenterId;
+        var center = centerId is null ? null : catalogCenter(store, centerId);
 
         // The lab's own report layout (header/footer wording, what to show), chosen like the website does.
         var catalog = store.GetCatalog();
@@ -36,7 +46,7 @@ public static class ReportBuilder
             ["patient_name"] = patient.FullName, ["patient_id"] = patient.PatientCode, ["phone"] = patient.Phone,
             ["test_name"] = done.Select(t => t.TestName).Distinct().Count() == 1 ? done[0].TestName : "Multiple Tests",
             ["test_date"] = testDate, ["report_date"] = testDate, ["lab_name"] = branding?.Name ?? labName,
-            ["lab_code"] = catalog.Labs.FirstOrDefault(l => l.Id == labId)?.LabCode ?? "", ["collection_center"] = "", ["entered_by"] = branding?.Name ?? labName,
+            ["lab_code"] = catalog.Labs.FirstOrDefault(l => l.Id == labId)?.LabCode ?? "", ["collection_center"] = center ?? "", ["entered_by"] = enteredBy.Length > 0 ? enteredBy : branding?.Name ?? labName,
         };
         var header = template?.HeaderTemplate is { Length: > 0 } h ? ReportTemplates.RenderText(h, context) : null;
         var footer = template?.FooterTemplate is { Length: > 0 } f ? ReportTemplates.RenderText(f, context) : null;
@@ -44,7 +54,17 @@ public static class ReportBuilder
         return new ReportData(labName, patient.FullName, patient.PatientCode, patient.Gender, PatientAge.Of(patient.DateOfBirth, DateOnly.FromDateTime((now ?? DateTimeOffset.Now).LocalDateTime)),
             patient.Phone, testDate, sections, Provisional: done.Any(t => t.Waiting), Branding: branding,
             HeaderText: header, FooterText: footer, ShowReference: template?.IncludeNormalRange ?? true, ShowFlag: template?.IncludeAbnormalFlag ?? true,
-            ListFormat: string.Equals(template?.ResultFormat, "list", StringComparison.OrdinalIgnoreCase));
+            ListFormat: string.Equals(template?.ResultFormat, "list", StringComparison.OrdinalIgnoreCase),
+            EnteredBy: enteredBy.Length > 0 ? enteredBy : null, BloodGroup: extra.BloodGroup, RegistrySerial: testExtras.Select(x => x.RegistrySerial).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+            Center: center, ShowNotes: template?.IncludeNotes ?? false);
+    }
+
+    /// <summary>The collection centre as the website prints it: its code, or a shortened name.</summary>
+    private static string? catalogCenter(LocalStore store, string id)
+    {
+        var c = store.GetCatalog().Centers.FirstOrDefault(x => x.Id == id);
+        if (c is null) return null;
+        return !string.IsNullOrWhiteSpace(c.Code) ? c.Code : c.Name.Length > 20 ? c.Name[..20] + "..." : c.Name;
     }
 
     private static ReportSection Section(LocalStore store, PatientTest t)
@@ -135,7 +155,10 @@ public static class ReportHtml
           .Append("<div><b>Name:</b>").Append(E(r.PatientName)).Append("</div><div><b>Gender:</b>").Append(E(string.IsNullOrWhiteSpace(r.Gender) ? "N/A" : r.Gender)).Append("</div>")
           .Append("<div><b>Patient ID:</b>").Append(E(r.PatientCode)).Append("</div><div><b>Age:</b>").Append(E(string.IsNullOrWhiteSpace(r.Age) ? "N/A" : r.Age)).Append("</div>")
           .Append("<div><b>Phone:</b>").Append(E(r.Phone)).Append("</div><div><b>Report Date:</b>").Append(E(Dates.FromIso(r.ReportDate))).Append("</div>")
-          .Append("<div><b>Sample Collection Date:</b>").Append(E(Dates.FromIso(r.ReportDate))).Append("</div></div>");
+          .Append("<div><b>Sample Collection Date:</b>").Append(E(Dates.FromIso(r.ReportDate))).Append("</div><div><b>Blood Group:</b>").Append(E(string.IsNullOrWhiteSpace(r.BloodGroup) ? "N/A" : r.BloodGroup)).Append("</div>");
+        if (!string.IsNullOrWhiteSpace(r.RegistrySerial)) sb.Append("<div><b>Registry No:</b>").Append(E(r.RegistrySerial)).Append("</div>");
+        if (!string.IsNullOrWhiteSpace(r.Center)) sb.Append("<div><b>Center:</b>").Append(E(r.Center)).Append("</div>");
+        sb.Append("</div>");
         if (!string.IsNullOrWhiteSpace(r.HeaderText)) sb.Append("<div style=\"white-space:pre-line;font-size:9pt;margin:0 0 4mm\">").Append(E(r.HeaderText)).Append("</div>");
         if (r.Provisional) sb.Append("<div class=\"warn\">Preliminary: some of these results have not been confirmed by the server yet.</div>");
 
@@ -149,17 +172,18 @@ public static class ReportHtml
                 var extras = new List<string>();
                 if (r.ShowReference) extras.Add("Range: " + (string.IsNullOrWhiteSpace(l.Reference) ? "-" : l.Reference));
                 if (r.ShowFlag) extras.Add(l.Abnormal ? "ABN" : "OK");
-                var value = $"{l.Result} {l.Unit}".Trim() + (extras.Count > 0 ? $" ({string.Join(" • ", extras)})" : "");
+                var value = $"{l.Result} {l.Unit}".Trim() + (extras.Count > 0 ? $" ({string.Join(" • ", extras)})" : "") + (r.ShowNotes && !string.IsNullOrWhiteSpace(l.Notes) ? " | Notes: " + l.Notes : "");
                 sb.Append("<tr><td>").Append(E(name)).Append("</td><td style=\"text-align:left\">").Append(E(value)).Append("</td></tr>");
             }
             sb.Append("</table>");
         }
         else
         {
-            sb.Append("<table><tr><th style=\"width:40%\">Test Name</th><th>Result</th><th>Unit</th>").Append(r.ShowReference ? "<th>Normal Range</th>" : "").Append(r.ShowFlag ? "<th>Status</th>" : "").Append("</tr>");
+            sb.Append("<table><tr><th style=\"width:40%\">Test Name</th><th>Result</th><th>Unit</th>").Append(r.ShowReference ? "<th>Normal Range</th>" : "").Append(r.ShowNotes ? "<th>Notes</th>" : "").Append(r.ShowFlag ? "<th>Status</th>" : "").Append("</tr>");
             foreach (var (name, l) in lines)
                 sb.Append("<tr><td>").Append(E(name)).Append("</td><td>").Append(E(l.Result)).Append("</td><td>").Append(E(string.IsNullOrWhiteSpace(l.Unit) ? "-" : l.Unit)).Append("</td>")
                   .Append(r.ShowReference ? "<td>" + E(string.IsNullOrWhiteSpace(l.Reference) ? "-" : l.Reference) + "</td>" : "")
+                  .Append(r.ShowNotes ? "<td>" + E(string.IsNullOrWhiteSpace(l.Notes) ? "-" : l.Notes) + "</td>" : "")
                   .Append(r.ShowFlag ? (l.Abnormal ? "<td class=\"abn\">&#9650; ABN</td>" : "<td class=\"ok\">&#10003;</td>") : "").Append("</tr>");
             sb.Append("</table>");
         }

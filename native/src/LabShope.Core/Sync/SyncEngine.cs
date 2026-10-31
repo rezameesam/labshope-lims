@@ -69,7 +69,7 @@ public sealed class SyncEngine
     }
 
     public Task<int> PullPatientsAsync(CancellationToken ct = default) =>
-        PullAsync("patients", "id,patient_id,full_name,phone,gender,date_of_birth,email,is_active,updated_at", "patients_cursor", row =>
+        PullAsync("patients", "id,patient_id,full_name,phone,gender,date_of_birth,email,is_active,blood_group,collection_center_id,updated_at", "patients_cursor", row =>
         {
             // Never overwrite an edit made here that hasn't reached the server yet.
             if (_store.HasWaitingPatientEdit(row.GetProperty("id").GetString()!)) return;
@@ -83,6 +83,7 @@ public sealed class SyncEngine
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!,
                 row.GetProperty("full_name").GetString()!, row.GetProperty("phone").GetString() ?? "",
                 Opt(row, "gender"), Opt(row, "date_of_birth"), Email: Opt(row, "email")));
+            _store.SetPatientExtra(row.GetProperty("id").GetString()!, Opt(row, "blood_group"), Opt(row, "collection_center_id"));
         }, null, ct);
 
     private const int PaymentHistoryDays = 90;
@@ -126,7 +127,7 @@ public sealed class SyncEngine
     public Task<int> PullPatientTestsAsync(CancellationToken ct = default)
     {
         var floor = DateTimeOffset.UtcNow.AddDays(-WorklistHistoryDays).ToString("yyyy-MM-dd");
-        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,result_items,external_lab_id,outsource_cost,updated_at", "patient_tests_cursor", row =>
+        return PullAsync("patient_tests", "id,patient_id,test_name,test_date,status,result,result_value,result_unit,normal_range_text,is_abnormal,result_items,external_lab_id,outsource_cost,registry_serial,notes,result_entered_by,updated_at", "patient_tests_cursor", row =>
         {
             _store.UpsertPatientTest(new PatientTest(
                 row.GetProperty("id").GetString()!, row.GetProperty("patient_id").GetString()!, row.GetProperty("test_name").GetString()!,
@@ -135,8 +136,21 @@ public sealed class SyncEngine
                 row.TryGetProperty("is_abnormal", out var a) && a.ValueKind == JsonValueKind.True,
                 ResultItemsJson: row.TryGetProperty("result_items", out var items) && items.ValueKind == JsonValueKind.Array ? items.GetRawText() : null,
                 ExternalLabId: Opt(row, "external_lab_id"), OutsourceCost: NumOrNull(row, "outsource_cost")), fromServer: true);
+            var testId = row.GetProperty("id").GetString()!;
+            _store.SetTestExtra(testId, Opt(row, "registry_serial"), Opt(row, "notes"), Opt(row, "result_entered_by") ?? _store.GetTestExtra(testId).EnteredBy); // a result entered here and not yet sent keeps its name
         }, // Recent tests, plus anything still waiting however old: a test must never vanish from the worklist just because it is slow.
             $"or=(test_date.gte.{floor},status.in.(pending,in_progress))", ct);
+    }
+
+    /// <summary>Remembers staff names, so a printed report can say who entered the results even offline.</summary>
+    public async Task PullStaffNamesAsync(CancellationToken ct = default)
+    {
+        var res = await _api.SelectAsync("employees", $"select=user_id,full_name&organization_id=eq.{_organizationId}", ct);
+        if (!res.Ok || res.Body is not { ValueKind: JsonValueKind.Array } rows) return; // keep the names already held
+        var names = new Dictionary<string, string>();
+        foreach (var r in rows.EnumerateArray())
+            if (Opt(r, "user_id") is { } id && Opt(r, "full_name") is { } name) names[id] = name;
+        _store.SetMeta("staff_names", JsonSerializer.Serialize(names));
     }
 
     public Task<int> PullInvoicesAsync(CancellationToken ct = default)
