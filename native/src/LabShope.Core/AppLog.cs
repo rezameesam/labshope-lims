@@ -32,7 +32,7 @@ public static class AppLog
     {
         var text = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} STARTUP FAILURE ({Environment.OSVersion}, {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}){Environment.NewLine}{ex}{Environment.NewLine}";
         try { Console.Error.WriteLine(text); } catch { /* no console */ }
-        foreach (var dir in new[] { directory, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LabShope", "logs"), Path.GetTempPath() })
+        foreach (var dir in new[] { directory, Path.Combine(DataFolder.Current(), "logs"), Path.GetTempPath() })
         {
             if (string.IsNullOrEmpty(dir)) continue;
             try
