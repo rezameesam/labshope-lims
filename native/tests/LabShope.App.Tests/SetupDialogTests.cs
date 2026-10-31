@@ -370,9 +370,19 @@ public class SetupDialogTests
             Assert.False(dialog.FindControl<CheckBox>("ActiveBox")!.IsChecked);
             dialog.Close();
 
+            // Select the test and switch it on: it leaves the switched-off list.
+            var grid = catalog.FindControl<DataGrid>("TestGrid")!;
+            Assert.Equal("Switch selected on", catalog.FindControl<TextBlock>("SwitchText")!.Text);
+            await catalog.SwitchSelectedAsync();
+            Assert.Contains("Select the tests first", catalog.FindControl<TextBlock>("MessageText")!.Text);
+            grid.SelectAll();
+            await catalog.SwitchSelectedAsync();
+            Assert.Contains("1 test(s) switched on", catalog.FindControl<TextBlock>("MessageText")!.Text);
+
             var packages = catalog.FindControl<Button>("PackagesButton")!;
             packages.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.False(catalog.FindControl<CheckBox>("InactiveBox")!.IsVisible);
+            Assert.False(catalog.FindControl<Button>("SwitchButton")!.IsVisible);
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }

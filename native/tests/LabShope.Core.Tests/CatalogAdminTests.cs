@@ -28,6 +28,28 @@ public class CatalogAdminTests
     }
 
     [Fact]
+    public async Task SwitchingManyTestsOnIsOneRequestPerHundredAndOnlyForThisLab()
+    {
+        var server = new FakeServer { Handler = (r, _) => (HttpStatusCode.OK, "[" + string.Join(",", r.RequestUri!.Query.Split("in.(")[1].Split(')')[0].Split(',').Select(id => $"{{\"id\":\"{id}\"}}")) + "]") };
+        var ids = Enumerable.Range(1, 230).Select(i => $"t{i}").ToList();
+
+        var (changed, error) = await CatalogAdmin.SetTestsActiveAsync(Api(server), "org-1", ids, true);
+
+        Assert.Null(error);
+        Assert.Equal(230, changed);
+        Assert.Equal(3, server.Requests.Count);
+        Assert.All(server.Requests, q => { Assert.Equal("PATCH", q.Method.Method); Assert.Contains("organization_id=eq.org-1", q.Url); Assert.Contains("\"is_active\":true", q.Body); });
+
+        var refused = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, "[]") };
+        var (none, refusal) = await CatalogAdmin.SetTestsActiveAsync(Api(refused), "org-1", ["t1"], false);
+        Assert.Equal(0, none);
+        Assert.Contains("did not accept", refusal);
+
+        var (_, offline) = await CatalogAdmin.SetTestsActiveAsync(Api(new OfflineServer()), "org-1", ["t1"], false);
+        Assert.Contains("internet", offline);
+    }
+
+    [Fact]
     public async Task SendsTheNewPriceUnitAndRangeForThatTestOnly()
     {
         var server = new FakeServer { Handler = (_, _) => (HttpStatusCode.OK, """[{"id":"t1"}]""") };
