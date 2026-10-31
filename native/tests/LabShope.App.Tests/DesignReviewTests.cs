@@ -124,10 +124,17 @@ public class FinanceViewTests : IDisposable
 {
     private sealed class BooksHandler(bool offline = false) : System.Net.Http.HttpMessageHandler
     {
+        public static readonly List<(string Method, string Path, string Body)> Writes = [];
+
         protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage r, CancellationToken ct)
         {
             if (offline) throw new System.Net.Http.HttpRequestException("offline");
             var p = r.RequestUri!.AbsolutePath;
+            if (r.Method != System.Net.Http.HttpMethod.Get)
+            {
+                lock (Writes) Writes.Add((r.Method.Method, p, r.Content is null ? "" : r.Content.ReadAsStringAsync(ct).Result));
+                return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Created) { Content = new System.Net.Http.StringContent("[{\"id\":\"x\"}]", System.Text.Encoding.UTF8, "application/json") });
+            }
             var json = p.EndsWith("/patient_tests") ? """[{"id":"t1","test_name":"HbA1c","outsource_cost":200,"outsourced_at":"2026-10-29T10:00:00","patients":{"patient_id":"IRM-1","full_name":"Asha Rao"},"external_labs":{"name":"Metro Labs"}}]"""
                 : p.EndsWith("/invoice_items") ? """[{"patient_test_id":"t1","amount":500}]"""
                 : p.EndsWith("/accounts") ? """[{"id":"c","code":"1001","name":"Cash","type":"asset"},{"id":"a","code":"1003","name":"Accounts Receivable","type":"asset"},{"id":"r","code":"4001","name":"Test Revenue","type":"revenue"}]"""
@@ -231,6 +238,45 @@ public class FinanceViewTests : IDisposable
         var lines = view.FindControl<DataGrid>("LedgerGrid")!.ItemsSource.Cast<LabShope.Core.Finance.LedgerLine>().ToList();
         Assert.Equal(("AUTO-00002", 750m, 750m), (lines.Single().EntryNumber, lines.Single().Debit, lines.Single().Balance));
         Assert.True(view.FindControl<Button>("PrintButton")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task AQuickEntryIsPostedFromTheDialogAndAccountsCanBeAddedAndSwitchedOff()
+    {
+        var (view, _) = Open(offline: false);
+        await view.ShowReportAsync("chart");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var accounts = view.FindControl<DataGrid>("ChartGrid")!.ItemsSource.Cast<LabShope.Core.Finance.AccountInfo>().ToList();
+        var session = (AppSession)typeof(FinanceView).GetField("_session", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(view)!;
+
+        BooksHandler.Writes.Clear();
+        var dialog = new JournalEntryDialog(session, accounts);
+        dialog.Show(); _windows.Add(dialog);
+        dialog.Pick("income");
+        dialog.ChooseQuick("r", "c", "750");
+        await dialog.SaveAsync();
+        Assert.Equal("JE-00001", dialog.PostedNumber);
+        Assert.Contains(BooksHandler.Writes, w => w.Path.EndsWith("/journal_entries") && w.Body.Contains("Income - Test Revenue - 750"));
+        Assert.Contains(BooksHandler.Writes, w => w.Path.EndsWith("/journal_entry_lines") && w.Body.Contains("\"debit\":750"));
+
+        var bad = new JournalEntryDialog(session, accounts);
+        bad.Show(); _windows.Add(bad);
+        bad.Pick("custom");
+        await bad.SaveAsync();
+        Assert.Contains("description is required", bad.FindControl<TextBlock>("ErrorText")!.Text);
+
+        BooksHandler.Writes.Clear();
+        view.FindControl<DataGrid>("ChartGrid")!.SelectedItem = accounts[0];
+        await view.ToggleSelectedAsync();
+        Assert.Contains(BooksHandler.Writes, w => w.Method == "PATCH" && w.Body.Contains("\"is_active\":false"));
+        Assert.Contains("switched off", view.FindControl<TextBlock>("NoticeText")!.Text);
+
+        var add = new AccountDialog(session);
+        add.Show(); _windows.Add(add);
+        add.FindControl<TextBox>("CodeBox")!.Text = "1004"; add.FindControl<TextBox>("NameBox")!.Text = "Petty cash";
+        add.FindControl<ComboBox>("TypeBox")!.SelectedItem = "asset";
+        await add.SaveAsync();
+        Assert.True(add.Saved);
     }
 
     [AvaloniaFact]
