@@ -170,6 +170,30 @@ public class FinanceViewTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task ProfitAndLossAndTheBalanceSheetAreWorkedOutFromTheSameBooks()
+    {
+        var (view, _) = Open(offline: false);
+        await view.ShowReportAsync("pl");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(view.FindControl<DockPanel>("StatementPanel")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Body")!.IsVisible);
+        Assert.True(view.FindControl<Button>("PrintButton")!.IsVisible);
+        var pl = view.FindControl<DataGrid>("StatementGrid")!.ItemsSource.Cast<LabShope.Core.Finance.StatementLine>().ToList();
+        Assert.Contains(pl, l => l is { Label: "Net profit", Amount: 750m });          // 750 of test revenue, no expenses
+        Assert.Contains("Profit 750.00", view.FindControl<TextBlock>("TallyText")!.Text);
+
+        await view.ShowReportAsync("bs");
+        var bs = view.FindControl<DataGrid>("StatementGrid")!.ItemsSource.Cast<LabShope.Core.Finance.StatementLine>().ToList();
+        Assert.Contains(bs, l => l is { Label: "Total assets", Amount: 750m });        // cash 750 + receivables 0
+        Assert.Contains("Balanced", view.FindControl<TextBlock>("TallyText")!.Text);
+
+        await view.ShowReportAsync("trial");
+        Assert.True(view.FindControl<Grid>("Body")!.IsVisible);
+        Assert.False(view.FindControl<DockPanel>("StatementPanel")!.IsVisible);
+    }
+
+    [AvaloniaFact]
     public async Task SaysPlainlyThatFinanceNeedsTheInternetWhenOffline()
     {
         var (view, _) = Open(offline: true);
