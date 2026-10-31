@@ -58,6 +58,7 @@ public sealed class ResultService
         _store.InTransaction(() =>
         {
             _store.UpsertPatientTest(done);
+            if (_userId is not null) _store.SetTestEnteredBy(done.Id, _userId);
             _store.EnqueueVisit(new OutboxItem($"result-{testId}-{enteredAt}", payload.ToJsonString(), "pending", 0, null,
                 _store.GetPatient(test.PatientId)?.FullName ?? "", 0m, Kind: "result"));
         });
@@ -132,6 +133,7 @@ public sealed class ResultService
         _store.InTransaction(() =>
         {
             _store.UpsertPatientTest(done);
+            if (_userId is not null) _store.SetTestEnteredBy(done.Id, _userId);
             // A second entry for the same test replaces the first that is still waiting to be sent.
             _store.EnqueueVisit(new OutboxItem($"result-{testId}-{enteredAt}", payload.ToJsonString(), "pending", 0, null,
                 _store.GetPatient(test.PatientId)?.FullName ?? "", 0m, Kind: "result"));

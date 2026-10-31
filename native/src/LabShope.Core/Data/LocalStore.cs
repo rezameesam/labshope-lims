@@ -109,6 +109,18 @@ public sealed class LocalStore : IDisposable
                 Exec("ALTER TABLE patient_tests ADD COLUMN outsource_cost REAL");
             }
         }
+        // Extra report details (blood group, centre, registry number, notes, who entered the result) live beside the main tables.
+        using (var infoExtra = _db.CreateCommand())
+        {
+            infoExtra.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE name = 'patient_extra'";
+            var fresh = (long)infoExtra.ExecuteScalar()! == 0;
+            Exec("""
+                CREATE TABLE IF NOT EXISTS patient_extra (patient_id TEXT PRIMARY KEY, blood_group TEXT, collection_center_id TEXT);
+                CREATE TABLE IF NOT EXISTS test_extra (test_id TEXT PRIMARY KEY, registry_serial TEXT, notes TEXT, entered_by TEXT);
+                """);
+            // fetch patients and tests again once, so the new details arrive
+            if (fresh) Exec("DELETE FROM meta WHERE key IN ('patients_cursor', 'patient_tests_cursor')");
+        }
         // Databases created before payments existed have no "kind" column on the outbox.
         using (var info = _db.CreateCommand())
         {
@@ -136,6 +148,58 @@ public sealed class LocalStore : IDisposable
         cmd.Parameters.AddWithValue("$email", (object?)p.Email ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$search", $"{p.FullName} {p.Phone} {p.PatientCode}".ToLowerInvariant());
         cmd.ExecuteNonQuery();
+    }
+
+    public void SetPatientExtra(string patientId, string? bloodGroup, string? collectionCenterId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO patient_extra (patient_id, blood_group, collection_center_id) VALUES ($p, $b, $c) ON CONFLICT(patient_id) DO UPDATE SET blood_group=$b, collection_center_id=$c";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        cmd.Parameters.AddWithValue("$b", (object?)bloodGroup ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$c", (object?)collectionCenterId ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    public IReadOnlyDictionary<string, string> GetStaffNames()
+    {
+        try { return GetMeta("staff_names") is { } json ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? [] : new Dictionary<string, string>(); }
+        catch (System.Text.Json.JsonException) { return new Dictionary<string, string>(); }
+    }
+
+    public (string? BloodGroup, string? CollectionCenterId) GetPatientExtra(string patientId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT blood_group, collection_center_id FROM patient_extra WHERE patient_id = $p";
+        cmd.Parameters.AddWithValue("$p", patientId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.IsDBNull(0) ? null : r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1)) : (null, null);
+    }
+
+    public void SetTestExtra(string testId, string? registrySerial, string? notes, string? enteredBy)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "INSERT INTO test_extra (test_id, registry_serial, notes, entered_by) VALUES ($t, $r, $n, $e) ON CONFLICT(test_id) DO UPDATE SET registry_serial=$r, notes=$n, entered_by=$e";
+        cmd.Parameters.AddWithValue("$t", testId);
+        cmd.Parameters.AddWithValue("$r", (object?)registrySerial ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$n", (object?)notes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$e", (object?)enteredBy ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Notes the staff member typed on the website stay; only who entered the result changes.</summary>
+    public void SetTestEnteredBy(string testId, string? userId)
+    {
+        var (registry, notes, _) = GetTestExtra(testId);
+        SetTestExtra(testId, registry, notes, userId);
+    }
+
+    public (string? RegistrySerial, string? Notes, string? EnteredBy) GetTestExtra(string testId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT registry_serial, notes, entered_by FROM test_extra WHERE test_id = $t";
+        cmd.Parameters.AddWithValue("$t", testId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.IsDBNull(0) ? null : r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2)) : (null, null, null);
     }
 
     public void UpsertInvoice(Invoice i)
