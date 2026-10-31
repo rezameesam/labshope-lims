@@ -90,4 +90,34 @@ public class ReportTests : IDisposable
         new ReportOptions(false, false, false).Save(_store);
         Assert.Equal(new ReportOptions(false, false, false), ReportOptions.Load(_store));
     }
+
+    [Fact]
+    public void TheReportFollowsTheWebsiteLayoutAndKeepsHeaderAndFooterSpaceWhenTheyAreOff()
+    {
+        var b = new Branding("Sunrise", null, ["12 Park Road, Pune"], "+912222", "lab@sunrise.in", "sunrise.in", "Care you can trust", "Not valid for medico-legal use.", LogoDataUri: "data:image/png;base64,AAAA");
+        var data = new ReportData("Sunrise", "Asha Rao", "IRM-1", "female", "30 y", "+91", "2026-10-29",
+            [new ReportSection("Lipid", [new ReportLine("HDL", "30", "mg/dL", "40 - 60", true), new ReportLine("LDL", "90", "mg/dL", "0 - 100", false)], true)], Branding: b, EnteredBy: "Nadia");
+
+        var html = ReportHtml.Build(data, printedAt: new DateTime(2026, 10, 31, 9, 5, 0));
+
+        Assert.Contains("PATIENT INFORMATION", html);
+        Assert.Contains("TEST RESULTS", html);
+        Assert.Contains("<th style=\"width:40%\">Test Name</th>", html);
+        Assert.Contains("Lipid - HDL", html);                  // panel items are named like the website
+        Assert.Contains("&#9650; ABN", html);                  // abnormal: red triangle
+        Assert.Contains("&#10003;", html);                     // normal: tick
+        Assert.Contains("Results Entered By:</b> Nadia", html);
+        Assert.Contains("Generated on: 31/10/2026 09:05", html);
+        Assert.Contains("Sunrise - Care you can trust", html);   // "Lab - tagline" line
+        Assert.Contains("Email: lab@sunrise.in | Website: sunrise.in", html);
+
+        var off = ReportHtml.Build(data, new ReportOptions(false, false, false));
+        Assert.Contains("height:55mm", off);                   // header area left free for letterhead
+        Assert.DoesNotContain("class=\"band\"", off);
+        Assert.DoesNotContain("Generated on", off);
+
+        var list = ReportHtml.Build(data with { ListFormat = true });
+        Assert.Contains("<th style=\"width:60mm\">Test</th>", list);
+        Assert.Contains("Range: 40 - 60 • ABN", list);
+    }
 }

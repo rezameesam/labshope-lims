@@ -71,14 +71,14 @@ public class ReportTemplateTests : IDisposable
         Assert.Equal("Collected: 2026-10-29 at Sunrise (ML)", report.HeaderText);
         Assert.Contains("Collected: 2026-10-29 at Sunrise (ML)", html);
         Assert.Contains("Reviewed by Sunrise", html);
-        Assert.DoesNotContain("Reference range", html);   // the template turned the range column off
+        Assert.DoesNotContain("Normal Range", html);   // the template turned the range column off
         Assert.DoesNotContain("class=\"abn\"", html);     // ...and the abnormal marking
         Assert.DoesNotContain("Outside the reference range", html);
 
         // Without a template the report is as before.
         _store.ReplaceCatalog(CatalogWith());
         var plain = ReportHtml.Build(ReportBuilder.For(_store, "Sunrise", "p1", "2026-10-29", organizationId: Org, labId: "l1")!);
-        Assert.Contains("Reference range", plain);
+        Assert.Contains("Normal Range", plain);
         Assert.Contains("class=\"abn\"", plain);
     }
 
