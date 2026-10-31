@@ -24,6 +24,7 @@
           <TextBlock x:Name="TallyText" />
         </Border>
         <Button x:Name="PrintButton" Click="OnPrint" IsVisible="False"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="PrinterOutline" Width="17" Height="17" /><TextBlock Text="Print" /></StackPanel></Button>
+        <Button x:Name="NewEntryButton" Classes="primary" Click="OnNewEntry"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Plus" Width="17" Height="17" /><TextBlock Text="New entry" /></StackPanel></Button>
         <Button Click="OnRefresh"><StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Refresh" Width="17" Height="17" /><TextBlock Text="Refresh" /></StackPanel></Button>
       </StackPanel>
     </Grid>
@@ -45,7 +46,14 @@
         </DataGrid.Columns>
       </DataGrid>
     </DockPanel>
+    <TextBlock x:Name="NoticeText" DockPanel.Dock="Top" Classes="muted" Margin="0,0,0,10" IsVisible="False" />
     <DockPanel x:Name="ChartPanel" IsVisible="False">
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+        <Button x:Name="AddAccountButton" Content="Add account" Click="OnAddAccount" />
+        <Button x:Name="EditAccountButton" Content="Change selected" Click="OnEditAccount" />
+        <Button x:Name="ToggleAccountButton" Content="Switch selected on / off" Click="OnToggleAccount" />
+        <Button x:Name="SeedButton" Content="Create the default accounts" Click="OnSeed" IsVisible="False" />
+      </StackPanel>
       <DataGrid x:Name="ChartGrid" x:DataType="fin:AccountInfo" AutoGenerateColumns="False" IsReadOnly="True">
         <DataGrid.Columns>
           <DataGridTextColumn Header="CODE" Binding="{Binding Code}" Width="90" />

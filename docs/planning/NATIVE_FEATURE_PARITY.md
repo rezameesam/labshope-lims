@@ -47,7 +47,7 @@ the actions inside each screen. Status: **Done** (works and tested), **Partial**
 | Web section | Native | Status | What is missing |
 |---|---|---|---|
 | Subscription | Subscription page (admins) | Done | Paying/changing plan stays on the website |
-| Finance | Finance | Done (online only) | Trial balance, Profit & loss, Balance sheet, Account ledger, Chart of accounts (view only) and Outsource report. Not yet: adding or editing accounts, manual journal entries |
+| Finance | Finance | Done (online only) | Trial balance, Profit & loss, Balance sheet, Account ledger, Chart of accounts (add, change, switch on or off, create defaults), New entry (quick income, expense, transfer, capital, or custom lines) and Outsource report |
 | Quick Setup | none | Website only | First-time lab onboarding is done on the website |
 | System Settings | Lab profile in Sync & settings | Partial | Payment, WhatsApp and email provider keys stay on the website (secrets) |
 | Notifications | none | Website only | Provider keys and test email; the app already uses the lab's wording |

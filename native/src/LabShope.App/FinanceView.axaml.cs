@@ -64,6 +64,7 @@ public partial class FinanceView : UserControl
 
         if (_session.Api is null) { Show("The books can't be loaded here.", true); return; }
         MessageCard.IsVisible = false;
+        Notice("");
 
         ChartPanel.IsVisible = LedgerPanel.IsVisible = false;
         if (_report is "ledger" or "chart")
@@ -79,6 +80,7 @@ public partial class FinanceView : UserControl
             if (_report == "chart")
             {
                 ChartPanel.IsVisible = true; PrintButton.IsVisible = false;
+                SeedButton.IsVisible = _accounts.Count == 0;
                 ChartGrid.ItemsSource = _accounts;
                 return;
             }
@@ -130,6 +132,62 @@ public partial class FinanceView : UserControl
         TallyText.Foreground = new SolidColorBrush(Color.Parse(good ? "#1E8E5A" : "#C53030"));
         TallyText.Text = text;
     }
+
+    private Window? Owner => TopLevel.GetTopLevel(this) as Window;
+
+    private void Notice(string text) { NoticeText.Text = text; NoticeText.IsVisible = text.Length > 0; }
+
+    private async void OnNewEntry(object? sender, RoutedEventArgs e)
+    {
+        if (_session.Api is null) return;
+        if (_accounts.Count == 0)
+        {
+            var chart = await Ledgers.ChartAsync(_session.Api, _session.Workspace.OrganizationId);
+            if (chart.Data is not { } list) { Show(chart.Error ?? "Could not load the accounts.", chart.Offline); return; }
+            _accounts = list;
+        }
+        if (_accounts.Count(a => a.IsActive) < 2) { Notice("Add at least two accounts first (Chart of accounts)."); return; }
+        var dialog = new JournalEntryDialog(_session, _accounts);
+        await dialog.ShowDialog(Owner!);
+        if (dialog.PostedNumber is { } number) { await LoadAsync(); Notice($"Journal entry {number} posted."); }
+    }
+
+    private async void OnAddAccount(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new AccountDialog(_session);
+        await dialog.ShowDialog(Owner!);
+        if (dialog.Saved) { await LoadAsync(); Notice("Account created."); }
+    }
+
+    private async void OnEditAccount(object? sender, RoutedEventArgs e)
+    {
+        if (ChartGrid.SelectedItem is not AccountInfo account) { Notice("Select an account first."); return; }
+        var dialog = new AccountDialog(_session, account);
+        await dialog.ShowDialog(Owner!);
+        if (dialog.Saved) { await LoadAsync(); Notice("Account saved."); }
+    }
+
+    public async Task ToggleSelectedAsync()
+    {
+        if (ChartGrid.SelectedItem is not AccountInfo account || _session.Api is null) { Notice("Select an account first."); return; }
+        var r = await Bookkeeping.SetAccountActiveAsync(_session.Api, _session.Workspace.OrganizationId, account.Id, !account.IsActive);
+        if (!r.Ok) { Notice(r.Error ?? "Could not change the account."); return; }
+        await LoadAsync();
+        Notice(account.IsActive ? $"{account.Name} switched off." : $"{account.Name} switched on.");
+    }
+
+    private async void OnToggleAccount(object? sender, RoutedEventArgs e) => await ToggleSelectedAsync();
+
+    public async Task SeedAsync()
+    {
+        if (_session.Api is null) return;
+        var r = await Bookkeeping.SeedDefaultAccountsAsync(_session.Api, _session.Workspace.OrganizationId);
+        if (!r.Ok) { Notice(r.Error ?? "Could not create the default accounts."); return; }
+        await LoadAsync();
+        Notice("Default accounts created.");
+    }
+
+    private async void OnSeed(object? sender, RoutedEventArgs e) => await SeedAsync();
 
     private async void OnAccountPicked(object? sender, SelectionChangedEventArgs e) { if (!_filling && _report == "ledger") await LoadLedgerAsync(); }
 
