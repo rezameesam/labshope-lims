@@ -14,6 +14,18 @@ public sealed record AdminResult(bool Ok, string? Error);
 /// </summary>
 public static class CatalogAdmin
 {
+    /// <summary>The tests that are switched off (the catalog kept on this PC only holds active ones), read from the server so they can be switched back on.</summary>
+    public static async Task<(IReadOnlyList<Data.CatalogTest> Tests, string? Error)> InactiveTestsAsync(SupabaseApi api, string organizationId, CancellationToken ct = default)
+    {
+        var (rows, failure) = await api.SelectAllAsync("tests",
+            $"select=id,test_id,name,price,category_id,unit,normal_range_text,normal_range_min,normal_range_max&organization_id=eq.{organizationId}&is_active=eq.false&order=name.asc,id.asc", ct: ct);
+        if (failure is not null)
+            return ([], failure.NetworkFailure ? "Switched-off tests need an internet connection." : failure.Status is 401 or 403 ? "Your account isn't allowed to see them." : failure.ErrorMessage ?? "Could not load the switched-off tests.");
+        string? S(System.Text.Json.JsonElement r, string n) => r.TryGetProperty(n, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+        decimal? D(System.Text.Json.JsonElement r, string n) => r.TryGetProperty(n, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.Number ? v.GetDecimal() : null;
+        return (rows.Select(r => new Data.CatalogTest(S(r, "id")!, S(r, "test_id"), S(r, "name") ?? "", D(r, "price") ?? 0m, S(r, "category_id"), S(r, "unit"), S(r, "normal_range_text"), D(r, "normal_range_min"), D(r, "normal_range_max"))).ToList(), null);
+    }
+
     public static async Task<AdminResult> UpdateTestAsync(SupabaseApi api, string organizationId, string testId, TestEdit edit, CancellationToken ct = default)
     {
         static decimal? Num(string s, out bool bad)

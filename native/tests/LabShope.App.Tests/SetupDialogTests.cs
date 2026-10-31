@@ -345,6 +345,39 @@ public class SetupDialogTests
     }
 
     [AvaloniaFact]
+    public async Task AnAdminCanListTheSwitchedOffTestsAndOpenOneToSwitchItBackOn()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"labshope-off-{Guid.NewGuid():N}.db");
+        var store = new LocalStore(path);
+        try
+        {
+            var api = Api(new Server(HttpStatusCode.OK, """[{"id":"t9","test_id":"OLD1","name":"Old Panel","price":120,"category_id":null}]"""));
+            var session = new AppSession(new LabShope.Core.Account.Workspace("demo", "org-1", "Demo Lab", "l1", ["admin"]), store,
+                new LabShope.Core.Sync.SyncRunner(new LabShope.Core.Sync.SyncEngine(store, api, "org-1"), store), new LabShope.Core.Account.AccountService(api, path + ".json"), api);
+            var catalog = new CatalogView(session);
+            new Window { Content = catalog }.Show();
+
+            Assert.True(catalog.FindControl<CheckBox>("InactiveBox")!.IsVisible);
+            catalog.FindControl<CheckBox>("InactiveBox")!.IsChecked = true;
+            await catalog.ShowInactiveAsync(true);
+
+            Assert.Equal(["Old Panel"], catalog.FindControl<DataGrid>("TestGrid")!.ItemsSource.Cast<CatalogTest>().Select(t => t.Name));
+            Assert.Contains("switched-off", catalog.FindControl<TextBlock>("CountText")!.Text);
+
+            // The edit form for such a test starts with Active unticked, so ticking it switches the test back on.
+            var dialog = new TestEditDialog(api, "org-1", new CatalogTest("t9", "OLD1", "Old Panel", 120m, null), active: false);
+            dialog.Show();
+            Assert.False(dialog.FindControl<CheckBox>("ActiveBox")!.IsChecked);
+            dialog.Close();
+
+            var packages = catalog.FindControl<Button>("PackagesButton")!;
+            packages.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.False(catalog.FindControl<CheckBox>("InactiveBox")!.IsVisible);
+        }
+        finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
+    }
+
+    [AvaloniaFact]
     public void ThePackageAndDoctorTabsOfferTheirOwnButtonsToAdminsOnly()
     {
         var path = Path.Combine(Path.GetTempPath(), $"labshope-cat-{Guid.NewGuid():N}.db");

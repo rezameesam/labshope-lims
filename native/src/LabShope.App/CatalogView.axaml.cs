@@ -10,6 +10,7 @@ public partial class CatalogView : UserControl
 {
     private readonly AppSession _session;
     private string _tab = "tests";
+    private IReadOnlyList<CatalogTest> _inactive = [];
 
     /// <summary>Raised after a test was changed on the server so the window can refresh the catalog.</summary>
     public event Action? CatalogChanged;
@@ -36,6 +37,7 @@ public partial class CatalogView : UserControl
         foreach (var (b, key) in new[] { (TestsButton, "tests"), (PackagesButton, "packages"), (DoctorsButton, "doctors"), (LabsButton, "labs"), (CategoriesButton, "categories"), (TemplatesButton, "templates") }) b.Classes.Set("on", key == _tab);
         TestGrid.IsVisible = _tab == "tests"; PackageGrid.IsVisible = _tab == "packages"; DoctorGrid.IsVisible = _tab == "doctors";
         LabGrid.IsVisible = _tab == "labs"; CategoryGrid.IsVisible = _tab == "categories"; TemplateGrid.IsVisible = _tab == "templates";
+        InactiveBox.IsVisible = CanEdit && _tab == "tests";
         NewButton.IsVisible = CanEdit;
         EditButton.IsVisible = CanEdit && _tab != "categories";
         DeleteButton.IsVisible = CanEdit && _tab is "packages" or "doctors" or "labs" or "templates";
@@ -65,10 +67,28 @@ public partial class CatalogView : UserControl
                 var categories = catalog.CategoryList.Where(c => Match(c.Name)).ToList();
                 CategoryGrid.ItemsSource = categories; CountText.Text = $"{categories.Count} categor(ies)"; break;
             default:
-                var tests = catalog.Tests.Where(t => Match(t.Name, t.TestCode)).ToList();
-                TestGrid.ItemsSource = tests; CountText.Text = $"{tests.Count} test(s)"; break;
+                var tests = (ShowingInactive ? _inactive : catalog.Tests).Where(t => Match(t.Name, t.TestCode)).ToList();
+                TestGrid.ItemsSource = tests; CountText.Text = ShowingInactive ? $"{tests.Count} switched-off test(s)" : $"{tests.Count} test(s)"; break;
         }
     }
+
+    private bool ShowingInactive => InactiveBox.IsVisible && InactiveBox.IsChecked == true;
+
+    public async Task ShowInactiveAsync(bool on)
+    {
+        if (on && _session.Api is not null)
+        {
+            var (tests, error) = await CatalogAdmin.InactiveTestsAsync(_session.Api, _session.Workspace.OrganizationId);
+            if (error is not null) { InactiveBox.IsChecked = false; Problem(error); return; }
+            _inactive = tests;
+            MessageText.Text = "Pick a test and press Edit to switch it back on (tick Active).";
+            MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("MutedBrush")!;
+        }
+        else MessageText.Text = "";
+        Refresh();
+    }
+
+    private async void OnInactiveChanged(object? sender, RoutedEventArgs e) => await ShowInactiveAsync(InactiveBox.IsChecked == true);
 
     private bool CanEdit => _session.Api is not null && _session.Workspace.IsAdmin;
 
@@ -161,9 +181,14 @@ public partial class CatalogView : UserControl
                 if (labDialog.Saved) Done($"{chosen.Name} updated. The change reaches other computers at their next sync.");
                 break;
             case "tests" when TestGrid.SelectedItem is CatalogTest test:
-                var dialog = new TestEditDialog(_session.Api, org, test);
+                var wasOff = ShowingInactive;
+                var dialog = new TestEditDialog(_session.Api, org, test, active: !wasOff);
                 await dialog.ShowDialog(Owner);
-                if (dialog.Saved) Done($"{test.Name} updated. The new values reach other computers at their next sync.");
+                if (dialog.Saved)
+                {
+                    Done($"{test.Name} updated. The new values reach other computers at their next sync.");
+                    if (wasOff) await ShowInactiveAsync(true); // it may be on again now
+                }
                 break;
         }
     }
