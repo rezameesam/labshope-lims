@@ -26,6 +26,21 @@ public static class CatalogAdmin
         return (rows.Select(r => new Data.CatalogTest(S(r, "id")!, S(r, "test_id"), S(r, "name") ?? "", D(r, "price") ?? 0m, S(r, "category_id"), S(r, "unit"), S(r, "normal_range_text"), D(r, "normal_range_min"), D(r, "normal_range_max"))).ToList(), null);
     }
 
+    /// <summary>Switches several tests on or off in one go (the website's bulk option). Only this lab's tests are touched.</summary>
+    public static async Task<(int Changed, string? Error)> SetTestsActiveAsync(SupabaseApi api, string organizationId, IReadOnlyList<string> testIds, bool active, CancellationToken ct = default)
+    {
+        var changed = 0;
+        for (var i = 0; i < testIds.Count; i += 100)
+        {
+            var chunk = string.Join(",", testIds.Skip(i).Take(100));
+            var result = await api.PatchAsync("tests", $"id=in.({chunk})&organization_id=eq.{organizationId}", new { is_active = active }, ct);
+            if (result.NetworkFailure) return (changed, "Changing the catalog needs an internet connection.");
+            if (!result.Ok) return (changed, result.Status is 401 or 403 ? "Your account isn't allowed to change the catalog." : result.ErrorMessage ?? "The change was not saved.");
+            if (result.Body is { ValueKind: System.Text.Json.JsonValueKind.Array } rows) changed += rows.GetArrayLength();
+        }
+        return (changed, changed == 0 && testIds.Count > 0 ? "The server did not accept the change (your account may not be allowed to change the catalog)." : null);
+    }
+
     public static async Task<AdminResult> UpdateTestAsync(SupabaseApi api, string organizationId, string testId, TestEdit edit, CancellationToken ct = default)
     {
         static decimal? Num(string s, out bool bad)

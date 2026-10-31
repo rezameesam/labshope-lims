@@ -38,6 +38,8 @@ public partial class CatalogView : UserControl
         TestGrid.IsVisible = _tab == "tests"; PackageGrid.IsVisible = _tab == "packages"; DoctorGrid.IsVisible = _tab == "doctors";
         LabGrid.IsVisible = _tab == "labs"; CategoryGrid.IsVisible = _tab == "categories"; TemplateGrid.IsVisible = _tab == "templates";
         InactiveBox.IsVisible = CanEdit && _tab == "tests";
+        SelectAllButton.IsVisible = SwitchButton.IsVisible = CanEdit && _tab == "tests";
+        SwitchText.Text = ShowingInactive ? "Switch selected on" : "Switch selected off";
         NewButton.IsVisible = CanEdit;
         EditButton.IsVisible = CanEdit && _tab != "categories";
         DeleteButton.IsVisible = CanEdit && _tab is "packages" or "doctors" or "labs" or "templates";
@@ -72,19 +74,46 @@ public partial class CatalogView : UserControl
         }
     }
 
+    private void OnSelectAll(object? sender, RoutedEventArgs e) => TestGrid.SelectAll();
+
+    private async void OnSwitchSelected(object? sender, RoutedEventArgs e) => await SwitchSelectedAsync();
+
+    /// <summary>Switches the ticked tests off (normal list) or back on (switched-off list) on the server.</summary>
+    public async Task SwitchSelectedAsync()
+    {
+        if (!CanEdit || _session.Api is null) return;
+        var picked = TestGrid.SelectedItems.OfType<CatalogTest>().ToList();
+        if (picked.Count == 0) { Problem("Select the tests first (Ctrl or Shift click, or Select all shown)."); return; }
+        var on = ShowingInactive;
+        var (changed, error) = await CatalogAdmin.SetTestsActiveAsync(_session.Api, _session.Workspace.OrganizationId, picked.Select(t => t.Id).ToList(), on);
+        if (error is not null) { Problem(changed > 0 ? $"{changed} test(s) changed before a problem: {error}" : error); return; }
+        Done($"{changed} test(s) switched {(on ? "on" : "off")}. The change reaches other computers at their next sync (press F9).");
+        if (on) await ShowInactiveAsync(true, keepMessage: true);
+        else
+        {
+            // The list on this PC only changes at the next catalog refresh, so hide them now.
+            var gone = picked.Select(t => t.Id).ToHashSet();
+            TestGrid.ItemsSource = ((IEnumerable<CatalogTest>)TestGrid.ItemsSource!).Where(t => !gone.Contains(t.Id)).ToList();
+            CountText.Text = $"{((IEnumerable<CatalogTest>)TestGrid.ItemsSource).Count()} test(s)";
+        }
+    }
+
     private bool ShowingInactive => InactiveBox.IsVisible && InactiveBox.IsChecked == true;
 
-    public async Task ShowInactiveAsync(bool on)
+    public async Task ShowInactiveAsync(bool on, bool keepMessage = false)
     {
         if (on && _session.Api is not null)
         {
             var (tests, error) = await CatalogAdmin.InactiveTestsAsync(_session.Api, _session.Workspace.OrganizationId);
             if (error is not null) { InactiveBox.IsChecked = false; Problem(error); return; }
             _inactive = tests;
-            MessageText.Text = "Pick a test and press Edit to switch it back on (tick Active).";
-            MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("MutedBrush")!;
+            if (!keepMessage)
+            {
+                MessageText.Text = "Select tests and press Switch selected on, or open one with Edit.";
+                MessageText.Foreground = (Avalonia.Media.IBrush)Avalonia.Application.Current!.FindResource("MutedBrush")!;
+            }
         }
-        else MessageText.Text = "";
+        else if (!keepMessage) MessageText.Text = "";
         Refresh();
     }
 
