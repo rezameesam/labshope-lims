@@ -128,7 +128,9 @@ public class FinanceViewTests : IDisposable
         {
             if (offline) throw new System.Net.Http.HttpRequestException("offline");
             var p = r.RequestUri!.AbsolutePath;
-            var json = p.EndsWith("/accounts") ? """[{"id":"c","code":"1001","name":"Cash","type":"asset"},{"id":"a","code":"1003","name":"Accounts Receivable","type":"asset"},{"id":"r","code":"4001","name":"Test Revenue","type":"revenue"}]"""
+            var json = p.EndsWith("/patient_tests") ? """[{"id":"t1","test_name":"HbA1c","outsource_cost":200,"outsourced_at":"2026-10-29T10:00:00","patients":{"patient_id":"IRM-1","full_name":"Asha Rao"},"external_labs":{"name":"Metro Labs"}}]"""
+                : p.EndsWith("/invoice_items") ? """[{"patient_test_id":"t1","amount":500}]"""
+                : p.EndsWith("/accounts") ? """[{"id":"c","code":"1001","name":"Cash","type":"asset"},{"id":"a","code":"1003","name":"Accounts Receivable","type":"asset"},{"id":"r","code":"4001","name":"Test Revenue","type":"revenue"}]"""
                 : p.EndsWith("/journal_entries") ? """[{"id":"e1","entry_number":"AUTO-00001","entry_date":"2026-10-29","description":"Invoice INV1","reference":"INV1"},{"id":"e2","entry_number":"AUTO-00002","entry_date":"2026-10-29","description":"Payment - INV1","reference":null}]"""
                 : """[{"journal_entry_id":"e1","account_id":"a","debit":750,"credit":0},{"journal_entry_id":"e1","account_id":"r","debit":0,"credit":750},{"journal_entry_id":"e2","account_id":"c","debit":750,"credit":0},{"journal_entry_id":"e2","account_id":"a","debit":0,"credit":750}]""";
             return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json") });
@@ -191,6 +193,24 @@ public class FinanceViewTests : IDisposable
         await view.ShowReportAsync("trial");
         Assert.True(view.FindControl<Grid>("Body")!.IsVisible);
         Assert.False(view.FindControl<DockPanel>("StatementPanel")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task TheOutsourceReportShowsCostBilledAndMarginPerOutsideLab()
+    {
+        var (view, _) = Open(offline: false);
+        await view.ShowReportAsync("out");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(view.FindControl<DockPanel>("OutsourcePanel")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Body")!.IsVisible);
+        var labs = view.FindControl<DataGrid>("OutsourceLabGrid")!.ItemsSource.Cast<LabShope.Core.Finance.LabSummary>().ToList();
+        Assert.Equal(("Metro Labs", 1, 200m, 500m, 300m), (labs[0].Lab, labs[0].Count, labs[0].Cost, labs[0].Revenue, labs[0].Margin));
+        Assert.Contains("margin 300.00", view.FindControl<TextBlock>("OutsourceTotals")!.Text);
+
+        await view.ShowReportAsync("trial");
+        Assert.False(view.FindControl<DockPanel>("OutsourcePanel")!.IsVisible);
+        Assert.True(view.FindControl<Grid>("Body")!.IsVisible);
     }
 
     [AvaloniaFact]
