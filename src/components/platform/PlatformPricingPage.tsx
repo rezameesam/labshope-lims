@@ -144,7 +144,7 @@ const PlatformPricingPage = () => {
                   key={plan.name}
                   className={`flex flex-col rounded-[2rem] border p-7 shadow-sm ${
                     plan.recommended
-                      ? "border-clinical-blue bg-[linear-gradient(180deg,rgba(31,138,205,0.08),rgba(255,255,255,0.92))]"
+                      ? "border-clinical-blue bg-[linear-gradient(180deg,rgba(31,138,205,0.08),hsl(var(--card)))] dark:bg-[linear-gradient(180deg,rgba(31,138,205,0.22),hsl(var(--card)))]"
                       : "border-border bg-card"
                   }`}
                 >
@@ -195,7 +195,7 @@ const PlatformPricingPage = () => {
         </section>
 
         {/* Feature comparison strip */}
-        <section className="border-b border-border/60 bg-slate-50/60">
+        <section className="border-b border-border/60 bg-muted/40">
           <div className="container mx-auto px-4 py-12 lg:px-8">
             <div className="overflow-hidden rounded-2xl border border-border">
               <table className="w-full text-sm">
@@ -226,7 +226,7 @@ const PlatformPricingPage = () => {
                     ["Dedicated rollout support", false, false, true],
                     ["White-label customization", false, false, true],
                   ].map(([feature, starter, growth, premium]) => (
-                    <tr key={String(feature)} className="bg-card even:bg-slate-50/40">
+                    <tr key={String(feature)} className="bg-card even:bg-muted/40">
                       <td className="px-5 py-3 text-foreground">{String(feature)}</td>
                       <td className="px-5 py-3 text-center">
                         {typeof starter === "boolean" ? (starter ? <Check className="mx-auto h-4 w-4 text-emerald-500" /> : <span className="font-medium text-muted-foreground">—</span>) : <span className="text-xs font-medium text-foreground/80">{String(starter)}</span>}

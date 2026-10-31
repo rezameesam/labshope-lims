@@ -664,7 +664,7 @@ const PlatformStartPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-clinical-blue/20 bg-[linear-gradient(180deg,rgba(31,138,205,0.08),rgba(255,255,255,0.96))] p-8 shadow-sm">
+              <div className="rounded-[2rem] border border-clinical-blue/20 bg-[linear-gradient(180deg,rgba(31,138,205,0.08),hsl(var(--card)))] p-8 shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <Sparkles className="h-5 w-5" />
@@ -697,7 +697,7 @@ const PlatformStartPage = () => {
               <div
                 className={`rounded-[2rem] border p-8 shadow-sm ${
                   instantProvisionEligible
-                    ? "border-emerald-200 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(255,255,255,0.98))]"
+                    ? "border-emerald-200 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),hsl(var(--card)))]"
                     : "border-border bg-card"
                 }`}
               >
@@ -833,19 +833,19 @@ const PlatformStartPage = () => {
                         go live after DNS is updated at the registrar or DNS provider.
                       </p>
                       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                        <div className="rounded-2xl border border-amber-200 bg-card px-4 py-3 dark:border-amber-500/30">
                           <p className="text-amber-700">Record type</p>
                           <p className="mt-1 font-medium text-amber-950">
                             {getDnsGuide(submittedSnapshot.primaryDomain, submittedSnapshot.accessDomain)?.recordType || "CNAME"}
                           </p>
                         </div>
-                        <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                        <div className="rounded-2xl border border-amber-200 bg-card px-4 py-3 dark:border-amber-500/30">
                           <p className="text-amber-700">Host / Name</p>
                           <p className="mt-1 font-medium text-amber-950">
                             {getDnsGuide(submittedSnapshot.primaryDomain, submittedSnapshot.accessDomain)?.hostLabel || submittedSnapshot.primaryDomain}
                           </p>
                         </div>
-                        <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                        <div className="rounded-2xl border border-amber-200 bg-card px-4 py-3 dark:border-amber-500/30">
                           <p className="text-amber-700">Target</p>
                           <p className="mt-1 break-all font-medium text-amber-950">{submittedSnapshot.accessDomain}</p>
                         </div>
@@ -1117,15 +1117,15 @@ const PlatformStartPage = () => {
                         After purchase, ask the lab to add this DNS record so the custom domain can replace the launch subdomain.
                       </p>
                       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                        <div className="rounded-2xl border border-amber-200 bg-card px-4 py-3 dark:border-amber-500/30">
                           <p className="text-amber-700">Record type</p>
                           <p className="mt-1 font-medium text-amber-950">{customDomainDnsGuide.recordType}</p>
                         </div>
-                        <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                        <div className="rounded-2xl border border-amber-200 bg-card px-4 py-3 dark:border-amber-500/30">
                           <p className="text-amber-700">Host / Name</p>
                           <p className="mt-1 font-medium text-amber-950">{customDomainDnsGuide.hostLabel}</p>
                         </div>
-                        <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                        <div className="rounded-2xl border border-amber-200 bg-card px-4 py-3 dark:border-amber-500/30">
                           <p className="text-amber-700">Target</p>
                           <p className="mt-1 break-all font-medium text-amber-950">{customDomainDnsGuide.target}</p>
                         </div>
