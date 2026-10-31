@@ -5,26 +5,26 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="LabShope.App.OrganizationView">
   <DockPanel>
-    <StackPanel x:Name="TeamActions" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" IsVisible="False">
+    <WrapPanel x:Name="TeamActions" DockPanel.Dock="Top" ItemSpacing="8" LineSpacing="8" Margin="0,0,0,12" IsVisible="False">
       <Button x:Name="AddStaffButton" Classes="primary" Click="OnAddStaff">
         <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AccountPlusOutline" Width="17" Height="17" /><TextBlock Text="Add staff" /></StackPanel>
       </Button>
       <Button x:Name="ToggleStaffButton" Content="Switch selected person on / off" Click="OnToggleStaff" />
       <Button x:Name="EditStaffButton" Content="Edit" Click="OnEditStaff" />
       <Button x:Name="ResetStaffButton" Content="Reset password" Click="OnResetStaff" />
-    </StackPanel>
-    <StackPanel x:Name="OrgActions" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" IsVisible="False">
+    </WrapPanel>
+    <WrapPanel x:Name="OrgActions" DockPanel.Dock="Top" ItemSpacing="8" LineSpacing="8" Margin="0,0,0,12" IsVisible="False">
       <Button x:Name="NewOrgButton" Classes="primary" Click="OnNewOrg">
         <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="Plus" Width="17" Height="17" /><TextBlock x:Name="NewOrgText" Text="New lab" /></StackPanel>
       </Button>
       <Button x:Name="EditOrgButton" Content="Edit" Click="OnEditOrg" />
       <Button x:Name="DeleteOrgButton" Content="Delete" Click="OnDeleteOrg" />
-    </StackPanel>
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,16">
+    </WrapPanel>
+    <WrapPanel DockPanel.Dock="Top" ItemSpacing="8" LineSpacing="8" Margin="0,0,0,16">
       <Button x:Name="LabsButton" Classes="seg on" Content="Labs" Click="OnTab" Tag="labs" />
       <Button x:Name="CentersButton" Classes="seg" Content="Collection centres" Click="OnTab" Tag="centers" />
       <Button x:Name="TeamButton" Classes="seg" Content="Team" Click="OnTab" Tag="team" />
-    </StackPanel>
+    </WrapPanel>
     <Border x:Name="MessageCard" DockPanel.Dock="Top" Classes="card" Background="#FFF8E6" BorderBrush="#F2D488" Margin="0,0,0,16" IsVisible="False">
       <StackPanel Orientation="Horizontal" Spacing="10">
         <mi:MaterialIcon Kind="CloudOffOutline" Width="20" Height="20" Foreground="{StaticResource WarnBrush}" />

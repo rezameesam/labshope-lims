@@ -138,9 +138,9 @@ public class SetupDialogTests
             var team = new OrganizationView(session);
             new Window { Content = team }.Show();
             team.FindControl<Button>("TeamButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(allowed, team.FindControl<StackPanel>("TeamActions")!.IsVisible);
+            Assert.Equal(allowed, team.FindControl<WrapPanel>("TeamActions")!.IsVisible);
             team.FindControl<Button>("LabsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(allowed, team.FindControl<StackPanel>("OrgActions")!.IsVisible);
+            Assert.Equal(allowed, team.FindControl<WrapPanel>("OrgActions")!.IsVisible);
         }
         finally { store.Dispose(); Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); }
     }
