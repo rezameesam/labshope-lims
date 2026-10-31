@@ -12,6 +12,8 @@ public partial class FinanceView : UserControl
     private string _period = "year";
     private string _report = "trial";
     private Statement? _statement;
+    private OutsourceReport? _outsource;
+    private DateOnly _from, _to;
     private bool _loadedOnce;
 
     public FinanceView() => throw new InvalidOperationException("Use the constructor with a session.");
@@ -29,6 +31,7 @@ public partial class FinanceView : UserControl
 
     private void OnPrint(object? sender, RoutedEventArgs e)
     {
+        if (_report == "out" && _outsource is { } o) { ReceiptPrinter.OpenHtml("outsource-report", OutsourceReports.ToHtml(_session.Workspace.OrganizationName, o, _from, _to, DateTime.Now)); return; }
         if (_statement is not { } s) return;
         ReceiptPrinter.OpenHtml(_report == "pl" ? "profit-and-loss" : "balance-sheet", Statements.ToHtml(_session.Workspace.OrganizationName, s, DateTime.Now));
     }
@@ -43,7 +46,7 @@ public partial class FinanceView : UserControl
     {
         _loadedOnce = true;
         foreach (var (b, key) in new[] { (YearButton, "year"), (MonthButton, "month"), (TodayButton, "today") }) b.Classes.Set("on", key == _period);
-        foreach (var (b, key) in new[] { (TrialButton, "trial"), (PlButton, "pl"), (BsButton, "bs") }) b.Classes.Set("on", key == _report);
+        foreach (var (b, key) in new[] { (TrialButton, "trial"), (PlButton, "pl"), (BsButton, "bs"), (OutButton, "out") }) b.Classes.Set("on", key == _report);
 
         var today = DateOnly.FromDateTime(DateTime.Now);
         var (from, to) = _period switch
@@ -52,10 +55,26 @@ public partial class FinanceView : UserControl
             "today" => (today, today),
             _ => (FinanceService.FinancialYear(today).Start, today),
         };
+        (_from, _to) = (from, to);
         RangeText.Text = from == to ? from.ToString("d MMM yyyy") : $"{from:d MMM yyyy} - {to:d MMM yyyy}";
 
         if (_session.Api is null) { Show("The books can't be loaded here.", true); return; }
         MessageCard.IsVisible = false;
+
+        if (_report == "out")
+        {
+            var outResult = await OutsourceReports.LoadAsync(_session.Api, _session.Workspace.OrganizationId, from, to);
+            if (outResult.Data is not { } o) { Show(outResult.Error ?? "Could not load the report.", outResult.Offline); return; }
+            _outsource = o; _statement = null;
+            StatementPanel.IsVisible = false; Body.IsVisible = false;
+            OutsourcePanel.IsVisible = true; PrintButton.IsVisible = true;
+            OutsourceLabGrid.ItemsSource = o.Labs;
+            OutsourceTestGrid.ItemsSource = o.Tests;
+            OutsourceTotals.Text = $"{o.Tests.Count} tests · cost {o.TotalCost:N2} · billed {o.TotalRevenue:N2} · margin {o.TotalMargin:N2}";
+            TallyChip.IsVisible = false;
+            return;
+        }
+        OutsourcePanel.IsVisible = false;
 
         // A balance sheet is the position up to a date, so it adds up everything since the books began.
         var result = await FinanceService.LoadAsync(_session.Api, _session.Workspace.OrganizationId, _report == "bs" ? new DateOnly(2000, 1, 1) : from, to);
