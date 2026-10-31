@@ -82,4 +82,12 @@ public class ReportTests : IDisposable
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         File.Delete(_path);
     }
+
+    [Fact]
+    public void ThePrintChoiceIsRememberedOnThisComputer()
+    {
+        Assert.Equal(new ReportOptions(), ReportOptions.Load(_store)); // everything on the first time
+        new ReportOptions(false, false, false).Save(_store);
+        Assert.Equal(new ReportOptions(false, false, false), ReportOptions.Load(_store));
+    }
 }

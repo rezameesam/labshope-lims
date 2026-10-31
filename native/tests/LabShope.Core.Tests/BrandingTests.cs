@@ -79,6 +79,30 @@ public class BrandingTests : IDisposable
         Assert.Equal("My Lab", _store.GetBranding("My Lab").Name);
 
     [Fact]
+    public void ReportOptionsTurnTheHeaderFooterAndWatermarkOffIndependently()
+    {
+        var b = Branding.FromContext(Context, "x")! with { LogoDataUri = "data:image/png;base64,AAAA" };
+        var data = new ReportData("Sunrise", "Asha", "IRM-1", "female", "30 y", "+91", "2026-10-29", [new ReportSection("HB", [new ReportLine("HB", "12", "g/dL", "13 - 17", true)], false)], Branding: b, FooterText: "Thank you for choosing us");
+
+        var all = ReportHtml.Build(data);
+        Assert.Contains("Care you can trust", all);                    // header
+        Assert.Contains("Thank you for choosing us", all);             // footer
+        Assert.Contains("opacity:.07", all);                           // watermark
+        Assert.Contains("Asha", all);
+
+        var none = ReportHtml.Build(data, new ReportOptions(false, false, false));
+        Assert.DoesNotContain("Care you can trust", none);
+        Assert.DoesNotContain("Not valid for medico-legal use.", none);
+        Assert.DoesNotContain("Thank you for choosing us", none);
+        Assert.DoesNotContain("<img", none);
+        Assert.Contains("Asha", none);                                  // the patient and results always print
+        Assert.Contains("13 - 17", none);
+
+        Assert.DoesNotContain("opacity:.07", ReportHtml.Build(data, new ReportOptions(true, true, false)));
+        Assert.DoesNotContain("Thank you for choosing us", ReportHtml.Build(data, new ReportOptions(true, false, true)));
+    }
+
+    [Fact]
     public void ReceiptsAndReportsCarryTheLabsOwnHeaderAndFooterWording()
     {
         var b = Branding.FromContext(Context, "x")! with { LogoDataUri = "data:image/png;base64,AAAA" };

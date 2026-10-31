@@ -140,13 +140,9 @@ public partial class FlowView : UserControl
     private void OnPay(object? sender, RoutedEventArgs e) { if (CurrentPatient is { } p) TakePaymentRequested?.Invoke(p); }
     private void OnMoreTests(object? sender, RoutedEventArgs e) { if (CurrentPatient is { } p) RegisterMoreRequested?.Invoke(p); }
 
-    private void OnReport(object? sender, RoutedEventArgs e)
+    private async void OnReport(object? sender, RoutedEventArgs e)
     {
         if (Current is not { } v) return;
-        var report = ReportBuilder.For(_session.Store, _session.Workspace.OrganizationName, v.PatientId, v.Date,
-            branding: _session.Store.GetBranding(_session.Workspace.OrganizationName), organizationId: _session.Workspace.OrganizationId, labId: _session.Workspace.LabId);
-        if (report is null) { MessageText.Text = "No completed results for this patient on that date yet."; return; }
-        MessageText.Text = "";
-        ReceiptPrinter.OpenHtml($"report-{report.PatientCode}-{report.ReportDate}", ReportHtml.Build(report));
+        MessageText.Text = await ReportPrint.RunAsync((Window)TopLevel.GetTopLevel(this)!, _session, v.PatientId, v.Date);
     }
 }
