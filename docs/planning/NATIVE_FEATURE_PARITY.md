@@ -47,6 +47,7 @@ the actions inside each screen. Status: **Done** (works and tested), **Partial**
 | Web section | Native | Status | What is missing |
 |---|---|---|---|
 | Subscription | Subscription page (admins) | Done | Paying/changing plan stays on the website |
+| Patient report | Test report PDF | Done | Same layout as the website; print options (header/footer/watermark); shows blood group, registry no, centre, notes and who entered results (pulled from the server, entered on the website) |
 | Finance | Finance | Done (online only) | Trial balance, Profit & loss, Balance sheet, Account ledger, Chart of accounts (add, change, switch on or off, create defaults), New entry (quick income, expense, transfer, capital, or custom lines) and Outsource report |
 | Quick Setup | none | Website only | First-time lab onboarding is done on the website |
 | System Settings | Lab profile in Sync & settings | Partial | Payment, WhatsApp and email provider keys stay on the website (secrets) |
