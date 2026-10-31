@@ -118,13 +118,10 @@ public partial class ResultsView : UserControl
         await new ResultHistoryDialog(_session, _current.Test).ShowDialog((Window)TopLevel.GetTopLevel(this)!);
     }
 
-    private void OnPrintReport(object? sender, RoutedEventArgs e)
+    private async void OnPrintReport(object? sender, RoutedEventArgs e)
     {
         if (_current is null) return;
-        var report = ReportBuilder.For(_session.Store, _session.Workspace.OrganizationName, _current.Test.PatientId, _current.Test.TestDate, branding: _session.Store.GetBranding(_session.Workspace.OrganizationName), organizationId: _session.Workspace.OrganizationId, labId: _session.Workspace.LabId);
-        if (report is null) { MessageText.Text = "No completed results for this patient on that date yet."; return; }
-        MessageText.Text = "";
-        ReceiptPrinter.OpenHtml($"report-{report.PatientCode}-{report.ReportDate}", ReportHtml.Build(report));
+        MessageText.Text = await ReportPrint.RunAsync((Window)TopLevel.GetTopLevel(this)!, _session, _current.Test.PatientId, _current.Test.TestDate);
     }
 
     private async void OnOutsource(object? sender, RoutedEventArgs e)

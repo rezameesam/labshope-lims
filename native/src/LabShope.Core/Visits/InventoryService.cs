@@ -19,6 +19,13 @@ public sealed record InventoryResult(IReadOnlyList<InventoryItem> Items, string?
 /// </summary>
 public static class InventoryService
 {
+    /// <summary>The item whose SKU / barcode is exactly this code (ignoring case and spaces), or null.</summary>
+    public static InventoryItem? FindByBarcode(IEnumerable<InventoryItem> items, string code)
+    {
+        var wanted = code.Trim();
+        return wanted.Length == 0 ? null : items.FirstOrDefault(i => string.Equals((i.Sku ?? "").Trim(), wanted, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static async Task<InventoryResult> LoadAsync(SupabaseApi api, string organizationId, CancellationToken ct = default)
     {
         var (rows, failure) = await api.SelectAllAsync("inventory_items",

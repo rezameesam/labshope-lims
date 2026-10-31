@@ -79,4 +79,16 @@ public class RolesAdminTests
         Assert.Equal("Enter Test Results", RolesAdmin.Label("enter_test_results"));
         Assert.Equal(12, RolesAdmin.Groups.Count);
     }
+
+    [Fact]
+    public void AnInventoryItemIsFoundByItsBarcodeIgnoringCaseAndSpaces()
+    {
+        InventoryItem Item(string name, string? sku) => new("i-" + name, name, "reagent", sku, "box", 5, 2, 10, null, null);
+        var items = new[] { Item("EDTA tubes", "EDTA-100"), Item("Gloves", null), Item("Strips", " ab12 ") };
+
+        Assert.Equal("EDTA tubes", InventoryService.FindByBarcode(items, " edta-100 ")!.Name);
+        Assert.Equal("Strips", InventoryService.FindByBarcode(items, "AB12")!.Name);
+        Assert.Null(InventoryService.FindByBarcode(items, "nope"));
+        Assert.Null(InventoryService.FindByBarcode(items, "  "));
+    }
 }

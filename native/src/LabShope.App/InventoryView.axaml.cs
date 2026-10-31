@@ -83,6 +83,19 @@ public partial class InventoryView : UserControl
         else DoneText.Text = result.Error ?? "Not changed.";
     }
 
+    /// <summary>A barcode was scanned on this screen: picks the item whose SKU matches and opens the stock dialog (stock bought, or used when "Scans use stock" is ticked).</summary>
+    /// <returns>False if no item has that barcode.</returns>
+    public async Task<bool> ScanAsync(string code)
+    {
+        if (!_loadedOnce) await LoadAsync();
+        var item = InventoryService.FindByBarcode(_items, code);
+        if (item is null) { DoneText.Text = $"No item has the barcode \"{code}\". Put the code in the item's SKU field to use it."; return false; }
+        SearchBox.Text = ""; LowOnly.IsChecked = false; ApplyFilter();
+        Grid.SelectedItem = ((IEnumerable<InventoryItem>)Grid.ItemsSource!).FirstOrDefault(i => i.Id == item.Id);
+        await Record(buying: ScanUsesBox.IsChecked != true);
+        return true;
+    }
+
     private async void OnUsed(object? s, RoutedEventArgs e) => await Record(buying: false);
     private async void OnBought(object? s, RoutedEventArgs e) => await Record(buying: true);
 

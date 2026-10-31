@@ -67,10 +67,26 @@ public static class ReportBuilder
 }
 
 /// <summary>A printable lab report as a self-contained HTML page (A4), the same approach as receipts: works on any OS and printer.</summary>
+/// <summary>What to print on a report. Turn the header, footer and watermark off for pre-printed letterhead paper.</summary>
+public sealed record ReportOptions(bool IncludeHeader = true, bool IncludeFooter = true, bool IncludeWatermark = true)
+{
+    private const string Key = "report_print_options";
+
+    /// <summary>The choice made last time on this PC (everything on the first time, like the website).</summary>
+    public static ReportOptions Load(LocalStore store)
+    {
+        try { return store.GetMeta(Key) is { } json ? System.Text.Json.JsonSerializer.Deserialize<ReportOptions>(json) ?? new() : new(); }
+        catch (System.Text.Json.JsonException) { return new(); }
+    }
+
+    public void Save(LocalStore store) => store.SetMeta(Key, System.Text.Json.JsonSerializer.Serialize(this));
+}
+
 public static class ReportHtml
 {
-    public static string Build(ReportData r)
+    public static string Build(ReportData r, ReportOptions? options = null)
     {
+        options ??= new();
         string E(string? v) => WebUtility.HtmlEncode(v ?? "");
         var sb = new StringBuilder();
         sb.Append("<!doctype html><html><head><meta charset=\"utf-8\"><title>Report ").Append(E(r.PatientName)).Append("</title><style>")
@@ -82,6 +98,9 @@ public static class ReportHtml
           .Append(".note{margin-top:22px;font-size:11px;color:#555}.warn{margin:8px 0;padding:4px 8px;border:1px solid #b36b00;color:#b36b00;font-size:12px}")
           .Append("</style></head><body>");
         var b = r.Branding;
+        if (options.IncludeWatermark && b?.LogoDataUri is { Length: > 0 } mark)
+            sb.Append("<img src=\"").Append(E(mark)).Append("\" alt=\"\" style=\"position:fixed;top:50%;left:50%;width:120mm;height:120mm;object-fit:contain;transform:translate(-50%,-50%);opacity:.07;z-index:-1\">");
+        if (options.IncludeHeader) {
         sb.Append("<div class=\"head\"><div style=\"display:flex;gap:12px;align-items:center\">");
         if (b?.LogoDataUri is { Length: > 0 } logo) sb.Append("<img src=\"").Append(E(logo)).Append("\" alt=\"\" style=\"height:54px;max-width:120px;object-fit:contain\">");
         sb.Append("<div><h1>").Append(E(b?.Name ?? r.LabName)).Append("</h1>");
@@ -93,6 +112,7 @@ public static class ReportHtml
         }
         else sb.Append("<div>Laboratory report</div>");
         sb.Append("</div></div><div style=\"text-align:right\">Report date<br><b>").Append(E(Dates.FromIso(r.ReportDate))).Append("</b></div></div>");
+        } else sb.Append("<div style=\"height:34mm\"></div>"); // leave the printed letterhead's space free
         sb.Append("<div class=\"meta\"><div>Patient: <b>").Append(E(r.PatientName)).Append("</b></div><div>Patient ID: <b>").Append(E(r.PatientCode)).Append("</b></div>")
           .Append("<div>Age / sex: ").Append(E(string.Join(" / ", new[] { r.Age, r.Gender }.Where(x => !string.IsNullOrWhiteSpace(x))))).Append("</div><div>Phone: ").Append(E(r.Phone)).Append("</div></div>");
         if (!string.IsNullOrWhiteSpace(r.HeaderText)) sb.Append("<div style=\"white-space:pre-line;margin:6px 0 4px\">").Append(E(r.HeaderText)).Append("</div>");
@@ -106,8 +126,13 @@ public static class ReportHtml
                   .Append("</td><td>").Append(E(l.Unit)).Append("</td>").Append(r.ShowReference ? "<td>" + E(l.Reference) + "</td>" : "").Append("</tr>");
             sb.Append("</table>");
         }
-        if (!string.IsNullOrWhiteSpace(r.FooterText)) sb.Append("<div style=\"white-space:pre-line;margin-top:18px;font-size:12px\">").Append(E(r.FooterText)).Append("</div>");
-        sb.Append("<div class=\"note\">").Append(r.ShowFlag ? "* Outside the reference range. " : "").Append(E(r.Branding?.ReportFooterNote ?? "This is a computer generated report.")).Append("</div></body></html>");
+        if (options.IncludeFooter)
+        {
+            if (!string.IsNullOrWhiteSpace(r.FooterText)) sb.Append("<div style=\"white-space:pre-line;margin-top:18px;font-size:12px\">").Append(E(r.FooterText)).Append("</div>");
+            sb.Append("<div class=\"note\">").Append(r.ShowFlag ? "* Outside the reference range. " : "").Append(E(r.Branding?.ReportFooterNote ?? "This is a computer generated report.")).Append("</div>");
+        }
+        else if (r.ShowFlag) sb.Append("<div class=\"note\">* Outside the reference range.</div>");
+        sb.Append("</body></html>");
         return sb.ToString();
     }
 }

@@ -74,6 +74,17 @@ public class RolesViewTests : IDisposable
         Assert.Empty(_server.Calls);
     }
 
+    [AvaloniaFact]
+    public async Task ScanningAnUnknownBarcodeOnInventorySaysSoAndOpensNothing()
+    {
+        var view = new InventoryView(_session);
+        var window = new Window { Content = view };
+        window.Show(); _windows.Add(window);
+
+        Assert.False(await view.ScanAsync("0000"));
+        Assert.Contains("No item has the barcode", view.FindControl<TextBlock>("DoneText")!.Text);
+    }
+
     public void Dispose()
     {
         foreach (var w in _windows) w.Close();
