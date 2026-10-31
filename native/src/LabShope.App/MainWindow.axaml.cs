@@ -62,9 +62,31 @@ public partial class MainWindow : Window
             {
                 var v = new FlowView(session);
                 v.Changed += async () => { RefreshBadges(); await SyncAsync(); };
-                v.EnterResultsRequested += patient => { Show("results"); ((ResultsView)_pages["results"]).ShowPatient(patient); };
-                v.TakePaymentRequested += patient => { Show("bills"); ((BillsView)_pages["bills"]).ShowPatient(patient); };
-                v.RegisterMoreRequested += patient => { Show("register"); ((RegisterVisitView)_pages["register"]).UsePatient(patient); };
+                v.EnterResultsRequested += async patient =>
+                {
+                    var results = new ResultsView(session);
+                    results.ResultSaved += async () => { RefreshPages(); await SyncAsync(); };
+                    results.ShowPatient(patient);
+                    await HostWindow.ShowAsync(this, $"Results: {patient.FullName}", results);
+                    v.Refresh(); RefreshBadges();
+                };
+                v.TakePaymentRequested += async patient =>
+                {
+                    var bills = new BillsView(session);
+                    bills.PaymentTaken += async () => { RefreshPages(); await SyncAsync(); };
+                    bills.ShowPatient(patient);
+                    await HostWindow.ShowAsync(this, $"Bills: {patient.FullName}", bills);
+                    v.Refresh(); RefreshBadges();
+                };
+                v.RegisterMoreRequested += async patient =>
+                {
+                    var register = new RegisterVisitView(session);
+                    Window? host = null;
+                    register.Registered += async () => { RefreshPages(); await SyncAsync(); host?.Close(); };
+                    register.UsePatient(patient);
+                    await HostWindow.ShowAsync(this, $"More tests: {patient.FullName}", register, 1100, 800, w => host = w);
+                    v.Refresh(); RefreshBadges();
+                };
                 return v;
             }, Badge: () => _store.OpenVisitCount()),
             new("notices", "Notice board", MaterialIconKind.BellOutline, Key.None, () =>
